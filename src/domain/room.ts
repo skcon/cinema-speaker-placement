@@ -19,12 +19,36 @@
  * and y grows downward, like screen coordinates. With z up the basis is
  * left-handed, so the scene layer swaps axes when it maps to Three.js.
  *
- * **Azimuth** (Dolby's horizontal angle, docs/research/dolby-speaker-placement.md
- * section "Conventions") is measured at the MLP: 0° points from the MLP
- * straight at the front wall (the -y direction, Dolby's "center-front
- * reference"). It grows clockwise seen from above, so +90° is the listener's
- * right (+x) and ±180° is straight behind. For a point P seen from the MLP M:
- * `azimuth = atan2(P.x - M.x, M.y - P.y)`.
+ * ## Angles seen from the MLP
+ *
+ * Both follow docs/research/dolby-speaker-placement.md, section "Conventions
+ * used in this file". M is the MLP (its z is ear height), P the point seen.
+ *
+ * **Azimuth** is the horizontal angle from Dolby's "center-front reference":
+ * the line from the MLP to the middle of the front wall, F = (0, 0), where the
+ * screen and the Center channel are. It grows clockwise seen from above (toward
+ * the listener's right) and runs from -180° to +180°, where ±180° is straight
+ * behind along that line. With `bearing(dx, dy) = atan2(dx, -dy)`, the angle
+ * of a direction clockwise from -y:
+ *
+ *     azimuth = wrap(bearing(P.x - M.x, P.y - M.y) - bearing(F.x - M.x, F.y - M.y))
+ *
+ * where `wrap` brings the difference into (-180°, +180°]. The reference is not
+ * the -y direction: for an MLP off the center line at (0.5, 2.28), the Center
+ * is at 0° and straight toward the front wall is +12.4°. Only on the center
+ * line (M.x = 0) does the formula reduce to `atan2(P.x - M.x, M.y - P.y)`.
+ *
+ * **Elevation** is the angle above the horizontal plane at ear height,
+ * measured in the vertical plane through M and P: 0° at ear level, +90°
+ * straight up, -90° straight down.
+ *
+ *     elevation = atan2(P.z - M.z, hypot(P.x - M.x, P.y - M.y))
+ *
+ * Dolby's side views use one angle that sweeps over the listener: 0° straight
+ * ahead at ear level, 90° straight overhead, 180° straight behind. A Dolby
+ * value d of 90° or less is elevation d in front of the listener
+ * (|azimuth| ≤ 90°); above 90° it is elevation 180° - d behind them
+ * (|azimuth| > 90°). For example, top rear at 135° is 45° elevation, behind.
  */
 
 /** A point in room coordinates (see above), in meters. */

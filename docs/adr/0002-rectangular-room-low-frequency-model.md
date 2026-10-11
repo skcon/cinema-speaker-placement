@@ -1,0 +1,3 @@
+# Rectangular rooms and a low-frequency acoustic model
+
+v1 supports only rectangular rooms, and its estimated response models what rooms do worst and what can be computed in closed form in the browser: room modes summed at the MLP for each subwoofer position (about 20-200 Hz), speaker-boundary interference from the nearest surfaces for listener-level speakers (about 80-500 Hz), and angle/distance checks against Dolby's recommendations. Full-band simulation (ray tracing, wave-based methods) and non-rectangular rooms were rejected as too large for the 6-week scope. The output is an estimate and the UI must say so.

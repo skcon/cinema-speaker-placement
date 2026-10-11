@@ -56,6 +56,13 @@ export default defineConfig([
     ignores: ['src/domain/**'],
     languageOptions: { globals: globals.browser },
   },
+  // shadcn add output stays unmodified, and some primitives export their
+  // class variants next to the component (button's buttonVariants). That
+  // only costs a full reload instead of a fast refresh when they change.
+  {
+    files: ['src/ui/components/**/*.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
   // Layer boundaries from CLAUDE.md: domain <- state <- presentation (ui, scene, charts).
   {
     files: ['src/domain/**/*.{ts,tsx}'],

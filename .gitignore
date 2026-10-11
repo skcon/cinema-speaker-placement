@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.vite/
+coverage/
+*.local
+.env
+.env.*
+.DS_Store
+# Downloaded third-party source documents (keep out of git; see docs/research)
+docs/research/sources/
+.scratch/

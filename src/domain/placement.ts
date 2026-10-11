@@ -27,9 +27,8 @@
  * ideal ranges, though in small rooms the speakers end up close to the MLP.
  */
 import {
+  azimuthFromSide,
   CHANNELS,
-  type AngleRange,
-  type ChannelId,
   type ChannelReference,
 } from './dolby-layouts'
 import { EAR_HEIGHT } from './reference'
@@ -44,41 +43,26 @@ import { directionAtAzimuth, type Room, type RoomPoint } from './room'
  */
 export const SPEAKER_WALL_CLEARANCE = 0.3
 
-/** An auto-placed listener-level speaker. */
-export type AutoPlacement = {
-  readonly channel: ChannelId
-  readonly position: RoomPoint
-}
-
-/** Place a layout's listener-level channels around the MLP (see the rule above). */
-export function autoPlaceListenerLevel(
+/** Where a listener-level channel goes around the MLP (see the rule above). */
+export function autoPlaceSpeaker(
   room: Room,
   mlp: RoomPoint,
-  channels: readonly ChannelReference[],
-): AutoPlacement[] {
+  { channel, azimuth: { ideal } }: ChannelReference,
+): RoomPoint {
+  // The middle of the ideal range in whole degrees, on the channel's side.
+  const middle = Math.round((ideal.range.min + ideal.range.max) / 2)
+  const azimuth = azimuthFromSide(CHANNELS[channel].side, middle)
   const referenceDistance = distanceToClearance(room, mlp, 0)
-  return channels.map(({ channel, ideal }) => {
-    const azimuth = targetAzimuth(channel, ideal.range)
-    const distance = Math.min(
-      referenceDistance,
-      distanceToClearance(room, mlp, azimuth),
-    )
-    const { dx, dy } = directionAtAzimuth(mlp, azimuth)
-    return {
-      channel,
-      position: {
-        x: mlp.x + distance * dx,
-        y: mlp.y + distance * dy,
-        z: EAR_HEIGHT.meters,
-      },
-    }
-  })
-}
-
-/** The middle of the ideal range in whole degrees, negative for a left-side channel. */
-function targetAzimuth(channel: ChannelId, { min, max }: AngleRange): number {
-  const middle = Math.round((min + max) / 2)
-  return CHANNELS[channel].side === 'left' ? -middle : middle
+  const distance = Math.min(
+    referenceDistance,
+    distanceToClearance(room, mlp, azimuth),
+  )
+  const { dx, dy } = directionAtAzimuth(mlp, azimuth)
+  return {
+    x: mlp.x + distance * dx,
+    y: mlp.y + distance * dy,
+    z: EAR_HEIGHT.meters,
+  }
 }
 
 /**

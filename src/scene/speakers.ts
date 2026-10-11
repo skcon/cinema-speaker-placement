@@ -42,7 +42,14 @@ export type SpeakerMarker = {
 }
 
 export function speakerMarker(
-  { channel, position, placementRange: { angle, grade } }: PlacedSpeaker,
+  {
+    channel,
+    position,
+    placementRange: {
+      grade,
+      azimuth: { shown },
+    },
+  }: PlacedSpeaker,
   mlp: RoomPoint,
 ): SpeakerMarker {
   const dx = mlp.x - position.x
@@ -57,7 +64,7 @@ export function speakerMarker(
     // (-sin θ, -cos θ) once FLAT_ON_FLOOR lays it down.
     rotation: [-Math.PI / 2, 0, Math.atan2(-towardMlp.x, -towardMlp.y)],
     color: GRADE_STYLES[grade].color,
-    label: `${channel} ${angle}°`,
+    label: `${channel} ${shown}°`,
     grade,
     labelDirection: snapToAxis(towardMlp),
   }
@@ -73,7 +80,10 @@ function snapToAxis({ x, y }: ScreenDirection): ScreenDirection {
 /** One speaker in words, for example "Left Surround 115° (ideal)". */
 export function describeSpeaker({
   name,
-  placementRange: { angle, grade },
+  placementRange: {
+    grade,
+    azimuth: { shown },
+  },
 }: PlacedSpeaker): string {
-  return `${name} ${angle}° (${GRADE_STYLES[grade].label})`
+  return `${name} ${shown}° (${GRADE_STYLES[grade].label})`
 }

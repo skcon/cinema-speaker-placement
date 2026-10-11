@@ -1,8 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { checkPlacementRange } from '@/domain'
+import {
+  DOLBY_LAYOUTS,
+  type ChannelId,
+  type DolbyLayout,
+} from '@/domain/dolby-layouts'
+import { checkPlacementRange } from '@/domain/placement-range'
 
 const FIVE_ONE = '5.1'
 const SEVEN_ONE_FOUR = '7.1.4'
+
+/** Check an azimuth against a channel's placement range in a Dolby layout. */
+function check(dolbyLayout: DolbyLayout, channel: ChannelId, azimuth: number) {
+  const reference = DOLBY_LAYOUTS[dolbyLayout].channels.find(
+    (entry) => entry.channel === channel,
+  )
+  if (!reference) throw new Error(`${dolbyLayout} has no ${channel} channel`)
+  return checkPlacementRange(reference, azimuth)
+}
 
 describe('placement-range grade of Left and Right', () => {
   // Ideal 22°–30° (per-layout sheets), acceptable to 40° (IG fig.3)
@@ -14,7 +28,7 @@ describe('placement-range grade of Left and Right', () => {
     [41, 'outside'],
     [21, 'outside'],
   ] as const)('grades Right at %f° as %s', (azimuth, grade) => {
-    expect(checkPlacementRange(FIVE_ONE, 'R', azimuth).grade).toBe(grade)
+    expect(check(FIVE_ONE, 'R', azimuth).grade).toBe(grade)
   })
 
   it.each([
@@ -25,34 +39,41 @@ describe('placement-range grade of Left and Right', () => {
     [-41, 'outside'],
     [-21, 'outside'],
   ] as const)('grades Left at %f° as %s', (azimuth, grade) => {
-    expect(checkPlacementRange(FIVE_ONE, 'L', azimuth).grade).toBe(grade)
+    expect(check(FIVE_ONE, 'L', azimuth).grade).toBe(grade)
   })
 
   it('uses the same ranges in a layout with overheads', () => {
-    expect(checkPlacementRange(SEVEN_ONE_FOUR, 'R', 30).grade).toBe('ideal')
-    expect(checkPlacementRange(SEVEN_ONE_FOUR, 'R', 40).grade).toBe(
-      'acceptable',
-    )
-    expect(checkPlacementRange(SEVEN_ONE_FOUR, 'R', 41).grade).toBe('outside')
+    expect(check(SEVEN_ONE_FOUR, 'R', 30).grade).toBe('ideal')
+    expect(check(SEVEN_ONE_FOUR, 'R', 40).grade).toBe('acceptable')
+    expect(check(SEVEN_ONE_FOUR, 'R', 41).grade).toBe('outside')
   })
 
   it('grades a speaker on the wrong side of the center-front reference as outside', () => {
-    expect(checkPlacementRange(FIVE_ONE, 'L', 26).grade).toBe('outside')
-    expect(checkPlacementRange(FIVE_ONE, 'R', -26).grade).toBe('outside')
+    expect(check(FIVE_ONE, 'L', 26).grade).toBe('outside')
+    expect(check(FIVE_ONE, 'R', -26).grade).toBe('outside')
   })
 
   it('grades the angle to the nearest whole degree, as it is shown', () => {
-    expect(checkPlacementRange(FIVE_ONE, 'R', 30.4)).toMatchObject({
-      angle: 30,
+    expect(check(FIVE_ONE, 'R', 30.4).azimuth).toMatchObject({
+      degrees: 30.4,
+      shown: 30,
       grade: 'ideal',
     })
-    expect(checkPlacementRange(FIVE_ONE, 'L', -30.6)).toMatchObject({
-      angle: 31,
+    expect(check(FIVE_ONE, 'L', -30.6).azimuth).toMatchObject({
+      degrees: -30.6,
+      shown: 31,
       grade: 'acceptable',
     })
-    expect(checkPlacementRange(FIVE_ONE, 'R', 21.4)).toMatchObject({
-      angle: 21,
+    expect(check(FIVE_ONE, 'R', 21.4).azimuth).toMatchObject({
+      shown: 21,
       grade: 'outside',
+    })
+  })
+
+  it('gives the overall grade of the azimuth, the only angle graded so far', () => {
+    expect(check(FIVE_ONE, 'R', 35)).toMatchObject({
+      grade: 'acceptable',
+      azimuth: { grade: 'acceptable' },
     })
   })
 })
@@ -65,7 +86,7 @@ describe('placement-range grade of channels with a single Dolby range', () => {
     [1, 'outside'],
     [-1, 'outside'],
   ] as const)('grades Center at %f° as %s', (azimuth, grade) => {
-    expect(checkPlacementRange(FIVE_ONE, 'C', azimuth).grade).toBe(grade)
+    expect(check(FIVE_ONE, 'C', azimuth).grade).toBe(grade)
   })
 
   // 5-channel bed: Ls/Rs 110°–120°
@@ -79,7 +100,7 @@ describe('placement-range grade of channels with a single Dolby range', () => {
     ['Rs', 109, 'outside'],
     ['Rs', 121, 'outside'],
   ] as const)('grades %s in 5.1 at %f° as %s', (channel, azimuth, grade) => {
-    expect(checkPlacementRange(FIVE_ONE, channel, azimuth).grade).toBe(grade)
+    expect(check(FIVE_ONE, channel, azimuth).grade).toBe(grade)
   })
 
   // 7-channel bed: Ls/Rs 90°–110°, Lrs/Rrs 135°–150°
@@ -98,15 +119,13 @@ describe('placement-range grade of channels with a single Dolby range', () => {
     ['Rrs', 150, 'ideal'],
     ['Rrs', 151, 'outside'],
   ] as const)('grades %s in 7.1.4 at %f° as %s', (channel, azimuth, grade) => {
-    expect(checkPlacementRange(SEVEN_ONE_FOUR, channel, azimuth).grade).toBe(
-      grade,
-    )
+    expect(check(SEVEN_ONE_FOUR, channel, azimuth).grade).toBe(grade)
   })
 })
 
 describe('placement-range sources', () => {
   it('cites the per-layout sheet for the ideal range and IG fig.3 for the wider L/R range, noting the conflict', () => {
-    const { ideal, acceptable } = checkPlacementRange(FIVE_ONE, 'L', -26)
+    const { ideal, acceptable } = check(FIVE_ONE, 'L', -26).azimuth
 
     expect(ideal.range).toEqual({ min: 22, max: 30 })
     expect(ideal.citations).toContainEqual({ source: 'S-51' })
@@ -118,11 +137,7 @@ describe('placement-range sources', () => {
   })
 
   it('records that Dolby gives no wider range for the other channels', () => {
-    const { ideal, acceptable } = checkPlacementRange(
-      SEVEN_ONE_FOUR,
-      'Lrs',
-      -140,
-    )
+    const { ideal, acceptable } = check(SEVEN_ONE_FOUR, 'Lrs', -140).azimuth
 
     expect(ideal.range).toEqual({ min: 135, max: 150 })
     expect(ideal.citations).toContainEqual({ source: 'S-714-OH' })
@@ -132,11 +147,5 @@ describe('placement-range sources', () => {
       range: null,
       note: 'Dolby gives no wider range',
     })
-  })
-
-  it('refuses a channel the layout does not have', () => {
-    expect(() => checkPlacementRange('2.1', 'C', 0)).toThrow(
-      /2\.1 has no C channel/,
-    )
   })
 })

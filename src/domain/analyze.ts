@@ -6,7 +6,7 @@ import {
   checkPlacementRange,
   type PlacementRangeCheck,
 } from './placement-range'
-import { autoPlaceListenerLevel } from './placement'
+import { autoPlaceSpeaker } from './placement'
 import { azimuthFromMlp, type RoomPoint } from './room'
 
 /** A listener-level speaker of the layout, auto-placed and checked. */
@@ -34,17 +34,17 @@ export type RoomAnalysis = {
 export function analyzeRoom({ room, layout }: Config): RoomAnalysis {
   const mlp = defaultMlp(room)
   const { channels } = DOLBY_LAYOUTS[layout.dolbyLayout]
-  const speakers = autoPlaceListenerLevel(room, mlp, channels).map(
-    ({ channel, position }) => ({
-      channel,
-      name: CHANNELS[channel].name,
+  const speakers = channels.map((reference): PlacedSpeaker => {
+    const position = autoPlaceSpeaker(room, mlp, reference)
+    return {
+      channel: reference.channel,
+      name: CHANNELS[reference.channel].name,
       position,
       placementRange: checkPlacementRange(
-        layout.dolbyLayout,
-        channel,
+        reference,
         azimuthFromMlp(mlp, position),
       ),
-    }),
-  )
+    }
+  })
   return { layout: summarizeLayout(layout), mlp, speakers }
 }

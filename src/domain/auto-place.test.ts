@@ -40,7 +40,7 @@ describe('auto-placed listener-level speakers', () => {
     const azimuth = (
       analysis: ReturnType<typeof analyzeRoom>,
       channel: ChannelId,
-    ) => speaker(analysis, channel).placementRange.azimuth
+    ) => speaker(analysis, channel).placementRange.azimuth.degrees
 
     // L/R 22°–30°, Ls/Rs 110°–120° (5.1), 90°–110° (7.1), Lrs/Rrs 135°–150°
     expect(azimuth(fiveOne, 'C')).toBeCloseTo(0, 9)
@@ -85,7 +85,7 @@ describe('auto-placed listener-level speakers', () => {
       1.597,
       3,
     )
-    expect(left.placementRange.azimuth).toBeCloseTo(-26, 9)
+    expect(left.placementRange.azimuth.degrees).toBeCloseTo(-26, 9)
     expect(speaker(analysis, 'C').position.y).toBeCloseTo(0.3, 9)
   })
 })
@@ -148,8 +148,10 @@ describe.each(
       )
       for (const { channel, position, placementRange } of speakers) {
         const [min = Number.NaN, max = Number.NaN] = ranges[channel] ?? []
-        expect(placementRange.azimuth).toBeGreaterThanOrEqual(min - 1e-9)
-        expect(placementRange.azimuth).toBeLessThanOrEqual(max + 1e-9)
+        expect(placementRange.azimuth.degrees).toBeGreaterThanOrEqual(
+          min - 1e-9,
+        )
+        expect(placementRange.azimuth.degrees).toBeLessThanOrEqual(max + 1e-9)
         expect(placementRange.grade).toBe('ideal')
 
         expect(position.x).toBeGreaterThanOrEqual(-room.width / 2 + 0.3 - 1e-9)

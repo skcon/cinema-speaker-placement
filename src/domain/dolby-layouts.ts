@@ -48,6 +48,21 @@ export const CHANNELS = {
   Rrs: { name: 'Right Rear Surround', side: 'right' },
 } as const satisfies Record<ChannelId, { name: string; side: ChannelSide }>
 
+/**
+ * A signed azimuth (src/domain/room.ts) as an angle on the channel's own
+ * side: positive on its side, negative on the other. The Center's is
+ * unsigned. Dolby gives ranges per side (±), so this is what they measure.
+ */
+export function angleOnSide(side: ChannelSide, azimuth: number): number {
+  if (side === 'center') return Math.abs(azimuth)
+  return side === 'left' ? -azimuth : azimuth
+}
+
+/** The signed azimuth of an angle on the channel's own side: the inverse of `angleOnSide`. */
+export function azimuthFromSide(side: ChannelSide, angle: number): number {
+  return side === 'left' ? -angle : angle
+}
+
 /** Where the channel names come from. */
 export const CHANNEL_NAME_CITATIONS = [
   { source: 'IG', page: 8 },
@@ -66,15 +81,24 @@ export type CitedAngleRange = {
 /** Recorded where Dolby gives a single range, so nothing grades acceptable. */
 export type NoWiderRange = { readonly range: null; readonly note: string }
 
-/** A channel's placement range: graded ideal, acceptable or outside. */
-export type PlacementRangeReference = {
-  /** Dolby's recommended azimuth range: inside it grades ideal. */
+/** Dolby's ranges for one angle: graded ideal, acceptable or outside. */
+export type AngleReference = {
+  /** Dolby's recommended range: inside it grades ideal. */
   readonly ideal: CitedAngleRange
   /**
-   * A wider azimuth range Dolby also allows, containing the ideal one:
-   * inside it (but not the ideal range) grades acceptable.
+   * A wider range Dolby also allows, containing the ideal one: inside it
+   * (but not the ideal range) grades acceptable.
    */
   readonly acceptable: CitedAngleRange | NoWiderRange
+}
+
+/**
+ * A channel's placement range, one part per angle Dolby gives. Listener-level
+ * channels have an azimuth only; overheads (#8) add an elevation.
+ */
+export type PlacementRangeReference = {
+  /** On the channel's own side of the center-front reference. */
+  readonly azimuth: AngleReference
 }
 
 export type ChannelReference = PlacementRangeReference & {
@@ -168,7 +192,7 @@ const NO_WIDER_RANGE = {
   note: 'Dolby gives no wider range',
 } as const satisfies NoWiderRange
 
-/** One channel's placement range, its ideal range cited to its layout's sources. */
+/** One channel's placement range, its ideal azimuth cited to its layout's sources. */
 function channelRange<
   const Channel extends ChannelId,
   const Ideal extends AngleRange,
@@ -180,7 +204,10 @@ function channelRange<
   acceptable: Acceptable,
   citations: Citations,
 ) {
-  return { channel, ideal: { range: ideal, citations }, acceptable }
+  return {
+    channel,
+    azimuth: { ideal: { range: ideal, citations }, acceptable },
+  }
 }
 
 /** L and R, as in 2.1. */

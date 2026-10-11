@@ -1,3 +1,6 @@
+import { useRouter } from '@tanstack/react-router'
+import { useCallback } from 'react'
+import { encodeConfig, type Config } from '@/domain'
 import { ShareLinkProvider } from '@/ShareLinkProvider'
 import { AppShell } from '@/ui/AppShell'
 
@@ -6,9 +9,29 @@ import { AppShell } from '@/ui/AppShell'
  * stays in step with the share link in the address.
  */
 export function App() {
+  const shareLinkFor = useShareLinkFor()
   return (
     <ShareLinkProvider>
-      <AppShell />
+      <AppShell shareLinkFor={shareLinkFor} />
     </ShareLinkProvider>
+  )
+}
+
+/**
+ * The full URL that opens a config: this page, base path included (such as
+ * /cinema-speaker-placement/ on GitHub Pages), with the config as its
+ * share link.
+ */
+function useShareLinkFor(): (config: Config) => string {
+  const router = useRouter()
+  return useCallback(
+    (config) => {
+      const { publicHref } = router.buildLocation({
+        to: '.',
+        search: (search) => ({ ...search, config: encodeConfig(config) }),
+      })
+      return new URL(publicHref, window.location.href).href
+    },
+    [router],
   )
 }

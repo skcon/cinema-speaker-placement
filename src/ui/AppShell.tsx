@@ -1,6 +1,8 @@
 import { cn } from 'cn'
 import { useId, type ReactNode } from 'react'
+import type { Config } from '@/domain'
 import { RoomView } from '@/scene/RoomView'
+import { CopyLinkButton } from '@/ui/CopyLinkButton'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { RoomForm } from '@/ui/RoomForm'
 
@@ -9,15 +11,23 @@ import { RoomForm } from '@/ui/RoomForm'
  * the left, the room view top-right and the response chart below it. On narrow
  * screens the three areas stack vertically.
  */
-export function AppShell() {
+export function AppShell({
+  shareLinkFor,
+}: {
+  /** The full URL that opens a config, for the Copy link button. */
+  shareLinkFor: (config: Config) => string
+}) {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground lg:h-svh lg:flex-row">
       <div className="flex flex-col gap-6 border-b bg-sidebar p-4 text-sidebar-foreground lg:w-1/5 lg:min-w-64 lg:overflow-y-auto lg:border-r lg:border-b-0">
-        <header>
-          <h1 className="text-lg font-semibold">Cinema Speaker Placement</h1>
-          <p className="text-sm text-muted-foreground">
-            Plan your home theater for sound, not looks.
-          </p>
+        <header className="flex flex-col gap-3">
+          <div>
+            <h1 className="text-lg font-semibold">Cinema Speaker Placement</h1>
+            <p className="text-sm text-muted-foreground">
+              Plan your home theater for sound, not looks.
+            </p>
+          </div>
+          <CopyLinkButton shareLinkFor={shareLinkFor} />
         </header>
         <LinkProblemMessage />
         <aside

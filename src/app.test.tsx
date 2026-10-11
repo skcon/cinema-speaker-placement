@@ -11,6 +11,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, encodeConfig, type Config } from '@/domain'
 import { createAppRouter } from '@/router'
+import { mockClipboard } from '@/test/clipboard'
 
 function renderApp(path = '/') {
   const history = createMemoryHistory({ initialEntries: [path] })
@@ -184,6 +185,26 @@ describe('share links', () => {
     const message = await screen.findByRole('alert')
     expect(message).toHaveTextContent('This link needs a newer version')
     expect(message).toHaveTextContent(/reload the page/i)
+  })
+
+  it('copies the full link of the room being edited, before the address catches up', async () => {
+    const writeText = mockClipboard()
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+
+    fireEvent.change(await findInput('Length', 'ft'), {
+      target: { value: '30' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+
+    // 30 ft 3 in = 9.2202 m
+    const edited: Config = {
+      ...IMPERIAL_ROOM,
+      room: { ...IMPERIAL_ROOM.room, length: (30 * 12 + 3) * 0.0254 },
+    }
+    expect(await screen.findByText('Link copied')).toBeInTheDocument()
+    expect(writeText).toHaveBeenCalledWith(
+      new URL(shareLinkPath(edited), window.location.origin).href,
+    )
   })
 
   it('shows no message for a good link', async () => {

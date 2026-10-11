@@ -6,7 +6,7 @@ See [CLAUDE.md](CLAUDE.md) for the project brief and architecture, [GLOSSARY.md]
 
 ## Quickstart
 
-You need Node 22.13 or newer (see `.nvmrc`) and npm.
+You need Node 22 (22.13 or a later 22.x) and npm. `.nvmrc` selects Node 22 for `nvm use` and CI, and `engines` in `package.json` requires `^22.13.0`.
 
 ```bash
 npm install

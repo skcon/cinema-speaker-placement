@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react'
+import { RoomView } from '@/scene/RoomView'
 import { cn } from '@/ui/lib/utils'
 import { RoomForm } from '@/ui/RoomForm'
 
@@ -28,17 +29,18 @@ export function AppShell() {
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-        <Panel title="Room view" className="min-h-80 lg:flex-3">
-          A top-down view of the room with every speaker and the MLP will be
-          shown here.
+        <Panel title="Room view" className="min-h-112 lg:min-h-0 lg:flex-3">
+          <RoomView />
         </Panel>
         <Panel
           title="Estimated response"
           note="An estimate from a simplified model, never a measurement."
-          className="min-h-64 lg:flex-2"
+          className="min-h-64 lg:min-h-0 lg:flex-2"
         >
-          The estimated response at the MLP, compared with the target curve,
-          will be charted here.
+          <Placeholder>
+            The estimated response at the MLP, compared with the target curve,
+            will be charted here.
+          </Placeholder>
         </Panel>
       </main>
     </div>
@@ -68,10 +70,17 @@ function Panel({
       <h2 id={headingId} className="font-medium">
         {title}
       </h2>
-      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-        <p>{children}</p>
-      </div>
+      {children}
       {note && <p className="text-xs text-muted-foreground">{note}</p>}
     </section>
+  )
+}
+
+/** Stands in for a panel's content until its ticket lands. */
+function Placeholder({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+      <p>{children}</p>
+    </div>
   )
 }

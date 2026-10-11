@@ -15,6 +15,7 @@ export {
   type RoomPoint,
 } from './room'
 export {
+  METERS_PER_FOOT,
   feetAndInchesToMeters,
   formatLength,
   metersToFeetAndInches,

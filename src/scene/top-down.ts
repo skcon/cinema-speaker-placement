@@ -90,10 +90,8 @@ export function topDownCamera(room: Room, size: ViewportSize) {
   const zoom = Math.min(fitsAcross, fitsDown)
   const height = room.height + CAMERA_CLEARANCE
   return {
-    position: [0, height, room.length / 2] as Vec3,
-    // Turning the default camera (looking along -z, up +y) by -90° about x
-    // makes it look down -y with its up vector along -z: the front wall.
-    rotation: [-Math.PI / 2, 0, 0] as Vec3,
+    position: toScenePosition({ ...floorCenter(room), z: height }),
+    rotation: FLAT_ON_FLOOR,
     zoom: zoom > 0 && Number.isFinite(zoom) ? zoom : 1,
     near: CAMERA_CLEARANCE / 2,
     far: height + CAMERA_CLEARANCE,

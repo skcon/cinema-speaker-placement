@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import { cn } from '@/ui/lib/utils'
+import { RoomForm } from '@/ui/RoomForm'
 
 /**
  * Page layout: a sidebar (about 1/5 width) for the room and layout config on
@@ -18,14 +19,12 @@ export function AppShell() {
         </header>
         <aside
           aria-labelledby="sidebar-heading"
-          className="flex flex-col gap-2"
+          className="flex flex-col gap-4"
         >
           <h2 id="sidebar-heading" className="font-medium">
             Room and layout
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Room size, layout and speaker group specs will be set here.
-          </p>
+          <RoomForm />
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">

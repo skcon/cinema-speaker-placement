@@ -29,6 +29,16 @@ describe('app shell', () => {
     ).toBeInTheDocument()
   })
 
+  it('starts with the default room in the sidebar', async () => {
+    renderApp()
+
+    const sidebar = await screen.findByRole('complementary', {
+      name: 'Room and layout',
+    })
+    const length = within(sidebar).getByRole('group', { name: 'Length' })
+    expect(within(length).getByRole('textbox', { name: 'm' })).toHaveValue('6')
+  })
+
   it('says the response is an estimate, not a measurement', async () => {
     renderApp()
 

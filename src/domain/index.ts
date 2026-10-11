@@ -2,8 +2,14 @@
  * The domain's public interface. The state and presentation layers import
  * from `@/domain` only, so the modules behind it can change freely.
  */
-export { analyzeRoom, type RoomAnalysis } from './analyze'
+export { analyzeRoom, type PlacedSpeaker, type RoomAnalysis } from './analyze'
 export { DEFAULT_CONFIG, type Config } from './config'
+export {
+  formatLayout,
+  type Layout,
+  type SpeakerFormat,
+  type SubwooferCount,
+} from './layout'
 export {
   checkRoomDimension,
   DEFAULT_ROOM,

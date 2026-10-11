@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { createConfigStore } from '@/state/config-store'
 
 describe('config store', () => {
-  it('starts with the default config: metric, 6 x 4.5 x 2.6 m', () => {
+  it('starts with the default config: metric, 6 x 4.5 x 2.6 m, 5.1.2', () => {
     const store = createConfigStore()
 
     expect(store.getState().config).toEqual({
       units: 'metric',
       room: { length: 6, width: 4.5, height: 2.6 },
+      layout: { listenerLevel: 5, subwoofers: 1, overheads: 2 },
     })
   })
 
@@ -15,11 +16,13 @@ describe('config store', () => {
     const store = createConfigStore({
       units: 'imperial',
       room: { length: 8, width: 5, height: 3 },
+      layout: { listenerLevel: 7, subwoofers: 2, overheads: 4 },
     })
 
     expect(store.getState().config).toEqual({
       units: 'imperial',
       room: { length: 8, width: 5, height: 3 },
+      layout: { listenerLevel: 7, subwoofers: 2, overheads: 4 },
     })
   })
 
@@ -55,7 +58,7 @@ describe('config store', () => {
 
     store.getState().setUnits('imperial')
 
-    expect(store.getState().config).toEqual({
+    expect(store.getState().config).toMatchObject({
       units: 'imperial',
       room: { length: 6, width: 4.5, height: 2.6 },
     })

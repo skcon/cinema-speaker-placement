@@ -18,6 +18,12 @@ export {
   type Wall,
 } from './room'
 export {
+  decodeConfig,
+  encodeConfig,
+  type DecodedShareLink,
+  type ShareLinkProblem,
+} from './share-link'
+export {
   formatLength,
   UNIT_SYSTEMS,
   type LengthPart,

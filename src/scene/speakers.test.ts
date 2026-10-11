@@ -74,7 +74,7 @@ describe('speaker markers in the top-down scene', () => {
   it('put the label beside the marker on the MLP side, straight across or straight up or down the screen', () => {
     const sevenOne = analyzeRoom({
       ...DEFAULT_CONFIG,
-      layout: { listenerLevel: 7, subwoofers: 1, overheads: 0 },
+      layout: { dolbyLayout: '7.1', subwoofers: 1 },
     })
     const labelDirection = (channel: string) => {
       const speaker = sevenOne.speakers.find((s) => s.channel === channel)

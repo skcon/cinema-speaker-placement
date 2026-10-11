@@ -1,5 +1,5 @@
 import { lazy, Suspense, useId, useState } from 'react'
-import { formatLayout, formatLength, UNIT_SYSTEMS } from '@/domain'
+import { formatLength, UNIT_SYSTEMS } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { describeSpeaker, GRADE_STYLES } from '@/scene/speakers'
 import { canUseWebGL } from '@/scene/webgl'
@@ -16,8 +16,8 @@ const RoomCanvas = lazy(() =>
  */
 export function RoomView() {
   const [webGL] = useState(canUseWebGL)
-  const { room, units, layout } = useConfig((state) => state.config)
-  const { mlp, speakers } = useRoomAnalysis()
+  const { room, units } = useConfig((state) => state.config)
+  const { layout, mlp, speakers } = useRoomAnalysis()
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
 
@@ -26,7 +26,7 @@ export function RoomView() {
     `and ${formatLength(room.width, units)} wide, with the front wall at ` +
     `the top and the MLP ${formatLength(mlp.y, units)} from the front wall.`
   const speakersDescription =
-    `${formatLayout(layout)} listener-level speakers, angle from the MLP ` +
+    `${layout.name} listener-level speakers, angle from the MLP ` +
     `and Dolby placement-range grade: ` +
     `${speakers.map(describeSpeaker).join(', ')}.`
 

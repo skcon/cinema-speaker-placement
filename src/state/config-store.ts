@@ -3,8 +3,8 @@ import {
   checkRoomDimension,
   DEFAULT_CONFIG,
   type Config,
+  type DolbyLayout,
   type RoomDimension,
-  type SpeakerFormat,
   type UnitSystem,
 } from '@/domain'
 
@@ -15,8 +15,8 @@ export type ConfigState = {
   setUnits: (units: UnitSystem) => void
   /** Set one room dimension, in meters. Out-of-range values are ignored. */
   setRoomDimension: (dimension: RoomDimension, meters: number) => void
-  /** Switch to another v1 layout (X and Z), keeping the subwoofer count. */
-  setLayout: (format: SpeakerFormat) => void
+  /** Switch to another v1 Dolby layout (X and Z), keeping the subwoofer count. */
+  setLayout: (dolbyLayout: DolbyLayout) => void
   /**
    * Put every speaker back at its auto-placed position. Until manual
    * positions exist (#9) every position is derived already, so this only
@@ -42,12 +42,9 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
         config: { ...config, room: { ...config.room, [dimension]: meters } },
       }))
     },
-    setLayout: (format) =>
+    setLayout: (dolbyLayout) =>
       set(({ config }) => ({
-        config: {
-          ...config,
-          layout: { ...format, subwoofers: config.layout.subwoofers },
-        },
+        config: { ...config, layout: { ...config.layout, dolbyLayout } },
       })),
     autoPlace: () => set(({ config }) => ({ config: { ...config } })),
   }))

@@ -1,5 +1,6 @@
 import type { Config } from './config'
-import { CHANNELS, dolbyLayoutFor, type ChannelId } from './dolby-layouts'
+import { CHANNELS, DOLBY_LAYOUTS, type ChannelId } from './dolby-layouts'
+import { summarizeLayout, type LayoutSummary } from './layout'
 import { defaultMlp } from './mlp'
 import {
   checkPlacementRange,
@@ -21,6 +22,8 @@ export type PlacedSpeaker = {
 
 /** Everything derived from a config. Later tickets add overheads, subwoofers and the estimated response. */
 export type RoomAnalysis = {
+  /** The layout's name and channel counts. */
+  layout: LayoutSummary
   /** The MLP in room coordinates. */
   mlp: RoomPoint
   /** The layout's listener-level speakers, in Dolby's channel order. */
@@ -30,18 +33,18 @@ export type RoomAnalysis = {
 /** The domain entry point: derive the room plan from a config. */
 export function analyzeRoom({ room, layout }: Config): RoomAnalysis {
   const mlp = defaultMlp(room)
-  const { channels } = dolbyLayoutFor(layout)
+  const { channels } = DOLBY_LAYOUTS[layout.dolbyLayout]
   const speakers = autoPlaceListenerLevel(room, mlp, channels).map(
     ({ channel, position }) => ({
       channel,
       name: CHANNELS[channel].name,
       position,
       placementRange: checkPlacementRange(
-        layout,
+        layout.dolbyLayout,
         channel,
         azimuthFromMlp(mlp, position),
       ),
     }),
   )
-  return { mlp, speakers }
+  return { layout: summarizeLayout(layout), mlp, speakers }
 }

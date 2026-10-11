@@ -1,37 +1,52 @@
 /**
  * The Layout, written `X.Y.Z`: X listener-level channels, Y subwoofers and
- * Z overhead channels (GLOSSARY.md). Plain data, so it can go into a share
- * link as it is.
+ * Z overhead channels (GLOSSARY.md). Stored as its Dolby layout plus the
+ * subwoofer count, so only v1 layouts can be represented, and as plain data
+ * a share link can carry and validate.
  */
+import { DOLBY_LAYOUTS, type DolbyLayout } from './dolby-layouts'
 
 /** How many subwoofers (the Y): 1 to 4 for every v1 layout (issue #2). */
 export type SubwooferCount = 1 | 2 | 3 | 4
 
-/**
- * X and Z of a v1 layout: 2.1, 3.1, 5.1 and 7.1, and 5.1 or 7.1 with 2 or 4
- * overhead speakers. Dolby uses the same listener-level angles whatever
- * the subwoofer count, since Dolby Atmos makes one LFE signal however many
- * subwoofer outputs there are (IG p.16).
- */
-export type SpeakerFormat =
-  | { readonly listenerLevel: 2 | 3; readonly overheads: 0 }
-  | { readonly listenerLevel: 5 | 7; readonly overheads: 0 | 2 | 4 }
-
-export type Layout = SpeakerFormat & { readonly subwoofers: SubwooferCount }
-
-/** First-visit layout from the v1 spec (issue #2, user story 6). */
-export const DEFAULT_LAYOUT: Layout = {
-  listenerLevel: 5,
-  subwoofers: 1,
-  overheads: 2,
+export type Layout = {
+  /**
+   * X and Z, as Dolby's guide names the layout ("5.1.2"). Dolby uses the
+   * same listener-level angles whatever the subwoofer count, since Dolby
+   * Atmos makes one LFE signal however many subwoofer outputs there are
+   * (IG p.16).
+   */
+  readonly dolbyLayout: DolbyLayout
+  readonly subwoofers: SubwooferCount
 }
 
-/** The layout in `X.Y.Z` notation, leaving out `.Z` without overheads: "5.1.2", "7.2", "2.1". */
-export function formatLayout({
-  listenerLevel,
+/** A layout's channel counts and its name in `X.Y.Z` notation. */
+export type LayoutSummary = {
+  /** For example "5.1.2", "7.2.4" or "2.1" (no `.Z` without overheads). */
+  readonly name: string
+  readonly listenerLevel: number
+  readonly subwoofers: SubwooferCount
+  readonly overheads: number
+}
+
+/** First-visit layout from the v1 spec (issue #2, user story 6). */
+export const DEFAULT_LAYOUT: Layout = { dolbyLayout: '5.1.2', subwoofers: 1 }
+
+export function summarizeLayout({
+  dolbyLayout,
   subwoofers,
-  overheads,
-}: Layout): string {
+}: Layout): LayoutSummary {
+  const { listenerLevel, overheads } = DOLBY_LAYOUTS[dolbyLayout]
   const xy = `${listenerLevel}.${subwoofers}`
-  return overheads === 0 ? xy : `${xy}.${overheads}`
+  return {
+    name: overheads === 0 ? xy : `${xy}.${overheads}`,
+    listenerLevel,
+    subwoofers,
+    overheads,
+  }
+}
+
+/** The layout in `X.Y.Z` notation: "5.1.2", "7.2.4", "2.1". */
+export function formatLayout(layout: Layout): string {
+  return summarizeLayout(layout).name
 }

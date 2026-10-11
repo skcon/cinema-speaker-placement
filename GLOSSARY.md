@@ -27,8 +27,12 @@ _Avoid_: Couch zone
 ## Speakers
 
 **Layout**:
-The speaker format written as `X.Y.Z`: X listener-level channels, Y subwoofers, Z height channels (for example `5.1.4`, or `7.2.4` with two subwoofers).
+The speakers of a room written as `X.Y.Z`: X listener-level channels, Y subwoofers, Z height channels (for example `5.1.4`, or `7.2.4` with two subwoofers).
 _Avoid_: Speaker configuration, setup, format
+
+**Dolby layout**:
+A layout as Dolby's placement guides name it, always with one subwoofer: `2.1`, `3.1`, `5.1`, `7.1`, `5.1.2`, `5.1.4`, `7.1.2` or `7.1.4` in v1. It fixes the channels and their placement ranges; a layout is a Dolby layout plus its subwoofer count (`7.2.4` follows the `7.1.4` guide).
+_Avoid_: Speaker format, base layout
 
 **Overhead speaker**:
 A height speaker mounted in or on the ceiling, aimed at the MLP.
@@ -39,7 +43,7 @@ An upward-firing height speaker that reflects sound off the ceiling (Dolby's ter
 _Avoid_: Up-firing module, bounce speaker
 
 **Channel**:
-A named role within a layout (Front Left, Center, Top Front Left...), following Dolby's channel names.
+A named role within a layout (Left, Center, Left Surround, Left Top Front...), following Dolby's channel names (`docs/research/dolby-speaker-placement.md` section 2).
 _Avoid_: Speaker slot, position
 
 **Speaker**:

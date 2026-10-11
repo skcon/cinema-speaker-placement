@@ -3,7 +3,7 @@ import {
   analyzeRoom,
   DEFAULT_CONFIG,
   formatLayout,
-  V1_SPEAKER_FORMATS,
+  V1_DOLBY_LAYOUTS,
   type Config,
 } from '@/domain'
 
@@ -20,7 +20,7 @@ describe('the default config', () => {
     expect(DEFAULT_CONFIG).toEqual({
       units: 'metric',
       room: { length: 6, width: 4.5, height: 2.6 },
-      layout: { listenerLevel: 5, subwoofers: 1, overheads: 2 },
+      layout: { dolbyLayout: '5.1.2', subwoofers: 1 },
     })
   })
 })
@@ -39,31 +39,19 @@ describe('listener-level speakers', () => {
   })
 
   it.each([
-    ['2.1', { listenerLevel: 2, overheads: 0 }, ['L', 'R']],
-    ['3.1', { listenerLevel: 3, overheads: 0 }, ['L', 'C', 'R']],
-    ['5.1', { listenerLevel: 5, overheads: 0 }, ['L', 'C', 'R', 'Ls', 'Rs']],
-    [
-      '7.1',
-      { listenerLevel: 7, overheads: 0 },
-      ['L', 'C', 'R', 'Ls', 'Rs', 'Lrs', 'Rrs'],
-    ],
-    ['5.1.2', { listenerLevel: 5, overheads: 2 }, ['L', 'C', 'R', 'Ls', 'Rs']],
-    ['5.1.4', { listenerLevel: 5, overheads: 4 }, ['L', 'C', 'R', 'Ls', 'Rs']],
-    [
-      '7.1.2',
-      { listenerLevel: 7, overheads: 2 },
-      ['L', 'C', 'R', 'Ls', 'Rs', 'Lrs', 'Rrs'],
-    ],
-    [
-      '7.1.4',
-      { listenerLevel: 7, overheads: 4 },
-      ['L', 'C', 'R', 'Ls', 'Rs', 'Lrs', 'Rrs'],
-    ],
+    ['2.1', ['L', 'R']],
+    ['3.1', ['L', 'C', 'R']],
+    ['5.1', ['L', 'C', 'R', 'Ls', 'Rs']],
+    ['7.1', ['L', 'C', 'R', 'Ls', 'Rs', 'Lrs', 'Rrs']],
+    ['5.1.2', ['L', 'C', 'R', 'Ls', 'Rs']],
+    ['5.1.4', ['L', 'C', 'R', 'Ls', 'Rs']],
+    ['7.1.2', ['L', 'C', 'R', 'Ls', 'Rs', 'Lrs', 'Rrs']],
+    ['7.1.4', ['L', 'C', 'R', 'Ls', 'Rs', 'Lrs', 'Rrs']],
   ] as const)(
     'places only the listener-level channels of %s',
-    (_, format, channels) => {
+    (dolbyLayout, channels) => {
       const { speakers } = analyzeRoom(
-        configWithLayout({ ...format, subwoofers: 1 }),
+        configWithLayout({ dolbyLayout, subwoofers: 1 }),
       )
 
       expect(speakers.map(({ channel }) => channel)).toEqual(channels)
@@ -73,32 +61,45 @@ describe('listener-level speakers', () => {
   it('uses the same listener-level channels whatever the subwoofer count', () => {
     const channels = (subwoofers: 1 | 4) =>
       analyzeRoom(
-        configWithLayout({ listenerLevel: 7, overheads: 4, subwoofers }),
+        configWithLayout({ dolbyLayout: '7.1.4', subwoofers }),
       ).speakers.map(({ channel }) => channel)
 
     expect(channels(4)).toEqual(channels(1))
   })
 })
 
-describe('layout notation', () => {
-  it('offers the eight v1 layouts, listener-level only first', () => {
-    expect(
-      V1_SPEAKER_FORMATS.map((format) =>
-        formatLayout({ ...format, subwoofers: 1 }),
-      ),
-    ).toEqual(['2.1', '3.1', '5.1', '7.1', '5.1.2', '5.1.4', '7.1.2', '7.1.4'])
+describe('layouts', () => {
+  it('offers the eight v1 Dolby layouts, listener-level only first', () => {
+    expect(V1_DOLBY_LAYOUTS).toEqual([
+      '2.1',
+      '3.1',
+      '5.1',
+      '7.1',
+      '5.1.2',
+      '5.1.4',
+      '7.1.2',
+      '7.1.4',
+    ])
   })
 
-  it('writes a layout as X.Y.Z, leaving out .Z without overheads', () => {
+  it('writes each Dolby layout with one subwoofer as Dolby names it', () => {
     expect(
-      formatLayout({ listenerLevel: 5, subwoofers: 1, overheads: 2 }),
-    ).toBe('5.1.2')
+      V1_DOLBY_LAYOUTS.map((dolbyLayout) =>
+        formatLayout({ dolbyLayout, subwoofers: 1 }),
+      ),
+    ).toEqual(V1_DOLBY_LAYOUTS)
+  })
+
+  it('writes a layout as X.Y.Z with its subwoofer count as Y, leaving out .Z without overheads', () => {
+    expect(formatLayout({ dolbyLayout: '7.1.4', subwoofers: 2 })).toBe('7.2.4')
+    expect(formatLayout({ dolbyLayout: '5.1', subwoofers: 4 })).toBe('5.4')
+  })
+
+  it('reports the X.Y.Z counts of the analyzed layout', () => {
     expect(
-      formatLayout({ listenerLevel: 7, subwoofers: 2, overheads: 4 }),
-    ).toBe('7.2.4')
-    expect(
-      formatLayout({ listenerLevel: 2, subwoofers: 1, overheads: 0 }),
-    ).toBe('2.1')
+      analyzeRoom(configWithLayout({ dolbyLayout: '7.1.2', subwoofers: 3 }))
+        .layout,
+    ).toEqual({ name: '7.3.2', listenerLevel: 7, subwoofers: 3, overheads: 2 })
   })
 })
 

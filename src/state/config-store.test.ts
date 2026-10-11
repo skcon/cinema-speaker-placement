@@ -9,7 +9,7 @@ describe('config store', () => {
     expect(store.getState().config).toEqual({
       units: 'metric',
       room: { length: 6, width: 4.5, height: 2.6 },
-      layout: { listenerLevel: 5, subwoofers: 1, overheads: 2 },
+      layout: { dolbyLayout: '5.1.2', subwoofers: 1 },
     })
   })
 
@@ -17,13 +17,13 @@ describe('config store', () => {
     const store = createConfigStore({
       units: 'imperial',
       room: { length: 8, width: 5, height: 3 },
-      layout: { listenerLevel: 7, subwoofers: 2, overheads: 4 },
+      layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
     })
 
     expect(store.getState().config).toEqual({
       units: 'imperial',
       room: { length: 8, width: 5, height: 3 },
-      layout: { listenerLevel: 7, subwoofers: 2, overheads: 4 },
+      layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
     })
   })
 
@@ -69,20 +69,20 @@ describe('config store', () => {
     const store = createConfigStore({
       ...DEFAULT_CONFIG,
       room: { length: 8, width: 5, height: 3 },
-      layout: { listenerLevel: 5, subwoofers: 2, overheads: 2 },
+      layout: { dolbyLayout: '5.1.2', subwoofers: 2 },
     })
 
-    store.getState().setLayout({ listenerLevel: 7, overheads: 4 })
+    store.getState().setLayout('7.1.4')
 
     expect(store.getState().config).toMatchObject({
       room: { length: 8, width: 5, height: 3 },
-      layout: { listenerLevel: 7, subwoofers: 2, overheads: 4 },
+      layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
     })
   })
 
   it('auto-place keeps the room and layout and puts every speaker at its auto-placed position', () => {
     const store = createConfigStore()
-    store.getState().setLayout({ listenerLevel: 7, overheads: 0 })
+    store.getState().setLayout('7.1')
     store.getState().setRoomDimension('width', 5)
 
     store.getState().autoPlace()
@@ -90,7 +90,7 @@ describe('config store', () => {
     const sevenOneInFiveMeters = {
       ...DEFAULT_CONFIG,
       room: { length: 6, width: 5, height: 2.6 },
-      layout: { listenerLevel: 7, subwoofers: 1, overheads: 0 },
+      layout: { dolbyLayout: '7.1', subwoofers: 1 },
     } as const
     expect(store.getState().config).toEqual(sevenOneInFiveMeters)
     expect(analyzeRoom(store.getState().config).speakers).toEqual(

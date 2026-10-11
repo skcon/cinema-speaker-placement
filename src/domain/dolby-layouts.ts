@@ -8,8 +8,25 @@
  * Azimuths are degrees from Dolby's center-front reference, on the channel's
  * own side of the room (see src/domain/room.ts for the sign convention).
  */
-import type { SpeakerFormat } from './layout'
 import type { Citation } from './reference'
+
+/**
+ * The v1 Dolby layouts: the Layouts as Dolby's placement guides name them,
+ * with one subwoofer (GLOSSARY.md). A share link can validate a layout
+ * against this list.
+ */
+export const V1_DOLBY_LAYOUTS = [
+  '2.1',
+  '3.1',
+  '5.1',
+  '7.1',
+  '5.1.2',
+  '5.1.4',
+  '7.1.2',
+  '7.1.4',
+] as const
+
+export type DolbyLayout = (typeof V1_DOLBY_LAYOUTS)[number]
 
 /** A listener-level channel, by Dolby's abbreviation (research section 2). */
 export type ChannelId = 'L' | 'C' | 'R' | 'Ls' | 'Rs' | 'Lrs' | 'Rrs'
@@ -65,8 +82,10 @@ export type ChannelReference = PlacementRangeReference & {
 }
 
 export type DolbyLayoutReference = {
-  /** The layout's X and Z (its Y, the subwoofer count, doesn't matter here). */
-  readonly format: SpeakerFormat
+  /** X: how many listener-level channels. */
+  readonly listenerLevel: number
+  /** Z: how many overhead channels. */
+  readonly overheads: number
   /** The Dolby sheet(s) and IG pages that draw this layout. */
   readonly citations: readonly Citation[]
   /** The listener-level channels, in display order. */
@@ -150,7 +169,8 @@ const NO_WIDER_RANGE = {
 /** The listener-level placement ranges of every v1 layout. */
 export const DOLBY_LAYOUTS = {
   '2.1': {
-    format: { listenerLevel: 2, overheads: 0 },
+    listenerLevel: 2,
+    overheads: 0,
     citations: SHEETS['2.1'],
     channels: [
       {
@@ -166,7 +186,8 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '3.1': {
-    format: { listenerLevel: 3, overheads: 0 },
+    listenerLevel: 3,
+    overheads: 0,
     citations: SHEETS['3.1'],
     channels: [
       {
@@ -187,7 +208,8 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '5.1': {
-    format: { listenerLevel: 5, overheads: 0 },
+    listenerLevel: 5,
+    overheads: 0,
     citations: SHEETS['5.1'],
     channels: [
       {
@@ -218,7 +240,8 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '7.1': {
-    format: { listenerLevel: 7, overheads: 0 },
+    listenerLevel: 7,
+    overheads: 0,
     citations: SHEETS['7.1'],
     channels: [
       {
@@ -259,7 +282,8 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '5.1.2': {
-    format: { listenerLevel: 5, overheads: 2 },
+    listenerLevel: 5,
+    overheads: 2,
     citations: SHEETS['5.1.2'],
     channels: [
       {
@@ -290,7 +314,8 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '5.1.4': {
-    format: { listenerLevel: 5, overheads: 4 },
+    listenerLevel: 5,
+    overheads: 4,
     citations: SHEETS['5.1.4'],
     channels: [
       {
@@ -321,7 +346,8 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '7.1.2': {
-    format: { listenerLevel: 7, overheads: 2 },
+    listenerLevel: 7,
+    overheads: 2,
     citations: SHEETS['7.1.2'],
     channels: [
       {
@@ -362,7 +388,8 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '7.1.4': {
-    format: { listenerLevel: 7, overheads: 4 },
+    listenerLevel: 7,
+    overheads: 4,
     citations: SHEETS['7.1.4'],
     channels: [
       {
@@ -402,25 +429,4 @@ export const DOLBY_LAYOUTS = {
       },
     ],
   },
-} as const satisfies Record<string, DolbyLayoutReference>
-
-/** The v1 speaker formats (X and Z), in the order of the reference map. */
-export const V1_SPEAKER_FORMATS: readonly SpeakerFormat[] =
-  Object.values<DolbyLayoutReference>(DOLBY_LAYOUTS).map(({ format }) => format)
-
-/** The Dolby reference for a layout's speaker format, whatever its subwoofer count. */
-export function dolbyLayoutFor({
-  listenerLevel,
-  overheads,
-}: SpeakerFormat): DolbyLayoutReference {
-  const reference = Object.values<DolbyLayoutReference>(DOLBY_LAYOUTS).find(
-    ({ format }) =>
-      format.listenerLevel === listenerLevel && format.overheads === overheads,
-  )
-  if (!reference) {
-    throw new Error(
-      `No Dolby reference for ${listenerLevel} listener-level and ${overheads} overhead channels`,
-    )
-  }
-  return reference
-}
+} as const satisfies Record<DolbyLayout, DolbyLayoutReference>

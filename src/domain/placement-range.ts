@@ -1,11 +1,11 @@
 import {
   CHANNELS,
-  dolbyLayoutFor,
+  DOLBY_LAYOUTS,
   type AngleRange,
   type ChannelId,
+  type DolbyLayout,
   type PlacementRangeReference,
 } from './dolby-layouts'
-import { formatLayout, type SpeakerFormat } from './layout'
 
 /** How a speaker's angle from the MLP compares with its placement range. */
 export type PlacementGrade = 'ideal' | 'acceptable' | 'outside'
@@ -34,17 +34,14 @@ export type PlacementRangeCheck = PlacementRangeReference & {
  * 1e-15°) from changing a grade.
  */
 export function checkPlacementRange(
-  format: SpeakerFormat,
+  dolbyLayout: DolbyLayout,
   channel: ChannelId,
   azimuth: number,
 ): PlacementRangeCheck {
-  const reference = dolbyLayoutFor(format).channels.find(
+  const reference = DOLBY_LAYOUTS[dolbyLayout].channels.find(
     (entry) => entry.channel === channel,
   )
-  if (!reference) {
-    const layout = formatLayout({ ...format, subwoofers: 1 })
-    throw new Error(`${layout} has no ${channel} channel`)
-  }
+  if (!reference) throw new Error(`${dolbyLayout} has no ${channel} channel`)
   const { ideal, acceptable } = reference
   const side = CHANNELS[channel].side
   // The angle on the channel's own side: negative when on the other side.

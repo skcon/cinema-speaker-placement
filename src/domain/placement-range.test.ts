@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { checkPlacementRange, type SpeakerFormat } from '@/domain'
+import { checkPlacementRange } from '@/domain'
 
-const FIVE_ONE: SpeakerFormat = { listenerLevel: 5, overheads: 0 }
-const SEVEN_ONE_FOUR: SpeakerFormat = { listenerLevel: 7, overheads: 4 }
+const FIVE_ONE = '5.1'
+const SEVEN_ONE_FOUR = '7.1.4'
 
 describe('placement-range grade of Left and Right', () => {
   // Ideal 22°–30° (per-layout sheets), acceptable to 40° (IG fig.3)
@@ -133,8 +133,8 @@ describe('placement-range sources', () => {
   })
 
   it('refuses a channel the layout does not have', () => {
-    expect(() =>
-      checkPlacementRange({ listenerLevel: 2, overheads: 0 }, 'C', 0),
-    ).toThrow(/2\.1 has no C channel/)
+    expect(() => checkPlacementRange('2.1', 'C', 0)).toThrow(
+      /2\.1 has no C channel/,
+    )
   })
 })

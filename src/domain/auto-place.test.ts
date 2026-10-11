@@ -24,8 +24,8 @@ function horizontalDistance(a: RoomPoint, b: RoomPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
-const FIVE_ONE: Layout = { listenerLevel: 5, subwoofers: 1, overheads: 0 }
-const SEVEN_ONE: Layout = { listenerLevel: 7, subwoofers: 1, overheads: 0 }
+const FIVE_ONE: Layout = { dolbyLayout: '5.1', subwoofers: 1 }
+const SEVEN_ONE: Layout = { dolbyLayout: '7.1', subwoofers: 1 }
 
 describe('auto-placed listener-level speakers', () => {
   it('sit at seated ear height, 1.2 m', () => {
@@ -106,16 +106,16 @@ const BED_7 = {
 
 const V1_LAYOUTS: [Layout, Partial<Record<ChannelId, readonly number[]>>][] = [
   [
-    { listenerLevel: 2, subwoofers: 1, overheads: 0 },
+    { dolbyLayout: '2.1', subwoofers: 1 },
     { L: FRONT.L, R: FRONT.R },
   ],
-  [{ listenerLevel: 3, subwoofers: 1, overheads: 0 }, FRONT],
-  [{ listenerLevel: 5, subwoofers: 1, overheads: 0 }, BED_5],
-  [{ listenerLevel: 7, subwoofers: 1, overheads: 0 }, BED_7],
-  [{ listenerLevel: 5, subwoofers: 1, overheads: 2 }, BED_5],
-  [{ listenerLevel: 5, subwoofers: 1, overheads: 4 }, BED_5],
-  [{ listenerLevel: 7, subwoofers: 1, overheads: 2 }, BED_7],
-  [{ listenerLevel: 7, subwoofers: 1, overheads: 4 }, BED_7],
+  [{ dolbyLayout: '3.1', subwoofers: 1 }, FRONT],
+  [{ dolbyLayout: '5.1', subwoofers: 1 }, BED_5],
+  [{ dolbyLayout: '7.1', subwoofers: 1 }, BED_7],
+  [{ dolbyLayout: '5.1.2', subwoofers: 1 }, BED_5],
+  [{ dolbyLayout: '5.1.4', subwoofers: 1 }, BED_5],
+  [{ dolbyLayout: '7.1.2', subwoofers: 1 }, BED_7],
+  [{ dolbyLayout: '7.1.4', subwoofers: 1 }, BED_7],
 ]
 
 /** Valid rooms from the smallest to the largest, with the odd shapes in between. */

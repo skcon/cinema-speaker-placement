@@ -6,10 +6,8 @@ import { LayoutForm } from '@/ui/LayoutForm'
 
 /** Shows the stored layout, as the room view and the share link will read it. */
 function StoredLayout() {
-  const { listenerLevel, subwoofers, overheads } = useConfig(
-    (state) => state.config.layout,
-  )
-  return <output>{`${listenerLevel}/${subwoofers}/${overheads}`}</output>
+  const { dolbyLayout, subwoofers } = useConfig((state) => state.config.layout)
+  return <output>{`${dolbyLayout} with ${subwoofers} subwoofer`}</output>
 }
 
 function renderLayoutForm() {
@@ -49,7 +47,9 @@ describe('layout form', () => {
     fireEvent.click(screen.getByRole('radio', { name: '7.1.4' }))
 
     expect(screen.getByRole('radio', { name: '7.1.4' })).toBeChecked()
-    expect(screen.getByRole('status')).toHaveTextContent('7/1/4')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '7.1.4 with 1 subwoofer',
+    )
   })
 
   it('keeps the layout when the chosen option is clicked again', () => {
@@ -58,7 +58,9 @@ describe('layout form', () => {
     fireEvent.click(screen.getByRole('radio', { name: '5.1.2' }))
 
     expect(screen.getByRole('radio', { name: '5.1.2' })).toBeChecked()
-    expect(screen.getByRole('status')).toHaveTextContent('5/1/2')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '5.1.2 with 1 subwoofer',
+    )
   })
 
   it('says only the listener-level speakers are placed for a layout with overheads', () => {
@@ -81,6 +83,6 @@ describe('layout form', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Auto-place' }))
 
-    expect(screen.getByRole('status')).toHaveTextContent('3/1/0')
+    expect(screen.getByRole('status')).toHaveTextContent('3.1 with 1 subwoofer')
   })
 })

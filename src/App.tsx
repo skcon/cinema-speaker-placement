@@ -1,11 +1,14 @@
-import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
+import { ShareLinkProvider } from '@/ShareLinkProvider'
 import { AppShell } from '@/ui/AppShell'
 
-/** The root route's component: one config store around the page layout. */
+/**
+ * The root route's component: the page layout around one config store that
+ * stays in step with the share link in the address.
+ */
 export function App() {
   return (
-    <ConfigStoreProvider>
+    <ShareLinkProvider>
       <AppShell />
-    </ConfigStoreProvider>
+    </ShareLinkProvider>
   )
 }

@@ -1,11 +1,42 @@
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { encodeConfig, type Config } from '@/domain'
 import { createAppRouter } from '@/router'
 
-function renderApp() {
-  const history = createMemoryHistory({ initialEntries: ['/'] })
+function renderApp(path = '/') {
+  const history = createMemoryHistory({ initialEntries: [path] })
   render(<RouterProvider router={createAppRouter({ history })} />)
+  return history
+}
+
+/** The address of a share link for `config`. */
+function shareLinkPath(config: Config) {
+  return `/?${new URLSearchParams({ config: encodeConfig(config) })}`
+}
+
+/** The text box labelled with `unit` inside the sidebar field for `dimension`. */
+async function findInput(dimension: string, unit: 'm' | 'ft' | 'in') {
+  const field = await screen.findByRole('group', { name: dimension })
+  return within(field).getByRole('textbox', { name: unit })
+}
+
+/** The share link in the address, or null without one. */
+function configInAddress(history: ReturnType<typeof renderApp>) {
+  return new URLSearchParams(history.location.search).get('config')
+}
+
+// 26 ft 3 in x 16 ft 4.9 in x 9 ft 10.1 in
+const IMPERIAL_ROOM: Config = {
+  units: 'imperial',
+  room: { length: 8, width: 5, height: 3 },
 }
 
 describe('app shell', () => {
@@ -70,5 +101,53 @@ describe('app shell', () => {
     expect(
       within(response).getByText(/an estimate from a simplified model/i),
     ).toBeInTheDocument()
+  })
+})
+
+describe('share links', () => {
+  it('opens the room a share link holds', async () => {
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+
+    expect(await findInput('Length', 'ft')).toHaveValue('26')
+    expect(await findInput('Length', 'in')).toHaveValue('3')
+    expect(await findInput('Width', 'ft')).toHaveValue('16')
+    expect(
+      screen.getByRole('radio', { name: 'Imperial (ft + in)' }),
+    ).toBeChecked()
+  })
+
+  it('writes the room to the address once typing pauses, without adding history entries', async () => {
+    const history = renderApp()
+    const length = await findInput('Length', 'm')
+
+    fireEvent.change(length, { target: { value: '7' } })
+    fireEvent.change(length, { target: { value: '7.5' } })
+
+    const edited = encodeConfig({
+      units: 'metric',
+      room: { length: 7.5, width: 4.5, height: 2.6 },
+    })
+    expect(configInAddress(history)).not.toBe(edited)
+    await waitFor(() => expect(configInAddress(history)).toBe(edited))
+    expect(history.length).toBe(1)
+  })
+
+  it('follows the address back and forward between share links', async () => {
+    const history = renderApp(shareLinkPath(IMPERIAL_ROOM))
+    expect(await findInput('Length', 'ft')).toHaveValue('26')
+
+    act(() => {
+      history.push(
+        shareLinkPath({
+          units: 'metric',
+          room: { length: 10, width: 6, height: 3.2 },
+        }),
+      )
+    })
+    expect(await findInput('Length', 'm')).toHaveValue('10')
+    expect(await findInput('Height', 'm')).toHaveValue('3.2')
+
+    act(() => history.back())
+    expect(await findInput('Length', 'ft')).toHaveValue('26')
   })
 })

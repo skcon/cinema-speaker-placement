@@ -110,6 +110,36 @@ describe('auto-placed subwoofers', () => {
     ])
   })
 
+  it("each use their own specs if they have them, and the Subwoofers group's otherwise", () => {
+    const groupSpecs = {
+      enclosure: 'ported',
+      driverDiameter: 0.381,
+      rmsWatts: 800,
+      peakWatts: 1600,
+    } as const
+    const ownSpecs = {
+      enclosure: 'sealed',
+      driverDiameter: 0.254,
+      rmsWatts: 150,
+      peakWatts: 300,
+    } as const
+
+    const placed = analyzeRoom({
+      ...config(DEFAULT_CONFIG.room, 3),
+      speakerGroups: {
+        subwoofers: { specs: groupSpecs, overrides: [null, ownSpecs, null] },
+      },
+    }).subwoofers
+
+    expect(
+      placed.map(({ specs, hasOwnSpecs }) => ({ specs, hasOwnSpecs })),
+    ).toEqual([
+      { specs: groupSpecs, hasOwnSpecs: false },
+      { specs: ownSpecs, hasOwnSpecs: true },
+      { specs: groupSpecs, hasOwnSpecs: false },
+    ])
+  })
+
   it('stay where they are when only the listener-level layout changes', () => {
     const positions = (dolbyLayout: Config['layout']['dolbyLayout']) =>
       analyzeRoom({

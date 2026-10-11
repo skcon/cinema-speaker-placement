@@ -8,6 +8,7 @@ import {
 } from './placement-range'
 import { aimAtMlp, autoPlaceSpeaker, type Aim } from './placement'
 import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
+import type { SubwooferSpecs } from './speaker-specs'
 import {
   subwooferId,
   subwooferName,
@@ -42,6 +43,10 @@ export type PlacedSubwoofer = {
   readonly position: RoomPoint
   /** The wall it stands against. */
   readonly wall: Wall
+  /** The specs it is modelled with: its own, or the Subwoofers group's. */
+  readonly specs: SubwooferSpecs
+  /** Whether `specs` are its own rather than the group's. */
+  readonly hasOwnSpecs: boolean
 }
 
 /** Everything derived from a config. Later tickets add overheads and the estimated response. */
@@ -57,7 +62,11 @@ export type RoomAnalysis = {
 }
 
 /** The domain entry point: derive the room plan from a config. */
-export function analyzeRoom({ room, layout }: Config): RoomAnalysis {
+export function analyzeRoom({
+  room,
+  layout,
+  speakerGroups,
+}: Config): RoomAnalysis {
   const mlp = defaultMlp(room)
   const { channels } = DOLBY_LAYOUTS[layout.dolbyLayout]
   const speakers = channels.map((reference): PlacedSpeaker => {
@@ -73,13 +82,19 @@ export function analyzeRoom({ room, layout }: Config): RoomAnalysis {
       ),
     }
   })
+  const { specs: groupSpecs, overrides } = speakerGroups.subwoofers
   const subwoofers = autoPlaceSubwoofers(room, layout.subwoofers).map(
-    ({ number, position, wall }): PlacedSubwoofer => ({
-      id: subwooferId(number),
-      name: subwooferName(number),
-      position,
-      wall,
-    }),
+    ({ number, position, wall }, index): PlacedSubwoofer => {
+      const ownSpecs = overrides[index] ?? null
+      return {
+        id: subwooferId(number),
+        name: subwooferName(number),
+        position,
+        wall,
+        specs: ownSpecs ?? groupSpecs,
+        hasOwnSpecs: ownSpecs !== null,
+      }
+    },
   )
   return { layout: summarizeLayout(layout), mlp, speakers, subwoofers }
 }

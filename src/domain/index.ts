@@ -18,5 +18,6 @@ export {
   metersToFeetAndInches,
   roundToCentimeters,
   type FeetAndInches,
+  type Rounding,
   type UnitSystem,
 } from './units'

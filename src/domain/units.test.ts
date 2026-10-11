@@ -91,4 +91,37 @@ describe('formatting a length for the chosen units', () => {
     expect(formatLength(15, 'imperial')).toBe('49 ft 2.6 in')
     expect(formatLength(0.3048, 'imperial')).toBe('1 ft 0 in')
   })
+
+  it('can round up or down, so a shown limit is itself inside the range', () => {
+    // 2 m = 78.74 in: 78.7 in would be below a 2 m minimum
+    expect(formatLength(2, 'imperial', 'up')).toBe('6 ft 6.8 in')
+    // 15 m = 590.55 in: 590.6 in would be above a 15 m maximum
+    expect(formatLength(15, 'imperial', 'down')).toBe('49 ft 2.5 in')
+    expect(formatLength(2.004, 'metric', 'up')).toBe('2.01 m')
+    expect(formatLength(14.996, 'metric', 'down')).toBe('14.99 m')
+  })
+
+  it('leaves values already on the display step alone when rounding up or down', () => {
+    expect(formatLength(0.3048, 'imperial', 'up')).toBe('1 ft 0 in')
+    expect(formatLength(0.3048, 'imperial', 'down')).toBe('1 ft 0 in')
+    expect(formatLength(2, 'metric', 'up')).toBe('2 m')
+    expect(formatLength(15, 'metric', 'down')).toBe('15 m')
+  })
+})
+
+describe('directed rounding', () => {
+  it('never lands below the value when rounding up, or above it when rounding down', () => {
+    for (const meters of range(2, 15, 0.001)) {
+      const up = feetAndInchesToMeters(metersToFeetAndInches(meters, 'up'))
+      const down = feetAndInchesToMeters(metersToFeetAndInches(meters, 'down'))
+      expect(up).toBeGreaterThanOrEqual(meters - 1e-9)
+      expect(down).toBeLessThanOrEqual(meters + 1e-9)
+      expect(roundToCentimeters(meters, 'up')).toBeGreaterThanOrEqual(
+        meters - 1e-9,
+      )
+      expect(roundToCentimeters(meters, 'down')).toBeLessThanOrEqual(
+        meters + 1e-9,
+      )
+    }
+  })
 })

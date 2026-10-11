@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> Status: **draft**. The tech stack and architecture below are the starting proposal. They get confirmed or changed during the `/grill-with-docs` session, and decisions that are hard to reverse are recorded as ADRs in `docs/adr/`.
+> Domain language lives in `GLOSSARY.md` (use those terms in code, issues and UI). Hard-to-reverse decisions live in `docs/adr/`. Dolby reference data and its citations live in `docs/research/dolby-speaker-placement.md`.
 
 ## What this project is
 
@@ -17,7 +17,7 @@ The user enters their room (dimensions, wall height, units) and their speaker la
 
 Dolby's placement guides are PDFs full of angle tables. Turning them into actual positions in *your* room (with *your* wall height, *your* couch, *your* subwoofer) is tedious and error-prone, and most room-planning tools focus on furniture and looks. This tool turns those guidelines, plus basic room-acoustics rules of thumb, into a concrete, adjustable, shareable plan.
 
-## Tech stack (proposed)
+## Tech stack
 
 | Concern | Choice | Why |
 |---|---|---|
@@ -27,11 +27,22 @@ Dolby's placement guides are PDFs full of angle tables. Turning them into actual
 | Routing | TanStack Router | Type-safe search params, so the config can live in the URL |
 | Components | shadcn/ui + Tailwind CSS | Accessible primitives we own, quick to style |
 | Room view | Three.js via react-three-fiber (+ drei) | Top-down and 3D camera on the same scene, drag interactions |
-| Charts | To be decided in grilling | Frequency-response overlay |
-| Tests | Vitest (+ Testing Library) | Fast, Vite-native |
+| Charts | Recharts via shadcn/ui charts | Log-frequency axis, matches shadcn styling |
+| Config schema | zod | One schema for the config, the share link and router search validation |
+| URL compression | lz-string | Small, synchronous; keeps share links short |
+| Undo/redo | zundo (Zustand middleware) | Undo for drags and layout changes |
+| Tests | Vitest + Testing Library, Playwright (one e2e smoke test) | Fast unit tests; e2e covers the share-link flow |
+| Lint/format | ESLint + Prettier | |
+| Package manager | npm | |
 | Deploy | Static hosting (GitHub Pages) | No server needed if configs live in the URL |
 
-Backend or no backend is an **open question** for the grilling session. The default stance is browser-only, with share links as the way configs are saved.
+**No backend.** The app is browser-only and the config lives in the URL (ADR 0001). The libraries above are the approved dependency set; anything else needs asking first.
+
+### v1 scope (summary)
+
+- Rectangular rooms only; low-frequency acoustic model plus Dolby placement-range checks (ADR 0002).
+- Layouts 2.1, 3.1, 5.1, 7.1, 5.1.2, 5.1.4, 7.1.2, 7.1.4, each with 1-4 subwoofers. Overhead speakers only (an Atmos-enabled hint shows when the ceiling is 2.4 m or lower).
+- Analysis runs at the MLP only. The recommended seat comes from a seat-score grid.
 
 ## Architecture principles
 

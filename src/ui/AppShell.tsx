@@ -1,6 +1,7 @@
 import { cn } from 'cn'
 import { useId, type ReactNode } from 'react'
 import { RoomView } from '@/scene/RoomView'
+import { LayoutForm } from '@/ui/LayoutForm'
 import { RoomForm } from '@/ui/RoomForm'
 
 /**
@@ -26,6 +27,7 @@ export function AppShell() {
             Room and layout
           </h2>
           <RoomForm />
+          <LayoutForm />
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">

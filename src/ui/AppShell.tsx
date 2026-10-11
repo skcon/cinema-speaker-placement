@@ -31,7 +31,7 @@ export function AppShell() {
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-        <Panel title="Room view" className="min-h-112 lg:min-h-0 lg:flex-3">
+        <Panel title="Room view" className="min-h-128 lg:min-h-0 lg:flex-3">
           <RoomView />
         </Panel>
         <Panel

@@ -185,6 +185,25 @@ describe('share links', () => {
     expect(screen.getByRole('radio', { name: '7.2.4' })).toBeChecked()
   })
 
+  it('opens the subwoofer specs a share link holds, group and per subwoofer', async () => {
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+
+    // Ported 15 in for the group; Subwoofer 2 a sealed 12 in of its own.
+    const group = await screen.findByRole('group', { name: 'Subwoofers' })
+    expect(within(group).getByRole('radio', { name: 'Ported' })).toBeChecked()
+    expect(
+      within(group).getByRole('textbox', { name: 'Driver size (in)' }),
+    ).toHaveValue('15')
+    expect(
+      screen.getByRole('checkbox', { name: 'Subwoofer 1 has its own specs' }),
+    ).not.toBeChecked()
+    const second = screen.getByRole('group', { name: 'Subwoofer 2' })
+    expect(within(second).getByRole('radio', { name: 'Sealed' })).toBeChecked()
+    expect(
+      within(second).getByRole('textbox', { name: 'RMS power (W)' }),
+    ).toHaveValue('500')
+  })
+
   it('writes the room to the address once typing pauses, without adding history entries', async () => {
     const history = renderApp()
     const length = await findInput('Length', 'm')

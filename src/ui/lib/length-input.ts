@@ -1,4 +1,5 @@
 import { UNIT_SYSTEMS, type UnitSystem } from '@/domain'
+import { parseDecimal } from '@/ui/lib/decimal'
 
 /**
  * What the user has typed into a length field: one text per part of the unit
@@ -25,14 +26,6 @@ export function metersFromDraft(draft: LengthDraft, units: UnitSystem): number {
   return UNIT_SYSTEMS[units].fromParts(
     draft.map((text) => (isBlank(text) ? 0 : parseDecimal(text))),
   )
-}
-
-const DECIMAL = /^(\d+([.,]\d*)?|[.,]\d+)$/
-
-/** A non-negative decimal number; accepts a decimal comma. NaN otherwise. */
-function parseDecimal(text: string): number {
-  const trimmed = text.trim()
-  return DECIMAL.test(trimmed) ? Number(trimmed.replace(',', '.')) : Number.NaN
 }
 
 function isBlank(text: string): boolean {

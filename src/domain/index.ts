@@ -14,7 +14,12 @@ export {
   type ChannelId,
   type DolbyLayout,
 } from './dolby-layouts'
-export { formatLayout, type Layout } from './layout'
+export {
+  formatLayout,
+  SUBWOOFER_COUNTS,
+  type Layout,
+  type SubwooferCount,
+} from './layout'
 export type { PlacementGrade } from './placement-range'
 export {
   checkRoomDimension,
@@ -30,14 +35,18 @@ export {
   type Wall,
 } from './room'
 export {
+  areValidSubwooferSpecs,
   checkSubwooferSpec,
   DEFAULT_SUBWOOFER_SPECS,
   ENCLOSURES,
   type Enclosure,
+  type SpeakerGroups,
+  type SubwooferGroup,
   type SubwooferSpecField,
   type SubwooferSpecProblem,
   type SubwooferSpecs,
 } from './speaker-specs'
+export type { SubwooferId, SubwooferNumber } from './subwoofer-arrangements'
 export {
   decodeConfig,
   encodeConfig,

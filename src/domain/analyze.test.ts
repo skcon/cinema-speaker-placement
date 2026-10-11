@@ -3,6 +3,7 @@ import {
   analyzeRoom,
   DEFAULT_CONFIG,
   formatLayout,
+  V1_SPEAKER_FORMATS,
   type Config,
 } from '@/domain'
 
@@ -80,6 +81,14 @@ describe('listener-level speakers', () => {
 })
 
 describe('layout notation', () => {
+  it('offers the eight v1 layouts, listener-level only first', () => {
+    expect(
+      V1_SPEAKER_FORMATS.map((format) =>
+        formatLayout({ ...format, subwoofers: 1 }),
+      ),
+    ).toEqual(['2.1', '3.1', '5.1', '7.1', '5.1.2', '5.1.4', '7.1.2', '7.1.4'])
+  })
+
   it('writes a layout as X.Y.Z, leaving out .Z without overheads', () => {
     expect(
       formatLayout({ listenerLevel: 5, subwoofers: 1, overheads: 2 }),

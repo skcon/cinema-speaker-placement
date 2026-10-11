@@ -63,7 +63,9 @@ export type ChannelReference = PlacementRangeReference & {
   readonly channel: ChannelId
 }
 
-export type DolbyLayoutReference = SpeakerFormat & {
+export type DolbyLayoutReference = {
+  /** The layout's X and Z (its Y, the subwoofer count, doesn't matter here). */
+  readonly format: SpeakerFormat
   /** The Dolby sheet(s) and IG pages that draw this layout. */
   readonly citations: readonly Citation[]
   /** The listener-level channels, in display order. */
@@ -146,8 +148,7 @@ const NO_WIDER_RANGE = {
 /** The listener-level placement ranges of every v1 layout. */
 export const DOLBY_LAYOUTS = {
   '2.1': {
-    listenerLevel: 2,
-    overheads: 0,
+    format: { listenerLevel: 2, overheads: 0 },
     citations: SHEETS['2.1'],
     channels: [
       {
@@ -163,8 +164,7 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '3.1': {
-    listenerLevel: 3,
-    overheads: 0,
+    format: { listenerLevel: 3, overheads: 0 },
     citations: SHEETS['3.1'],
     channels: [
       {
@@ -185,8 +185,7 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '5.1': {
-    listenerLevel: 5,
-    overheads: 0,
+    format: { listenerLevel: 5, overheads: 0 },
     citations: SHEETS['5.1'],
     channels: [
       {
@@ -217,8 +216,7 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '7.1': {
-    listenerLevel: 7,
-    overheads: 0,
+    format: { listenerLevel: 7, overheads: 0 },
     citations: SHEETS['7.1'],
     channels: [
       {
@@ -259,8 +257,7 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '5.1.2': {
-    listenerLevel: 5,
-    overheads: 2,
+    format: { listenerLevel: 5, overheads: 2 },
     citations: SHEETS['5.1.2'],
     channels: [
       {
@@ -291,8 +288,7 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '5.1.4': {
-    listenerLevel: 5,
-    overheads: 4,
+    format: { listenerLevel: 5, overheads: 4 },
     citations: SHEETS['5.1.4'],
     channels: [
       {
@@ -323,8 +319,7 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '7.1.2': {
-    listenerLevel: 7,
-    overheads: 2,
+    format: { listenerLevel: 7, overheads: 2 },
     citations: SHEETS['7.1.2'],
     channels: [
       {
@@ -365,8 +360,7 @@ export const DOLBY_LAYOUTS = {
     ],
   },
   '7.1.4': {
-    listenerLevel: 7,
-    overheads: 4,
+    format: { listenerLevel: 7, overheads: 4 },
     citations: SHEETS['7.1.4'],
     channels: [
       {
@@ -411,14 +405,18 @@ export const DOLBY_LAYOUTS = {
 /** A v1 layout's name on its Dolby sheet, for example "5.1.2". */
 export type DolbyLayoutKey = keyof typeof DOLBY_LAYOUTS
 
+/** The v1 speaker formats (X and Z), in the order of the reference map. */
+export const V1_SPEAKER_FORMATS: readonly SpeakerFormat[] =
+  Object.values<DolbyLayoutReference>(DOLBY_LAYOUTS).map(({ format }) => format)
+
 /** The Dolby reference for a layout's speaker format, whatever its subwoofer count. */
 export function dolbyLayoutFor({
   listenerLevel,
   overheads,
 }: SpeakerFormat): DolbyLayoutReference {
   const reference = Object.values<DolbyLayoutReference>(DOLBY_LAYOUTS).find(
-    (entry) =>
-      entry.listenerLevel === listenerLevel && entry.overheads === overheads,
+    ({ format }) =>
+      format.listenerLevel === listenerLevel && format.overheads === overheads,
   )
   if (!reference) {
     throw new Error(

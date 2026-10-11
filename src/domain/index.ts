@@ -10,11 +10,12 @@ export {
   type SpeakerFormat,
   type SubwooferCount,
 } from './layout'
-export type {
-  AngleRange,
-  ChannelId,
-  CitedAngleRange,
-  NoWiderRange,
+export {
+  V1_SPEAKER_FORMATS,
+  type AngleRange,
+  type ChannelId,
+  type CitedAngleRange,
+  type NoWiderRange,
 } from './dolby-layouts'
 export {
   checkPlacementRange,

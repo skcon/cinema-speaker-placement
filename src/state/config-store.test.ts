@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { analyzeRoom, DEFAULT_CONFIG } from '@/domain'
 import { createConfigStore } from '@/state/config-store'
 
 describe('config store', () => {
@@ -62,5 +63,38 @@ describe('config store', () => {
       units: 'imperial',
       room: { length: 6, width: 4.5, height: 2.6 },
     })
+  })
+
+  it('switches to another v1 layout, keeping the room and the subwoofer count', () => {
+    const store = createConfigStore({
+      ...DEFAULT_CONFIG,
+      room: { length: 8, width: 5, height: 3 },
+      layout: { listenerLevel: 5, subwoofers: 2, overheads: 2 },
+    })
+
+    store.getState().setLayout({ listenerLevel: 7, overheads: 4 })
+
+    expect(store.getState().config).toMatchObject({
+      room: { length: 8, width: 5, height: 3 },
+      layout: { listenerLevel: 7, subwoofers: 2, overheads: 4 },
+    })
+  })
+
+  it('auto-place keeps the room and layout and puts every speaker at its auto-placed position', () => {
+    const store = createConfigStore()
+    store.getState().setLayout({ listenerLevel: 7, overheads: 0 })
+    store.getState().setRoomDimension('width', 5)
+
+    store.getState().autoPlace()
+
+    const sevenOneInFiveMeters = {
+      ...DEFAULT_CONFIG,
+      room: { length: 6, width: 5, height: 2.6 },
+      layout: { listenerLevel: 7, subwoofers: 1, overheads: 0 },
+    } as const
+    expect(store.getState().config).toEqual(sevenOneInFiveMeters)
+    expect(analyzeRoom(store.getState().config).speakers).toEqual(
+      analyzeRoom(sevenOneInFiveMeters).speakers,
+    )
   })
 })

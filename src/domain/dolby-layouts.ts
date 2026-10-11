@@ -107,11 +107,12 @@ const AZIMUTH = {
 } as const satisfies Record<string, AngleRange>
 
 /**
- * The sources that draw each layout (research section 3, "Per layout"). The
- * sheets are one page each, so they are cited by key; the listener-level
- * angles are the same on a layout's overhead, enabled and hybrid sheets.
+ * The sources that draw each layout (research section 3, "Per layout"): its
+ * per-layout sheets, cited by key as they are one page each, and the IG
+ * pages that reproduce them. The listener-level angles are the same on a
+ * layout's overhead, enabled and hybrid sheets.
  */
-const SHEETS = {
+const LAYOUT_CITATIONS = {
   '2.1': [{ source: 'S-21' }, { source: 'IG', page: 18 }],
   '3.1': [{ source: 'S-31' }],
   '5.1': [{ source: 'S-51' }],
@@ -136,9 +137,10 @@ const SHEETS = {
     { source: 'S-714-OH' },
     { source: 'S-714-EN' },
     { source: 'S-714-HY' },
+    { source: 'IG', page: 8 },
     { source: 'IG', page: 36, note: 'pp.36–39' },
   ],
-} as const satisfies Record<string, readonly Citation[]>
+} as const satisfies Record<DolbyLayout, readonly Citation[]>
 
 /**
  * Of the v1 listener-level channels only L/R has a second, wider range in
@@ -166,267 +168,115 @@ const NO_WIDER_RANGE = {
   note: 'Dolby gives no wider range',
 } as const satisfies NoWiderRange
 
-/** The listener-level placement ranges of every v1 layout. */
+/** One channel's placement range, its ideal range cited to its layout's sources. */
+function channelRange<
+  const Channel extends ChannelId,
+  const Ideal extends AngleRange,
+  const Acceptable extends CitedAngleRange | NoWiderRange,
+  const Citations extends readonly Citation[],
+>(
+  channel: Channel,
+  ideal: Ideal,
+  acceptable: Acceptable,
+  citations: Citations,
+) {
+  return { channel, ideal: { range: ideal, citations }, acceptable }
+}
+
+/** L and R, as in 2.1. */
+function leftRight<const Citations extends readonly Citation[]>(
+  citations: Citations,
+) {
+  return [
+    channelRange('L', AZIMUTH.leftRight, LEFT_RIGHT_ACCEPTABLE, citations),
+    channelRange('R', AZIMUTH.leftRight, LEFT_RIGHT_ACCEPTABLE, citations),
+  ] as const
+}
+
+/** L, C and R, as in 3.1 and every bed. */
+function leftCenterRight<const Citations extends readonly Citation[]>(
+  citations: Citations,
+) {
+  const [left, right] = leftRight(citations)
+  return [
+    left,
+    channelRange('C', AZIMUTH.center, NO_WIDER_RANGE, citations),
+    right,
+  ] as const
+}
+
+/** The 5-channel bed of 5.1 and 5.1.x. */
+function bed5<const Citations extends readonly Citation[]>(
+  citations: Citations,
+) {
+  return [
+    ...leftCenterRight(citations),
+    channelRange('Ls', AZIMUTH.surround5, NO_WIDER_RANGE, citations),
+    channelRange('Rs', AZIMUTH.surround5, NO_WIDER_RANGE, citations),
+  ] as const
+}
+
+/** The 7-channel bed of 7.1 and 7.1.x. */
+function bed7<const Citations extends readonly Citation[]>(
+  citations: Citations,
+) {
+  return [
+    ...leftCenterRight(citations),
+    channelRange('Ls', AZIMUTH.surround7, NO_WIDER_RANGE, citations),
+    channelRange('Rs', AZIMUTH.surround7, NO_WIDER_RANGE, citations),
+    channelRange('Lrs', AZIMUTH.rearSurround, NO_WIDER_RANGE, citations),
+    channelRange('Rrs', AZIMUTH.rearSurround, NO_WIDER_RANGE, citations),
+  ] as const
+}
+
+/** The listener-level placement ranges of every v1 Dolby layout. */
 export const DOLBY_LAYOUTS = {
   '2.1': {
     listenerLevel: 2,
     overheads: 0,
-    citations: SHEETS['2.1'],
-    channels: [
-      {
-        channel: 'L',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['2.1'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'R',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['2.1'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-    ],
+    citations: LAYOUT_CITATIONS['2.1'],
+    channels: leftRight(LAYOUT_CITATIONS['2.1']),
   },
   '3.1': {
     listenerLevel: 3,
     overheads: 0,
-    citations: SHEETS['3.1'],
-    channels: [
-      {
-        channel: 'L',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['3.1'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'C',
-        ideal: { range: AZIMUTH.center, citations: SHEETS['3.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'R',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['3.1'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-    ],
+    citations: LAYOUT_CITATIONS['3.1'],
+    channels: leftCenterRight(LAYOUT_CITATIONS['3.1']),
   },
   '5.1': {
     listenerLevel: 5,
     overheads: 0,
-    citations: SHEETS['5.1'],
-    channels: [
-      {
-        channel: 'L',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['5.1'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'C',
-        ideal: { range: AZIMUTH.center, citations: SHEETS['5.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'R',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['5.1'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'Ls',
-        ideal: { range: AZIMUTH.surround5, citations: SHEETS['5.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rs',
-        ideal: { range: AZIMUTH.surround5, citations: SHEETS['5.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-    ],
+    citations: LAYOUT_CITATIONS['5.1'],
+    channels: bed5(LAYOUT_CITATIONS['5.1']),
   },
   '7.1': {
     listenerLevel: 7,
     overheads: 0,
-    citations: SHEETS['7.1'],
-    channels: [
-      {
-        channel: 'L',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['7.1'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'C',
-        ideal: { range: AZIMUTH.center, citations: SHEETS['7.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'R',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['7.1'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'Ls',
-        ideal: { range: AZIMUTH.surround7, citations: SHEETS['7.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rs',
-        ideal: { range: AZIMUTH.surround7, citations: SHEETS['7.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Lrs',
-        ideal: { range: AZIMUTH.rearSurround, citations: SHEETS['7.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rrs',
-        ideal: { range: AZIMUTH.rearSurround, citations: SHEETS['7.1'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-    ],
+    citations: LAYOUT_CITATIONS['7.1'],
+    channels: bed7(LAYOUT_CITATIONS['7.1']),
   },
   '5.1.2': {
     listenerLevel: 5,
     overheads: 2,
-    citations: SHEETS['5.1.2'],
-    channels: [
-      {
-        channel: 'L',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['5.1.2'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'C',
-        ideal: { range: AZIMUTH.center, citations: SHEETS['5.1.2'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'R',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['5.1.2'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'Ls',
-        ideal: { range: AZIMUTH.surround5, citations: SHEETS['5.1.2'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rs',
-        ideal: { range: AZIMUTH.surround5, citations: SHEETS['5.1.2'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-    ],
+    citations: LAYOUT_CITATIONS['5.1.2'],
+    channels: bed5(LAYOUT_CITATIONS['5.1.2']),
   },
   '5.1.4': {
     listenerLevel: 5,
     overheads: 4,
-    citations: SHEETS['5.1.4'],
-    channels: [
-      {
-        channel: 'L',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['5.1.4'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'C',
-        ideal: { range: AZIMUTH.center, citations: SHEETS['5.1.4'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'R',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['5.1.4'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'Ls',
-        ideal: { range: AZIMUTH.surround5, citations: SHEETS['5.1.4'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rs',
-        ideal: { range: AZIMUTH.surround5, citations: SHEETS['5.1.4'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-    ],
+    citations: LAYOUT_CITATIONS['5.1.4'],
+    channels: bed5(LAYOUT_CITATIONS['5.1.4']),
   },
   '7.1.2': {
     listenerLevel: 7,
     overheads: 2,
-    citations: SHEETS['7.1.2'],
-    channels: [
-      {
-        channel: 'L',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['7.1.2'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'C',
-        ideal: { range: AZIMUTH.center, citations: SHEETS['7.1.2'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'R',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['7.1.2'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'Ls',
-        ideal: { range: AZIMUTH.surround7, citations: SHEETS['7.1.2'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rs',
-        ideal: { range: AZIMUTH.surround7, citations: SHEETS['7.1.2'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Lrs',
-        ideal: { range: AZIMUTH.rearSurround, citations: SHEETS['7.1.2'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rrs',
-        ideal: { range: AZIMUTH.rearSurround, citations: SHEETS['7.1.2'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-    ],
+    citations: LAYOUT_CITATIONS['7.1.2'],
+    channels: bed7(LAYOUT_CITATIONS['7.1.2']),
   },
   '7.1.4': {
     listenerLevel: 7,
     overheads: 4,
-    citations: SHEETS['7.1.4'],
-    channels: [
-      {
-        channel: 'L',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['7.1.4'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'C',
-        ideal: { range: AZIMUTH.center, citations: SHEETS['7.1.4'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'R',
-        ideal: { range: AZIMUTH.leftRight, citations: SHEETS['7.1.4'] },
-        acceptable: LEFT_RIGHT_ACCEPTABLE,
-      },
-      {
-        channel: 'Ls',
-        ideal: { range: AZIMUTH.surround7, citations: SHEETS['7.1.4'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rs',
-        ideal: { range: AZIMUTH.surround7, citations: SHEETS['7.1.4'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Lrs',
-        ideal: { range: AZIMUTH.rearSurround, citations: SHEETS['7.1.4'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-      {
-        channel: 'Rrs',
-        ideal: { range: AZIMUTH.rearSurround, citations: SHEETS['7.1.4'] },
-        acceptable: NO_WIDER_RANGE,
-      },
-    ],
+    citations: LAYOUT_CITATIONS['7.1.4'],
+    channels: bed7(LAYOUT_CITATIONS['7.1.4']),
   },
 } as const satisfies Record<DolbyLayout, DolbyLayoutReference>

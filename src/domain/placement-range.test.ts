@@ -126,6 +126,8 @@ describe('placement-range sources', () => {
 
     expect(ideal.range).toEqual({ min: 135, max: 150 })
     expect(ideal.citations).toContainEqual({ source: 'S-714-OH' })
+    // The research file's 7.1.4 row cites IG pp.8, 36–39
+    expect(ideal.citations).toContainEqual({ source: 'IG', page: 8 })
     expect(acceptable).toEqual({
       range: null,
       note: 'Dolby gives no wider range',

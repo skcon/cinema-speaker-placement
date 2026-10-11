@@ -108,6 +108,27 @@ export function wallBases(room: Room): Record<Wall, RoomSegment> {
   }
 }
 
+/**
+ * The wall a point on the floor plan is closest to. A point as close to two
+ * walls (a corner, or the middle of a square room) goes to the first of
+ * front, back, left, right.
+ */
+export function nearestWall(
+  { length, width }: Room,
+  { x, y }: RoomPoint,
+): Wall {
+  const distances: [Wall, number][] = [
+    ['front', y],
+    ['back', length - y],
+    ['left', x + width / 2],
+    ['right', width / 2 - x],
+  ]
+  const [wall] = distances.reduce((nearest, next) =>
+    next[1] < nearest[1] ? next : nearest,
+  )
+  return wall
+}
+
 const DEGREES_PER_RADIAN = 180 / Math.PI
 
 /**

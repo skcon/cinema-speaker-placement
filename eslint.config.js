@@ -7,14 +7,16 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 /** Import patterns that point into a layer, by alias or by relative path. */
-const layer = (name) => [
+const layerImportPatterns = (name) => [
   `@/${name}`,
   `@/${name}/**`,
   `**/${name}`,
   `**/${name}/**`,
 ]
 
-const presentationLayers = ['ui', 'scene', 'charts'].flatMap(layer)
+const presentationImportPatterns = ['ui', 'scene', 'charts'].flatMap(
+  layerImportPatterns,
+)
 
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'playwright-report', 'test-results']),
@@ -62,7 +64,10 @@ export default defineConfig([
                 'src/domain is pure TypeScript: no React, DOM, Three.js, router or store libraries.',
             },
             {
-              group: [...layer('state'), ...presentationLayers],
+              group: [
+                ...layerImportPatterns('state'),
+                ...presentationImportPatterns,
+              ],
               message:
                 'src/domain must not depend on the state or presentation layers.',
             },
@@ -79,7 +84,7 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: presentationLayers,
+              group: presentationImportPatterns,
               message: 'src/state must not depend on the presentation layers.',
             },
           ],

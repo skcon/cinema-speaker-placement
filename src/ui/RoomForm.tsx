@@ -11,10 +11,10 @@ const UNIT_OPTIONS = [
 ] as const satisfies readonly { value: UnitSystem; label: string }[]
 
 const DIMENSIONS = [
-  { dimension: 'length', label: 'Length' },
-  { dimension: 'width', label: 'Width' },
-  { dimension: 'height', label: 'Height' },
-] as const satisfies readonly { dimension: RoomDimension; label: string }[]
+  'length',
+  'width',
+  'height',
+] as const satisfies readonly RoomDimension[]
 
 /** The Room's size and the units it is entered in. */
 export function RoomForm() {
@@ -26,12 +26,8 @@ export function RoomForm() {
         Room
       </h3>
       <UnitsToggle />
-      {DIMENSIONS.map(({ dimension, label }) => (
-        <RoomDimensionField
-          key={dimension}
-          dimension={dimension}
-          label={label}
-        />
+      {DIMENSIONS.map((dimension) => (
+        <RoomDimensionField key={dimension} dimension={dimension} />
       ))}
     </section>
   )

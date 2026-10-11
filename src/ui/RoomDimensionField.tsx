@@ -1,14 +1,22 @@
 import { useId, useState } from 'react'
-import { checkRoomDimension, UNIT_SYSTEMS, type RoomDimension } from '@/domain'
+import {
+  checkRoomDimension,
+  UNIT_SYSTEMS,
+  type LengthUnit,
+  type RoomDimension,
+} from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { Input } from '@/ui/components/input'
 import { Label } from '@/ui/components/label'
 import {
   draftFromMeters,
   metersFromDraft,
-  roomDimensionErrorMessage,
   type LengthDraft,
 } from '@/ui/lib/length-input'
+import {
+  ROOM_DIMENSION_LABELS,
+  roomDimensionErrorMessage,
+} from '@/ui/lib/room-dimension'
 
 /**
  * One room dimension in the chosen units: meters, or feet + inches. Valid
@@ -19,11 +27,10 @@ import {
  */
 export function RoomDimensionField({
   dimension,
-  label,
 }: {
   dimension: RoomDimension
-  label: string
 }) {
+  const label = ROOM_DIMENSION_LABELS[dimension]
   const meters = useConfig((state) => state.config.room[dimension])
   const units = useConfig((state) => state.config.units)
   const setRoomDimension = useConfig((state) => state.setRoomDimension)
@@ -46,7 +53,7 @@ export function RoomDimensionField({
   }
 
   const problem = checkRoomDimension(dimension, metersFromDraft(draft, units))
-  const error = problem && roomDimensionErrorMessage(label, problem, units)
+  const error = problem && roomDimensionErrorMessage(dimension, problem, units)
 
   function update(next: LengthDraft) {
     setDraft(next)
@@ -82,7 +89,7 @@ function UnitInput({
   invalid,
   errorId,
 }: {
-  unit: string
+  unit: LengthUnit
   value: string
   onChange: (value: string) => void
   invalid: boolean

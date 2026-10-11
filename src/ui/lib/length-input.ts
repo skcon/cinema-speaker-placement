@@ -1,9 +1,4 @@
-import {
-  formatLength,
-  UNIT_SYSTEMS,
-  type RoomDimensionProblem,
-  type UnitSystem,
-} from '@/domain'
+import { UNIT_SYSTEMS, type UnitSystem } from '@/domain'
 
 /**
  * What the user has typed into a length field: one text per part of the unit
@@ -30,19 +25,6 @@ export function metersFromDraft(draft: LengthDraft, units: UnitSystem): number {
   return UNIT_SYSTEMS[units].fromParts(
     draft.map((text) => (isBlank(text) ? 0 : parseDecimal(text))),
   )
-}
-
-/** The inline error for a rejected room dimension. */
-export function roomDimensionErrorMessage(
-  label: string,
-  { problem, min, max }: RoomDimensionProblem,
-  units: UnitSystem,
-): string {
-  if (problem === 'not-a-number') {
-    return `Enter the ${label.toLowerCase()} as a number.`
-  }
-  // Round the limits inward so the numbers shown are themselves accepted.
-  return `${label} must be between ${formatLength(min, units, 'up')} and ${formatLength(max, units, 'down')}.`
 }
 
 const DECIMAL = /^(\d+([.,]\d*)?|[.,]\d+)$/

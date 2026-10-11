@@ -18,7 +18,6 @@ const DIMENSIONS = [
 
 /** The Room's size and the units it is entered in. */
 export function RoomForm() {
-  const units = useConfig((state) => state.config.units)
   const headingId = useId()
 
   return (
@@ -28,9 +27,8 @@ export function RoomForm() {
       </h3>
       <UnitsToggle />
       {DIMENSIONS.map(({ dimension, label }) => (
-        // A new key per unit system re-seeds the field from the converted value.
         <RoomDimensionField
-          key={`${dimension}-${units}`}
+          key={dimension}
           dimension={dimension}
           label={label}
         />

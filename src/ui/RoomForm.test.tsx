@@ -1,13 +1,34 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { RoomForm } from '@/ui/RoomForm'
 
-function renderRoomForm() {
+/**
+ * Stands in for another part of the app that changes the room through the
+ * store, as decoding a share link or undo will.
+ */
+function SetLengthElsewhere({ meters }: { meters: number }) {
+  const setRoomDimension = useConfig((state) => state.setRoomDimension)
+  return (
+    <button onClick={() => setRoomDimension('length', meters)}>
+      Set the length elsewhere
+    </button>
+  )
+}
+
+function renderRoomForm({ elsewhereLength = 8 } = {}) {
   render(
     <ConfigStoreProvider>
       <RoomForm />
+      <SetLengthElsewhere meters={elsewhereLength} />
     </ConfigStoreProvider>,
+  )
+}
+
+function setLengthElsewhere() {
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Set the length elsewhere' }),
   )
 }
 
@@ -116,5 +137,42 @@ describe('room form', () => {
     // 2.75 m = 108.27 in = 9 ft 0.3 in
     expect(input('Height', 'ft')).toHaveValue('9')
     expect(input('Height', 'in')).toHaveValue('0.3')
+  })
+
+  it('follows room changes made elsewhere', () => {
+    renderRoomForm({ elsewhereLength: 8 })
+
+    setLengthElsewhere()
+
+    expect(input('Length', 'm')).toHaveValue('8')
+  })
+
+  it('follows room changes made elsewhere in feet and inches too', () => {
+    renderRoomForm({ elsewhereLength: 8 })
+    chooseUnits('Imperial (ft + in)')
+
+    setLengthElsewhere()
+
+    // 8 m = 314.96 in = 26 ft 3 in
+    expect(input('Length', 'ft')).toHaveValue('26')
+    expect(input('Length', 'in')).toHaveValue('3')
+  })
+
+  it('drops invalid input when the room changes elsewhere', () => {
+    renderRoomForm({ elsewhereLength: 8 })
+    type(input('Length', 'm'), '20')
+
+    setLengthElsewhere()
+
+    expect(input('Length', 'm')).toHaveValue('8')
+    expect(input('Length', 'm')).toBeValid()
+  })
+
+  it('keeps the text as typed while it matches the stored size', () => {
+    renderRoomForm()
+
+    type(input('Length', 'm'), '7.250')
+
+    expect(input('Length', 'm')).toHaveValue('7.250')
   })
 })

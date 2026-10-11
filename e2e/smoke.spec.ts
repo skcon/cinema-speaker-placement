@@ -41,3 +41,20 @@ test('the room view draws the default room with WebGL at the base path', async (
   await expect(scene.getByText('Front wall')).toBeVisible()
   await expect(scene.getByText('MLP')).toBeVisible()
 })
+
+test('the room view shows the default 5.1.2 speakers with their angle and grade', async ({
+  page,
+}) => {
+  await page.goto('./')
+
+  const scene = page
+    .getByRole('region', { name: 'Room view' })
+    .getByRole('img', { name: /5\.1\.2 listener-level speakers/ })
+  for (const label of ['L 26°', 'C 0°', 'R 26°', 'Ls 115°', 'Rs 115°']) {
+    await expect(scene.getByText(label, { exact: true })).toBeVisible()
+  }
+  await expect(scene.getByText('ideal', { exact: true })).toHaveCount(5)
+  await expect(
+    page.getByRole('radio', { name: '5.1.2', checked: true }),
+  ).toBeVisible()
+})

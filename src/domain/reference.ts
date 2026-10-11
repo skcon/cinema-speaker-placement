@@ -73,3 +73,15 @@ export const MLP_FRONT_WALL_FRACTION = {
     },
   ],
 } as const satisfies { fraction: number; citations: readonly Citation[] }
+
+/**
+ * How close a listener-level speaker's position (its acoustic center) may
+ * come to any wall: room for the cabinet behind it. Auto-place keeps every
+ * listener-level speaker at least this far from every wall.
+ */
+export const SPEAKER_WALL_CLEARANCE = {
+  meters: 0.3,
+  note:
+    'Our modelling assumption, not Dolby: Dolby gives no distance from ' +
+    'the walls (docs/research/dolby-speaker-placement.md section 7).',
+} as const satisfies { meters: number; note: string }

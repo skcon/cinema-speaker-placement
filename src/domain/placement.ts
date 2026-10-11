@@ -16,7 +16,8 @@
  *    center-front reference, which is where the Center goes, at the screen.
  * 3. **Walls**: a speaker goes at the reference distance along its angle,
  *    or nearer along the same angle where that would come closer to a wall
- *    than the wall clearance. The angle (which is graded) always holds;
+ *    than the wall clearance (SPEAKER_WALL_CLEARANCE, 0.3 m, our modelling
+ *    assumption, not Dolby's). The angle (which is graded) always holds;
  *    only the distance gives way, and Dolby's answer to unequal distances is
  *    delay compensation (IG p.6, p.15).
  * 4. **Height**: every listener-level speaker is at seated ear height
@@ -31,17 +32,8 @@ import {
   CHANNELS,
   type ChannelReference,
 } from './dolby-layouts'
-import { EAR_HEIGHT } from './reference'
+import { EAR_HEIGHT, SPEAKER_WALL_CLEARANCE } from './reference'
 import { directionAtAzimuth, type Room, type RoomPoint } from './room'
-
-/**
- * How close a listener-level speaker's position (its acoustic center) may
- * come to any wall, in meters: room for the cabinet behind it.
- *
- * Our modelling assumption, not Dolby's: Dolby gives no distance from the
- * walls (docs/research/dolby-speaker-placement.md section 7).
- */
-export const SPEAKER_WALL_CLEARANCE = 0.3
 
 /** Where a listener-level channel goes around the MLP (see the rule above). */
 export function autoPlaceSpeaker(
@@ -75,15 +67,11 @@ function distanceToClearance(
   azimuth: number,
 ): number {
   const { dx, dy } = directionAtAzimuth(mlp, azimuth)
-  const xLimit = room.width / 2 - SPEAKER_WALL_CLEARANCE
+  const clearance = SPEAKER_WALL_CLEARANCE.meters
+  const xLimit = room.width / 2 - clearance
   const limits = [
     distanceAlong(mlp.x, dx, -xLimit, xLimit),
-    distanceAlong(
-      mlp.y,
-      dy,
-      SPEAKER_WALL_CLEARANCE,
-      room.length - SPEAKER_WALL_CLEARANCE,
-    ),
+    distanceAlong(mlp.y, dy, clearance, room.length - clearance),
   ]
   return Math.min(...limits)
 }

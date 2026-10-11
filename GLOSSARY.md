@@ -42,6 +42,10 @@ _Avoid_: Speaker slot, position
 A physical loudspeaker with specs, assigned to exactly one channel.
 _Avoid_: Box, driver, unit
 
+**Speaker group**:
+A set of channels that share one speaker model and its specs: Front L/R, Center, Surrounds, Rear surrounds, Overheads, Subwoofers.
+_Avoid_: Speaker set, pair, zone
+
 **Subwoofer**:
 A speaker that reproduces the low-frequency (the `Y` in `X.Y.Z`) part of the layout.
 _Avoid_: Sub channel, LFE speaker

@@ -6,6 +6,7 @@ import {
   decodeConfig,
   encodeConfig,
   UNIT_SYSTEMS,
+  V1_DOLBY_LAYOUTS,
   type Config,
   type UnitSystem,
 } from '@/domain'
@@ -59,6 +60,20 @@ describe('share link codec', () => {
       })
     },
   )
+
+  describe.each(V1_DOLBY_LAYOUTS)('rebuilds a %s layout', (dolbyLayout) => {
+    it.each([1, 2, 3, 4] as const)('with %i subwoofer(s)', (subwoofers) => {
+      const config: Config = {
+        ...IMPERIAL_ROOM,
+        layout: { dolbyLayout, subwoofers },
+      }
+
+      expect(decodeConfig(encodeConfig(config))).toEqual({
+        config,
+        problem: null,
+      })
+    })
+  })
 
   it('gives fields a link leaves out their defaults, as for links made before a field existed', () => {
     expect(

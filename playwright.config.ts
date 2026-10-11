@@ -1,9 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
+import { PAGES_BASE_PATH } from './pages.config.ts'
 
 const PORT = 4173
 // E2E runs against the production build under the GitHub Pages base path,
 // so it also catches asset and router basepath mistakes.
-const BASE_URL = `http://localhost:${PORT}/cinema-speaker-placement/`
+const BASE_URL = `http://localhost:${PORT}${PAGES_BASE_PATH}`
 const CI = !!process.env.CI
 
 export default defineConfig({

@@ -56,6 +56,12 @@ export default defineConfig([
     ignores: ['src/domain/**'],
     languageOptions: { globals: globals.browser },
   },
+  // shadcn/ui components come unmodified from `shadcn add`; some export
+  // their cva variants next to the component.
+  {
+    files: ['src/ui/components/**/*.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
   // Layer boundaries from CLAUDE.md: domain <- state <- presentation (ui, scene, charts).
   {
     files: ['src/domain/**/*.{ts,tsx}'],

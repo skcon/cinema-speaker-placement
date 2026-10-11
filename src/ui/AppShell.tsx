@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { cn } from '@/ui/lib/utils'
 
 /**
@@ -29,12 +29,11 @@ export function AppShell() {
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-        <Panel id="room-view" title="Room view" className="min-h-80 lg:flex-3">
+        <Panel title="Room view" className="min-h-80 lg:flex-3">
           A top-down view of the room with every speaker and the MLP will be
           shown here.
         </Panel>
         <Panel
-          id="estimated-response"
           title="Estimated response"
           note="An estimate from a simplified model, never a measurement."
           className="min-h-64 lg:flex-2"
@@ -48,19 +47,17 @@ export function AppShell() {
 }
 
 function Panel({
-  id,
   title,
   note,
   className,
   children,
 }: {
-  id: string
   title: string
   note?: string
   className?: string
   children: ReactNode
 }) {
-  const headingId = `${id}-heading`
+  const headingId = useId()
   return (
     <section
       aria-labelledby={headingId}

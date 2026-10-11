@@ -39,6 +39,16 @@ describe('app shell', () => {
     expect(within(length).getByRole('textbox', { name: 'm' })).toHaveValue('6')
   })
 
+  it('lists the speakers by Dolby name in the sidebar', async () => {
+    renderApp()
+
+    const sidebar = await screen.findByRole('complementary', {
+      name: 'Room and layout',
+    })
+    const speakers = within(sidebar).getByRole('table', { name: 'Speakers' })
+    expect(within(speakers).getByText('Left Surround')).toBeInTheDocument()
+  })
+
   it('describes the room in the room view, in the chosen units', async () => {
     renderApp()
 

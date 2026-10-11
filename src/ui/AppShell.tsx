@@ -3,6 +3,7 @@ import { useId, type ReactNode } from 'react'
 import { RoomView } from '@/scene/RoomView'
 import { LayoutForm } from '@/ui/LayoutForm'
 import { RoomForm } from '@/ui/RoomForm'
+import { SpeakerList } from '@/ui/SpeakerList'
 
 /**
  * Page layout: a sidebar (about 1/5 width) for the room and layout config on
@@ -28,6 +29,7 @@ export function AppShell() {
           </h2>
           <RoomForm />
           <LayoutForm />
+          <SpeakerList />
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">

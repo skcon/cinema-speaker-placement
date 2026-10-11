@@ -1,6 +1,7 @@
 import { cn } from 'cn'
 import { useId, type ReactNode } from 'react'
 import { RoomView } from '@/scene/RoomView'
+import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { RoomForm } from '@/ui/RoomForm'
 
 /**
@@ -18,6 +19,7 @@ export function AppShell() {
             Plan your home theater for sound, not looks.
           </p>
         </header>
+        <LinkProblemMessage />
         <aside
           aria-labelledby="sidebar-heading"
           className="flex flex-col gap-4"

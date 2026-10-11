@@ -1,4 +1,5 @@
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
+import { compressToEncodedURIComponent } from 'lz-string'
 import {
   act,
   fireEvent,
@@ -8,7 +9,7 @@ import {
   within,
 } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { encodeConfig, type Config } from '@/domain'
+import { DEFAULT_CONFIG, encodeConfig, type Config } from '@/domain'
 import { createAppRouter } from '@/router'
 
 function renderApp(path = '/') {
@@ -149,5 +150,46 @@ describe('share links', () => {
 
     act(() => history.back())
     expect(await findInput('Length', 'ft')).toHaveValue('26')
+  })
+
+  it('shows the default room and a message that can be dismissed when the link is broken', async () => {
+    renderApp('/?config=this-is-not-a-room')
+
+    const message = await screen.findByRole('alert')
+    expect(message).toHaveTextContent('This link couldn’t be opened')
+    expect(message).toHaveTextContent(/showing the default room/i)
+    expect(await findInput('Length', 'm')).toHaveValue('6')
+
+    fireEvent.click(within(message).getByRole('button', { name: 'Dismiss' }))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('puts the room it shows in place of a broken link in the address', async () => {
+    const history = renderApp('/?config=this-is-not-a-room')
+
+    await waitFor(() =>
+      expect(configInAddress(history)).toBe(encodeConfig(DEFAULT_CONFIG)),
+    )
+  })
+
+  it('says so when a link was made by a newer version of the app', async () => {
+    const fromTheFuture = new URLSearchParams({
+      config: compressToEncodedURIComponent(
+        JSON.stringify({ v: 99, config: {} }),
+      ),
+    })
+    renderApp(`/?${fromTheFuture}`)
+
+    const message = await screen.findByRole('alert')
+    expect(message).toHaveTextContent('This link needs a newer version')
+    expect(message).toHaveTextContent(/reload the page/i)
+  })
+
+  it('shows no message for a good link', async () => {
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+
+    await findInput('Length', 'ft')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

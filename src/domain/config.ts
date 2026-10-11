@@ -7,7 +7,7 @@ import {
   type Room,
   type RoomDimension,
 } from './room'
-import type { UnitSystem } from './units'
+import { UNIT_SYSTEM_NAMES } from './units'
 
 /** A room dimension in meters, inside the accepted range for that dimension. */
 function roomDimensionSchema(dimension: RoomDimension) {
@@ -28,7 +28,7 @@ function roomDimensionSchema(dimension: RoomDimension) {
  * version and a migration (see share-link.ts).
  */
 export const configSchema = z.strictObject({
-  units: z.enum(['metric', 'imperial']) satisfies z.ZodType<UnitSystem>,
+  units: z.enum(UNIT_SYSTEM_NAMES),
   room: z.strictObject({
     length: roomDimensionSchema('length'),
     width: roomDimensionSchema('width'),

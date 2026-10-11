@@ -5,10 +5,9 @@ import {
   DEFAULT_CONFIG,
   decodeConfig,
   encodeConfig,
-  UNIT_SYSTEMS,
+  UNIT_SYSTEM_NAMES,
   V1_DOLBY_LAYOUTS,
   type Config,
-  type UnitSystem,
 } from '@/domain'
 import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
@@ -33,7 +32,7 @@ describe('share link codec', () => {
     })
   })
 
-  it.each(Object.keys(UNIT_SYSTEMS) as UnitSystem[])(
+  it.each(UNIT_SYSTEM_NAMES)(
     'rebuilds a %s config exactly, down to the last digit of each length',
     (units) => {
       // Feet + inches converted to meters give long binary fractions, such

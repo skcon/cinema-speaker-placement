@@ -37,6 +37,7 @@ function configInAddress(history: ReturnType<typeof renderApp>) {
 
 // 26 ft 3 in x 16 ft 4.9 in x 9 ft 10.1 in
 const IMPERIAL_ROOM: Config = {
+  ...DEFAULT_CONFIG,
   units: 'imperial',
   room: { length: 8, width: 5, height: 3 },
 }
@@ -126,8 +127,8 @@ describe('share links', () => {
     fireEvent.change(length, { target: { value: '7.5' } })
 
     const edited = encodeConfig({
-      units: 'metric',
-      room: { length: 7.5, width: 4.5, height: 2.6 },
+      ...DEFAULT_CONFIG,
+      room: { ...DEFAULT_CONFIG.room, length: 7.5 },
     })
     expect(configInAddress(history)).not.toBe(edited)
     await waitFor(() => expect(configInAddress(history)).toBe(edited))
@@ -141,7 +142,7 @@ describe('share links', () => {
     act(() => {
       history.push(
         shareLinkPath({
-          units: 'metric',
+          ...DEFAULT_CONFIG,
           room: { length: 10, width: 6, height: 3.2 },
         }),
       )

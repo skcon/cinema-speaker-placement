@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { encodeConfig, type Config } from '@/domain'
+import { DEFAULT_CONFIG, encodeConfig, type Config } from '@/domain'
 import { createConfigStore } from '@/state/config-store'
 
 const IMPERIAL_ROOM: Config = {
+  ...DEFAULT_CONFIG,
   units: 'imperial',
   room: { length: 8, width: 5, height: 3 },
-}
-
-const DEFAULT_ROOM_CONFIG: Config = {
-  units: 'metric',
-  room: { length: 6, width: 4.5, height: 2.6 },
 }
 
 describe('config store', () => {
@@ -88,7 +84,7 @@ describe('opening a share link', () => {
 
     store.getState().openShareLink('not-a-share-link')
 
-    expect(store.getState().config).toEqual(DEFAULT_ROOM_CONFIG)
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
     expect(store.getState().linkProblem).toBe('unreadable')
   })
 
@@ -97,7 +93,7 @@ describe('opening a share link', () => {
 
     store.getState().openShareLink(undefined)
 
-    expect(store.getState().config).toEqual(DEFAULT_ROOM_CONFIG)
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
     expect(store.getState().linkProblem).toBeNull()
   })
 
@@ -117,6 +113,6 @@ describe('opening a share link', () => {
     store.getState().dismissLinkProblem()
 
     expect(store.getState().linkProblem).toBeNull()
-    expect(store.getState().config).toEqual(DEFAULT_ROOM_CONFIG)
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
   })
 })

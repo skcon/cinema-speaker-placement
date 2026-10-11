@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import { encodeConfig, type Config } from '@/domain'
 import { createConfigStore } from '@/state/config-store'
+
+const IMPERIAL_ROOM: Config = {
+  units: 'imperial',
+  room: { length: 8, width: 5, height: 3 },
+}
+
+const DEFAULT_ROOM_CONFIG: Config = {
+  units: 'metric',
+  room: { length: 6, width: 4.5, height: 2.6 },
+}
 
 describe('config store', () => {
   it('starts with the default config: metric, 6 x 4.5 x 2.6 m', () => {
@@ -59,5 +70,53 @@ describe('config store', () => {
       units: 'imperial',
       room: { length: 6, width: 4.5, height: 2.6 },
     })
+  })
+})
+
+describe('opening a share link', () => {
+  it("replaces the config with the link's config", () => {
+    const store = createConfigStore()
+
+    store.getState().openShareLink(encodeConfig(IMPERIAL_ROOM))
+
+    expect(store.getState().config).toEqual(IMPERIAL_ROOM)
+    expect(store.getState().linkProblem).toBeNull()
+  })
+
+  it('falls back to the default room and keeps the problem when the link is broken', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().openShareLink('not-a-share-link')
+
+    expect(store.getState().config).toEqual(DEFAULT_ROOM_CONFIG)
+    expect(store.getState().linkProblem).toBe('unreadable')
+  })
+
+  it('shows the default room for an address without a share link', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().openShareLink(undefined)
+
+    expect(store.getState().config).toEqual(DEFAULT_ROOM_CONFIG)
+    expect(store.getState().linkProblem).toBeNull()
+  })
+
+  it('forgets an earlier problem once a good link opens', () => {
+    const store = createConfigStore()
+    store.getState().openShareLink('not-a-share-link')
+
+    store.getState().openShareLink(encodeConfig(IMPERIAL_ROOM))
+
+    expect(store.getState().linkProblem).toBeNull()
+  })
+
+  it('can dismiss the problem and keep the default room', () => {
+    const store = createConfigStore()
+    store.getState().openShareLink('not-a-share-link')
+
+    store.getState().dismissLinkProblem()
+
+    expect(store.getState().linkProblem).toBeNull()
+    expect(store.getState().config).toEqual(DEFAULT_ROOM_CONFIG)
   })
 })

@@ -12,6 +12,15 @@ export const GRADE_STYLES = {
 } as const satisfies Record<PlacementGrade, { color: string; label: string }>
 
 /**
+ * How a subwoofer is drawn: Dolby gives subwoofers no placement range, so
+ * they get a neutral color and are labelled as ungraded.
+ */
+export const UNGRADED_STYLE = {
+  color: '#64748b',
+  label: 'ungraded',
+} as const satisfies { color: string; label: string }
+
+/**
  * The drawn size of a speaker cabinet seen from above, in meters: a
  * drawing size only, not a speaker spec.
  */

@@ -18,6 +18,12 @@ export type ConfigState = {
    * shown instead), until dismissed or a good link opens.
    */
   linkProblem: ShareLinkProblem | null
+  /**
+   * The default config as shown in place of the last share link that
+   * couldn't be opened, or null. Dismissing the message keeps it; see
+   * isShowingLinkFallback.
+   */
+  linkFallback: Config | null
   /** Show and accept lengths in these units. The stored meters don't change. */
   setUnits: (units: UnitSystem) => void
   /** Set one room dimension, in meters. Out-of-range values are ignored. */
@@ -46,6 +52,15 @@ export type ConfigState = {
 export type ConfigStore = ReturnType<typeof createConfigStore>
 
 /**
+ * Whether the config is still the default shown for a share link that
+ * couldn't be opened, unedited (dismissing the message doesn't count). Every
+ * edit makes a new config, so no action has to clear this.
+ */
+export function isShowingLinkFallback(state: ConfigState): boolean {
+  return state.config === state.linkFallback
+}
+
+/**
  * A store holding one config. Each app (and each test) creates its own, so
  * no state leaks between them.
  */
@@ -53,6 +68,7 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
   return createStore<ConfigState>()((set) => ({
     config: initialConfig,
     linkProblem: null,
+    linkFallback: null,
     setUnits: (units) =>
       set(({ config }) => ({ config: { ...config, units } })),
     setRoomDimension: (dimension, meters) => {
@@ -71,7 +87,11 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
         encoded === undefined
           ? { config: DEFAULT_CONFIG, problem: null }
           : decodeConfig(encoded)
-      set({ config, linkProblem: problem })
+      set({
+        config,
+        linkProblem: problem,
+        linkFallback: problem ? config : null,
+      })
     },
     dismissLinkProblem: () => set({ linkProblem: null }),
   }))

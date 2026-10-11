@@ -138,6 +138,16 @@ describe('app shell', () => {
   })
 })
 
+/** An encoded config from a later schema version than this app knows. */
+const FROM_THE_FUTURE = compressToEncodedURIComponent(
+  JSON.stringify({ v: 99, config: {} }),
+)
+
+/** Waits well past the pause after which the address follows an edit. */
+async function waitLongerThanTheAddress() {
+  await act(() => new Promise((resolve) => setTimeout(resolve, 700)))
+}
+
 describe('share links', () => {
   it('opens the room and layout a share link holds', async () => {
     renderApp(shareLinkPath(IMPERIAL_ROOM))
@@ -200,25 +210,43 @@ describe('share links', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('puts the room it shows in place of a broken link in the address', async () => {
+  it('keeps a broken link in the address until the room is edited', async () => {
     const history = renderApp('/?config=this-is-not-a-room')
+    await screen.findByRole('alert')
 
-    await waitFor(() =>
-      expect(configParamInAddress(history)).toBe(encodeConfig(DEFAULT_CONFIG)),
-    )
+    await waitLongerThanTheAddress()
+
+    expect(configParamInAddress(history)).toBe('this-is-not-a-room')
   })
 
   it('says so when a link was made by a newer version of the app', async () => {
-    const fromTheFuture = new URLSearchParams({
-      config: compressToEncodedURIComponent(
-        JSON.stringify({ v: 99, config: {} }),
-      ),
-    })
-    renderApp(`/?${fromTheFuture}`)
+    renderApp(`/?${new URLSearchParams({ config: FROM_THE_FUTURE })}`)
 
     const message = await screen.findByRole('alert')
     expect(message).toHaveTextContent('This link needs a newer version')
     expect(message).toHaveTextContent(/reload the page/i)
+  })
+
+  it('keeps a link from a newer version in the address for the reload, even after Dismiss, until the room is edited', async () => {
+    const history = renderApp(
+      `/?${new URLSearchParams({ config: FROM_THE_FUTURE })}`,
+    )
+    const message = await screen.findByRole('alert')
+
+    fireEvent.click(within(message).getByRole('button', { name: 'Dismiss' }))
+    await waitLongerThanTheAddress()
+
+    expect(configParamInAddress(history)).toBe(FROM_THE_FUTURE)
+
+    fireEvent.change(await findInput('Length', 'm'), {
+      target: { value: '7' },
+    })
+
+    const edited = encodeConfig({
+      ...DEFAULT_CONFIG,
+      room: { ...DEFAULT_CONFIG.room, length: 7 },
+    })
+    await waitFor(() => expect(configParamInAddress(history)).toBe(edited))
   })
 
   it('copies the full link of the room being edited, before the address catches up', async () => {

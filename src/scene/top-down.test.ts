@@ -1,9 +1,10 @@
-import { OrthographicCamera, Vector3 } from 'three'
+import { Box3, Mesh, OrthographicCamera, PlaneGeometry, Vector3 } from 'three'
 import { describe, expect, it } from 'vitest'
 import type { Room, RoomPoint } from '@/domain'
 import {
   floorGrid,
   floorOutline,
+  floorPlane,
   frontWall,
   toScenePosition,
   topDownCamera,
@@ -88,6 +89,23 @@ describe('the room drawing', () => {
     expect(grid.down.map(([from]) => from.y)).toEqual([1])
   })
 
+  it('lays the floor plane flat over the whole floor', () => {
+    const { position, rotation, size } = floorPlane(ROOM)
+    const floor = new Mesh(new PlaneGeometry(...size))
+    floor.position.set(...position)
+    floor.rotation.set(...rotation)
+    floor.updateMatrixWorld()
+
+    const box = new Box3().setFromObject(floor)
+    // Three.js x = room x, Three.js z = room y, Three.js y = height
+    expect(box.min.x).toBeCloseTo(-2.25, 9)
+    expect(box.max.x).toBeCloseTo(2.25, 9)
+    expect(box.min.z).toBeCloseTo(0, 9)
+    expect(box.max.z).toBeCloseTo(6, 9)
+    expect(box.min.y).toBeCloseTo(0, 9)
+    expect(box.max.y).toBeCloseTo(0, 9)
+  })
+
   it('can space the grid a foot apart', () => {
     const grid = floorGrid(ROOM, 0.3048)
 
@@ -121,24 +139,26 @@ describe('the top-down camera', () => {
     expect(center.y).toBeCloseTo(300, 6)
   })
 
-  it('fits the room to the panel with a 0.6 m margin, keeping it to scale', () => {
-    // Length + margins = 7.2 m must fit 600 px (83.3 px/m); width + margins
-    // = 5.7 m would allow 157.9 px/m, so length decides.
-    expect(topDownCamera(ROOM, size).zoom).toBeCloseTo(83.333, 3)
+  it('fits the room to the panel with a 32 px margin for labels, keeping it to scale', () => {
+    // 6 m must fit 600 - 64 = 536 px (89.3 px/m); 4.5 m across 900 - 64 =
+    // 836 px would allow 185.8 px/m, so length decides.
+    expect(topDownCamera(ROOM, size).zoom).toBeCloseTo(89.333, 3)
 
     const front = project({ x: 0, y: 0, z: 0 }, ROOM, size)
     const back = project({ x: 0, y: ROOM.length, z: 0 }, ROOM, size)
     const left = project({ x: -ROOM.width / 2, y: 0, z: 0 }, ROOM, size)
     const right = project({ x: ROOM.width / 2, y: 0, z: 0 }, ROOM, size)
-    // 6 m and 4.5 m at the same 83.3 px/m
-    expect(back.y - front.y).toBeCloseTo(500, 6)
-    expect(right.x - left.x).toBeCloseTo(375, 6)
+    // 6 m and 4.5 m at the same 89.3 px/m, 32 px from the top and bottom
+    expect(front.y).toBeCloseTo(32, 6)
+    expect(back.y).toBeCloseTo(568, 6)
+    expect(right.x - left.x).toBeCloseTo(402, 6)
   })
 
   it('lets the width decide on a narrow panel', () => {
-    // 5.7 m across 300 px = 52.6 px/m; 7.2 m down 900 px would allow 125.
+    // 4.5 m across 300 - 64 = 236 px = 52.4 px/m; 6 m down 836 px would
+    // allow 139.3.
     expect(topDownCamera(ROOM, { width: 300, height: 900 }).zoom).toBeCloseTo(
-      52.632,
+      52.444,
       3,
     )
   })

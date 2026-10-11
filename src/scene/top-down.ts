@@ -11,8 +11,11 @@ import type { Room, RoomPoint } from '@/domain'
 export type Vec3 = [x: number, y: number, z: number]
 export type ViewportSize = { width: number; height: number }
 
-/** Free space around the room in the view, in meters (room for labels). */
-const VIEW_MARGIN = 0.6
+/**
+ * Free space around the room in the view, in pixels, so labels outside the
+ * walls fit at any zoom.
+ */
+const VIEW_MARGIN_PX = 32
 /** How far above the ceiling the camera sits, in meters. */
 const CAMERA_CLEARANCE = 10
 
@@ -35,6 +38,21 @@ export function floorOutline({ length, width }: Room): RoomPoint[] {
     { x: half, y: length, z: 0 },
     { x: -half, y: length, z: 0 },
   ]
+}
+
+/**
+ * Turns a Three.js plane or circle (drawn in its XY plane, facing +z) to lie
+ * flat on the floor, facing up at the camera.
+ */
+export const FLAT_ON_FLOOR: Vec3 = [-Math.PI / 2, 0, 0]
+
+/** A Three.js plane covering the floor: its center, rotation and size. */
+export function floorPlane(room: Room) {
+  return {
+    position: toScenePosition({ x: 0, y: room.length / 2, z: 0 }),
+    rotation: FLAT_ON_FLOOR,
+    size: [room.width, room.length] as [width: number, height: number],
+  }
 }
 
 /** Where the front wall meets the floor. */
@@ -79,11 +97,11 @@ export function floorGrid(
  * An orthographic camera above the room's center, looking straight down,
  * with the front wall at the top of the view and +x on the right. `zoom` is
  * pixels per meter (react-three-fiber sizes the default orthographic frustum
- * in pixels) and fits the room plus a margin into the viewport.
+ * in pixels) and fits the room into the viewport inside a pixel margin.
  */
 export function topDownCamera(room: Room, size: ViewportSize) {
-  const fitsAcross = size.width / (room.width + 2 * VIEW_MARGIN)
-  const fitsDown = size.height / (room.length + 2 * VIEW_MARGIN)
+  const fitsAcross = (size.width - 2 * VIEW_MARGIN_PX) / room.width
+  const fitsDown = (size.height - 2 * VIEW_MARGIN_PX) / room.length
   const zoom = Math.min(fitsAcross, fitsDown)
   const height = room.height + CAMERA_CLEARANCE
   return {

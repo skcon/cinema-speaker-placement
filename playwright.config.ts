@@ -3,7 +3,8 @@ import { PAGES_BASE_PATH } from './pages.config.ts'
 
 const PORT = 4173
 // E2E runs against the production build under the GitHub Pages base path,
-// so it also catches asset and router basepath mistakes.
+// so it also catches asset and router basepath mistakes. The web server only
+// serves dist/: `npm run test:e2e` builds first, and CI reuses its build step.
 const BASE_URL = `http://localhost:${PORT}${PAGES_BASE_PATH}`
 const CI = !!process.env.CI
 
@@ -20,7 +21,7 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
+    command: `npm run preview -- --port ${PORT} --strictPort`,
     url: BASE_URL,
     reuseExistingServer: !CI,
   },

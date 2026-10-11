@@ -14,3 +14,5 @@ playwright/.cache/
 # Downloaded third-party source documents (keep out of git; see docs/research)
 docs/research/sources/
 .scratch/
+# Claude Code agent worktrees
+.claude/worktrees/

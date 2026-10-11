@@ -23,8 +23,16 @@ _Avoid_: Couch zone
 ## Speakers
 
 **Layout**:
-The speaker format written as `X.Y.Z`: X listener-level channels, Y subwoofers, Z height channels (for example `5.1.4`).
+The speaker format written as `X.Y.Z`: X listener-level channels, Y subwoofers, Z height channels (for example `5.1.4`, or `7.2.4` with two subwoofers).
 _Avoid_: Speaker configuration, setup, format
+
+**Overhead speaker**:
+A height speaker mounted in or on the ceiling, aimed at the MLP.
+_Avoid_: Ceiling speaker, top speaker
+
+**Atmos-enabled speaker**:
+An upward-firing height speaker that reflects sound off the ceiling (Dolby's term).
+_Avoid_: Up-firing module, bounce speaker
 
 **Channel**:
 A named role within a layout (Front Left, Center, Top Front Left...), following Dolby's channel names.
@@ -35,10 +43,26 @@ A physical loudspeaker with specs, assigned to exactly one channel.
 _Avoid_: Box, driver, unit
 
 **Subwoofer**:
-A speaker that reproduces the low-frequency (".1") part of the layout.
+A speaker that reproduces the low-frequency (the `Y` in `X.Y.Z`) part of the layout.
 _Avoid_: Sub channel, LFE speaker
 
 ## Results
+
+**Placement range**:
+The recommended angle range for a channel, graded as ideal, acceptable or outside, each with a cited source.
+_Avoid_: Tolerance, spec window
+
+**Target curve**:
+The frequency response the estimated response is compared against: flat, or a house curve with a bass boost.
+_Avoid_: Ideal curve, reference curve
+
+**Estimated response**:
+The modeled frequency response at the MLP; an estimate, never a measurement.
+_Avoid_: Measured response, projected result
+
+**Seat score**:
+How good a candidate MLP is, combining bass smoothness against the target curve with placement-range fit.
+_Avoid_: Rating, quality
 
 **Auto-place**:
 Placing every speaker and the MLP from the reference recommendations for the current room and layout.

@@ -77,6 +77,55 @@ describe('layout form', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('offers 1 to 4 subwoofers, with 1 chosen', () => {
+    renderLayoutForm()
+
+    const picker = screen.getByRole('radiogroup', { name: 'Subwoofers' })
+    expect(
+      within(picker)
+        .getAllByRole('radio')
+        .map((option) => option.textContent),
+    ).toEqual(['1', '2', '3', '4'])
+    expect(within(picker).getByRole('radio', { name: '1' })).toBeChecked()
+  })
+
+  it('stores the subwoofer count the user picks and writes it as the Y of every layout', () => {
+    renderLayoutForm()
+
+    fireEvent.click(
+      within(screen.getByRole('radiogroup', { name: 'Subwoofers' })).getByRole(
+        'radio',
+        { name: '2' },
+      ),
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '5.1.2 with 2 subwoofer',
+    )
+    expect(
+      within(layoutPicker())
+        .getAllByRole('radio')
+        .map((option) => option.textContent),
+    ).toEqual(['2.2', '3.2', '5.2', '7.2', '5.2.2', '5.2.4', '7.2.2', '7.2.4'])
+
+    fireEvent.click(screen.getByRole('radio', { name: '7.2.4' }))
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '7.1.4 with 2 subwoofer',
+    )
+  })
+
+  it('keeps the subwoofer count when the chosen count is clicked again', () => {
+    renderLayoutForm()
+    const picker = screen.getByRole('radiogroup', { name: 'Subwoofers' })
+
+    fireEvent.click(within(picker).getByRole('radio', { name: '1' }))
+
+    expect(within(picker).getByRole('radio', { name: '1' })).toBeChecked()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '5.1.2 with 1 subwoofer',
+    )
+  })
+
   it('has an Auto-place button that keeps the layout', () => {
     renderLayoutForm()
     fireEvent.click(screen.getByRole('radio', { name: '3.1' }))

@@ -1,15 +1,53 @@
 /**
- * Reference values with their sources. Source keys (IG, WEB101, ...) are the
- * ones in docs/research/dolby-speaker-placement.md section 1; `section`
- * points into that file for rules of thumb that are not from Dolby.
+ * Reference values with their sources, as cited in
+ * docs/research/dolby-speaker-placement.md.
  */
 
-export type Citation = {
-  readonly source: string
-  readonly page?: number
-  readonly section?: string
-  readonly note?: string
-}
+/** The source keys of docs/research/dolby-speaker-placement.md, section 1. */
+export type SourceKey =
+  | 'IG'
+  | 'WP'
+  | 'SB'
+  | 'QSG'
+  | 'WEB101'
+  | 'IDX'
+  | 'S-21'
+  | 'S-31'
+  | 'S-41'
+  | 'S-51'
+  | 'S-71'
+  | 'S-91'
+  | 'S-512-OH'
+  | 'S-512-EN'
+  | 'S-514-OH'
+  | 'S-514-EN'
+  | 'S-514-HY'
+  | 'S-712-OH'
+  | 'S-712-EN'
+  | 'S-714-OH'
+  | 'S-714-EN'
+  | 'S-714-HY'
+  | 'S-912-OH'
+  | 'S-914-OH'
+  | 'S-916-OH'
+  | 'S-1118-OH'
+
+/**
+ * Where a reference value comes from: a keyed source (with a page for the
+ * multi-page ones), or, for rules of thumb that are not from Dolby, the
+ * numbered entry in section 8 ("General acoustics references") of the
+ * research file.
+ */
+export type Citation =
+  | {
+      readonly source: SourceKey
+      readonly page?: number
+      readonly note?: string
+    }
+  | {
+      readonly generalReference: number
+      readonly note?: string
+    }
 
 /** Seated ear height: listener-level speakers and the MLP sit here. */
 export const EAR_HEIGHT = {
@@ -30,8 +68,7 @@ export const MLP_FRONT_WALL_FRACTION = {
   fraction: 0.38,
   citations: [
     {
-      source: 'research',
-      section: '8.3',
+      generalReference: 3,
       note: 'heuristic attributed to Wes Lachot, who calls it a starting point',
     },
   ],

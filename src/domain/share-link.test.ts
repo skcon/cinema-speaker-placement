@@ -180,18 +180,20 @@ describe('released share links', () => {
 })
 
 /**
- * The largest config a share link has to carry, for the size budget. Grow
- * it with the config: the compiler asks for every new field, and each one
- * should take its longest value. Planned growth (issue #2): a 7.4.4 layout
- * (7.1.4 with four subwoofers), every speaker and the MLP manual with
- * full-precision positions, specs for every speaker group and per-subwoofer
- * specs, amp power, crossover, target curve and seat row width.
+ * The largest config a share link has to carry, for the size budget: the
+ * largest real config today. Grow it with the config: the compiler asks for
+ * every new field, and each one should take its longest value. Planned
+ * growth (issue #2): every speaker (overheads and the four subwoofers
+ * included) and the MLP manual with full-precision positions, specs for
+ * every speaker group and per-subwoofer specs, amp power, crossover, target
+ * curve and seat row width.
  */
 const WORST_CASE_CONFIG: Config = {
   units: 'imperial',
   // Near the limits, with all 17 significant digits a converted
   // feet + inches value or a drag can produce (14.987654320987655...).
   room: { length: 15 - 1 / 81, width: 15 - 1 / 7, height: 5 - 1 / 81 },
+  // The largest v1 layout: 7.4.4.
   layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
 }
 

@@ -7,25 +7,18 @@ describe('config store', () => {
   it('starts with the default config: metric, 6 x 4.5 x 2.6 m, 5.1.2', () => {
     const store = createConfigStore()
 
-    expect(store.getState().config).toEqual({
+    expect(store.getState().config).toMatchObject({
       units: 'metric',
       room: { length: 6, width: 4.5, height: 2.6 },
       layout: { dolbyLayout: '5.1.2', subwoofers: 1 },
     })
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
   })
 
   it('can start from a given config', () => {
-    const store = createConfigStore({
-      units: 'imperial',
-      room: { length: 8, width: 5, height: 3 },
-      layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
-    })
+    const store = createConfigStore(IMPERIAL_ROOM)
 
-    expect(store.getState().config).toEqual({
-      units: 'imperial',
-      room: { length: 8, width: 5, height: 3 },
-      layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
-    })
+    expect(store.getState().config).toEqual(IMPERIAL_ROOM)
   })
 
   it('stores a new room dimension in meters', () => {

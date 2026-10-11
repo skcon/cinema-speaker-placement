@@ -26,6 +26,23 @@ export type SubwooferSpecs = {
   readonly peakWatts: number
 }
 
+/**
+ * The Subwoofers speaker group: the specs its subwoofers share, and the
+ * specs of any subwoofer that has its own (a mixed set of subwoofers, user
+ * story 19).
+ */
+export type SubwooferGroup = {
+  readonly specs: SubwooferSpecs
+  /**
+   * One entry per subwoofer of the layout, Subwoofer 1 first: its own
+   * specs, or null when it uses the group's.
+   */
+  readonly overrides: readonly (SubwooferSpecs | null)[]
+}
+
+/** Specs per speaker group. #13 adds Front L/R, Center, Surrounds, Rear surrounds and Overheads. */
+export type SpeakerGroups = { readonly subwoofers: SubwooferGroup }
+
 /** The numeric subwoofer specs, which have accepted ranges. */
 export type SubwooferSpecField = 'driverDiameter' | 'rmsWatts' | 'peakWatts'
 
@@ -40,6 +57,11 @@ export const DEFAULT_SUBWOOFER_SPECS = {
   rmsWatts: 300,
   peakWatts: 600,
 } as const satisfies SubwooferSpecs
+
+/** First-visit speaker groups: our default specs, with no subwoofer of its own. */
+export const DEFAULT_SPEAKER_GROUPS = {
+  subwoofers: { specs: DEFAULT_SUBWOOFER_SPECS, overrides: [null] },
+} as const satisfies SpeakerGroups
 
 /**
  * Accepted values, inclusive (driver sizes in meters, power in watts).

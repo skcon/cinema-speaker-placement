@@ -11,7 +11,7 @@ export const UNIT_SYSTEM_NAMES = ['metric', 'imperial'] as const
 export type UnitSystem = (typeof UNIT_SYSTEM_NAMES)[number]
 
 /** A unit a length is written in. */
-export type LengthUnit = 'm' | 'ft' | 'in'
+export type LengthUnit = 'm' | 'cm' | 'ft' | 'in'
 
 /** One part of a written length, such as "8.2 in" in 19 ft 8.2 in. */
 export type LengthPart = { unit: LengthUnit; value: number }
@@ -28,6 +28,12 @@ export type UnitSystemSpec = {
   readonly parts: readonly LengthUnit[]
   /** The largest unit and its length in meters (1 m or 1 ft). */
   readonly baseUnit: { readonly unit: LengthUnit; readonly meters: number }
+  /**
+   * The unit for small lengths, such as a driver size, and its length in
+   * meters (1 cm or 1 in). Small lengths are written as one number in it,
+   * to the nearest tenth (see toSmallUnit).
+   */
+  readonly smallUnit: { readonly unit: LengthUnit; readonly meters: number }
   /** A length as its parts, rounded to the display step (1 cm or 0.1 in). */
   toParts(meters: number, rounding?: Rounding): LengthPart[]
   /** The length, in meters, of one value per entry of `parts`. */
@@ -66,10 +72,12 @@ export const UNIT_SYSTEMS: Record<UnitSystem, UnitSystemSpec> = {
       },
     ],
     fromParts: ([meters = Number.NaN]) => meters,
+    smallUnit: { unit: 'cm', meters: 1 / CENTIMETERS_PER_METER },
   },
   imperial: {
     parts: ['ft', 'in'],
     baseUnit: { unit: 'ft', meters: METERS_PER_FOOT },
+    smallUnit: { unit: 'in', meters: METERS_PER_INCH },
     // Rounding happens on the total, so 11.96 in becomes 1 ft 0 in, not
     // 0 ft 12 in.
     toParts: (meters, rounding = 'nearest') => {
@@ -100,4 +108,38 @@ export function formatLength(
     .toParts(meters, rounding)
     .map(({ unit, value }) => `${value} ${unit}`)
     .join(' ')
+}
+
+/** Small lengths are shown to the nearest tenth of their unit (1 mm or 0.1 in). */
+const SMALL_STEPS_PER_UNIT = 10
+
+/**
+ * A small length, such as a driver size, as one number in the unit
+ * system's small unit (cm or in), rounded to the nearest tenth.
+ */
+export function toSmallUnit(
+  meters: number,
+  units: UnitSystem,
+  rounding: Rounding = 'nearest',
+): number {
+  const { meters: unitMeters } = UNIT_SYSTEMS[units].smallUnit
+  return (
+    roundSteps((meters / unitMeters) * SMALL_STEPS_PER_UNIT, rounding) /
+    SMALL_STEPS_PER_UNIT
+  )
+}
+
+/** The length, in meters, of a value in the unit system's small unit. */
+export function fromSmallUnit(value: number, units: UnitSystem): number {
+  return value * UNIT_SYSTEMS[units].smallUnit.meters
+}
+
+/** A small length as text, for example "30.5 cm" or "12 in". */
+export function formatSmallLength(
+  meters: number,
+  units: UnitSystem,
+  rounding: Rounding = 'nearest',
+): string {
+  const { unit } = UNIT_SYSTEMS[units].smallUnit
+  return `${toSmallUnit(meters, units, rounding)} ${unit}`
 }

@@ -30,6 +30,15 @@ export {
   type Wall,
 } from './room'
 export {
+  checkSubwooferSpec,
+  DEFAULT_SUBWOOFER_SPECS,
+  ENCLOSURES,
+  type Enclosure,
+  type SubwooferSpecField,
+  type SubwooferSpecProblem,
+  type SubwooferSpecs,
+} from './speaker-specs'
+export {
   decodeConfig,
   encodeConfig,
   type DecodedConfig,
@@ -37,6 +46,9 @@ export {
 } from './share-link'
 export {
   formatLength,
+  formatSmallLength,
+  fromSmallUnit,
+  toSmallUnit,
   UNIT_SYSTEM_NAMES,
   UNIT_SYSTEMS,
   type LengthPart,

@@ -97,4 +97,18 @@ describe('config store', () => {
       analyzeRoom(sevenOneInFiveMeters).speakers,
     )
   })
+
+  it('auto-place changes nothing while every position is derived, so undo has nothing to record', () => {
+    const store = createConfigStore()
+    const before = store.getState().config
+    let notified = 0
+    store.subscribe(() => {
+      notified += 1
+    })
+
+    store.getState().autoPlace()
+
+    expect(store.getState().config).toBe(before)
+    expect(notified).toBe(0)
+  })
 })

@@ -1,8 +1,8 @@
 import { Html, Line, OrthographicCamera } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
+import { cn } from 'cn'
 import { useRef, type ReactNode, type RefObject } from 'react'
 import { floorCorners, wallBases, type Room, type RoomPoint } from '@/domain'
-import { cn } from '@/ui/lib/utils'
 import {
   FLAT_ON_FLOOR,
   floorGrid,

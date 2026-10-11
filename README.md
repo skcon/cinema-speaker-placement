@@ -46,7 +46,7 @@ npx playwright install chromium
 | `src/router.tsx`, `src/App.tsx`, `src/main.tsx` | App wiring   | TanStack Router root route, the root component with the config store, the entry point.  |
 | `e2e`                                           | Tests        | Playwright end-to-end tests.                                                             |
 
-Room coordinates (origin, axes, azimuth) are defined once in `src/domain/room.ts`. Add shadcn/ui components with `npx shadcn@4.21.4 add <name>`.
+Room coordinates (origin, axes, azimuth, elevation) are defined once in `src/domain/room.ts`. Add shadcn/ui components with `npx shadcn@4.21.4 add <name>`. Import `cn` from the `cn` package, as the generated components do.
 
 ## CI and releases
 

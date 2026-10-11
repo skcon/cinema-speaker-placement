@@ -1,6 +1,6 @@
+import { cn } from 'cn'
 import { useId, type ReactNode } from 'react'
 import { RoomView } from '@/scene/RoomView'
-import { cn } from '@/ui/lib/utils'
 import { RoomForm } from '@/ui/RoomForm'
 
 /**

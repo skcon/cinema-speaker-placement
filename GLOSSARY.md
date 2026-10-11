@@ -79,3 +79,13 @@ _Avoid_: Rating, quality
 **Auto-place**:
 Placing every speaker and the MLP from the reference recommendations for the current room and layout.
 _Avoid_: Auto-layout, optimize
+
+## Sharing
+
+**Share link**:
+The app's whole address, which always holds the encoded config, so opening or copying it rebuilds the same Room. Links keep opening after app updates.
+_Avoid_: Permalink, save link, URL state
+
+**Encoded config**:
+The whole config as the compressed, versioned text a share link carries in its `config` search param; only part of a share link, never the whole address.
+_Avoid_: Share link (for the param alone), hash, token

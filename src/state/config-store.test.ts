@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeRoom, DEFAULT_CONFIG } from '@/domain'
-import { createConfigStore } from '@/state/config-store'
+import { analyzeRoom, DEFAULT_CONFIG, encodeConfig } from '@/domain'
+import { createConfigStore, isShowingLinkFallback } from '@/state/config-store'
+import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
 describe('config store', () => {
   it('starts with the default config: metric, 6 x 4.5 x 2.6 m, 5.1.2', () => {
@@ -110,5 +111,91 @@ describe('config store', () => {
 
     expect(store.getState().config).toBe(before)
     expect(notified).toBe(0)
+  })
+})
+
+describe('opening an encoded config', () => {
+  it("replaces the config with the link's config", () => {
+    const store = createConfigStore()
+
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
+
+    expect(store.getState().config).toEqual(IMPERIAL_ROOM)
+    expect(store.getState().linkProblem).toBeNull()
+  })
+
+  it('falls back to the default room and keeps the problem when the link is broken', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().openEncodedConfig('not-an-encoded-config')
+
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().linkProblem).toBe('unreadable')
+  })
+
+  it('shows the default room without an encoded config', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().openEncodedConfig(undefined)
+
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().linkProblem).toBeNull()
+  })
+
+  it('forgets an earlier problem once a good link opens', () => {
+    const store = createConfigStore()
+    store.getState().openEncodedConfig('not-an-encoded-config')
+
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
+
+    expect(store.getState().linkProblem).toBeNull()
+  })
+
+  it('can dismiss the problem and keep the default room', () => {
+    const store = createConfigStore()
+    store.getState().openEncodedConfig('not-an-encoded-config')
+
+    store.getState().dismissLinkProblem()
+
+    expect(store.getState().linkProblem).toBeNull()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+  })
+})
+
+describe('the default room shown for a broken link', () => {
+  it('stays the fallback, even once the message is dismissed', () => {
+    const store = createConfigStore()
+
+    store.getState().openEncodedConfig('not-an-encoded-config')
+    expect(isShowingLinkFallback(store.getState())).toBe(true)
+
+    store.getState().dismissLinkProblem()
+    expect(isShowingLinkFallback(store.getState())).toBe(true)
+  })
+
+  it('stops being the fallback once the config is edited', () => {
+    const store = createConfigStore()
+    store.getState().openEncodedConfig('not-an-encoded-config')
+
+    store.getState().setRoomDimension('length', 7)
+
+    expect(isShowingLinkFallback(store.getState())).toBe(false)
+  })
+
+  it('stops being the fallback once a good link opens', () => {
+    const store = createConfigStore()
+    store.getState().openEncodedConfig('not-an-encoded-config')
+
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
+
+    expect(isShowingLinkFallback(store.getState())).toBe(false)
+  })
+
+  it('is not shown without a broken link, even for the default config', () => {
+    const store = createConfigStore()
+
+    store.getState().openEncodedConfig(undefined)
+
+    expect(isShowingLinkFallback(store.getState())).toBe(false)
   })
 })

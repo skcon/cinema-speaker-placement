@@ -4,8 +4,11 @@
  * system is described once, in UNIT_SYSTEMS, so callers never branch on it.
  */
 
+/** The unit systems, listed once: the type, UNIT_SYSTEMS and the config schema follow it. */
+export const UNIT_SYSTEM_NAMES = ['metric', 'imperial'] as const
+
 /** The units lengths are entered and shown in. Metric is the default. */
-export type UnitSystem = 'metric' | 'imperial'
+export type UnitSystem = (typeof UNIT_SYSTEM_NAMES)[number]
 
 /** A unit a length is written in. */
 export type LengthUnit = 'm' | 'ft' | 'in'

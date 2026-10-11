@@ -4,13 +4,14 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router'
 import { App } from '@/App'
+import { validateSearch } from '@/search'
 
-const rootRoute = createRootRoute({ component: App })
+const rootRoute = createRootRoute({ component: App, validateSearch })
 
 /**
- * The app has a single root route; the room config will live in its search
- * params. The basepath follows Vite's BASE_URL so the same build works at
- * `/` in dev and at `/cinema-speaker-placement/` on GitHub Pages.
+ * The app has a single root route; the room config lives in its `config`
+ * search param. The basepath follows Vite's BASE_URL so the same build works
+ * at `/` in dev and at `/cinema-speaker-placement/` on GitHub Pages.
  */
 export function createAppRouter(options: { history?: RouterHistory } = {}) {
   return createRouter({

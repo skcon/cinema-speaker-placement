@@ -1,11 +1,39 @@
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { compressToEncodedURIComponent } from 'lz-string'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_CONFIG, encodeConfig, type Config } from '@/domain'
 import { createAppRouter } from '@/router'
+import { mockClipboard } from '@/test/clipboard'
+import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
-function renderApp() {
-  const history = createMemoryHistory({ initialEntries: ['/'] })
+function renderApp(path = '/') {
+  const history = createMemoryHistory({ initialEntries: [path] })
   render(<RouterProvider router={createAppRouter({ history })} />)
+  return history
+}
+
+/** The address of a share link for `config`. */
+function shareLinkPath(config: Config) {
+  return `/?${new URLSearchParams({ config: encodeConfig(config) })}`
+}
+
+/** The text box labelled with `unit` inside the sidebar field for `dimension`. */
+async function findInput(dimension: string, unit: 'm' | 'ft' | 'in') {
+  const field = await screen.findByRole('group', { name: dimension })
+  return within(field).getByRole('textbox', { name: unit })
+}
+
+/** The encoded config in the address's `config` param, or null without one. */
+function configParamInAddress(history: ReturnType<typeof renderApp>) {
+  return new URLSearchParams(history.location.search).get('config')
 }
 
 describe('app shell', () => {
@@ -107,5 +135,144 @@ describe('app shell', () => {
     expect(
       within(response).getByText(/an estimate from a simplified model/i),
     ).toBeInTheDocument()
+  })
+})
+
+/** An encoded config from a later schema version than this app knows. */
+const FROM_THE_FUTURE = compressToEncodedURIComponent(
+  JSON.stringify({ v: 99, config: {} }),
+)
+
+/** Waits well past the pause after which the address follows an edit. */
+async function waitLongerThanTheAddress() {
+  await act(() => new Promise((resolve) => setTimeout(resolve, 700)))
+}
+
+describe('share links', () => {
+  it('opens the room and layout a share link holds', async () => {
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+
+    expect(await findInput('Length', 'ft')).toHaveValue('26')
+    expect(await findInput('Length', 'in')).toHaveValue('3')
+    expect(await findInput('Width', 'ft')).toHaveValue('16')
+    expect(
+      screen.getByRole('radio', { name: 'Imperial (ft + in)' }),
+    ).toBeChecked()
+    // 7.1.4 with two subwoofers
+    expect(screen.getByRole('radio', { name: '7.2.4' })).toBeChecked()
+  })
+
+  it('writes the room to the address once typing pauses, without adding history entries', async () => {
+    const history = renderApp()
+    const length = await findInput('Length', 'm')
+
+    fireEvent.change(length, { target: { value: '7' } })
+    fireEvent.change(length, { target: { value: '7.5' } })
+
+    const edited = encodeConfig({
+      ...DEFAULT_CONFIG,
+      room: { ...DEFAULT_CONFIG.room, length: 7.5 },
+    })
+    expect(configParamInAddress(history)).not.toBe(edited)
+    await waitFor(() => expect(configParamInAddress(history)).toBe(edited))
+    expect(history.length).toBe(1)
+  })
+
+  it('follows the address back and forward between share links', async () => {
+    const history = renderApp(shareLinkPath(IMPERIAL_ROOM))
+    expect(await findInput('Length', 'ft')).toHaveValue('26')
+
+    act(() => {
+      history.push(
+        shareLinkPath({
+          ...DEFAULT_CONFIG,
+          room: { length: 10, width: 6, height: 3.2 },
+        }),
+      )
+    })
+    expect(await findInput('Length', 'm')).toHaveValue('10')
+    expect(await findInput('Height', 'm')).toHaveValue('3.2')
+
+    act(() => history.back())
+    expect(await findInput('Length', 'ft')).toHaveValue('26')
+  })
+
+  it('shows the default room and a message that can be dismissed when the link is broken', async () => {
+    renderApp('/?config=this-is-not-a-room')
+
+    const message = await screen.findByRole('alert')
+    expect(message).toHaveTextContent('This link couldn’t be opened')
+    expect(message).toHaveTextContent(/showing the default room/i)
+    expect(await findInput('Length', 'm')).toHaveValue('6')
+
+    fireEvent.click(within(message).getByRole('button', { name: 'Dismiss' }))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps a broken link in the address until the room is edited', async () => {
+    const history = renderApp('/?config=this-is-not-a-room')
+    await screen.findByRole('alert')
+
+    await waitLongerThanTheAddress()
+
+    expect(configParamInAddress(history)).toBe('this-is-not-a-room')
+  })
+
+  it('says so when a link was made by a newer version of the app', async () => {
+    renderApp(`/?${new URLSearchParams({ config: FROM_THE_FUTURE })}`)
+
+    const message = await screen.findByRole('alert')
+    expect(message).toHaveTextContent('This link needs a newer version')
+    expect(message).toHaveTextContent(/reload the page/i)
+  })
+
+  it('keeps a link from a newer version in the address for the reload, even after Dismiss, until the room is edited', async () => {
+    const history = renderApp(
+      `/?${new URLSearchParams({ config: FROM_THE_FUTURE })}`,
+    )
+    const message = await screen.findByRole('alert')
+
+    fireEvent.click(within(message).getByRole('button', { name: 'Dismiss' }))
+    await waitLongerThanTheAddress()
+
+    expect(configParamInAddress(history)).toBe(FROM_THE_FUTURE)
+
+    fireEvent.change(await findInput('Length', 'm'), {
+      target: { value: '7' },
+    })
+
+    const edited = encodeConfig({
+      ...DEFAULT_CONFIG,
+      room: { ...DEFAULT_CONFIG.room, length: 7 },
+    })
+    await waitFor(() => expect(configParamInAddress(history)).toBe(edited))
+  })
+
+  it('copies the full link of the room being edited, before the address catches up', async () => {
+    const writeText = mockClipboard()
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+
+    fireEvent.change(await findInput('Length', 'ft'), {
+      target: { value: '30' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Copy link' }))
+
+    // 30 ft 3 in = 9.2202 m
+    const edited: Config = {
+      ...IMPERIAL_ROOM,
+      room: { ...IMPERIAL_ROOM.room, length: (30 * 12 + 3) * 0.0254 },
+    }
+    expect(await screen.findByText('Link copied')).toBeInTheDocument()
+    expect(writeText).toHaveBeenCalledWith(
+      new URL(shareLinkPath(edited), window.location.origin).href,
+    )
+  })
+
+  it('shows no message for a good link', async () => {
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+
+    await findInput('Length', 'ft')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

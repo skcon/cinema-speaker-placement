@@ -1,9 +1,18 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+import { V1_LINKS } from '../src/test/share-link-fixtures.ts'
 
 /** The part of HTMLCanvasElement we use (e2e is typechecked without the DOM lib). */
 type WebGLCanvas = { getContext(contextId: 'webgl2'): object | null }
 
-test('the app opens at the GitHub Pages base path with the default room and speakers drawn', async ({
+/** The sidebar text box for one part (`m`, `ft`, `in`) of a room dimension. */
+function dimensionInput(page: Page, dimension: string, unit: string) {
+  return page
+    .getByRole('complementary', { name: 'Room and layout' })
+    .getByRole('group', { name: dimension })
+    .getByRole('textbox', { name: unit })
+}
+
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, and opens, follows and restores a share link', async ({
   page,
 }) => {
   await page.goto('./')
@@ -52,6 +61,55 @@ test('the app opens at the GitHub Pages base path with the default room and spea
     await expect(scene.getByText('ideal', { exact: true })).toHaveCount(5)
     await expect(
       page.getByRole('table', { name: 'Speakers' }).getByText('Left Surround'),
+    ).toBeVisible()
+  })
+
+  // 24 x 15 x 9 ft in imperial, 7.1.2 with two subwoofers (7.2.2).
+  const { encoded } = V1_LINKS.imperialRoom
+  await page.goto(`./?config=${encoded}`)
+  const sharedScene = page
+    .getByRole('region', { name: 'Room view' })
+    .getByRole('img', { name: /24 ft 0 in long and 15 ft 0 in wide/ })
+
+  await test.step('a share link opens its room and speakers', async () => {
+    await expect(
+      page.getByRole('radio', { name: 'Imperial (ft + in)' }),
+    ).toBeChecked()
+    await expect(dimensionInput(page, 'Length', 'ft')).toHaveValue('24')
+    await expect(dimensionInput(page, 'Width', 'ft')).toHaveValue('15')
+    await expect(dimensionInput(page, 'Height', 'ft')).toHaveValue('9')
+    await expect(
+      page.getByRole('radio', { name: '7.2.2', checked: true }),
+    ).toBeVisible()
+    for (const label of ['L 26°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
+      await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
+    }
+    await expect(sharedScene.getByText('ideal', { exact: true })).toHaveCount(7)
+  })
+
+  await test.step('an edit reaches the address, under the base path', async () => {
+    await dimensionInput(page, 'Length', 'ft').fill('30')
+
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === '/cinema-speaker-placement/' &&
+        url.searchParams.has('config') &&
+        url.searchParams.get('config') !== encoded,
+    )
+  })
+
+  await test.step('a reload restores the edited room', async () => {
+    await page.reload()
+
+    await expect(dimensionInput(page, 'Length', 'ft')).toHaveValue('30')
+    await expect(dimensionInput(page, 'Width', 'ft')).toHaveValue('15')
+    await expect(
+      page.getByRole('radio', { name: '7.2.2', checked: true }),
+    ).toBeVisible()
+    await expect(
+      page
+        .getByRole('region', { name: 'Room view' })
+        .getByRole('img', { name: /30 ft 0 in long and 15 ft 0 in wide/ }),
     ).toBeVisible()
   })
 })

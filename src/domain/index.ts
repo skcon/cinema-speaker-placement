@@ -10,6 +10,18 @@ export {
   type SpeakerFormat,
   type SubwooferCount,
 } from './layout'
+export type {
+  AngleRange,
+  ChannelId,
+  CitedAngleRange,
+  NoWiderRange,
+} from './dolby-layouts'
+export {
+  checkPlacementRange,
+  type PlacementGrade,
+  type PlacementRangeCheck,
+} from './placement-range'
+export type { Citation, SourceKey } from './reference'
 export {
   checkRoomDimension,
   DEFAULT_ROOM,

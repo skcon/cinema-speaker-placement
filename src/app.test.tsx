@@ -126,6 +126,29 @@ describe('app shell', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows the subwoofers in the room view, ungraded, following the subwoofer count', async () => {
+    renderApp()
+    const roomView = await screen.findByRole('region', { name: 'Room view' })
+    expect(
+      within(roomView).getByText(
+        '1 subwoofer, not graded as Dolby gives subwoofers no placement range: Subwoofer 1 at the front wall.',
+      ),
+    ).toBeInTheDocument()
+
+    fireEvent.click(
+      within(screen.getByRole('radiogroup', { name: 'Subwoofers' })).getByRole(
+        'radio',
+        { name: '3' },
+      ),
+    )
+
+    expect(
+      within(roomView).getByText(
+        '3 subwoofers, not graded as Dolby gives subwoofers no placement range: Subwoofer 1 at the front wall, Subwoofer 2 at the left wall, Subwoofer 3 at the right wall.',
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('says the response is an estimate, not a measurement', async () => {
     renderApp()
 

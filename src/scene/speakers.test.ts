@@ -6,7 +6,14 @@ import {
   type PlacedSpeaker,
   type PlacementGrade,
 } from '@/domain'
-import { describeSpeaker, GRADE_STYLES, speakerMarker } from '@/scene/speakers'
+import {
+  describeSpeaker,
+  describeSubwoofer,
+  GRADE_STYLES,
+  speakerMarker,
+  subwooferMarker,
+  UNGRADED_STYLE,
+} from '@/scene/speakers'
 
 const analysis = analyzeRoom(DEFAULT_CONFIG)
 const MLP = analysis.mlp
@@ -88,6 +95,67 @@ describe('speaker markers in the top-down scene', () => {
     expect(labelDirection('Ls')).toEqual({ x: 1, y: 0 }) // left side, 100°: right of it
     expect(labelDirection('Rs')).toEqual({ x: -1, y: 0 }) // right side: left of it
     expect(labelDirection('Lrs')).toEqual({ x: 0, y: -1 }) // behind, 143°: above
+  })
+})
+
+describe('subwoofer markers in the top-down scene', () => {
+  const fourSubwoofers = analyzeRoom({
+    ...DEFAULT_CONFIG,
+    layout: { dolbyLayout: '5.1.2', subwoofers: 4 },
+    speakerGroups: {
+      subwoofers: {
+        ...DEFAULT_CONFIG.speakerGroups.subwoofers,
+        overrides: [null, null, null, null],
+      },
+    },
+  }).subwoofers
+
+  it('sit at the subwoofer position, mapped to Three.js', () => {
+    const [front] = fourSubwoofers
+    if (!front) throw new Error('no subwoofer')
+
+    expect(subwooferMarker(front).position).toEqual([
+      front.position.x,
+      front.position.z,
+      front.position.y,
+    ])
+  })
+
+  it('are drawn in a neutral color and labelled ungraded, as Dolby gives them no placement range', () => {
+    expect(
+      fourSubwoofers.map(subwooferMarker).map(({ label, color }) => ({
+        label,
+        color,
+      })),
+    ).toEqual([
+      { label: 'Sub1', color: '#64748b' },
+      { label: 'Sub2', color: '#64748b' },
+      { label: 'Sub3', color: '#64748b' },
+      { label: 'Sub4', color: '#64748b' },
+    ])
+    expect(UNGRADED_STYLE.label).toBe('ungraded')
+  })
+
+  it('put the label beside the marker along its wall, clear of the speakers', () => {
+    // Front and back wall: to the right, so the Center's label (below it)
+    // stays clear. Side walls: below.
+    expect(
+      fourSubwoofers.map((sub) => subwooferMarker(sub).labelDirection),
+    ).toEqual([
+      { x: 1, y: 0 },
+      { x: 1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: 1 },
+    ])
+  })
+
+  it('describe the subwoofer and its wall in words', () => {
+    expect(fourSubwoofers.map(describeSubwoofer)).toEqual([
+      'Subwoofer 1 at the front wall',
+      'Subwoofer 2 at the back wall',
+      'Subwoofer 3 at the left wall',
+      'Subwoofer 4 at the right wall',
+    ])
   })
 })
 

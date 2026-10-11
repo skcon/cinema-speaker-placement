@@ -8,6 +8,10 @@ Planning a home theater room for acoustic performance: where speakers and seats 
 The rectangular listening space, described by length, width and height.
 _Avoid_: Space, area, cinema
 
+**Front wall**:
+The wall the MLP faces, where the screen and the Center channel go; 0° azimuth points from the MLP at its middle, and room length is measured from it to the back wall. Room coordinates start on the floor at its middle (see `src/domain/room.ts`).
+_Avoid_: Screen wall, front
+
 **Listening position**:
 A single seat where a listener's head is, at ear height.
 _Avoid_: Seat point, chair

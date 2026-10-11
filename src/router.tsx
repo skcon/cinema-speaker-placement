@@ -3,9 +3,9 @@ import {
   createRouter,
   type RouterHistory,
 } from '@tanstack/react-router'
-import { AppShell } from '@/ui/AppShell'
+import { App } from '@/App'
 
-const rootRoute = createRootRoute({ component: AppShell })
+const rootRoute = createRootRoute({ component: App })
 
 /**
  * The app has a single root route; the room config will live in its search

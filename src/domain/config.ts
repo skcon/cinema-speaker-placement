@@ -1,11 +1,16 @@
 import { z } from 'zod'
 import { V1_DOLBY_LAYOUTS } from './dolby-layouts'
 import { DEFAULT_LAYOUT, type Layout } from './layout'
-import { checkRoomDimension, DEFAULT_ROOM, type Room } from './room'
+import {
+  checkRoomDimension,
+  DEFAULT_ROOM,
+  type Room,
+  type RoomDimension,
+} from './room'
 import type { UnitSystem } from './units'
 
 /** A room dimension in meters, inside the accepted range for that dimension. */
-function roomDimensionSchema(dimension: keyof Room) {
+function roomDimensionSchema(dimension: RoomDimension) {
   return z
     .number()
     .refine((meters) => checkRoomDimension(dimension, meters) === null)

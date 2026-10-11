@@ -12,55 +12,55 @@ import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 const ADDRESS_UPDATE_DELAY_MS = 300
 
 /**
- * Keeps the config store and the share link in the address (the `config`
- * search param) in step: the store starts from the address, the address
- * follows the store, and an address changed from outside (back/forward, a
- * link inside the app) is opened into the store.
+ * Keeps the config store and the share link (the address, whose `config`
+ * search param holds the encoded config) in step: the store starts from
+ * the address, the address follows the store, and an address changed from
+ * outside (back/forward, a link inside the app) is opened into the store.
  *
  * Only this component reads the search params, so a new address re-renders
  * it but not `children`.
  */
 export function ShareLinkProvider({ children }: { children: ReactNode }) {
-  const shareLink = useSearch({
+  const configParam = useSearch({
     from: rootRouteId,
     select: (search) => search.config,
   })
   return (
-    <ConfigStoreProvider initialShareLink={shareLink}>
-      <ShareLinkSync shareLink={shareLink} />
+    <ConfigStoreProvider initialEncodedConfig={configParam}>
+      <ShareLinkSync configParam={configParam} />
       {children}
     </ConfigStoreProvider>
   )
 }
 
-function ShareLinkSync({ shareLink }: { shareLink: string | undefined }) {
+function ShareLinkSync({ configParam }: { configParam: string | undefined }) {
   const navigate = useNavigate()
   const config = useConfig((state) => state.config)
-  const openShareLink = useConfig((state) => state.openShareLink)
-  const currentLink = useMemo(() => encodeConfig(config), [config])
-  // The address's share link as this component last opened or wrote it, so
-  // our own writes aren't mistaken for an address changed from outside.
-  const synced = useRef(shareLink)
+  const openEncodedConfig = useConfig((state) => state.openEncodedConfig)
+  const storeConfigParam = useMemo(() => encodeConfig(config), [config])
+  // The config param as this component last opened or wrote it, so our own
+  // writes aren't mistaken for an address changed from outside.
+  const lastSyncedConfigParam = useRef(configParam)
 
   useEffect(() => {
-    if (shareLink === synced.current) return
-    synced.current = shareLink
-    openShareLink(shareLink)
-  }, [shareLink, openShareLink])
+    if (configParam === lastSyncedConfigParam.current) return
+    lastSyncedConfigParam.current = configParam
+    openEncodedConfig(configParam)
+  }, [configParam, openEncodedConfig])
 
   useEffect(() => {
-    if (currentLink === shareLink) return
+    if (storeConfigParam === configParam) return
     const timer = setTimeout(() => {
-      synced.current = currentLink
+      lastSyncedConfigParam.current = storeConfigParam
       void navigate({
         to: '.',
-        search: (search) => ({ ...search, config: currentLink }),
+        search: (search) => ({ ...search, config: storeConfigParam }),
         replace: true,
         resetScroll: false,
       })
     }, ADDRESS_UPDATE_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [currentLink, shareLink, navigate])
+  }, [storeConfigParam, configParam, navigate])
 
   return null
 }

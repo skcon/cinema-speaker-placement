@@ -30,8 +30,8 @@ async function findInput(dimension: string, unit: 'm' | 'ft' | 'in') {
   return within(field).getByRole('textbox', { name: unit })
 }
 
-/** The share link in the address, or null without one. */
-function configInAddress(history: ReturnType<typeof renderApp>) {
+/** The encoded config in the address's `config` param, or null without one. */
+function configParamInAddress(history: ReturnType<typeof renderApp>) {
   return new URLSearchParams(history.location.search).get('config')
 }
 
@@ -167,8 +167,8 @@ describe('share links', () => {
       ...DEFAULT_CONFIG,
       room: { ...DEFAULT_CONFIG.room, length: 7.5 },
     })
-    expect(configInAddress(history)).not.toBe(edited)
-    await waitFor(() => expect(configInAddress(history)).toBe(edited))
+    expect(configParamInAddress(history)).not.toBe(edited)
+    await waitFor(() => expect(configParamInAddress(history)).toBe(edited))
     expect(history.length).toBe(1)
   })
 
@@ -208,7 +208,7 @@ describe('share links', () => {
     const history = renderApp('/?config=this-is-not-a-room')
 
     await waitFor(() =>
-      expect(configInAddress(history)).toBe(encodeConfig(DEFAULT_CONFIG)),
+      expect(configParamInAddress(history)).toBe(encodeConfig(DEFAULT_CONFIG)),
     )
   })
 

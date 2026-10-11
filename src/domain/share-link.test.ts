@@ -15,11 +15,11 @@ import { configSchema } from './config'
 import { createConfigCodec, migrateFrom } from './share-link'
 
 /**
- * A share-link value holding any JSON, written the way share links are
- * stored (JSON, then lz-string's URL-safe compression), to test what
- * decoding does with links the app would never write.
+ * An encoded config holding any JSON, written the way configs are encoded
+ * (JSON, then lz-string's URL-safe compression), to test what decoding does
+ * with links the app would never write.
  */
-function linkHolding(json: unknown): string {
+function encodedHolding(json: unknown): string {
   return compressToEncodedURIComponent(JSON.stringify(json))
 }
 
@@ -98,7 +98,7 @@ describe('share link codec', () => {
       ['a fractional version', { v: 1.5, config: DEFAULT_CONFIG }],
       ['a version without a config', { v: 1 }],
     ])('for a link holding %s', (_, json) => {
-      expect(decodeConfig(linkHolding(json))).toEqual(FALLBACK)
+      expect(decodeConfig(encodedHolding(json))).toEqual(FALLBACK)
     })
 
     it.each([
@@ -156,13 +156,13 @@ describe('share link codec', () => {
         },
       ],
     ])('for a version 1 config with %s', (_, config) => {
-      expect(decodeConfig(linkHolding({ v: 1, config }))).toEqual(FALLBACK)
+      expect(decodeConfig(encodedHolding({ v: 1, config }))).toEqual(FALLBACK)
     })
 
     it('and says so when the link comes from a newer version of the app', () => {
       // A tab running an old build opens a link made by a newer one.
       expect(
-        decodeConfig(linkHolding({ v: 99, config: { future: true } })),
+        decodeConfig(encodedHolding({ v: 99, config: { future: true } })),
       ).toEqual({ config: DEFAULT_CONFIG, problem: 'newer-version' })
     })
   })
@@ -280,7 +280,7 @@ describe('share links from older versions', () => {
   })
 
   it('fall back when the link breaks the rules of its own version', () => {
-    const brokenV1Link = linkHolding({
+    const brokenV1Link = encodedHolding({
       v: 1,
       config: { ...IMPERIAL_ROOM, room: { length: 50, width: 5, height: 3 } },
     })

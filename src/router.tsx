@@ -7,15 +7,15 @@ import { App } from '@/App'
 
 /** The app's search params. */
 export type AppSearch = {
-  /** The share link: the whole config, compressed (see encodeConfig). */
+  /** The encoded config: the whole config, compressed (see encodeConfig). */
   config?: string
 }
 
 /**
  * Keeps a `config` param whatever it holds. The default search parser turns
- * text that looks like a number, boolean or JSON into that value; a share
- * link is always text, so anything else is passed on as text and fails to
- * decode, which shows the broken-link message.
+ * text that looks like a number, boolean or JSON into that value; an
+ * encoded config is always text, so anything else is passed on as text and
+ * fails to decode, which shows the broken-link message.
  */
 function validateSearch(search: Record<string, unknown>): AppSearch {
   const { config } = search

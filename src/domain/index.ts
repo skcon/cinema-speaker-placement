@@ -27,7 +27,7 @@ export {
 export {
   decodeConfig,
   encodeConfig,
-  type DecodedShareLink,
+  type DecodedConfig,
   type ShareLinkProblem,
 } from './share-link'
 export {

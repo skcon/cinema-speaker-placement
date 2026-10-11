@@ -124,11 +124,11 @@ describe('config store', () => {
   })
 })
 
-describe('opening a share link', () => {
+describe('opening an encoded config', () => {
   it("replaces the config with the link's config", () => {
     const store = createConfigStore()
 
-    store.getState().openShareLink(encodeConfig(IMPERIAL_ROOM))
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
 
     expect(store.getState().config).toEqual(IMPERIAL_ROOM)
     expect(store.getState().linkProblem).toBeNull()
@@ -137,16 +137,16 @@ describe('opening a share link', () => {
   it('falls back to the default room and keeps the problem when the link is broken', () => {
     const store = createConfigStore(IMPERIAL_ROOM)
 
-    store.getState().openShareLink('not-a-share-link')
+    store.getState().openEncodedConfig('not-an-encoded-config')
 
     expect(store.getState().config).toEqual(DEFAULT_CONFIG)
     expect(store.getState().linkProblem).toBe('unreadable')
   })
 
-  it('shows the default room for an address without a share link', () => {
+  it('shows the default room without an encoded config', () => {
     const store = createConfigStore(IMPERIAL_ROOM)
 
-    store.getState().openShareLink(undefined)
+    store.getState().openEncodedConfig(undefined)
 
     expect(store.getState().config).toEqual(DEFAULT_CONFIG)
     expect(store.getState().linkProblem).toBeNull()
@@ -154,16 +154,16 @@ describe('opening a share link', () => {
 
   it('forgets an earlier problem once a good link opens', () => {
     const store = createConfigStore()
-    store.getState().openShareLink('not-a-share-link')
+    store.getState().openEncodedConfig('not-an-encoded-config')
 
-    store.getState().openShareLink(encodeConfig(IMPERIAL_ROOM))
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
 
     expect(store.getState().linkProblem).toBeNull()
   })
 
   it('can dismiss the problem and keep the default room', () => {
     const store = createConfigStore()
-    store.getState().openShareLink('not-a-share-link')
+    store.getState().openEncodedConfig('not-an-encoded-config')
 
     store.getState().dismissLinkProblem()
 

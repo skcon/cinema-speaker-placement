@@ -4,20 +4,20 @@ import { createConfigStore } from './config-store'
 
 /**
  * Creates one config store for everything inside it, starting from the
- * share link's config param (or the default config without one), so the
- * first paint already shows the shared room. Later changes to the param
- * go through the store's `openShareLink`.
+ * encoded config in the share link (or the default config without one), so
+ * the first paint already shows the shared room. Later changes to it go
+ * through the store's `openEncodedConfig`.
  */
 export function ConfigStoreProvider({
-  initialShareLink,
+  initialEncodedConfig,
   children,
 }: {
-  initialShareLink?: string
+  initialEncodedConfig?: string
   children: ReactNode
 }) {
   const [store] = useState(() => {
     const store = createConfigStore()
-    store.getState().openShareLink(initialShareLink)
+    store.getState().openEncodedConfig(initialEncodedConfig)
     return store
   })
   return <ConfigStoreContext value={store}>{children}</ConfigStoreContext>

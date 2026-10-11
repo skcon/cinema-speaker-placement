@@ -45,8 +45,11 @@ import { configSchema, DEFAULT_CONFIG, type Config } from './config'
  */
 export type ShareLinkProblem = 'unreadable' | 'newer-version'
 
-/** What a share link holds: always a config, plus why it fell back, if it did. */
-export type DecodedShareLink<C = Config> = {
+/**
+ * What decoding an encoded config gives: always a config, plus why it fell
+ * back to the default, if it did.
+ */
+export type DecodedConfig<C = Config> = {
   config: C
   problem: ShareLinkProblem | null
 }
@@ -66,10 +69,10 @@ export function migrateFrom<S extends z.ZodType>(
   return (config) => up(schema.parse(config))
 }
 
-/** Encodes and decodes share links for one config schema. */
+/** Encodes and decodes configs of one config schema. */
 export type ConfigCodec<C> = {
   encode: (config: C) => string
-  decode: (param: string) => DecodedShareLink<C>
+  decode: (encoded: string) => DecodedConfig<C>
 }
 
 const envelopeSchema = z.object({
@@ -106,10 +109,10 @@ export function createConfigCodec<C>({
   return {
     encode: (config) =>
       compressToEncodedURIComponent(JSON.stringify({ v: version, config })),
-    decode: (param) => {
+    decode: (encoded) => {
       try {
         const envelope = envelopeSchema.safeParse(
-          JSON.parse(decompressFromEncodedURIComponent(param)),
+          JSON.parse(decompressFromEncodedURIComponent(encoded)),
         )
         if (!envelope.success) return unreadable
         const { v, config } = envelope.data
@@ -142,12 +145,15 @@ const configCodec = createConfigCodec({
   fallback: DEFAULT_CONFIG,
 })
 
-/** The config as a URL-safe share-link value. */
+/**
+ * The config as an encoded config: the URL-safe text a share link carries
+ * in its `config` search param.
+ */
 export const encodeConfig: (config: Config) => string = configCodec.encode
 
 /**
- * The config a share-link value holds, or the default config with the
- * problem when the value can't be opened. Never throws.
+ * The config an encoded config holds, or the default config with the
+ * problem when it can't be opened. Never throws.
  */
-export const decodeConfig: (param: string) => DecodedShareLink =
+export const decodeConfig: (encoded: string) => DecodedConfig =
   configCodec.decode

@@ -33,11 +33,12 @@ export type ConfigState = {
    */
   autoPlace: () => void
   /**
-   * Replace the config with the one a share link's search param holds.
-   * Without a param, that is the default config; a param that can't be
-   * opened also gives the default config, and sets `linkProblem`.
+   * Replace the config with the one an encoded config (a share link's
+   * `config` param) holds. Without one, that is the default config; one
+   * that can't be opened also gives the default config, and sets
+   * `linkProblem`.
    */
-  openShareLink: (param: string | undefined) => void
+  openEncodedConfig: (encoded: string | undefined) => void
   /** Hide the share-link problem. The config stays as it is. */
   dismissLinkProblem: () => void
 }
@@ -65,11 +66,11 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
         config: { ...config, layout: { ...config.layout, dolbyLayout } },
       })),
     autoPlace: () => {},
-    openShareLink: (param) => {
+    openEncodedConfig: (encoded) => {
       const { config, problem } =
-        param === undefined
+        encoded === undefined
           ? { config: DEFAULT_CONFIG, problem: null }
-          : decodeConfig(param)
+          : decodeConfig(encoded)
       set({ config, linkProblem: problem })
     },
     dismissLinkProblem: () => set({ linkProblem: null }),

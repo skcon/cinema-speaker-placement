@@ -93,7 +93,7 @@ describe('layout notation', () => {
   })
 })
 
-describe('the MLP before auto-place', () => {
+describe('the MLP before the recommended seat exists', () => {
   it('sits 38% of the room length from the front wall, centered, at ear height', () => {
     const { mlp } = analyzeRoom(DEFAULT_CONFIG)
 

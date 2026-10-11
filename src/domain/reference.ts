@@ -62,7 +62,7 @@ export const EAR_HEIGHT = {
  * The informal "38% rule": seat the listener about 38% of the room length
  * from the front wall, off the 50% length null. A heuristic and soft
  * default, not a published standard and not a Dolby recommendation (Dolby
- * gives no MLP position). Used for the MLP until auto-place exists.
+ * gives no MLP position). Used for the MLP until the recommended seat (seat score) exists.
  */
 export const MLP_FRONT_WALL_FRACTION = {
   fraction: 0.38,

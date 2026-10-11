@@ -108,6 +108,48 @@ export function wallBases(room: Room): Record<Wall, RoomSegment> {
   }
 }
 
+const DEGREES_PER_RADIAN = 180 / Math.PI
+
+/**
+ * The bearing of a horizontal direction, in degrees clockwise from -y
+ * (straight at the front wall), seen from above.
+ */
+function bearing(dx: number, dy: number): number {
+  return Math.atan2(dx, -dy) * DEGREES_PER_RADIAN
+}
+
+/** An angle in degrees brought into (-180°, +180°]. */
+function wrapDegrees(angle: number): number {
+  const turn = angle % 360
+  if (turn > 180) return turn - 360
+  if (turn <= -180) return turn + 360
+  return turn
+}
+
+/** The bearing of the center-front reference: from the MLP to the middle of the front wall. */
+function centerFrontBearing(mlp: RoomPoint): number {
+  return bearing(-mlp.x, -mlp.y)
+}
+
+/** The azimuth of `point` seen from the MLP, in degrees (see "Angles seen from the MLP" above). */
+export function azimuthFromMlp(mlp: RoomPoint, point: RoomPoint): number {
+  return wrapDegrees(
+    bearing(point.x - mlp.x, point.y - mlp.y) - centerFrontBearing(mlp),
+  )
+}
+
+/**
+ * The horizontal unit direction (dx, dy) at `azimuth` degrees seen from the
+ * MLP: the inverse of `azimuthFromMlp`.
+ */
+export function directionAtAzimuth(
+  mlp: RoomPoint,
+  azimuth: number,
+): { dx: number; dy: number } {
+  const radians = (centerFrontBearing(mlp) + azimuth) / DEGREES_PER_RADIAN
+  return { dx: Math.sin(radians), dy: -Math.cos(radians) }
+}
+
 /** First-visit room from the v1 spec (issue #2, user story 6). */
 export const DEFAULT_ROOM: Room = { length: 6, width: 4.5, height: 2.6 }
 

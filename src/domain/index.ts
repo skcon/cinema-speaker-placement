@@ -23,6 +23,7 @@ export {
 } from './placement-range'
 export type { Citation, SourceKey } from './reference'
 export {
+  azimuthFromMlp,
   checkRoomDimension,
   DEFAULT_ROOM,
   floorCenter,

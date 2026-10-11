@@ -4,26 +4,7 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router'
 import { App } from '@/App'
-
-/** The app's search params. */
-export type AppSearch = {
-  /** The encoded config: the whole config, compressed (see encodeConfig). */
-  config?: string
-}
-
-/**
- * Keeps a `config` param whatever it holds. The default search parser turns
- * text that looks like a number, boolean or JSON into that value; an
- * encoded config is always text, so anything else is passed on as text and
- * fails to decode, which shows the broken-link message.
- */
-function validateSearch(search: Record<string, unknown>): AppSearch {
-  const { config } = search
-  if (config === undefined) return {}
-  return {
-    config: typeof config === 'string' ? config : JSON.stringify(config),
-  }
-}
+import { validateSearch } from '@/search'
 
 const rootRoute = createRootRoute({ component: App, validateSearch })
 

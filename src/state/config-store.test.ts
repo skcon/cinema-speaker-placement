@@ -1,17 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  encodeConfig,
-  type Config,
-} from '@/domain'
+import { analyzeRoom, DEFAULT_CONFIG, encodeConfig } from '@/domain'
 import { createConfigStore } from '@/state/config-store'
-
-const IMPERIAL_ROOM: Config = {
-  ...DEFAULT_CONFIG,
-  units: 'imperial',
-  room: { length: 8, width: 5, height: 3 },
-}
+import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
 describe('config store', () => {
   it('starts with the default config: metric, 6 x 4.5 x 2.6 m, 5.1.2', () => {

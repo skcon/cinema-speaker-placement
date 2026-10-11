@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, encodeConfig, type Config } from '@/domain'
 import { createAppRouter } from '@/router'
 import { mockClipboard } from '@/test/clipboard'
+import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
 function renderApp(path = '/') {
   const history = createMemoryHistory({ initialEntries: [path] })
@@ -33,13 +34,6 @@ async function findInput(dimension: string, unit: 'm' | 'ft' | 'in') {
 /** The encoded config in the address's `config` param, or null without one. */
 function configParamInAddress(history: ReturnType<typeof renderApp>) {
   return new URLSearchParams(history.location.search).get('config')
-}
-
-// 26 ft 3 in x 16 ft 4.9 in x 9 ft 10.1 in
-const IMPERIAL_ROOM: Config = {
-  ...DEFAULT_CONFIG,
-  units: 'imperial',
-  room: { length: 8, width: 5, height: 3 },
 }
 
 describe('app shell', () => {
@@ -145,7 +139,7 @@ describe('app shell', () => {
 })
 
 describe('share links', () => {
-  it('opens the room a share link holds', async () => {
+  it('opens the room and layout a share link holds', async () => {
     renderApp(shareLinkPath(IMPERIAL_ROOM))
 
     expect(await findInput('Length', 'ft')).toHaveValue('26')
@@ -154,6 +148,8 @@ describe('share links', () => {
     expect(
       screen.getByRole('radio', { name: 'Imperial (ft + in)' }),
     ).toBeChecked()
+    // 7.1.4 with two subwoofers
+    expect(screen.getByRole('radio', { name: '7.2.4' })).toBeChecked()
   })
 
   it('writes the room to the address once typing pauses, without adding history entries', async () => {

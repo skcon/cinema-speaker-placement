@@ -1,6 +1,7 @@
 import { useRouter } from '@tanstack/react-router'
 import { useCallback } from 'react'
 import { encodeConfig, type Config } from '@/domain'
+import { withConfigParam } from '@/search'
 import { ShareLinkProvider } from '@/ShareLinkProvider'
 import { AppShell } from '@/ui/AppShell'
 
@@ -28,7 +29,7 @@ function useShareLinkFor(): (config: Config) => string {
     (config) => {
       const { publicHref } = router.buildLocation({
         to: '.',
-        search: (search) => ({ ...search, config: encodeConfig(config) }),
+        search: withConfigParam(encodeConfig(config)),
       })
       return new URL(publicHref, window.location.href).href
     },

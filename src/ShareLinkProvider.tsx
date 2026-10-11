@@ -1,6 +1,7 @@
 import { rootRouteId, useNavigate, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { encodeConfig } from '@/domain'
+import { withConfigParam } from '@/search'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 
@@ -54,7 +55,7 @@ function ShareLinkSync({ configParam }: { configParam: string | undefined }) {
       lastSyncedConfigParam.current = storeConfigParam
       void navigate({
         to: '.',
-        search: (search) => ({ ...search, config: storeConfigParam }),
+        search: withConfigParam(storeConfigParam),
         replace: true,
         resetScroll: false,
       })

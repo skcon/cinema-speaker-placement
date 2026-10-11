@@ -31,6 +31,7 @@ export const CHANNELS = {
   Rrs: { name: 'Right Rear Surround', side: 'right' },
 } as const satisfies Record<ChannelId, { name: string; side: ChannelSide }>
 
+/** Where the channel names come from. */
 export const CHANNEL_NAME_CITATIONS = [
   { source: 'IG', page: 8 },
 ] as const satisfies readonly Citation[]
@@ -121,8 +122,9 @@ const SHEETS = {
 } as const satisfies Record<string, readonly Citation[]>
 
 /**
- * L/R is the only channel with a wider range in Dolby's documents, and the
- * documents disagree about it (research section 7, item 1).
+ * Of the v1 listener-level channels only L/R has a second, wider range in
+ * Dolby's documents, and the documents disagree about it (research
+ * section 7, item 1).
  */
 const LEFT_RIGHT_ACCEPTABLE = {
   range: { min: 22, max: 40 },
@@ -401,9 +403,6 @@ export const DOLBY_LAYOUTS = {
     ],
   },
 } as const satisfies Record<string, DolbyLayoutReference>
-
-/** A v1 layout's name on its Dolby sheet, for example "5.1.2". */
-export type DolbyLayoutKey = keyof typeof DOLBY_LAYOUTS
 
 /** The v1 speaker formats (X and Z), in the order of the reference map. */
 export const V1_SPEAKER_FORMATS: readonly SpeakerFormat[] =

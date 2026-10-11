@@ -4,25 +4,9 @@
  */
 export { analyzeRoom, type PlacedSpeaker, type RoomAnalysis } from './analyze'
 export { DEFAULT_CONFIG, type Config } from './config'
-export {
-  formatLayout,
-  type Layout,
-  type SpeakerFormat,
-  type SubwooferCount,
-} from './layout'
-export {
-  V1_SPEAKER_FORMATS,
-  type AngleRange,
-  type ChannelId,
-  type CitedAngleRange,
-  type NoWiderRange,
-} from './dolby-layouts'
-export {
-  checkPlacementRange,
-  type PlacementGrade,
-  type PlacementRangeCheck,
-} from './placement-range'
-export type { Citation, SourceKey } from './reference'
+export { V1_SPEAKER_FORMATS, type ChannelId } from './dolby-layouts'
+export { formatLayout, type Layout, type SpeakerFormat } from './layout'
+export { checkPlacementRange, type PlacementGrade } from './placement-range'
 export {
   azimuthFromMlp,
   checkRoomDimension,

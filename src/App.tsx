@@ -19,9 +19,9 @@ export function App() {
 }
 
 /**
- * The full URL that opens a config: this page, base path included (such as
- * /cinema-speaker-placement/ on GitHub Pages), with the config as its
- * share link.
+ * The share link for a config: this page's full URL, base path included
+ * (such as /cinema-speaker-placement/ on GitHub Pages), with the encoded
+ * config in its `config` param.
  */
 function useShareLinkFor(): (config: Config) => string {
   const router = useRouter()

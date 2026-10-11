@@ -7,10 +7,15 @@ export { DEFAULT_CONFIG, type Config } from './config'
 export {
   checkRoomDimension,
   DEFAULT_ROOM,
+  floorCenter,
+  floorCorners,
+  wallBases,
   type Room,
   type RoomDimension,
   type RoomDimensionProblem,
   type RoomPoint,
+  type RoomSegment,
+  type Wall,
 } from './room'
 export {
   formatLength,

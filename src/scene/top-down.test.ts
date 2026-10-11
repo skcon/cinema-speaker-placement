@@ -3,9 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Room, RoomPoint } from '@/domain'
 import {
   floorGrid,
-  floorOutline,
   floorPlane,
-  frontWall,
   toScenePosition,
   topDownCamera,
 } from '@/scene/top-down'
@@ -51,22 +49,6 @@ describe('room points in the scene', () => {
 })
 
 describe('the room drawing', () => {
-  it('outlines the floor corner to corner, starting front left', () => {
-    expect(floorOutline(ROOM)).toEqual([
-      { x: -2.25, y: 0, z: 0 },
-      { x: 2.25, y: 0, z: 0 },
-      { x: 2.25, y: 6, z: 0 },
-      { x: -2.25, y: 6, z: 0 },
-    ])
-  })
-
-  it('marks the front wall along y = 0', () => {
-    expect(frontWall(ROOM)).toEqual([
-      { x: -2.25, y: 0, z: 0 },
-      { x: 2.25, y: 0, z: 0 },
-    ])
-  })
-
   it('draws grid lines every meter, through the center line and from the front wall', () => {
     const grid = floorGrid(ROOM, 1)
 

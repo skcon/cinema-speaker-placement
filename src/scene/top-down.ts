@@ -1,4 +1,9 @@
-import type { Room, RoomPoint } from '@/domain'
+import {
+  floorCenter,
+  type Room,
+  type RoomPoint,
+  type RoomSegment,
+} from '@/domain'
 
 /**
  * Pure geometry for the top-down room view. Room coordinates (src/domain/room.ts:
@@ -19,9 +24,6 @@ const VIEW_MARGIN_PX = 32
 /** How far above the ceiling the camera sits, in meters. */
 const CAMERA_CLEARANCE = 10
 
-/** A straight line on the floor, in room coordinates. */
-export type Segment = [from: RoomPoint, to: RoomPoint]
-
 /** Grid lines closer than this to a wall (in meters) are left out. */
 const WALL_EPSILON = 1e-9
 
@@ -29,38 +31,21 @@ export function toScenePosition({ x, y, z }: RoomPoint): Vec3 {
   return [x, z, y]
 }
 
-/** The floor's corners: front left, front right, back right, back left. */
-export function floorOutline({ length, width }: Room): RoomPoint[] {
-  const half = width / 2
-  return [
-    { x: -half, y: 0, z: 0 },
-    { x: half, y: 0, z: 0 },
-    { x: half, y: length, z: 0 },
-    { x: -half, y: length, z: 0 },
-  ]
-}
-
 /**
- * Turns a Three.js plane or circle (drawn in its XY plane, facing +z) to lie
- * flat on the floor, facing up at the camera.
+ * A quarter turn about x that points an object's +z axis straight up. A
+ * Three.js plane or circle (drawn facing +z) then lies flat on the floor,
+ * facing up; a camera (looking along -z with +y up) looks straight down with
+ * its up vector toward the front wall.
  */
 export const FLAT_ON_FLOOR: Vec3 = [-Math.PI / 2, 0, 0]
 
 /** A Three.js plane covering the floor: its center, rotation and size. */
 export function floorPlane(room: Room) {
   return {
-    position: toScenePosition({ x: 0, y: room.length / 2, z: 0 }),
+    position: toScenePosition(floorCenter(room)),
     rotation: FLAT_ON_FLOOR,
     size: [room.width, room.length] as [width: number, height: number],
   }
-}
-
-/** Where the front wall meets the floor. */
-export function frontWall({ width }: Room): Segment {
-  return [
-    { x: -width / 2, y: 0, z: 0 },
-    { x: width / 2, y: 0, z: 0 },
-  ]
 }
 
 /**
@@ -72,7 +57,7 @@ export function frontWall({ width }: Room): Segment {
 export function floorGrid(
   { length, width }: Room,
   spacing: number,
-): { across: Segment[]; down: Segment[] } {
+): { across: RoomSegment[]; down: RoomSegment[] } {
   const half = width / 2
   const sideSteps = Math.floor((half - WALL_EPSILON) / spacing)
   const depthSteps = Math.floor((length - WALL_EPSILON) / spacing)
@@ -81,14 +66,14 @@ export function floorGrid(
     return [
       { x, y: 0, z: 0 },
       { x, y: length, z: 0 },
-    ] satisfies Segment
+    ] satisfies RoomSegment
   })
   const down = Array.from({ length: depthSteps }, (_, i) => {
     const y = (i + 1) * spacing
     return [
       { x: -half, y, z: 0 },
       { x: half, y, z: 0 },
-    ] satisfies Segment
+    ] satisfies RoomSegment
   })
   return { across, down }
 }

@@ -1,17 +1,14 @@
 import { Html, Line, OrthographicCamera } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
 import { useRef, type ReactNode, type RefObject } from 'react'
-import type { Room, RoomPoint } from '@/domain'
+import { floorCorners, wallBases, type Room, type RoomPoint } from '@/domain'
 import { cn } from '@/ui/lib/utils'
 import {
   FLAT_ON_FLOOR,
   floorGrid,
-  floorOutline,
   floorPlane,
-  frontWall,
   toScenePosition,
   topDownCamera,
-  type Segment,
 } from '@/scene/top-down'
 
 /** Neutral palette matching the light theme; the MLP gets the one accent. */
@@ -118,17 +115,17 @@ function FloorGrid({ room, spacing }: { room: Room; spacing: number }) {
 }
 
 function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
-  const outline = floorOutline(room)
+  const corners = floorCorners(room)
   return (
     <>
       <FloorLine
-        points={[...outline, outline[0]!]}
+        points={[...corners, corners[0]]}
         z={LAYER.walls}
         color={COLORS.walls}
         width={2}
       />
       <FloorLine
-        points={frontWall(room)}
+        points={wallBases(room).front}
         z={LAYER.walls}
         color={COLORS.frontWall}
         width={5}
@@ -153,7 +150,7 @@ function FloorLine({
   color,
   width,
 }: {
-  points: RoomPoint[] | Segment
+  points: readonly RoomPoint[]
   z: number
   color: string
   width: number

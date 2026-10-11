@@ -66,6 +66,48 @@ export type Room = {
 
 export type RoomDimension = keyof Room
 
+/** A wall of the Room, named as seen from the MLP facing the front wall. */
+export type Wall = 'front' | 'right' | 'back' | 'left'
+
+/** A straight line between two room points. */
+export type RoomSegment = [from: RoomPoint, to: RoomPoint]
+
+/** The middle of the floor: on the center line, halfway back. */
+export function floorCenter({ length }: Room): RoomPoint {
+  return { x: 0, y: length / 2, z: 0 }
+}
+
+/**
+ * The floor's corners, clockwise seen from above: front left, front right,
+ * back right, back left.
+ */
+export function floorCorners({
+  length,
+  width,
+}: Room): [RoomPoint, RoomPoint, RoomPoint, RoomPoint] {
+  const half = width / 2
+  return [
+    { x: -half, y: 0, z: 0 },
+    { x: half, y: 0, z: 0 },
+    { x: half, y: length, z: 0 },
+    { x: -half, y: length, z: 0 },
+  ]
+}
+
+/**
+ * Where each wall meets the floor, from corner to corner, going clockwise
+ * seen from above (so the front wall runs from left to right).
+ */
+export function wallBases(room: Room): Record<Wall, RoomSegment> {
+  const [frontLeft, frontRight, backRight, backLeft] = floorCorners(room)
+  return {
+    front: [frontLeft, frontRight],
+    right: [frontRight, backRight],
+    back: [backRight, backLeft],
+    left: [backLeft, frontLeft],
+  }
+}
+
 /** First-visit room from the v1 spec (issue #2, user story 6). */
 export const DEFAULT_ROOM: Room = { length: 6, width: 4.5, height: 2.6 }
 

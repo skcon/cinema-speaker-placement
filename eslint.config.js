@@ -18,6 +18,22 @@ const presentationImportPatterns = ['ui', 'scene', 'charts'].flatMap(
   layerImportPatterns,
 )
 
+/**
+ * Browser globals that src/domain must not touch: everything browser-only
+ * (window, document, HTMLElement...) plus browser storage and navigator,
+ * which Node also defines.
+ */
+const domGlobals = [
+  ...Object.keys(globals.browser).filter(
+    (name) => !(name in globals.builtin) && !(name in globals.node),
+  ),
+  'localStorage',
+  'sessionStorage',
+  'navigator',
+]
+const domGlobalsMessage =
+  'src/domain has no DOM or browser storage: let the state or presentation layer pass the value in.'
+
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'playwright-report', 'test-results']),
   {
@@ -29,17 +45,36 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      globals: globals.browser,
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
   },
+  {
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['src/domain/**'],
+    languageOptions: { globals: globals.browser },
+  },
   // Layer boundaries from CLAUDE.md: domain <- state <- presentation (ui, scene, charts).
   {
     files: ['src/domain/**/*.{ts,tsx}'],
     rules: {
+      // typescript-eslint turns off no-undef (tsc checks names, and the app
+      // tsconfig includes the DOM lib), so DOM values and types are blocked
+      // by name here.
+      'no-restricted-globals': [
+        'error',
+        ...domGlobals.map((name) => ({ name, message: domGlobalsMessage })),
+      ],
+      '@typescript-eslint/no-restricted-types': [
+        'error',
+        {
+          types: Object.fromEntries(
+            domGlobals.map((name) => [name, { message: domGlobalsMessage }]),
+          ),
+        },
+      ],
       'no-restricted-imports': [
         'error',
         {
@@ -56,6 +91,7 @@ export default defineConfig([
                 'zustand',
                 'zustand/**',
                 'zundo',
+                'zundo/**',
                 '@tanstack/**',
                 'recharts',
                 'recharts/**',

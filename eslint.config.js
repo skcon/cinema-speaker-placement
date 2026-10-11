@@ -31,6 +31,13 @@ const domGlobals = [
   'sessionStorage',
   'navigator',
 ]
+/** State and presentation see only the domain's public interface (src/domain/index.ts). */
+const domainInternalsPattern = {
+  group: ['@/domain/*', '**/domain/*'],
+  message:
+    'Import from @/domain only: its index is the public interface (analyzeRoom and the config type).',
+}
+
 const domGlobalsMessage =
   'src/domain has no DOM or browser storage: let the state or presentation layer pass the value in.'
 
@@ -56,9 +63,8 @@ export default defineConfig([
     ignores: ['src/domain/**'],
     languageOptions: { globals: globals.browser },
   },
-  // shadcn add output stays unmodified, and some primitives export their
-  // class variants next to the component (button's buttonVariants). That
-  // only costs a full reload instead of a fast refresh when they change.
+  // shadcn/ui components come unmodified from `shadcn add`; some export
+  // their cva variants next to the component.
   {
     files: ['src/ui/components/**/*.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
@@ -130,8 +136,18 @@ export default defineConfig([
               group: presentationImportPatterns,
               message: 'src/state must not depend on the presentation layers.',
             },
+            domainInternalsPattern,
           ],
         },
+      ],
+    },
+  },
+  {
+    files: ['src/{ui,scene,charts}/**/*.{ts,tsx}', 'src/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [domainInternalsPattern] },
       ],
     },
   },

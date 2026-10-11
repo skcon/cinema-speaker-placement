@@ -4,6 +4,7 @@ import {
   decodeConfig,
   DEFAULT_CONFIG,
   type Config,
+  type DolbyLayout,
   type RoomDimension,
   type ShareLinkProblem,
   type UnitSystem,
@@ -21,6 +22,16 @@ export type ConfigState = {
   setUnits: (units: UnitSystem) => void
   /** Set one room dimension, in meters. Out-of-range values are ignored. */
   setRoomDimension: (dimension: RoomDimension, meters: number) => void
+  /** Switch to another v1 Dolby layout (X and Z), keeping the subwoofer count. */
+  setLayout: (dolbyLayout: DolbyLayout) => void
+  /**
+   * Put every speaker back at its auto-placed position. Manual positions
+   * arrive with #9: then this sets every channel back to auto, dropping the
+   * stored manual positions, as one undoable change. Until then every
+   * position is derived already, so it changes nothing (and makes no new
+   * state, so undo won't record an empty step).
+   */
+  autoPlace: () => void
   /**
    * Replace the config with the one a share link's search param holds.
    * Without a param, that is the default config; a param that can't be
@@ -49,6 +60,11 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
         config: { ...config, room: { ...config.room, [dimension]: meters } },
       }))
     },
+    setLayout: (dolbyLayout) =>
+      set(({ config }) => ({
+        config: { ...config, layout: { ...config.layout, dolbyLayout } },
+      })),
+    autoPlace: () => {},
     openShareLink: (param) => {
       const { config, problem } =
         param === undefined

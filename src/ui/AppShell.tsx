@@ -4,7 +4,9 @@ import type { Config } from '@/domain'
 import { RoomView } from '@/scene/RoomView'
 import { CopyLinkButton } from '@/ui/CopyLinkButton'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
+import { LayoutForm } from '@/ui/LayoutForm'
 import { RoomForm } from '@/ui/RoomForm'
+import { SpeakerList } from '@/ui/SpeakerList'
 
 /**
  * Page layout: a sidebar (about 1/5 width) for the room and layout config on
@@ -38,10 +40,12 @@ export function AppShell({
             Room and layout
           </h2>
           <RoomForm />
+          <LayoutForm />
+          <SpeakerList />
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-        <Panel title="Room view" className="min-h-112 lg:min-h-0 lg:flex-3">
+        <Panel title="Room view" className="min-h-128 lg:min-h-0 lg:flex-3">
           <RoomView />
         </Panel>
         <Panel

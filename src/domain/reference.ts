@@ -62,7 +62,7 @@ export const EAR_HEIGHT = {
  * The informal "38% rule": seat the listener about 38% of the room length
  * from the front wall, off the 50% length null. A heuristic and soft
  * default, not a published standard and not a Dolby recommendation (Dolby
- * gives no MLP position). Used for the MLP until auto-place exists.
+ * gives no MLP position). Used for the MLP until the recommended seat (seat score) exists.
  */
 export const MLP_FRONT_WALL_FRACTION = {
   fraction: 0.38,
@@ -73,3 +73,15 @@ export const MLP_FRONT_WALL_FRACTION = {
     },
   ],
 } as const satisfies { fraction: number; citations: readonly Citation[] }
+
+/**
+ * How close a listener-level speaker's position (its acoustic center) may
+ * come to any wall: room for the cabinet behind it. Auto-place keeps every
+ * listener-level speaker at least this far from every wall.
+ */
+export const SPEAKER_WALL_CLEARANCE = {
+  meters: 0.3,
+  note:
+    'Our modelling assumption, not Dolby: Dolby gives no distance from ' +
+    'the walls (docs/research/dolby-speaker-placement.md section 7).',
+} as const satisfies { meters: number; note: string }

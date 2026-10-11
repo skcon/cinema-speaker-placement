@@ -167,6 +167,7 @@ const WORST_CASE_CONFIG: Config = {
   // Near the limits, with all 17 significant digits a converted
   // feet + inches value or a drag can produce (14.987654320987655...).
   room: { length: 15 - 1 / 81, width: 15 - 1 / 7, height: 5 - 1 / 81 },
+  layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
 }
 
 /** Where the app is published (GitHub Pages, see pages.config.ts). */

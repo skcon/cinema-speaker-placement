@@ -1,8 +1,26 @@
 import { Html, Line, OrthographicCamera } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
 import { cn } from 'cn'
-import { useRef, type ReactNode, type RefObject } from 'react'
-import { floorCorners, wallBases, type Room, type RoomPoint } from '@/domain'
+import {
+  Fragment,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react'
+import {
+  floorCorners,
+  wallBases,
+  type PlacedSpeaker,
+  type Room,
+  type RoomPoint,
+} from '@/domain'
+import {
+  GRADE_STYLES,
+  SPEAKER_FOOTPRINT,
+  speakerMarker,
+  type ScreenDirection,
+} from '@/scene/speakers'
 import {
   FLAT_ON_FLOOR,
   floorGrid,
@@ -29,18 +47,23 @@ const LAYER = { grid: 0.005, walls: 0.01 } as const
 /** Radius of the MLP marker, in meters. */
 const MLP_MARKER_RADIUS = 0.18
 
+/** Free space between a speaker's center and its label, in pixels. */
+const SPEAKER_LABEL_GAP_PX = 14
+
 /**
  * The react-three-fiber scene: the Room drawn to scale from straight above,
- * fit to the panel, with the MLP marker. Loaded lazily, so Three.js stays
- * out of the main bundle.
+ * fit to the panel, with the MLP marker and the speakers colored by grade.
+ * Loaded lazily, so Three.js stays out of the main bundle.
  */
 export function RoomCanvas({
   room,
   mlp,
+  speakers,
   gridSpacing,
 }: {
   room: Room
   mlp: RoomPoint
+  speakers: readonly PlacedSpeaker[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
 }) {
@@ -55,6 +78,7 @@ export function RoomCanvas({
         <FloorGrid room={room} spacing={gridSpacing} />
         <Walls room={room} labelLayer={labelLayer} />
         <MlpMarker mlp={mlp} labelLayer={labelLayer} />
+        <SpeakerMarkers speakers={speakers} labelLayer={labelLayer} />
       </Canvas>
       <div ref={labelLayer} className="pointer-events-none absolute inset-0" />
     </div>
@@ -68,17 +92,20 @@ function SceneLabel({
   at,
   layer,
   className,
+  style,
   children,
 }: {
   at: RoomPoint
   layer: LabelLayer
   className: string
+  style?: CSSProperties
   children: ReactNode
 }) {
   return (
     <Html position={toScenePosition(at)} portal={layer} center>
       <span
         className={cn('block text-xs whitespace-nowrap select-none', className)}
+        style={style}
       >
         {children}
       </span>
@@ -187,4 +214,47 @@ function MlpMarker({
       </SceneLabel>
     </>
   )
+}
+
+function SpeakerMarkers({
+  speakers,
+  labelLayer,
+}: {
+  speakers: readonly PlacedSpeaker[]
+  labelLayer: LabelLayer
+}) {
+  return speakers.map((speaker) => {
+    const { position, rotation, color, label, grade, labelDirection } =
+      speakerMarker(speaker)
+    return (
+      <Fragment key={speaker.channel}>
+        <mesh position={position} rotation={rotation}>
+          <planeGeometry
+            args={[SPEAKER_FOOTPRINT.width, SPEAKER_FOOTPRINT.depth]}
+          />
+          <meshBasicMaterial color={color} />
+        </mesh>
+        <SceneLabel
+          at={speaker.position}
+          layer={labelLayer}
+          className="flex flex-col items-center leading-tight"
+          style={{ transform: besideMarker(labelDirection) }}
+        >
+          <span className="font-medium">{label}</span>
+          <span className="text-muted-foreground">
+            {GRADE_STYLES[grade].label}
+          </span>
+        </SceneLabel>
+      </Fragment>
+    )
+  })
+}
+
+/**
+ * A CSS transform that moves a centered label off its marker along
+ * `direction`, by half its own size plus a gap, so the two never overlap.
+ */
+function besideMarker({ x, y }: ScreenDirection): string {
+  const gap = `${SPEAKER_LABEL_GAP_PX}px`
+  return `translate(calc(${x} * (50% + ${gap})), calc(${y} * (50% + ${gap})))`
 }

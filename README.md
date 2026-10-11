@@ -46,7 +46,7 @@ npx playwright install chromium
 | `src/router.tsx`, `src/App.tsx`, `src/ShareLinkProvider.tsx`, `src/main.tsx` | App wiring   | Root route and its `config` param, root component, store synced with the share link, entry point. |
 | `e2e`                                                                        | Tests        | Playwright end-to-end tests.                                                                      |
 
-Room coordinates (origin, axes, azimuth, elevation) are defined once in `src/domain/room.ts`. Add shadcn/ui components with `npx shadcn@4.21.4 add <name>`. Import `cn` from the `cn` package, as the generated components do.
+Room coordinates (origin, axes, azimuth, elevation) are defined once in `src/domain/room.ts`. Dolby's placement ranges are typed, cited data in `src/domain/dolby-layouts.ts`, and the auto-place rule (with which parts are our own assumptions) is documented in `src/domain/placement.ts`. Add shadcn/ui components with `npx shadcn@4.21.4 add <name>`. Import `cn` from the `cn` package, as the generated components do.
 
 ## CI and releases
 

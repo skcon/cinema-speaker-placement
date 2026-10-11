@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { V1_DOLBY_LAYOUTS } from './dolby-layouts'
+import { DEFAULT_LAYOUT, type Layout } from './layout'
 import { checkRoomDimension, DEFAULT_ROOM, type Room } from './room'
 import type { UnitSystem } from './units'
 
@@ -32,6 +34,12 @@ export const configSchema = z.object({
       height: roomDimensionSchema('height'),
     })
     .default(DEFAULT_ROOM) satisfies z.ZodType<Room>,
+  layout: z
+    .object({
+      dolbyLayout: z.enum(V1_DOLBY_LAYOUTS),
+      subwoofers: z.literal([1, 2, 3, 4]),
+    })
+    .default(DEFAULT_LAYOUT) satisfies z.ZodType<Layout>,
 })
 
 /**

@@ -67,7 +67,7 @@ export function RoomCanvas({
 type LabelLayer = RefObject<HTMLDivElement>
 
 /** A text label pinned to a room point, drawn as HTML over the canvas. */
-function Label({
+function SceneLabel({
   at,
   layer,
   className,
@@ -135,13 +135,13 @@ function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
       />
       {/* Room coordinates start at the middle of the front wall; the label
           sits a fixed few pixels above it at any zoom. */}
-      <Label
+      <SceneLabel
         at={{ x: 0, y: 0, z: 0 }}
         layer={labelLayer}
         className="-translate-y-3.5 text-muted-foreground"
       >
         Front wall
-      </Label>
+      </SceneLabel>
     </>
   )
 }
@@ -181,13 +181,13 @@ function MlpMarker({
         <meshBasicMaterial color={COLORS.mlp} />
       </mesh>
       {/* Shifted below the marker by CSS, so it never covers it. */}
-      <Label
+      <SceneLabel
         at={mlp}
         layer={labelLayer}
         className="translate-y-5 font-medium text-blue-600"
       >
         MLP
-      </Label>
+      </SceneLabel>
     </>
   )
 }

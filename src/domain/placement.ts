@@ -22,6 +22,9 @@
  *    delay compensation (IG p.6, p.15).
  * 4. **Height**: every listener-level speaker is at seated ear height
  *    (EAR_HEIGHT, IG p.6).
+ * 5. **Aim**: every speaker faces the MLP, as Dolby asks: aim the speakers
+ *    at the central seat and toe L/R in toward it (research section 5;
+ *    WEB101).
  *
  * The MLP is always inside the clearance box (rooms are at least 2 m in
  * each direction), so every valid room fits every v1 layout inside its
@@ -33,7 +36,21 @@ import {
   type ChannelReference,
 } from './dolby-layouts'
 import { EAR_HEIGHT, SPEAKER_WALL_CLEARANCE } from './reference'
-import { directionAtAzimuth, type Room, type RoomPoint } from './room'
+import {
+  bearingTo,
+  directionAtAzimuth,
+  type Room,
+  type RoomPoint,
+} from './room'
+
+/** Which way a speaker faces. */
+export type Aim = {
+  /**
+   * The direction its front faces seen from above: degrees clockwise from
+   * facing the front wall, in (-180°, +180°]. 180° faces the back wall.
+   */
+  readonly yaw: number
+}
 
 /** Where a listener-level channel goes around the MLP (see the rule above). */
 export function autoPlaceSpeaker(
@@ -55,6 +72,11 @@ export function autoPlaceSpeaker(
     y: mlp.y + distance * dy,
     z: EAR_HEIGHT.meters,
   }
+}
+
+/** Turn a speaker at `position` to face the MLP (rule 5 above). */
+export function aimAtMlp(position: RoomPoint, mlp: RoomPoint): Aim {
+  return { yaw: bearingTo(position, mlp) }
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { PlacedSpeaker, PlacementGrade, RoomPoint } from '@/domain'
+import type { PlacedSpeaker, PlacementGrade } from '@/domain'
 import { toScenePosition, type Vec3 } from '@/scene/top-down'
 
 /**
@@ -25,7 +25,7 @@ export type SpeakerMarker = {
   position: Vec3
   /**
    * Lays the cabinet shape (drawn in its XY plane, front toward +y) flat on
-   * the floor and turns its front toward the MLP.
+   * the floor and turns its front the way the speaker aims (at the MLP).
    */
   rotation: Vec3
   color: string
@@ -34,39 +34,36 @@ export type SpeakerMarker = {
   grade: PlacementGrade
   /**
    * Which way to push the label off the marker: straight across or straight
-   * up or down the screen, whichever points most toward the MLP. Labels
-   * stay inside the room and, like on a floor plan, line up instead of
-   * converging on the MLP.
+   * up or down the screen, whichever is closest to where the speaker aims
+   * (at the MLP). Labels stay inside the room and, like on a floor plan,
+   * line up instead of converging on the MLP.
    */
   labelDirection: ScreenDirection
 }
 
-export function speakerMarker(
-  {
-    channel,
-    position,
-    placementRange: {
-      grade,
-      azimuth: { shown },
-    },
-  }: PlacedSpeaker,
-  mlp: RoomPoint,
-): SpeakerMarker {
-  const dx = mlp.x - position.x
-  const dy = mlp.y - position.y
-  const distance = Math.hypot(dx, dy)
-  // The top-down view draws room x to the right and room y downward.
-  const towardMlp =
-    distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 1 }
+export function speakerMarker({
+  channel,
+  position,
+  aim,
+  placementRange: {
+    grade,
+    azimuth: { shown },
+  },
+}: PlacedSpeaker): SpeakerMarker {
+  const yaw = (aim.yaw * Math.PI) / 180
+  // Yaw is clockwise from facing the front wall (-y). The top-down view
+  // draws room x to the right and room y downward, so on screen the
+  // speaker faces (sin yaw, -cos yaw).
+  const facing = { x: Math.sin(yaw), y: -Math.cos(yaw) }
   return {
     position: toScenePosition(position),
     // A turn of θ about the shape's normal points its +y side at room
-    // (-sin θ, -cos θ) once FLAT_ON_FLOOR lays it down.
-    rotation: [-Math.PI / 2, 0, Math.atan2(-towardMlp.x, -towardMlp.y)],
+    // (-sin θ, -cos θ) once FLAT_ON_FLOOR lays it down, so θ = -yaw.
+    rotation: [-Math.PI / 2, 0, -yaw],
     color: GRADE_STYLES[grade].color,
     label: `${channel} ${shown}°`,
     grade,
-    labelDirection: snapToAxis(towardMlp),
+    labelDirection: snapToAxis(facing),
   }
 }
 

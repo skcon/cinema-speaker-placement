@@ -126,6 +126,14 @@ function wrapDegrees(angle: number): number {
   return turn
 }
 
+/**
+ * The horizontal direction from one point to another, seen from above: in
+ * degrees clockwise from facing the front wall, in (-180°, +180°].
+ */
+export function bearingTo(from: RoomPoint, to: RoomPoint): number {
+  return wrapDegrees(bearing(to.x - from.x, to.y - from.y))
+}
+
 /** The bearing of the center-front reference: from the MLP to the middle of the front wall. */
 function centerFrontBearing(mlp: RoomPoint): number {
   return bearing(-mlp.x, -mlp.y)

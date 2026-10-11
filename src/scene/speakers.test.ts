@@ -26,7 +26,7 @@ describe('speaker markers in the top-down scene', () => {
   it('sit at the speaker position, mapped to Three.js', () => {
     const { position } = placed('C')
 
-    expect(speakerMarker(placed('C'), MLP).position).toEqual([
+    expect(speakerMarker(placed('C')).position).toEqual([
       position.x,
       position.z,
       position.y,
@@ -35,7 +35,7 @@ describe('speaker markers in the top-down scene', () => {
 
   it('turn the front of the cabinet toward the MLP', () => {
     for (const speaker of analysis.speakers) {
-      const { rotation } = speakerMarker(speaker, MLP)
+      const { rotation } = speakerMarker(speaker)
       // The cabinet's front is the shape's +y side before it is laid flat.
       const front = new Vector3(0, 1, 0).applyEuler(new Euler(...rotation))
       const towardMlp = new Vector3(
@@ -53,17 +53,17 @@ describe('speaker markers in the top-down scene', () => {
   it('are colored by placement-range grade: green ideal, amber acceptable, red outside', () => {
     const left = placed('L')
 
-    expect(speakerMarker(graded(left, 'ideal'), MLP).color).toBe('#16a34a')
-    expect(speakerMarker(graded(left, 'acceptable'), MLP).color).toBe('#d97706')
-    expect(speakerMarker(graded(left, 'outside'), MLP).color).toBe('#dc2626')
+    expect(speakerMarker(graded(left, 'ideal')).color).toBe('#16a34a')
+    expect(speakerMarker(graded(left, 'acceptable')).color).toBe('#d97706')
+    expect(speakerMarker(graded(left, 'outside')).color).toBe('#dc2626')
   })
 
   it('label the channel and its angle from the MLP, and the grade in words', () => {
-    expect(speakerMarker(placed('L'), MLP)).toMatchObject({
+    expect(speakerMarker(placed('L'))).toMatchObject({
       label: 'L 26°',
       grade: 'ideal',
     })
-    expect(speakerMarker(placed('Rs'), MLP).label).toBe('Rs 115°')
+    expect(speakerMarker(placed('Rs')).label).toBe('Rs 115°')
     expect(Object.values(GRADE_STYLES).map(({ label }) => label)).toEqual([
       'ideal',
       'acceptable',
@@ -79,7 +79,7 @@ describe('speaker markers in the top-down scene', () => {
     const labelDirection = (channel: string) => {
       const speaker = sevenOne.speakers.find((s) => s.channel === channel)
       if (!speaker) throw new Error(`no ${channel} speaker`)
-      return speakerMarker(speaker, sevenOne.mlp).labelDirection
+      return speakerMarker(speaker).labelDirection
     }
 
     // Screen x to the right, y down; the front wall is at the top.

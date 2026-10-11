@@ -78,7 +78,7 @@ export function RoomCanvas({
         <FloorGrid room={room} spacing={gridSpacing} />
         <Walls room={room} labelLayer={labelLayer} />
         <MlpMarker mlp={mlp} labelLayer={labelLayer} />
-        <SpeakerMarkers speakers={speakers} mlp={mlp} labelLayer={labelLayer} />
+        <SpeakerMarkers speakers={speakers} labelLayer={labelLayer} />
       </Canvas>
       <div ref={labelLayer} className="pointer-events-none absolute inset-0" />
     </div>
@@ -218,16 +218,14 @@ function MlpMarker({
 
 function SpeakerMarkers({
   speakers,
-  mlp,
   labelLayer,
 }: {
   speakers: readonly PlacedSpeaker[]
-  mlp: RoomPoint
   labelLayer: LabelLayer
 }) {
   return speakers.map((speaker) => {
     const { position, rotation, color, label, grade, labelDirection } =
-      speakerMarker(speaker, mlp)
+      speakerMarker(speaker)
     return (
       <Fragment key={speaker.channel}>
         <mesh position={position} rotation={rotation}>

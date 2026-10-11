@@ -54,6 +54,20 @@ describe('auto-placed listener-level speakers', () => {
     expect(azimuth(sevenOne, 'Lrs')).toBeCloseTo(-143, 9)
   })
 
+  it('aim at the MLP: yaw is degrees clockwise from facing the front wall', () => {
+    const analysis = analyzeRoom(config(DEFAULT_CONFIG.room, FIVE_ONE))
+    const yaw = (channel: ChannelId) => speaker(analysis, channel).aim.yaw
+
+    // The Center faces straight back at the MLP; Left (at -26°) faces back
+    // and toward the right, 180° - 26°; Left Surround (at -115°) faces
+    // forward and to the right, 180° - 115°.
+    expect(yaw('C')).toBeCloseTo(180, 9)
+    expect(yaw('L')).toBeCloseTo(154, 9)
+    expect(yaw('R')).toBeCloseTo(-154, 9)
+    expect(yaw('Ls')).toBeCloseTo(65, 9)
+    expect(yaw('Rs')).toBeCloseTo(-65, 9)
+  })
+
   it('put the Center on the center line, 0.3 m from the front wall (our wall clearance)', () => {
     const { position } = speaker(analyzeRoom(DEFAULT_CONFIG), 'C')
 

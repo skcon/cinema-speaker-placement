@@ -6,7 +6,7 @@ import {
   checkPlacementRange,
   type PlacementRangeCheck,
 } from './placement-range'
-import { autoPlaceSpeaker } from './placement'
+import { aimAtMlp, autoPlaceSpeaker, type Aim } from './placement'
 import { azimuthFromMlp, type RoomPoint } from './room'
 
 /** A listener-level speaker of the layout, auto-placed and checked. */
@@ -16,6 +16,8 @@ export type PlacedSpeaker = {
   readonly name: string
   /** Where the speaker is, in room coordinates (its acoustic center). */
   readonly position: RoomPoint
+  /** Which way it faces: at the MLP. */
+  readonly aim: Aim
   /** Its angle from the MLP, graded against Dolby's placement range. */
   readonly placementRange: PlacementRangeCheck
 }
@@ -40,6 +42,7 @@ export function analyzeRoom({ room, layout }: Config): RoomAnalysis {
       channel: reference.channel,
       name: CHANNELS[reference.channel].name,
       position,
+      aim: aimAtMlp(position, mlp),
       placementRange: checkPlacementRange(
         reference,
         azimuthFromMlp(mlp, position),

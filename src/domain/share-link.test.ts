@@ -10,6 +10,7 @@ import {
   type Config,
   type UnitSystem,
 } from '@/domain'
+import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
 import { createConfigCodec, migrateFrom } from './share-link'
 
@@ -23,13 +24,6 @@ function linkHolding(json: unknown): string {
 }
 
 const FALLBACK = { config: DEFAULT_CONFIG, problem: 'unreadable' }
-
-// 26 ft 3 in x 16 ft 4.9 in x 9 ft 10.1 in, every other field at its default
-const IMPERIAL_ROOM: Config = {
-  ...DEFAULT_CONFIG,
-  units: 'imperial',
-  room: { length: 8, width: 5, height: 3 },
-}
 
 describe('share link codec', () => {
   it('rebuilds the default config from its share link', () => {
@@ -72,15 +66,6 @@ describe('share link codec', () => {
         config,
         problem: null,
       })
-    })
-  })
-
-  it('gives fields a link leaves out their defaults, as for links made before a field existed', () => {
-    expect(
-      decodeConfig(linkHolding({ v: 1, config: { units: 'imperial' } })),
-    ).toEqual({
-      config: { ...DEFAULT_CONFIG, units: 'imperial' },
-      problem: null,
     })
   })
 
@@ -135,6 +120,41 @@ describe('share link codec', () => {
       ],
       ['a room that is null', { ...DEFAULT_CONFIG, room: null }],
       ['unknown units', { ...DEFAULT_CONFIG, units: 'furlongs' }],
+      [
+        'a layout outside v1',
+        { ...DEFAULT_CONFIG, layout: { dolbyLayout: '9.1.4', subwoofers: 1 } },
+      ],
+      [
+        'no subwoofer',
+        { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 0 } },
+      ],
+      [
+        'five subwoofers',
+        { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 5 } },
+      ],
+      [
+        'a fractional subwoofer count',
+        { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 1.5 } },
+      ],
+      // A link the app wrote at this version has every field and nothing
+      // else, so anything missing or extra means it was changed by hand.
+      [
+        'no units',
+        { room: DEFAULT_CONFIG.room, layout: DEFAULT_CONFIG.layout },
+      ],
+      ['no layout', { units: 'metric', room: DEFAULT_CONFIG.room }],
+      ['an unknown field', { ...DEFAULT_CONFIG, theme: 'dark' }],
+      [
+        'an unknown room field',
+        { ...DEFAULT_CONFIG, room: { ...DEFAULT_CONFIG.room, depth: 3 } },
+      ],
+      [
+        'an unknown layout field',
+        {
+          ...DEFAULT_CONFIG,
+          layout: { ...DEFAULT_CONFIG.layout, overheads: 4 },
+        },
+      ],
     ])('for a version 1 config with %s', (_, config) => {
       expect(decodeConfig(linkHolding({ v: 1, config }))).toEqual(FALLBACK)
     })
@@ -149,24 +169,15 @@ describe('share link codec', () => {
 })
 
 describe('released share links', () => {
-  // A version 1 link as the app writes it. Once version 1 is on the live
-  // site, never edit this string: if this test fails, links people already
-  // shared no longer open, and the schema change needs a migration instead.
-  const V1_LINK =
-    'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGZoAVgBM8AO4YAJiKgAWCbLGKQw2tmFEo8iWM1T5AXztA'
+  // Typed here, so the shared fixtures stay valid configs.
+  const links: Record<string, { encoded: string; config: Config }> = V1_LINKS
 
-  it('keep opening: a 24 x 15 x 9 ft room in imperial', () => {
-    // 24 ft = 7.3152 m, 15 ft = 4.572 m, 9 ft = 2.7432 m. Fields added
-    // after this link was made take their defaults.
-    expect(decodeConfig(V1_LINK)).toEqual({
-      config: {
-        ...DEFAULT_CONFIG,
-        units: 'imperial',
-        room: { length: 7.3152, width: 4.572, height: 2.7432 },
-      },
-      problem: null,
-    })
-  })
+  it.each(Object.entries(links))(
+    'keep opening: %s',
+    (_, { encoded, config }) => {
+      expect(decodeConfig(encoded)).toEqual({ config, problem: null })
+    },
+  )
 })
 
 /**

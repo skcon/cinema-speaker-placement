@@ -1,11 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
+import { V1_LINKS } from '../src/test/share-link-fixtures.ts'
 
-/**
- * A version 1 share link, as the app writes it: a 24 x 15 x 9 ft room in
- * imperial (the frozen V1_LINK in src/domain/share-link.test.ts).
- */
-const SHARED_ROOM =
-  'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGZoAVgBM8AO4YAJiKgAWCbLGKQw2tmFEo8iWM1T5AXztA'
+// A 24 x 15 x 9 ft room in imperial.
+const SHARED_ROOM = V1_LINKS.imperialRoom.encoded
 
 /** The sidebar text box for one part (`m`, `ft`, `in`) of a room dimension. */
 function dimensionInput(page: Page, dimension: string, unit: string) {

@@ -1,34 +1,36 @@
 /**
- * The share-link codec: the config as one URL-safe search-param value, and
- * back (ADR 0001).
+ * The share-link codec: the config as the encoded config a share link
+ * carries in its `config` search param, and back (ADRs 0001 and 0003).
  *
  * ## Wire format
  *
  *     lz-string compressToEncodedURIComponent(JSON.stringify({ v, config }))
  *
  * `v` is the config schema version the link was written with, and `config`
- * is a config in that version's shape. Links live for years in chats and
- * bookmarks, so every version ever released must keep opening.
+ * is a config in that version's shape, checked strictly: every field, and
+ * nothing else. Links live for years in chats and bookmarks, so every
+ * version ever released must keep opening.
  *
- * ## Changing the config schema
+ * ## Changing the config schema (ADR 0003)
  *
- * A new field with a default needs nothing here: links that predate it
- * leave it out and get the default. Until version 1 reaches the live site,
- * `configSchema` can also change in other ways. After that, a change that
- * an old link would fail or misread (a rename, a new meaning, a tighter
- * range, a new field whose default doesn't suit old links) needs a new
- * version:
+ * Version 1 is whatever ships in the first release with share links; until
+ * then `configSchema` can change, and the frozen links in
+ * src/test/share-link-fixtures.ts are regenerated. After that, every change
+ * to `configSchema` is a new version, however small (a new, removed or
+ * renamed field, a new meaning, a wider or tighter range):
  *
- * 1. Copy today's `configSchema` (with everything it uses, such as the room
- *    limits) into a frozen `configSchemaV<n>`, where n is CONFIG_VERSION.
+ * 1. Copy today's `configSchema`, with everything it uses (the room limits,
+ *    the layout list), into a frozen `configSchemaV<n>`, where n is
+ *    CONFIG_VERSION.
  * 2. Change `configSchema` and bump CONFIG_VERSION to n + 1.
  * 3. Add `n: migrateFrom(configSchemaV<n>, (old) => ...)` to
  *    CONFIG_MIGRATIONS, returning the config in the version n + 1 shape.
- * 4. Keep the version n link fixture in the tests, and add one for n + 1.
+ * 4. Keep the version n fixtures, and add version n + 1 ones.
  *
  * Decoding validates an old link against its own version's schema, runs it
  * through each migration up to the latest version, and validates the result
- * against `configSchema`.
+ * against `configSchema`. A build that meets a newer version than its own
+ * reports `newer-version` instead of calling the link broken.
  */
 import {
   compressToEncodedURIComponent,

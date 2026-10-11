@@ -12,34 +12,27 @@ function roomDimensionSchema(dimension: keyof Room) {
 }
 
 /**
- * The config's shape, rules and defaults: a config that passes it is one
- * the store accepts, and share links store configs in this shape.
+ * The config's shape and rules: a config that passes it is one the store
+ * accepts, and share links store configs in this shape. Strict: every field
+ * is required and unknown fields are rejected, so a share link that doesn't
+ * match it exactly was changed by hand (ADR 0003).
  *
- * Each field is one entry here, with its default: the `Config` type is
- * inferred and DEFAULT_CONFIG is built from the defaults, so adding a
- * field is a change in this one place. A share link that leaves a field
- * out (because it predates it) gets the field's default, so a new field
- * with a default needs no new schema version. Changing an existing field
- * does; see share-link.ts.
+ * The `Config` type is inferred from it, so a new field is added here and
+ * the compiler asks for its value in DEFAULT_CONFIG and the test fixtures.
+ * Once share links are released, any change here needs a new schema
+ * version and a migration (see share-link.ts).
  */
-export const configSchema = z.object({
-  /** Metric unless chosen otherwise (issue #2, user story 3). */
-  units: z
-    .enum(['metric', 'imperial'])
-    .default('metric') satisfies z.ZodType<UnitSystem>,
-  room: z
-    .object({
-      length: roomDimensionSchema('length'),
-      width: roomDimensionSchema('width'),
-      height: roomDimensionSchema('height'),
-    })
-    .default(DEFAULT_ROOM) satisfies z.ZodType<Room>,
-  layout: z
-    .object({
-      dolbyLayout: z.enum(V1_DOLBY_LAYOUTS),
-      subwoofers: z.literal([1, 2, 3, 4]),
-    })
-    .default(DEFAULT_LAYOUT) satisfies z.ZodType<Layout>,
+export const configSchema = z.strictObject({
+  units: z.enum(['metric', 'imperial']) satisfies z.ZodType<UnitSystem>,
+  room: z.strictObject({
+    length: roomDimensionSchema('length'),
+    width: roomDimensionSchema('width'),
+    height: roomDimensionSchema('height'),
+  }) satisfies z.ZodType<Room>,
+  layout: z.strictObject({
+    dolbyLayout: z.enum(V1_DOLBY_LAYOUTS),
+    subwoofers: z.literal([1, 2, 3, 4]),
+  }) satisfies z.ZodType<Layout>,
 })
 
 /**
@@ -50,5 +43,9 @@ export const configSchema = z.object({
  */
 export type Config = z.infer<typeof configSchema>
 
-/** The first-visit config: every field at its default. */
-export const DEFAULT_CONFIG: Config = configSchema.parse({})
+/** The first-visit config (issue #2, user stories 3 and 6). */
+export const DEFAULT_CONFIG: Config = {
+  units: 'metric',
+  room: DEFAULT_ROOM,
+  layout: DEFAULT_LAYOUT,
+}

@@ -75,3 +75,9 @@ _Avoid_: Rating, quality
 **Auto-place**:
 Placing every speaker and the MLP from the reference recommendations for the current room and layout.
 _Avoid_: Auto-layout, optimize
+
+## Sharing
+
+**Share link**:
+The app's address, which always holds the whole config (in its `config` search param), so opening or copying it rebuilds the same Room. Links keep opening after app updates.
+_Avoid_: Permalink, save link, URL state

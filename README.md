@@ -36,15 +36,15 @@ npx playwright install chromium
 
 ## Project layout
 
-| Path                                            | Layer        | Contents                                                                                 |
-| ----------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------- |
-| `src/domain`                                    | Domain       | Pure TypeScript: rooms, layouts, placement, acoustics, codec. Public API in `index.ts`.  |
-| `src/state`                                     | State        | Zustand store(s) that hold the config and call the domain.                               |
-| `src/ui`                                        | Presentation | React components; shadcn/ui primitives live in `src/ui/components`.                      |
-| `src/scene`                                     | Presentation | The react-three-fiber room view.                                                         |
-| `src/charts`                                    | Presentation | The response chart.                                                                      |
-| `src/router.tsx`, `src/App.tsx`, `src/main.tsx` | App wiring   | TanStack Router root route, the root component with the config store, the entry point.  |
-| `e2e`                                           | Tests        | Playwright end-to-end tests.                                                             |
+| Path                                                                         | Layer        | Contents                                                                                          |
+| ---------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------- |
+| `src/domain`                                                                 | Domain       | Pure TypeScript: rooms, layouts, placement, acoustics, codec. Public API in `index.ts`.           |
+| `src/state`                                                                  | State        | Zustand store(s) that hold the config and call the domain.                                        |
+| `src/ui`                                                                     | Presentation | React components; shadcn/ui primitives live in `src/ui/components`.                               |
+| `src/scene`                                                                  | Presentation | The react-three-fiber room view.                                                                  |
+| `src/charts`                                                                 | Presentation | The response chart.                                                                               |
+| `src/router.tsx`, `src/App.tsx`, `src/ShareLinkProvider.tsx`, `src/main.tsx` | App wiring   | Root route and its `config` param, root component, store synced with the share link, entry point. |
+| `e2e`                                                                        | Tests        | Playwright end-to-end tests.                                                                      |
 
 Room coordinates (origin, axes, azimuth, elevation) are defined once in `src/domain/room.ts`. Add shadcn/ui components with `npx shadcn@4.21.4 add <name>`. Import `cn` from the `cn` package, as the generated components do.
 

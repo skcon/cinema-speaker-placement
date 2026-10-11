@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { formatLength, METERS_PER_FOOT, type UnitSystem } from '@/domain'
+import { formatLength, UNIT_SYSTEMS } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { canUseWebGL } from '@/scene/webgl'
 
@@ -9,12 +9,6 @@ const RoomCanvas = lazy(() =>
   })),
 )
 
-/** Floor grid spacing per unit system: meters, or feet in imperial mode. */
-const GRID = {
-  metric: { spacing: 1, label: '1 m' },
-  imperial: { spacing: METERS_PER_FOOT, label: '1 ft' },
-} as const satisfies Record<UnitSystem, { spacing: number; label: string }>
-
 /**
  * The room view panel's content: the top-down scene with a text description
  * for screen readers, or the description alone when WebGL is unavailable.
@@ -23,7 +17,8 @@ export function RoomView() {
   const [webGL] = useState(canUseWebGL)
   const { room, units } = useConfig((state) => state.config)
   const { mlp } = useRoomAnalysis()
-  const grid = GRID[units]
+  // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
+  const { baseUnit } = UNIT_SYSTEMS[units]
 
   const description =
     `Top-down view of the room, ${formatLength(room.length, units)} long ` +
@@ -53,11 +48,11 @@ export function RoomView() {
             </p>
           }
         >
-          <RoomCanvas room={room} mlp={mlp} gridSpacing={grid.spacing} />
+          <RoomCanvas room={room} mlp={mlp} gridSpacing={baseUnit.meters} />
         </Suspense>
       </div>
       <p className="text-xs text-muted-foreground">
-        To scale, seen from above. Grid squares are {grid.label}.
+        To scale, seen from above. Grid squares are 1 {baseUnit.unit}.
       </p>
     </div>
   )

@@ -1,43 +1,35 @@
 import {
-  feetAndInchesToMeters,
   formatLength,
-  metersToFeetAndInches,
-  roundToCentimeters,
+  UNIT_SYSTEMS,
   type RoomDimensionProblem,
   type UnitSystem,
 } from '@/domain'
 
 /**
- * What the user has typed into a length field, kept as text so partial input
+ * What the user has typed into a length field: one text per part of the unit
+ * system (one box for m, two for ft + in), kept as text so partial input
  * ("5.", "") survives re-renders. Conversion happens in the domain.
  */
-export type LengthDraft =
-  | { units: 'metric'; meters: string }
-  | { units: 'imperial'; feet: string; inches: string }
+export type LengthDraft = string[]
 
-/** The text a length field starts with. */
+/** The text a length field starts with: the domain's rounded parts. */
 export function draftFromMeters(
   meters: number,
   units: UnitSystem,
 ): LengthDraft {
-  if (units === 'metric') {
-    return { units, meters: String(roundToCentimeters(meters)) }
-  }
-  const { feet, inches } = metersToFeetAndInches(meters)
-  return { units, feet: String(feet), inches: String(inches) }
+  return UNIT_SYSTEMS[units].toParts(meters).map(({ value }) => String(value))
 }
 
 /**
  * The length a draft describes, in meters, or NaN when it is not a number.
- * An empty feet or inches box counts as 0 as long as the other one is filled.
+ * An empty box counts as 0 as long as another one is filled (20 ft + empty
+ * inches is 20 ft).
  */
-export function metersFromDraft(draft: LengthDraft): number {
-  if (draft.units === 'metric') return parseDecimal(draft.meters)
-  if (isBlank(draft.feet) && isBlank(draft.inches)) return Number.NaN
-  return feetAndInchesToMeters({
-    feet: isBlank(draft.feet) ? 0 : parseDecimal(draft.feet),
-    inches: isBlank(draft.inches) ? 0 : parseDecimal(draft.inches),
-  })
+export function metersFromDraft(draft: LengthDraft, units: UnitSystem): number {
+  if (draft.every(isBlank)) return Number.NaN
+  return UNIT_SYSTEMS[units].fromParts(
+    draft.map((text) => (isBlank(text) ? 0 : parseDecimal(text))),
+  )
 }
 
 /** The inline error for a rejected room dimension. */

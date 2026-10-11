@@ -13,12 +13,11 @@ export {
   type RoomPoint,
 } from './room'
 export {
-  METERS_PER_FOOT,
-  feetAndInchesToMeters,
   formatLength,
-  metersToFeetAndInches,
-  roundToCentimeters,
-  type FeetAndInches,
+  UNIT_SYSTEMS,
+  type LengthPart,
+  type LengthUnit,
   type Rounding,
   type UnitSystem,
+  type UnitSystemSpec,
 } from './units'

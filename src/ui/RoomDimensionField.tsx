@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { checkRoomDimension, type RoomDimension } from '@/domain'
+import { checkRoomDimension, UNIT_SYSTEMS, type RoomDimension } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { Input } from '@/ui/components/input'
 import { Label } from '@/ui/components/label'
@@ -29,43 +29,28 @@ export function RoomDimensionField({
   const [draft, setDraft] = useState(() => draftFromMeters(meters, units))
   const errorId = useId()
 
-  const problem = checkRoomDimension(dimension, metersFromDraft(draft))
+  const problem = checkRoomDimension(dimension, metersFromDraft(draft, units))
   const error = problem && roomDimensionErrorMessage(label, problem, units)
 
   function update(next: LengthDraft) {
     setDraft(next)
-    setRoomDimension(dimension, metersFromDraft(next))
+    setRoomDimension(dimension, metersFromDraft(next, units))
   }
-
-  const inputProps = { invalid: problem !== null, errorId }
 
   return (
     <fieldset className="flex flex-col gap-1.5">
       <legend className="mb-1.5 text-sm font-medium">{label}</legend>
       <div className="flex items-center gap-3">
-        {draft.units === 'metric' ? (
+        {UNIT_SYSTEMS[units].parts.map((unit, index) => (
           <UnitInput
-            unit="m"
-            value={draft.meters}
-            onChange={(value) => update({ ...draft, meters: value })}
-            {...inputProps}
+            key={unit}
+            unit={unit}
+            value={draft[index] ?? ''}
+            onChange={(value) => update(draft.with(index, value))}
+            invalid={problem !== null}
+            errorId={errorId}
           />
-        ) : (
-          <>
-            <UnitInput
-              unit="ft"
-              value={draft.feet}
-              onChange={(value) => update({ ...draft, feet: value })}
-              {...inputProps}
-            />
-            <UnitInput
-              unit="in"
-              value={draft.inches}
-              onChange={(value) => update({ ...draft, inches: value })}
-              {...inputProps}
-            />
-          </>
-        )}
+        ))}
       </div>
       <p id={errorId} aria-live="polite" className="text-sm text-destructive">
         {error}

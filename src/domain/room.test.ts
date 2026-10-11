@@ -6,6 +6,7 @@ import {
   floorCorners,
   wallBases,
 } from '@/domain'
+import { azimuthFromMlp } from '@/domain/room'
 
 describe('room geometry in room coordinates', () => {
   // 6 m long, 4.5 m wide: the side walls are at x = ±2.25
@@ -105,5 +106,35 @@ describe('room dimension ranges', () => {
       min: 2,
       max: 5,
     })
+  })
+})
+
+describe('azimuth seen from the MLP', () => {
+  const mlp = { x: 0, y: 2.28, z: 1.2 }
+
+  it('is 0° toward the middle of the front wall and grows clockwise seen from above', () => {
+    expect(azimuthFromMlp(mlp, { x: 0, y: 0, z: 1.2 })).toBe(0)
+    expect(azimuthFromMlp(mlp, { x: 1, y: 1.28, z: 1.2 })).toBeCloseTo(45, 9)
+    expect(azimuthFromMlp(mlp, { x: 1, y: 2.28, z: 1.2 })).toBeCloseTo(90, 9)
+    expect(azimuthFromMlp(mlp, { x: -1, y: 1.28, z: 1.2 })).toBeCloseTo(-45, 9)
+  })
+
+  it('is +180° straight behind, never -180°', () => {
+    expect(azimuthFromMlp(mlp, { x: 0, y: 5, z: 1.2 })).toBe(180)
+  })
+
+  it('ignores height', () => {
+    expect(azimuthFromMlp(mlp, { x: 1, y: 1.28, z: 2.5 })).toBeCloseTo(45, 9)
+  })
+
+  it('measures from the center-front reference when the MLP is off the center line', () => {
+    // The worked example in src/domain/room.ts
+    const offCenter = { x: 0.5, y: 2.28, z: 1.2 }
+
+    expect(azimuthFromMlp(offCenter, { x: 0, y: 0, z: 0 })).toBeCloseTo(0, 9)
+    expect(azimuthFromMlp(offCenter, { x: 0.5, y: 0, z: 0 })).toBeCloseTo(
+      12.4,
+      1,
+    )
   })
 })

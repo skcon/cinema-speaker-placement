@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { analyzeRoom, DEFAULT_CONFIG } from '@/domain'
 import { createConfigStore } from '@/state/config-store'
 
 describe('config store', () => {
-  it('starts with the default config: metric, 6 x 4.5 x 2.6 m', () => {
+  it('starts with the default config: metric, 6 x 4.5 x 2.6 m, 5.1.2', () => {
     const store = createConfigStore()
 
     expect(store.getState().config).toEqual({
       units: 'metric',
       room: { length: 6, width: 4.5, height: 2.6 },
+      layout: { dolbyLayout: '5.1.2', subwoofers: 1 },
     })
   })
 
@@ -15,11 +17,13 @@ describe('config store', () => {
     const store = createConfigStore({
       units: 'imperial',
       room: { length: 8, width: 5, height: 3 },
+      layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
     })
 
     expect(store.getState().config).toEqual({
       units: 'imperial',
       room: { length: 8, width: 5, height: 3 },
+      layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
     })
   })
 
@@ -55,9 +59,56 @@ describe('config store', () => {
 
     store.getState().setUnits('imperial')
 
-    expect(store.getState().config).toEqual({
+    expect(store.getState().config).toMatchObject({
       units: 'imperial',
       room: { length: 6, width: 4.5, height: 2.6 },
     })
+  })
+
+  it('switches to another v1 layout, keeping the room and the subwoofer count', () => {
+    const store = createConfigStore({
+      ...DEFAULT_CONFIG,
+      room: { length: 8, width: 5, height: 3 },
+      layout: { dolbyLayout: '5.1.2', subwoofers: 2 },
+    })
+
+    store.getState().setLayout('7.1.4')
+
+    expect(store.getState().config).toMatchObject({
+      room: { length: 8, width: 5, height: 3 },
+      layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
+    })
+  })
+
+  it('auto-place keeps the room and layout and puts every speaker at its auto-placed position', () => {
+    const store = createConfigStore()
+    store.getState().setLayout('7.1')
+    store.getState().setRoomDimension('width', 5)
+
+    store.getState().autoPlace()
+
+    const sevenOneInFiveMeters = {
+      ...DEFAULT_CONFIG,
+      room: { length: 6, width: 5, height: 2.6 },
+      layout: { dolbyLayout: '7.1', subwoofers: 1 },
+    } as const
+    expect(store.getState().config).toEqual(sevenOneInFiveMeters)
+    expect(analyzeRoom(store.getState().config).speakers).toEqual(
+      analyzeRoom(sevenOneInFiveMeters).speakers,
+    )
+  })
+
+  it('auto-place changes nothing while every position is derived, so undo has nothing to record', () => {
+    const store = createConfigStore()
+    const before = store.getState().config
+    let notified = 0
+    store.subscribe(() => {
+      notified += 1
+    })
+
+    store.getState().autoPlace()
+
+    expect(store.getState().config).toBe(before)
+    expect(notified).toBe(0)
   })
 })

@@ -39,6 +39,16 @@ describe('app shell', () => {
     expect(within(length).getByRole('textbox', { name: 'm' })).toHaveValue('6')
   })
 
+  it('lists the speakers by Dolby name in the sidebar', async () => {
+    renderApp()
+
+    const sidebar = await screen.findByRole('complementary', {
+      name: 'Room and layout',
+    })
+    const speakers = within(sidebar).getByRole('table', { name: 'Speakers' })
+    expect(within(speakers).getByText('Left Surround')).toBeInTheDocument()
+  })
+
   it('describes the room in the room view, in the chosen units', async () => {
     renderApp()
 
@@ -58,6 +68,33 @@ describe('app shell', () => {
     ).toBeInTheDocument()
     expect(
       within(roomView).getByText(/the MLP 7 ft 5.8 in from the front wall/),
+    ).toBeInTheDocument()
+  })
+
+  it('lists the default 5.1.2 listener-level speakers in the room view with their angle and grade', async () => {
+    renderApp()
+
+    const roomView = await screen.findByRole('region', { name: 'Room view' })
+    expect(
+      within(roomView).getByText(
+        '5.1.2 listener-level speakers, angle from the MLP and Dolby placement-range grade: Left 26° (ideal), Center 0° (ideal), Right 26° (ideal), Left Surround 115° (ideal), Right Surround 115° (ideal).',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the speakers of the layout picked in the sidebar', async () => {
+    renderApp()
+    const sidebar = await screen.findByRole('complementary', {
+      name: 'Room and layout',
+    })
+
+    fireEvent.click(within(sidebar).getByRole('radio', { name: '7.1' }))
+
+    const roomView = screen.getByRole('region', { name: 'Room view' })
+    expect(
+      within(roomView).getByText(
+        /^7\.1 listener-level speakers.*Left Surround 100° \(ideal\).*Left Rear Surround 143° \(ideal\), Right Rear Surround 143° \(ideal\)\.$/,
+      ),
     ).toBeInTheDocument()
   })
 

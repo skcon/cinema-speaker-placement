@@ -1,3 +1,4 @@
+import { DEFAULT_LAYOUT, type Layout } from './layout'
 import { DEFAULT_ROOM, type Room } from './room'
 import type { UnitSystem } from './units'
 
@@ -10,9 +11,11 @@ import type { UnitSystem } from './units'
 export type Config = {
   units: UnitSystem
   room: Room
+  layout: Layout
 }
 
 export const DEFAULT_CONFIG: Config = {
   units: 'metric',
   room: DEFAULT_ROOM,
+  layout: DEFAULT_LAYOUT,
 }

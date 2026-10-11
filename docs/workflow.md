@@ -20,11 +20,11 @@ gh pr create --base develop --fill
 
 Reference the issue in the PR body (`Closes #12`). Because `develop` is the default branch, GitHub closes the issue when the PR merges.
 
-### Releasing (set up later)
+### Releasing
 
 1. Open a PR `develop` → `main` named `release: vX.Y.Z`.
 2. After merge, tag `main`: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. The deploy workflow (to be added) publishes the tagged build to GitHub Pages.
+3. The deploy workflow (`.github/workflows/deploy.yml`) publishes the tagged build to GitHub Pages. It fails if the tag is not on `main`.
 
 ## Planning flow (Matt Pocock skills)
 

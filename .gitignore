@@ -2,6 +2,11 @@ node_modules/
 dist/
 .vite/
 coverage/
+# Playwright output
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
 *.local
 .env
 .env.*
@@ -9,3 +14,5 @@ coverage/
 # Downloaded third-party source documents (keep out of git; see docs/research)
 docs/research/sources/
 .scratch/
+# Claude Code agent worktrees
+.claude/worktrees/

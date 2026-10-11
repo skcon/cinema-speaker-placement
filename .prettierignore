@@ -1,0 +1,7 @@
+dist
+coverage
+playwright-report
+test-results
+package-lock.json
+# Markdown docs are hand-formatted (Prettier would rewrite citation wildcards like S-512-*)
+*.md

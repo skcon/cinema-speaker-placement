@@ -34,7 +34,7 @@ describe('auto-placed listener-level speakers', () => {
     for (const { position } of speakers) expect(position.z).toBe(1.2)
   })
 
-  it("aim at the middle of each channel's ideal range, on its side of the room", () => {
+  it("aim at the middle of each channel's ideal range, to the nearest whole degree, on its side of the room", () => {
     const fiveOne = analyzeRoom(config(DEFAULT_CONFIG.room, FIVE_ONE))
     const sevenOne = analyzeRoom(config(DEFAULT_CONFIG.room, SEVEN_ONE))
     const azimuth = (
@@ -49,7 +49,9 @@ describe('auto-placed listener-level speakers', () => {
     expect(azimuth(fiveOne, 'Ls')).toBeCloseTo(-115, 9)
     expect(azimuth(fiveOne, 'Rs')).toBeCloseTo(115, 9)
     expect(azimuth(sevenOne, 'Ls')).toBeCloseTo(-100, 9)
-    expect(azimuth(sevenOne, 'Rrs')).toBeCloseTo(142.5, 9)
+    // 142.5° rounds to a whole degree, the resolution of Dolby's ranges
+    expect(azimuth(sevenOne, 'Rrs')).toBeCloseTo(143, 9)
+    expect(azimuth(sevenOne, 'Lrs')).toBeCloseTo(-143, 9)
   })
 
   it('put the Center on the center line, 0.3 m from the front wall (our wall clearance)', () => {

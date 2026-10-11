@@ -4,9 +4,11 @@
  * ## The rule
  *
  * 1. **Angle**: each channel aims at the middle of its Dolby ideal azimuth
- *    range, on its own side of the room (L at -26°, Ls in a 5.1 bed at
- *    -115°). The middle leaves the most margin to both edges. Choosing the
- *    middle is our rule; Dolby gives only the range.
+ *    range, to the nearest whole degree, on its own side of the room (L at
+ *    -26°, Ls in a 5.1 bed at -115°, Lrs at -143° for 135°–150°). The middle
+ *    leaves the most margin to both edges, and whole degrees match Dolby's
+ *    resolution. Choosing the middle is our rule; Dolby gives only the
+ *    range.
  * 2. **Reference distance**: Dolby wants every listener-level speaker the
  *    same distance from the MLP, with the front speakers setting that
  *    distance (IG p.6). Here the front wall sets it: the reference distance
@@ -73,9 +75,9 @@ export function autoPlaceListenerLevel(
   })
 }
 
-/** The middle of the ideal range, negative for a left-side channel. */
+/** The middle of the ideal range in whole degrees, negative for a left-side channel. */
 function targetAzimuth(channel: ChannelId, { min, max }: AngleRange): number {
-  const middle = (min + max) / 2
+  const middle = Math.round((min + max) / 2)
   return CHANNELS[channel].side === 'left' ? -middle : middle
 }
 

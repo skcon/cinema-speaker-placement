@@ -12,9 +12,12 @@
  *
  * ## Changing the config schema
  *
- * Until version 1 reaches the live site, `configSchema` can still change
- * freely. After that, a change that an old link would fail (a new required
- * field, a rename, a tighter range) needs a new version:
+ * A new field with a default needs nothing here: links that predate it
+ * leave it out and get the default. Until version 1 reaches the live site,
+ * `configSchema` can also change in other ways. After that, a change that
+ * an old link would fail or misread (a rename, a new meaning, a tighter
+ * range, a new field whose default doesn't suit old links) needs a new
+ * version:
  *
  * 1. Copy today's `configSchema` (with everything it uses, such as the room
  *    limits) into a frozen `configSchemaV<n>`, where n is CONFIG_VERSION.

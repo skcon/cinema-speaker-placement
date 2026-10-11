@@ -9,8 +9,8 @@ import {
   type Config,
   type UnitSystem,
 } from '@/domain'
-import { configSchema } from '@/domain/config'
-import { createConfigCodec, migrateFrom } from '@/domain/share-link'
+import { configSchema } from './config'
+import { createConfigCodec, migrateFrom } from './share-link'
 
 /**
  * A share-link value holding any JSON, written the way share links are
@@ -22,6 +22,13 @@ function linkHolding(json: unknown): string {
 }
 
 const FALLBACK = { config: DEFAULT_CONFIG, problem: 'unreadable' }
+
+// 26 ft 3 in x 16 ft 4.9 in x 9 ft 10.1 in, every other field at its default
+const IMPERIAL_ROOM: Config = {
+  ...DEFAULT_CONFIG,
+  units: 'imperial',
+  room: { length: 8, width: 5, height: 3 },
+}
 
 describe('share link codec', () => {
   it('rebuilds the default config from its share link', () => {
@@ -37,6 +44,7 @@ describe('share link codec', () => {
       // Feet + inches converted to meters give long binary fractions, such
       // as 14.993619999999998 for 49 ft 2.3 in, which must come back as is.
       const config: Config = {
+        ...DEFAULT_CONFIG,
         units,
         room: {
           length: (49 * 12 + 2.3) * 0.0254,
@@ -52,11 +60,17 @@ describe('share link codec', () => {
     },
   )
 
-  describe('falls back to the default config', () => {
-    const valid = encodeConfig({
-      units: 'imperial',
-      room: { length: 8, width: 5, height: 3 },
+  it('gives fields a link leaves out their defaults, as for links made before a field existed', () => {
+    expect(
+      decodeConfig(linkHolding({ v: 1, config: { units: 'imperial' } })),
+    ).toEqual({
+      config: { ...DEFAULT_CONFIG, units: 'imperial' },
+      problem: null,
     })
+  })
+
+  describe('falls back to the default config', () => {
+    const valid = encodeConfig(IMPERIAL_ROOM)
 
     it.each([
       ['an empty value', ''],
@@ -104,8 +118,8 @@ describe('share link codec', () => {
         'a missing dimension',
         { ...DEFAULT_CONFIG, room: { length: 6, width: 4.5 } },
       ],
+      ['a room that is null', { ...DEFAULT_CONFIG, room: null }],
       ['unknown units', { ...DEFAULT_CONFIG, units: 'furlongs' }],
-      ['no room', { units: 'metric' }],
     ])('for a version 1 config with %s', (_, config) => {
       expect(decodeConfig(linkHolding({ v: 1, config }))).toEqual(FALLBACK)
     })
@@ -127,9 +141,11 @@ describe('released share links', () => {
     'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGZoAVgBM8AO4YAJiKgAWCbLGKQw2tmFEo8iWM1T5AXztA'
 
   it('keep opening: a 24 x 15 x 9 ft room in imperial', () => {
-    // 24 ft = 7.3152 m, 15 ft = 4.572 m, 9 ft = 2.7432 m
+    // 24 ft = 7.3152 m, 15 ft = 4.572 m, 9 ft = 2.7432 m. Fields added
+    // after this link was made take their defaults.
     expect(decodeConfig(V1_LINK)).toEqual({
       config: {
+        ...DEFAULT_CONFIG,
         units: 'imperial',
         room: { length: 7.3152, width: 4.572, height: 2.7432 },
       },
@@ -140,11 +156,11 @@ describe('released share links', () => {
 
 /**
  * The largest config a share link has to carry, for the size budget. Grow
- * it with the config: the compiler asks for every new required field, and
- * each new field should take its longest value. Planned growth (issue #2):
- * a 7.4.4 layout (7.1.4 with four subwoofers), every speaker and the MLP
- * manual with full-precision positions, specs for every speaker group and
- * per-subwoofer specs, amp power, crossover, target curve and seat row width.
+ * it with the config: the compiler asks for every new field, and each one
+ * should take its longest value. Planned growth (issue #2): a 7.4.4 layout
+ * (7.1.4 with four subwoofers), every speaker and the MLP manual with
+ * full-precision positions, specs for every speaker group and per-subwoofer
+ * specs, amp power, crossover, target curve and seat row width.
  */
 const WORST_CASE_CONFIG: Config = {
   units: 'imperial',
@@ -177,14 +193,12 @@ describe('share link size', () => {
 
 /**
  * A made-up future, to prove the migration hook before a real version 2
- * exists: version 2 adds a seat row width, version 3 renames `units` to
- * `unitSystem`. Version 1 is today's real config schema.
+ * exists: version 2 adds a required seat row width (in meters), version 3
+ * moves it into a seat row object. Version 1 is today's real config schema.
  */
 const v2Schema = configSchema.extend({ seatRowWidth: z.number().positive() })
-const v3Schema = z.object({
-  unitSystem: configSchema.shape.units,
-  room: configSchema.shape.room,
-  seatRowWidth: z.number().positive(),
+const v3Schema = configSchema.extend({
+  seatRow: z.object({ width: z.number().positive() }),
 })
 type V3Config = z.infer<typeof v3Schema>
 
@@ -192,16 +206,12 @@ const fromV1 = migrateFrom(configSchema, (config) => ({
   ...config,
   seatRowWidth: 1.8,
 }))
-const fromV2 = migrateFrom(v2Schema, ({ units, ...rest }) => ({
-  ...rest,
-  unitSystem: units,
+const fromV2 = migrateFrom(v2Schema, ({ seatRowWidth, ...config }) => ({
+  ...config,
+  seatRow: { width: seatRowWidth },
 }))
 
-const V3_DEFAULT: V3Config = {
-  unitSystem: 'metric',
-  room: { length: 6, width: 4.5, height: 2.6 },
-  seatRowWidth: 1.8,
-}
+const V3_DEFAULT: V3Config = { ...DEFAULT_CONFIG, seatRow: { width: 1.8 } }
 
 const codecV2 = createConfigCodec({
   version: 2,
@@ -218,40 +228,23 @@ const codecV3 = createConfigCodec({
 
 describe('share links from older versions', () => {
   it('migrate a version 1 link through every later version', () => {
-    const v1Link = encodeConfig({
-      units: 'imperial',
-      room: { length: 8, width: 5, height: 3 },
-    })
-
-    expect(codecV3.decode(v1Link)).toEqual({
-      config: {
-        unitSystem: 'imperial',
-        room: { length: 8, width: 5, height: 3 },
-        seatRowWidth: 1.8,
-      },
+    expect(codecV3.decode(encodeConfig(IMPERIAL_ROOM))).toEqual({
+      config: { ...IMPERIAL_ROOM, seatRow: { width: 1.8 } },
       problem: null,
     })
   })
 
   it('migrate a version 2 link from where it is', () => {
-    const v2Link = codecV2.encode({
-      units: 'metric',
-      room: { length: 7, width: 4, height: 2.4 },
-      seatRowWidth: 2.5,
-    })
+    const v2Link = codecV2.encode({ ...IMPERIAL_ROOM, seatRowWidth: 2.5 })
 
     expect(codecV3.decode(v2Link)).toEqual({
-      config: {
-        unitSystem: 'metric',
-        room: { length: 7, width: 4, height: 2.4 },
-        seatRowWidth: 2.5,
-      },
+      config: { ...IMPERIAL_ROOM, seatRow: { width: 2.5 } },
       problem: null,
     })
   })
 
   it('open a latest-version link without migrating', () => {
-    const config: V3Config = { ...V3_DEFAULT, seatRowWidth: 3 }
+    const config: V3Config = { ...IMPERIAL_ROOM, seatRow: { width: 3 } }
 
     expect(codecV3.decode(codecV3.encode(config))).toEqual({
       config,
@@ -262,7 +255,7 @@ describe('share links from older versions', () => {
   it('fall back when the link breaks the rules of its own version', () => {
     const brokenV1Link = linkHolding({
       v: 1,
-      config: { units: 'metric', room: { length: 50, width: 5, height: 3 } },
+      config: { ...IMPERIAL_ROOM, room: { length: 50, width: 5, height: 3 } },
     })
 
     expect(codecV3.decode(brokenV1Link)).toEqual({

@@ -10,22 +10,28 @@ function roomDimensionSchema(dimension: keyof Room) {
 }
 
 /**
- * The config's shape and rules. The `Config` type is inferred from it, so a
- * new config field is added here, once; the compiler then asks for its
- * value in DEFAULT_CONFIG and in the share-link test fixtures. A config that
- * passes this schema is one the store accepts.
+ * The config's shape, rules and defaults: a config that passes it is one
+ * the store accepts, and share links store configs in this shape.
  *
- * Share links store configs in this shape, so changing an existing field
- * breaks old links unless the share-link codec gets a migration (see
- * share-link.ts).
+ * Each field is one entry here, with its default: the `Config` type is
+ * inferred and DEFAULT_CONFIG is built from the defaults, so adding a
+ * field is a change in this one place. A share link that leaves a field
+ * out (because it predates it) gets the field's default, so a new field
+ * with a default needs no new schema version. Changing an existing field
+ * does; see share-link.ts.
  */
 export const configSchema = z.object({
-  units: z.enum(['metric', 'imperial']) satisfies z.ZodType<UnitSystem>,
-  room: z.object({
-    length: roomDimensionSchema('length'),
-    width: roomDimensionSchema('width'),
-    height: roomDimensionSchema('height'),
-  }) satisfies z.ZodType<Room>,
+  /** Metric unless chosen otherwise (issue #2, user story 3). */
+  units: z
+    .enum(['metric', 'imperial'])
+    .default('metric') satisfies z.ZodType<UnitSystem>,
+  room: z
+    .object({
+      length: roomDimensionSchema('length'),
+      width: roomDimensionSchema('width'),
+      height: roomDimensionSchema('height'),
+    })
+    .default(DEFAULT_ROOM) satisfies z.ZodType<Room>,
 })
 
 /**
@@ -36,7 +42,5 @@ export const configSchema = z.object({
  */
 export type Config = z.infer<typeof configSchema>
 
-export const DEFAULT_CONFIG: Config = {
-  units: 'metric',
-  room: DEFAULT_ROOM,
-}
+/** The first-visit config: every field at its default. */
+export const DEFAULT_CONFIG: Config = configSchema.parse({})

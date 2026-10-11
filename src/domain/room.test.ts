@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  azimuthFromMlp,
   checkRoomDimension,
   DEFAULT_ROOM,
   floorCenter,
   floorCorners,
   wallBases,
 } from '@/domain'
+import { azimuthFromMlp } from '@/domain/room'
 
 describe('room geometry in room coordinates', () => {
   // 6 m long, 4.5 m wide: the side walls are at x = ±2.25

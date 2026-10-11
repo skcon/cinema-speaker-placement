@@ -31,6 +31,13 @@ const domGlobals = [
   'sessionStorage',
   'navigator',
 ]
+/** State and presentation see only the domain's public interface (src/domain/index.ts). */
+const domainInternalsPattern = {
+  group: ['@/domain/*', '**/domain/*'],
+  message:
+    'Import from @/domain only: its index is the public interface (analyzeRoom and the config type).',
+}
+
 const domGlobalsMessage =
   'src/domain has no DOM or browser storage: let the state or presentation layer pass the value in.'
 
@@ -129,8 +136,18 @@ export default defineConfig([
               group: presentationImportPatterns,
               message: 'src/state must not depend on the presentation layers.',
             },
+            domainInternalsPattern,
           ],
         },
+      ],
+    },
+  },
+  {
+    files: ['src/{ui,scene,charts}/**/*.{ts,tsx}', 'src/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [domainInternalsPattern] },
       ],
     },
   },

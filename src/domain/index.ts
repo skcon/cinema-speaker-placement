@@ -10,9 +10,8 @@ export {
   type DolbyLayout,
 } from './dolby-layouts'
 export { formatLayout, type Layout } from './layout'
-export { checkPlacementRange, type PlacementGrade } from './placement-range'
+export type { PlacementGrade } from './placement-range'
 export {
-  azimuthFromMlp,
   checkRoomDimension,
   DEFAULT_ROOM,
   floorCenter,

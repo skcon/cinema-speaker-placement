@@ -7,8 +7,6 @@ export { DEFAULT_CONFIG, type Config } from './config'
 export {
   checkRoomDimension,
   DEFAULT_ROOM,
-  isValidRoom,
-  ROOM_DIMENSION_LIMITS,
   type Room,
   type RoomDimension,
   type RoomDimensionProblem,

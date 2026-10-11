@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { checkRoomDimension, DEFAULT_ROOM, isValidRoom } from '@/domain'
+import { checkRoomDimension, DEFAULT_ROOM } from '@/domain'
 
 describe('the default room', () => {
   it('is 6 m long, 4.5 m wide and 2.6 m high', () => {
     expect(DEFAULT_ROOM).toEqual({ length: 6, width: 4.5, height: 2.6 })
   })
 
-  it('is a valid room', () => {
-    expect(isValidRoom(DEFAULT_ROOM)).toBe(true)
+  it('passes validation in every dimension', () => {
+    expect(checkRoomDimension('length', DEFAULT_ROOM.length)).toBeNull()
+    expect(checkRoomDimension('width', DEFAULT_ROOM.width)).toBeNull()
+    expect(checkRoomDimension('height', DEFAULT_ROOM.height)).toBeNull()
   })
 })
 
@@ -60,12 +62,5 @@ describe('room dimension ranges', () => {
       min: 2,
       max: 5,
     })
-  })
-
-  it('calls a room valid only when every dimension is in range', () => {
-    expect(isValidRoom({ length: 15, width: 2, height: 5 })).toBe(true)
-    expect(isValidRoom({ length: 6, width: 4.5, height: 5.5 })).toBe(false)
-    expect(isValidRoom({ length: 6, width: 1, height: 2.6 })).toBe(false)
-    expect(isValidRoom({ length: 16, width: 4.5, height: 2.6 })).toBe(false)
   })
 })

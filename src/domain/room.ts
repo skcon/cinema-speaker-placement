@@ -74,7 +74,7 @@ export const DEFAULT_ROOM: Room = { length: 6, width: 4.5, height: 2.6 }
  * the v1 spec (issue #2, user story 5) that catch typos; Dolby gives no room
  * size limits (docs/research/dolby-speaker-placement.md section 6).
  */
-export const ROOM_DIMENSION_LIMITS = {
+const ROOM_DIMENSION_LIMITS = {
   length: { min: 2, max: 15 },
   width: { min: 2, max: 15 },
   height: { min: 2, max: 5 },
@@ -97,10 +97,4 @@ export function checkRoomDimension(
   if (meters < min) return { problem: 'too-small', min, max }
   if (meters > max) return { problem: 'too-large', min, max }
   return null
-}
-
-export function isValidRoom(room: Room): boolean {
-  return (Object.keys(ROOM_DIMENSION_LIMITS) as RoomDimension[]).every(
-    (dimension) => checkRoomDimension(dimension, room[dimension]) === null,
-  )
 }

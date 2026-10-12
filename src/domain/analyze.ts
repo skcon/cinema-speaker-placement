@@ -11,6 +11,18 @@ import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
 import type { SubwooferSpecs } from './speaker-specs'
 import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
 import { autoPlaceSubwoofers } from './subwoofer-placement'
+import {
+  estimateResponse,
+  responseFrequencies,
+  type EstimatedResponse,
+} from './estimated-response'
+import { RESPONSE_BAND } from './reference'
+import { roomModes, type RoomMode } from './room-modes'
+import {
+  targetCurve,
+  type TargetCurveKind,
+  type TargetPoint,
+} from './target-curve'
 
 /** A listener-level speaker of the layout, auto-placed and checked. */
 export type PlacedSpeaker = {
@@ -47,7 +59,16 @@ export type PlacedSubwoofer = {
   readonly specs: SubwooferSpecs
 }
 
-/** Everything derived from a config. Later tickets add overheads and the estimated response. */
+/** The estimated response at the MLP and the target curve it is compared against. */
+export type ResponseAnalysis = {
+  readonly estimated: EstimatedResponse
+  /** The config's target curve choice. */
+  readonly targetCurve: TargetCurveKind
+  /** The target at the estimate's frequencies, with its tolerance band. */
+  readonly target: readonly TargetPoint[]
+}
+
+/** Everything derived from a config. Later tickets add overheads. */
 export type RoomAnalysis = {
   /** The layout's name and channel counts. */
   layout: LayoutSummary
@@ -57,6 +78,10 @@ export type RoomAnalysis = {
   speakers: readonly PlacedSpeaker[]
   /** The layout's subwoofers, Subwoofer 1 first. */
   subwoofers: readonly PlacedSubwoofer[]
+  /** The room's modes up to the top of the response band, lowest first. */
+  roomModes: readonly RoomMode[]
+  /** The estimated response at the MLP against the target curve. */
+  response: ResponseAnalysis
 }
 
 /** The domain entry point: derive the room plan from a config. */
@@ -64,6 +89,7 @@ export function analyzeRoom({
   room,
   layout,
   speakerGroups,
+  targetCurve: targetCurveKind,
 }: Config): RoomAnalysis {
   const mlp = defaultMlp(room)
   const { channels } = DOLBY_LAYOUTS[layout.dolbyLayout]
@@ -90,5 +116,19 @@ export function analyzeRoom({
       specs: ownSpecs[id] ?? groupSpecs,
     }),
   )
-  return { layout: summarizeLayout(layout), mlp, speakers, subwoofers }
+  const target = targetCurve(targetCurveKind, responseFrequencies())
+  const estimated = estimateResponse({
+    room,
+    mlp,
+    sources: subwoofers.map(({ position }) => position),
+    target,
+  })
+  return {
+    layout: summarizeLayout(layout),
+    mlp,
+    speakers,
+    subwoofers,
+    roomModes: roomModes(room, RESPONSE_BAND.highestHz),
+    response: { estimated, targetCurve: targetCurveKind, target },
+  }
 }

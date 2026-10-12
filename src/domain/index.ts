@@ -6,8 +6,16 @@ export {
   analyzeRoom,
   type PlacedSpeaker,
   type PlacedSubwoofer,
+  type ResponseAnalysis,
   type RoomAnalysis,
 } from './analyze'
+export type {
+  EstimatedResponse,
+  ResponseComponent,
+  ResponseModel,
+  ResponsePoint,
+} from './estimated-response'
+export type { RoomMode, RoomModeIndices, RoomModeKind } from './room-modes'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
   V1_DOLBY_LAYOUTS,

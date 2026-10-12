@@ -15,7 +15,7 @@ import {
   type SubwooferSpecs,
 } from './speaker-specs'
 import { SUBWOOFER_IDS, subwooferIds } from './subwoofer-arrangements'
-import { TARGET_CURVES } from './target-curve'
+import { TARGET_CURVE_KINDS } from './target-curve'
 import { UNIT_SYSTEM_NAMES } from './units'
 
 /** A room dimension in meters, inside the accepted range for that dimension. */
@@ -66,7 +66,7 @@ export const configSchema = z
       }),
     }) satisfies z.ZodType<SpeakerGroups>,
     // What the estimated response is compared against on the chart.
-    targetCurve: z.enum(TARGET_CURVES),
+    targetCurve: z.enum(TARGET_CURVE_KINDS),
   })
   // The subwoofer count lives in the layout: own specs only for its subwoofers.
   .refine(({ layout, speakerGroups }) => {

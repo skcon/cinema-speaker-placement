@@ -2,9 +2,7 @@
  * The estimated response in words and as a short table: for the chart's
  * text summary and its screen-reader fallback.
  */
-import type { ResponsePoint } from './estimated-response'
-import { RESPONSE_BAND } from './reference'
-import type { TargetPoint } from './target-curve'
+import type { ResponseRow } from './estimated-response'
 
 /** How far the estimate is from the target at one frequency, in dB. */
 export type ResponseDeviation = {
@@ -13,7 +11,7 @@ export type ResponseDeviation = {
 }
 
 export type ResponseSummary = {
-  /** The share of the response band inside the target's tolerance band, 0 to 1. */
+  /** The share of the reliable rows inside the target's tolerance band, 0 to 1. */
   readonly withinTolerance: number
   /** Where the estimate is furthest above the target. */
   readonly largestPeak: ResponseDeviation
@@ -21,58 +19,60 @@ export type ResponseSummary = {
   readonly deepestDip: ResponseDeviation
 }
 
-/** One row of the response table, levels in dB. */
-export type ResponseTableRow = {
-  readonly frequency: number
-  readonly estimated: number
-  readonly target: number
-}
-
-/** Summarize `points` against `target`, which has the same frequencies. */
+/**
+ * Summarize the reliable rows (all rows if none is): unreliable rows below
+ * the lowest excited mode would only report the model's blind spot.
+ */
 export function summarizeResponse(
-  points: readonly ResponsePoint[],
-  target: readonly TargetPoint[],
+  rows: readonly ResponseRow[],
 ): ResponseSummary {
-  const deviations = points.map(({ frequency, level }, i) => ({
-    frequency,
-    level,
-    deviation: level - (target[i]?.level ?? 0),
-    inside:
-      level >= (target[i]?.low ?? -Infinity) &&
-      level <= (target[i]?.high ?? Infinity),
-  }))
-  const pick = (better: (a: number, b: number) => boolean) =>
-    deviations.reduce((best, d) =>
-      better(d.deviation, best.deviation) ? d : best,
+  const reliable = rows.filter((row) => row.reliable)
+  const deviations = (reliable.length > 0 ? reliable : rows).map(
+    (row): ResponseDeviation & { inside: boolean } => ({
+      frequency: row.frequency,
+      deviation: row.estimated - row.target,
+      inside: row.estimated >= row.low && row.estimated <= row.high,
+    }),
+  )
+  const extreme = (isBeyond: (a: number, b: number) => boolean) => {
+    const { frequency, deviation } = deviations.reduce((best, candidate) =>
+      isBeyond(candidate.deviation, best.deviation) ? candidate : best,
     )
-  const deviation = ({ frequency, deviation }: ResponseDeviation) => ({
-    frequency,
-    deviation,
-  })
+    return { frequency, deviation }
+  }
   return {
     withinTolerance:
       deviations.filter((d) => d.inside).length / deviations.length,
-    largestPeak: deviation(pick((a, b) => a > b)),
-    deepestDip: deviation(pick((a, b) => a < b)),
+    largestPeak: extreme((a, b) => a > b),
+    deepestDip: extreme((a, b) => a < b),
   }
 }
 
+/** Half a base-10 third octave, in decades: how near a row must be. */
+const HALF_THIRD_OCTAVE = 0.05
+
 /**
- * The estimate and the target at the base-10 third-octave frequencies of
- * the response band (every 16th point, see RESPONSE_BAND).
+ * The rows nearest the base-10 third-octave frequencies (10^(k/10) Hz:
+ * 20, 25.1, 31.6 ...) that the rows span, each within half a third octave;
+ * a third-octave frequency with no row that near is skipped.
  */
-export function responseTable(
-  points: readonly ResponsePoint[],
-  target: readonly TargetPoint[],
-): ResponseTableRow[] {
-  // Base-10 third octaves are tenths of a decade.
-  const { steps, lowestHz, highestHz } = RESPONSE_BAND
-  const pointsPerThirdOctave = Math.round(
-    steps / (10 * Math.log10(highestHz / lowestHz)),
-  )
-  return points.flatMap(({ frequency, level }, i) =>
-    i % pointsPerThirdOctave === 0
-      ? [{ frequency, estimated: level, target: target[i]?.level ?? 0 }]
-      : [],
-  )
+export function responseTable(rows: readonly ResponseRow[]): ResponseRow[] {
+  if (rows.length === 0) return []
+  const decadesOf = (row: ResponseRow) => Math.log10(row.frequency)
+  const first = Math.round(10 * decadesOf(rows[0]!))
+  const last = Math.round(10 * decadesOf(rows.at(-1)!))
+  return Array.from(
+    { length: last - first + 1 },
+    (_, i) => (first + i) / 10,
+  ).flatMap((thirdOctave) => {
+    const nearest = rows.reduce((best, row) =>
+      Math.abs(decadesOf(row) - thirdOctave) <
+      Math.abs(decadesOf(best) - thirdOctave)
+        ? row
+        : best,
+    )
+    return Math.abs(decadesOf(nearest) - thirdOctave) <= HALF_THIRD_OCTAVE
+      ? [nearest]
+      : []
+  })
 }

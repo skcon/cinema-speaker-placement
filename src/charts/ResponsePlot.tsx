@@ -3,11 +3,12 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceArea,
   XAxis,
   YAxis,
 } from 'recharts'
 import { formatDb, formatHz } from '@/charts/format'
-import type { ResponseAnalysis } from '@/domain'
+import type { EstimatedResponse } from '@/domain'
 import {
   ChartContainer,
   ChartLegend,
@@ -26,8 +27,10 @@ const CHART_CONFIG = {
   band: { label: 'Tolerance band', color: 'var(--muted-foreground)' },
 } satisfies ChartConfig
 
-/** Log-axis ticks a reader can place: the decade split at familiar values. */
-const FREQUENCY_TICKS = [20, 30, 40, 50, 60, 80, 100, 150, 200]
+/** Log-axis ticks a reader can place: each decade split at familiar values. */
+const FREQUENCY_TICKS = [
+  10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 600, 800, 1000,
+]
 
 /** The y axis in 6 dB steps around the data. */
 const LEVEL_STEP = 6
@@ -46,20 +49,21 @@ function stepTicks(levels: readonly number[]): number[] {
  * The estimated response against the target curve and its tolerance band,
  * on a log frequency axis. Draws what the domain derived; no acoustics here.
  */
-export function ResponsePlot({ response }: { response: ResponseAnalysis }) {
-  const rows = response.estimated.points.map(({ frequency, level }, i) => {
-    const target = response.target[i]
-    return {
-      frequency,
-      estimated: level,
-      target: target?.level,
-      band: target ? [target.low, target.high] : undefined,
-    }
-  })
-
-  const levelTicks = stepTicks(
-    rows.flatMap(({ estimated, band }) => [estimated, ...(band ?? [])]),
+export function ResponsePlot({ estimated }: { estimated: EstimatedResponse }) {
+  // Recharts draws a range area from a [low, high] pair.
+  const rows = estimated.rows.map((row) => ({
+    ...row,
+    band: [row.low, row.high],
+  }))
+  const lowest = rows[0]?.frequency ?? 1
+  const highest = rows.at(-1)?.frequency ?? 1
+  const frequencyTicks = FREQUENCY_TICKS.filter(
+    (hz) => hz >= lowest && hz <= highest,
   )
+  const levelTicks = stepTicks(
+    rows.flatMap(({ estimated, low, high }) => [estimated, low, high]),
+  )
+  const { reliableFrom } = estimated
 
   return (
     <ChartContainer
@@ -75,8 +79,8 @@ export function ResponsePlot({ response }: { response: ResponseAnalysis }) {
           dataKey="frequency"
           type="number"
           scale="log"
-          domain={[FREQUENCY_TICKS[0]!, FREQUENCY_TICKS.at(-1)!]}
-          ticks={FREQUENCY_TICKS}
+          domain={[lowest, highest]}
+          ticks={frequencyTicks}
           tickFormatter={(hz: number) => String(hz)}
           tickLine={false}
           label={{
@@ -100,6 +104,21 @@ export function ResponsePlot({ response }: { response: ResponseAnalysis }) {
             className: 'fill-muted-foreground',
           }}
         />
+        {reliableFrom !== undefined && reliableFrom > lowest && (
+          // Below the lowest mode the subwoofers excite: not reliable.
+          <ReferenceArea
+            x1={lowest}
+            x2={Math.min(reliableFrom, highest)}
+            fill="var(--muted-foreground)"
+            fillOpacity={0.12}
+            stroke="none"
+            label={{
+              value: 'Unreliable',
+              position: 'insideTopLeft',
+              className: 'fill-muted-foreground text-[10px]',
+            }}
+          />
+        )}
         <ChartTooltip
           content={
             <ChartTooltipContent

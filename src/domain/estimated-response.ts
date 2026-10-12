@@ -1,39 +1,45 @@
 /**
  * The estimated response at the MLP (GLOSSARY.md): a simplified model of
- * what the room does to the subwoofers' sound at the MLP, never a
- * measurement.
+ * what the room does to the subwoofers' sound at a listening position,
+ * never a measurement.
  *
  * ## How it is built
  *
- * 1. Each subwoofer's pressure at the MLP is a complex transfer function
- *    over the response band: so far the room modes only (room-modes.ts).
- * 2. The subwoofers are summed coherently: one bass-managed channel drives
- *    them all, in phase and at the same level.
- * 3. The sum becomes a level in dB, shifted so its average deviation from
- *    the target curve is 0 dB (the model has no absolute level).
+ * 1. `prepareRoomResponse` works out, once per room, subwoofer set and
+ *    frequency list, everything that doesn't depend on the listening
+ *    position (room-modes.ts). The seat score (#14) reuses it across a
+ *    grid of candidate positions.
+ * 2. `estimateResponse` hears it at one position: the subwoofers summed
+ *    coherently (one bass-managed channel drives them all, in phase and at
+ *    the same level), as a level in dB per frequency.
+ * 3. `levelMatched` shifts that level so its average deviation from the
+ *    target curve is 0 dB (the model has no absolute level), over the rows
+ *    at or above the lowest mode the subwoofers excite. Below it the model
+ *    has no room gain and only other modes' tails, so those rows are kept
+ *    but marked unreliable.
  *
- * #12 multiplies each subwoofer's transfer function by its enclosure
- * roll-off and the crossover before step 2, and adds boundary interference
- * for listener-level speakers, each listed in `components`.
+ * #12 adds contributors (`ResponseComponent`): per-subwoofer enclosure
+ * roll-off and the crossover inside step 1, boundary interference for
+ * listener-level speakers summed in step 2, all before step 3.
  */
-import { add, decibels, ZERO, type Complex } from './complex'
+import { decibels } from './complex'
 import {
   LOW_FREQUENCY_REVERBERATION_TIME,
-  MODE_SUM_HEADROOM,
   RESPONSE_BAND,
   SPEED_OF_SOUND,
 } from './reference'
-import { modalBandwidth, roomModes, roomModeTransfer } from './room-modes'
+import {
+  modalBandwidth,
+  prepareModalResponse,
+  type ModalResponse,
+} from './room-modes'
 import type { Room, RoomPoint } from './room'
 import type { TargetPoint } from './target-curve'
 
-/** A level in dB at one frequency in Hz. */
-export type ResponsePoint = {
-  readonly frequency: number
-  readonly level: number
-}
-
-/** The effects the estimate includes. #12 adds more. */
+/**
+ * The effects the estimate includes: the hook for #12, which adds
+ * 'enclosure', 'crossover' and 'boundary-interference'.
+ */
 export type ResponseComponent = 'room-modes'
 
 /** The modelling assumptions an estimate was made with (src/domain/reference.ts). */
@@ -46,74 +52,132 @@ export type ResponseModel = {
   readonly modalBandwidth: number
 }
 
+/** The estimate and the target at one frequency, levels in dB. */
+export type ResponseRow = {
+  readonly frequency: number
+  /** The estimated level, matched to the target (see `levelMatched`). */
+  readonly estimated: number
+  /** The target curve's level, and its tolerance band. */
+  readonly target: number
+  readonly low: number
+  readonly high: number
+  /** False below the lowest mode the subwoofers excite. */
+  readonly reliable: boolean
+}
+
 export type EstimatedResponse = {
-  /** Level-matched to the target curve, over the response band. */
-  readonly points: readonly ResponsePoint[]
+  /** One row per frequency, lowest first. */
+  readonly rows: readonly ResponseRow[]
+  /**
+   * The lowest mode the subwoofers excite, in Hz: rows below it are not
+   * reliable. Undefined if they excite no mode in reach.
+   */
+  readonly reliableFrom: number | undefined
   readonly components: readonly ResponseComponent[]
   readonly model: ResponseModel
 }
 
-/** The response band's frequencies: evenly spaced on a log axis, lowest first. */
-export function responseFrequencies(): number[] {
-  const { lowestHz, highestHz, steps } = RESPONSE_BAND
-  const ratio = highestHz / lowestHz
+/**
+ * Frequencies evenly spaced on a log axis, lowest first: by default the
+ * response band (20-200 Hz, 161 points).
+ */
+export function responseFrequencies({
+  lowestHz,
+  highestHz,
+  steps,
+}: {
+  lowestHz: number
+  highestHz: number
+  steps: number
+} = RESPONSE_BAND): number[] {
   return Array.from(
     { length: steps + 1 },
-    (_, i) => lowestHz * ratio ** (i / steps),
+    (_, i) => lowestHz * (highestHz / lowestHz) ** (i / steps),
   )
 }
 
-/**
- * The estimated response at the MLP from subwoofers at `sources`,
- * level-matched to `target` (which gives the frequencies).
- */
-export function estimateResponse({
+/** A room response worked out once, to hear at any listening position. */
+export type PreparedRoomResponse = {
+  readonly frequencies: readonly number[]
+  readonly modal: ModalResponse
+  readonly model: ResponseModel
+}
+
+/** Prepare the subwoofers' response in `room` at `frequencies`. */
+export function prepareRoomResponse({
   room,
-  mlp,
   sources,
-  target,
+  frequencies,
 }: {
   room: Room
-  mlp: RoomPoint
+  /** The subwoofers' positions. */
   sources: readonly RoomPoint[]
-  target: readonly TargetPoint[]
-}): EstimatedResponse {
-  const frequencies = target.map((point) => point.frequency)
-  const modes = roomModes(
-    room,
-    RESPONSE_BAND.highestHz * MODE_SUM_HEADROOM.factor,
-  )
+  frequencies: readonly number[]
+}): PreparedRoomResponse {
   const bandwidth = modalBandwidth()
-  const transfers = sources.map((source) =>
-    roomModeTransfer({
-      room,
-      modes,
-      source,
-      receiver: mlp,
-      frequencies,
-      bandwidth,
-    }),
-  )
-  const summed = frequencies.map((_, i) =>
-    transfers.reduce<Complex>(
-      (sum, transfer) => add(sum, transfer[i] ?? ZERO),
-      ZERO,
-    ),
-  )
-  const levels = summed.map(decibels)
-  const offset =
-    levels.reduce((total, level, i) => total + level - target[i]!.level, 0) /
-    levels.length
   return {
-    points: frequencies.map((frequency, i) => ({
-      frequency,
-      level: levels[i]! - offset,
-    })),
-    components: ['room-modes'],
+    frequencies,
+    modal: prepareModalResponse({ room, sources, frequencies, bandwidth }),
     model: {
       speedOfSound: SPEED_OF_SOUND.metersPerSecond,
       reverberationTime: LOW_FREQUENCY_REVERBERATION_TIME.seconds,
       modalBandwidth: bandwidth,
     },
   }
+}
+
+/**
+ * The estimated response at `receiver`, against `target` (at the prepared
+ * frequencies).
+ */
+export function estimateResponse(
+  { frequencies, modal, model }: PreparedRoomResponse,
+  receiver: RoomPoint,
+  target: readonly TargetPoint[],
+): EstimatedResponse {
+  // #12: other contributors' pressures are summed with this one here.
+  const levels = modal.pressureAt(receiver).map(decibels)
+  const reliableFrom = modal.lowestExcitedMode?.frequency
+  return {
+    rows: levelMatched(
+      frequencies.map((frequency, i) => ({
+        frequency,
+        level: levels[i] ?? -Infinity,
+        target: target[i] ?? { frequency, level: 0, low: 0, high: 0 },
+        reliable: reliableFrom === undefined || frequency >= reliableFrom,
+      })),
+    ),
+    reliableFrom,
+    components: ['room-modes'],
+    model,
+  }
+}
+
+/**
+ * The one place the estimate's level is set: shifted so its average
+ * deviation from the target is 0 dB over the reliable rows (all rows if
+ * none is), like setting the subwoofer level to the target. The model has
+ * no absolute level, so nothing else fixes it.
+ */
+function levelMatched(
+  rows: readonly {
+    frequency: number
+    level: number
+    target: TargetPoint
+    reliable: boolean
+  }[],
+): ResponseRow[] {
+  const reliable = rows.filter((row) => row.reliable)
+  const matchedOver = reliable.length > 0 ? reliable : rows
+  const offset =
+    matchedOver.reduce((sum, row) => sum + row.level - row.target.level, 0) /
+    matchedOver.length
+  return rows.map(({ frequency, level, target, reliable }) => ({
+    frequency,
+    estimated: level - offset,
+    target: target.level,
+    low: target.low,
+    high: target.high,
+    reliable,
+  }))
 }

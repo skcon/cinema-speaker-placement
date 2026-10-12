@@ -5,7 +5,7 @@ import {
   DEFAULT_CONFIG,
   decodeConfig,
   encodeConfig,
-  TARGET_CURVES,
+  TARGET_CURVE_KINDS,
   UNIT_SYSTEM_NAMES,
   V1_DOLBY_LAYOUTS,
   type Config,
@@ -105,7 +105,7 @@ describe('share link codec', () => {
     )
   })
 
-  it.each(TARGET_CURVES)('rebuilds the %s target curve', (targetCurve) => {
+  it.each(TARGET_CURVE_KINDS)('rebuilds the %s target curve', (targetCurve) => {
     const config: Config = { ...DEFAULT_CONFIG, targetCurve }
 
     expect(decodeConfig(encodeConfig(config))).toEqual({

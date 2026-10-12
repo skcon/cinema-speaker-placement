@@ -4,10 +4,31 @@
  */
 import { HOUSE_CURVE, TARGET_TOLERANCE } from './reference'
 
-/** The target curves a config can choose. `house` is our own shape (HOUSE_CURVE). */
-export const TARGET_CURVES = ['flat', 'house'] as const
+/** The target curves a config can choose. */
+export const TARGET_CURVE_KINDS = ['flat', 'house'] as const
 
-export type TargetCurveKind = (typeof TARGET_CURVES)[number]
+export type TargetCurveKind = (typeof TARGET_CURVE_KINDS)[number]
+
+/** What each target curve is: its level and how the UI names it. */
+export type TargetCurveSpec = {
+  /** The target level in dB at a frequency in Hz. */
+  readonly level: (frequency: number) => number
+  /** Its option label, for example in a picker. */
+  readonly label: string
+  /** How a sentence names it: "the flat target". */
+  readonly name: string
+}
+
+/** Every target curve. `house` is our own shape (HOUSE_CURVE). */
+export const TARGET_CURVES = {
+  flat: { level: () => 0, label: 'Flat', name: 'flat target' },
+  house: {
+    level: (frequency) =>
+      HOUSE_CURVE.boostDb / (1 + (frequency / HOUSE_CURVE.cornerHz) ** 2),
+    label: 'House curve (our assumption)',
+    name: 'house curve',
+  },
+} as const satisfies Record<TargetCurveKind, TargetCurveSpec>
 
 /** The target at one frequency, with its tolerance band, in dB. */
 export type TargetPoint = {
@@ -17,20 +38,14 @@ export type TargetPoint = {
   readonly high: number
 }
 
-/** The target level in dB at `frequency` Hz. */
-function targetLevel(kind: TargetCurveKind, frequency: number): number {
-  if (kind === 'flat') return 0
-  const { boostDb, cornerHz } = HOUSE_CURVE
-  return boostDb / (1 + (frequency / cornerHz) ** 2)
-}
-
 /** The target curve at each frequency, with its ±3 dB band. */
 export function targetCurve(
   kind: TargetCurveKind,
   frequencies: readonly number[],
 ): TargetPoint[] {
+  const { level: levelAt } = TARGET_CURVES[kind]
   return frequencies.map((frequency) => {
-    const level = targetLevel(kind, frequency)
+    const level = levelAt(frequency)
     return {
       frequency,
       level,

@@ -24,12 +24,26 @@ function summary() {
 }
 
 describe('response panel', () => {
-  it('sums up the estimate against the flat target in words', () => {
+  it('sums up the reliable part of the estimate against the flat target in words', () => {
     renderPanel()
 
+    // One front-wall subwoofer: reliable from the first length mode, 28.6 Hz.
     expect(summary()).toMatch(
-      /^Within ±3 dB of the flat target over \d+% of 20–200 Hz\. Largest peak: \+\d+\.\d dB at \d+(\.\d)? Hz\. Deepest dip: −\d+\.\d dB at \d+(\.\d)? Hz\.$/,
+      /^Within ±3 dB of the flat target over \d+% of 28\.6–200 Hz\. Largest peak: \+\d+\.\d dB at \d+(\.\d)? Hz\. Deepest dip: −\d+\.\d dB at \d+(\.\d)? Hz\.$/,
     )
+  })
+
+  it('says below which frequency the estimate is unreliable, and why', () => {
+    renderPanel()
+
+    expect(
+      screen.getByText(
+        /^Below 28\.6 Hz, the lowest room mode the subwoofers excite, the estimate isn’t reliable/,
+      ),
+    ).toBeVisible()
+    expect(
+      screen.getByText(/room gain below the lowest mode isn’t modelled/i),
+    ).toBeVisible()
   })
 
   it('updates when the subwoofers change', () => {
@@ -61,9 +75,10 @@ describe('response panel', () => {
     const rows = within(table).getAllByRole('row')
     // A header row and 20, 25.2 ... 200 Hz.
     expect(rows).toHaveLength(12)
-    expect(within(rows[1]!).getAllByRole('cell')[0]).toHaveTextContent(
-      '20.0 Hz',
-    )
+    const [frequency, estimate] = within(rows[1]!).getAllByRole('cell')
+    expect(frequency).toHaveTextContent('20 Hz')
+    // Below 28.6 Hz.
+    expect(estimate).toHaveTextContent('(unreliable)')
     expect(within(rows[11]!).getAllByRole('cell')[0]).toHaveTextContent(
       '200 Hz',
     )

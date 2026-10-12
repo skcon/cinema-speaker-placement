@@ -13,22 +13,17 @@ import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
 import { autoPlaceSubwoofers } from './subwoofer-placement'
 import {
   estimateResponse,
+  prepareRoomResponse,
   responseFrequencies,
   type EstimatedResponse,
+  type ResponseRow,
 } from './estimated-response'
-import { RESPONSE_BAND } from './reference'
 import {
   responseTable,
   summarizeResponse,
   type ResponseSummary,
-  type ResponseTableRow,
 } from './response-summary'
-import { roomModes, type RoomMode } from './room-modes'
-import {
-  targetCurve,
-  type TargetCurveKind,
-  type TargetPoint,
-} from './target-curve'
+import { targetCurve, type TargetCurveKind } from './target-curve'
 
 /** A listener-level speaker of the layout, auto-placed and checked. */
 export type PlacedSpeaker = {
@@ -67,15 +62,14 @@ export type PlacedSubwoofer = {
 
 /** The estimated response at the MLP and the target curve it is compared against. */
 export type ResponseAnalysis = {
+  /** Per frequency: the estimate, the target and its band, and reliability. */
   readonly estimated: EstimatedResponse
   /** The config's target curve choice. */
   readonly targetCurve: TargetCurveKind
-  /** The target at the estimate's frequencies, with its tolerance band. */
-  readonly target: readonly TargetPoint[]
-  /** The estimate against the target, in a few numbers. */
+  /** The reliable rows against the target, in a few numbers. */
   readonly summary: ResponseSummary
-  /** The estimate and target at third-octave frequencies, for a table. */
-  readonly tableRows: readonly ResponseTableRow[]
+  /** The rows at third-octave frequencies, for a table. */
+  readonly tableRows: readonly ResponseRow[]
 }
 
 /** Everything derived from a config. Later tickets add overheads. */
@@ -88,8 +82,6 @@ export type RoomAnalysis = {
   speakers: readonly PlacedSpeaker[]
   /** The layout's subwoofers, Subwoofer 1 first. */
   subwoofers: readonly PlacedSubwoofer[]
-  /** The room's modes up to the top of the response band, lowest first. */
-  roomModes: readonly RoomMode[]
   /** The estimated response at the MLP against the target curve. */
   response: ResponseAnalysis
 }
@@ -126,25 +118,27 @@ export function analyzeRoom({
       specs: ownSpecs[id] ?? groupSpecs,
     }),
   )
-  const target = targetCurve(targetCurveKind, responseFrequencies())
-  const estimated = estimateResponse({
+  const frequencies = responseFrequencies()
+  const prepared = prepareRoomResponse({
     room,
-    mlp,
     sources: subwoofers.map(({ position }) => position),
-    target,
+    frequencies,
   })
+  const estimated = estimateResponse(
+    prepared,
+    mlp,
+    targetCurve(targetCurveKind, frequencies),
+  )
   return {
     layout: summarizeLayout(layout),
     mlp,
     speakers,
     subwoofers,
-    roomModes: roomModes(room, RESPONSE_BAND.highestHz),
     response: {
       estimated,
       targetCurve: targetCurveKind,
-      target,
-      summary: summarizeResponse(estimated.points, target),
-      tableRows: responseTable(estimated.points, target),
+      summary: summarizeResponse(estimated.rows),
+      tableRows: responseTable(estimated.rows),
     },
   }
 }

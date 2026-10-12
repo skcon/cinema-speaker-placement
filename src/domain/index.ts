@@ -13,14 +13,9 @@ export type {
   EstimatedResponse,
   ResponseComponent,
   ResponseModel,
-  ResponsePoint,
+  ResponseRow,
 } from './estimated-response'
-export type { RoomMode, RoomModeIndices, RoomModeKind } from './room-modes'
-export type {
-  ResponseDeviation,
-  ResponseSummary,
-  ResponseTableRow,
-} from './response-summary'
+export type { ResponseDeviation, ResponseSummary } from './response-summary'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
   V1_DOLBY_LAYOUTS,
@@ -69,11 +64,12 @@ export {
   type SubwooferSpecProblem,
   type SubwooferSpecs,
 } from './speaker-specs'
-export { RESPONSE_BAND, TARGET_TOLERANCE } from './reference'
+export { TARGET_TOLERANCE } from './reference'
 export {
+  TARGET_CURVE_KINDS,
   TARGET_CURVES,
   type TargetCurveKind,
-  type TargetPoint,
+  type TargetCurveSpec,
 } from './target-curve'
 export {
   decodeConfig,

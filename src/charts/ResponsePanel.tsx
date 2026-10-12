@@ -1,11 +1,6 @@
 import { lazy, Suspense, useId } from 'react'
-import {
-  RESPONSE_BAND_LABEL,
-  TARGET_CURVE_OPTIONS,
-  targetName,
-} from '@/charts/labels'
-import { formatDb, formatHz } from '@/charts/format'
-import { TARGET_CURVES, TARGET_TOLERANCE } from '@/domain'
+import { formatDb, formatHz, formatHzRange } from '@/charts/format'
+import { TARGET_CURVE_KINDS, TARGET_CURVES, TARGET_TOLERANCE } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
 
@@ -32,11 +27,19 @@ export function ResponsePanel() {
   const setTargetCurve = useConfig((state) => state.setTargetCurve)
   const { response } = useRoomAnalysis()
   const { summary, estimated, tableRows } = response
-  const target = targetName(targetCurve)
+  const { rows, reliableFrom } = estimated
+  const target = TARGET_CURVES[targetCurve].name
+  const lowest = rows[0]?.frequency ?? 0
+  const highest = rows.at(-1)?.frequency ?? 0
+  const hasUnreliable = reliableFrom !== undefined && reliableFrom > lowest
+  const summarized = formatHzRange(
+    hasUnreliable ? reliableFrom : lowest,
+    highest,
+  )
 
   const summaryText =
     `Within ±${TARGET_TOLERANCE.db} dB of the ${target} over ` +
-    `${Math.round(summary.withinTolerance * 100)}% of ${RESPONSE_BAND_LABEL}. ` +
+    `${Math.round(summary.withinTolerance * 100)}% of ${summarized}. ` +
     `Largest peak: ${formatDb(summary.largestPeak.deviation)} at ` +
     `${formatHz(summary.largestPeak.frequency)}. ` +
     `Deepest dip: ${formatDb(summary.deepestDip.deviation)} at ` +
@@ -59,38 +62,41 @@ export function ResponsePanel() {
           value={targetCurve}
           onValueChange={(value) => {
             // Clicking the chosen option again sends '' (nothing chosen): ignore it.
-            const chosen = TARGET_CURVES.find((kind) => kind === value)
+            const chosen = TARGET_CURVE_KINDS.find((kind) => kind === value)
             if (chosen) setTargetCurve(chosen)
           }}
         >
-          {TARGET_CURVE_OPTIONS.map(({ value, label }) => (
-            <ToggleGroupItem
-              key={value}
-              value={value}
-              className={CHOSEN_OPTION}
-            >
-              {label}
+          {TARGET_CURVE_KINDS.map((kind) => (
+            <ToggleGroupItem key={kind} value={kind} className={CHOSEN_OPTION}>
+              {TARGET_CURVES[kind].label}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
       </div>
       <div
         role="img"
-        aria-label={`Chart of the estimated response at the MLP against the ${target}, ${RESPONSE_BAND_LABEL} on a log frequency axis.`}
+        aria-label={`Chart of the estimated response at the MLP against the ${target}, ${formatHzRange(lowest, highest)} on a log frequency axis.`}
         aria-describedby={summaryId}
         className="relative h-64 w-full lg:h-auto lg:min-h-60 lg:flex-1"
       >
         <Suspense fallback={null}>
-          <ResponsePlot response={response} />
+          <ResponsePlot estimated={estimated} />
         </Suspense>
       </div>
-      <p id={summaryId} className="text-sm">
-        {summaryText}
-      </p>
+      <div id={summaryId} className="flex flex-col gap-1 text-sm">
+        <p>{summaryText}</p>
+        {hasUnreliable && (
+          <p>
+            Below {formatHz(reliableFrom)}, the lowest room mode the subwoofers
+            excite, the estimate isn&rsquo;t reliable: it is shaded on the chart
+            and left out of these numbers.
+          </p>
+        )}
+      </div>
       <p className="text-xs text-muted-foreground">
         Room modes only, for all subwoofers playing the same bass together;
         assumes a {estimated.model.reverberationTime} s reverberation time at
-        low frequencies.
+        low frequencies. Room gain below the lowest mode isn&rsquo;t modelled.
         {targetCurve === 'house' &&
           ' The house curve is our own assumption (a gentle bass boost below about 100 Hz), not a published standard.'}
       </p>
@@ -119,7 +125,12 @@ export function ResponsePanel() {
             {tableRows.map((row) => (
               <tr key={row.frequency} className="border-t">
                 <td className="py-0.5">{formatHz(row.frequency)}</td>
-                <td className="py-0.5 text-right">{formatDb(row.estimated)}</td>
+                <td className="py-0.5 text-right">
+                  {formatDb(row.estimated)}
+                  {!row.reliable && (
+                    <span className="text-muted-foreground"> (unreliable)</span>
+                  )}
+                </td>
                 <td className="py-0.5 text-right">{formatDb(row.target)}</td>
               </tr>
             ))}

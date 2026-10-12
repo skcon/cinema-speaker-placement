@@ -3,28 +3,35 @@ import {
   analyzeRoom,
   DEFAULT_CONFIG,
   type Config,
+  type ResponseRow,
   type SubwooferCount,
 } from '@/domain'
+import { estimateResponse, prepareRoomResponse } from './estimated-response'
+import { targetCurve } from './target-curve'
 
 function withSubwoofers(subwoofers: SubwooferCount): Config {
   return { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers } }
 }
 
-/** The estimated level nearest to `frequency`, relative to the target there. */
-function deviationAt(config: Config, frequency: number): number {
-  const { estimated, target } = analyzeRoom(config).response
-  const distances = estimated.points.map((p) =>
-    Math.abs(p.frequency - frequency),
-  )
-  const i = distances.indexOf(Math.min(...distances))
-  return estimated.points[i]!.level - target[i]!.level
+function rowsOf(config: Config): readonly ResponseRow[] {
+  return analyzeRoom(config).response.estimated.rows
+}
+
+/** The row nearest `frequency`. */
+function rowAt(rows: readonly ResponseRow[], frequency: number): ResponseRow {
+  const distances = rows.map((row) => Math.abs(row.frequency - frequency))
+  return rows[distances.indexOf(Math.min(...distances))]!
+}
+
+function mean(values: number[]): number {
+  return values.reduce((a, b) => a + b) / values.length
 }
 
 describe('estimated response at the MLP', () => {
-  const { response } = analyzeRoom(DEFAULT_CONFIG)
+  const { estimated } = analyzeRoom(DEFAULT_CONFIG).response
 
-  it('covers 20-200 Hz on a log axis, every 16th point a base-10 third-octave frequency', () => {
-    const frequencies = response.estimated.points.map((p) => p.frequency)
+  it('covers 20-200 Hz on a log axis, 161 points, every 16th a base-10 third-octave frequency', () => {
+    const frequencies = estimated.rows.map((row) => row.frequency)
 
     expect(frequencies).toHaveLength(161)
     expect(frequencies[0]).toBe(20)
@@ -36,53 +43,70 @@ describe('estimated response at the MLP', () => {
   })
 
   it('is a finite level at every frequency', () => {
-    for (const { level } of response.estimated.points) {
+    for (const { estimated: level } of estimated.rows) {
       expect(Number.isFinite(level)).toBe(true)
     }
   })
 
-  it('is level-matched to the target: its average deviation from the target is 0 dB', () => {
-    for (const targetCurve of ['flat', 'house'] as const) {
-      const { estimated, target } = analyzeRoom({
-        ...DEFAULT_CONFIG,
-        targetCurve,
-      }).response
-      const deviations = estimated.points.map(
-        (p, i) => p.level - target[i]!.level,
-      )
-      const mean = deviations.reduce((a, b) => a + b) / deviations.length
-      expect(mean).toBeCloseTo(0, 9)
-    }
-  })
-
   it('comes from the room modes only so far, with the model parameters it assumed', () => {
-    expect(response.estimated.components).toEqual(['room-modes'])
-    const { speedOfSound, reverberationTime, modalBandwidth } =
-      response.estimated.model
+    expect(estimated.components).toEqual(['room-modes'])
+    const { speedOfSound, reverberationTime, modalBandwidth } = estimated.model
     expect([speedOfSound, reverberationTime]).toEqual([343, 0.5])
     // 3·ln 10 / (0.5·π) ≈ 2.2/0.5
     expect(modalBandwidth).toBeCloseTo(4.398, 3)
   })
 
-  it('peaks or dips by more than the ±3 dB band somewhere in the default room', () => {
-    const outside = response.estimated.points.filter(
-      (p, i) => Math.abs(p.level - response.target[i]!.level) > 3,
-    )
-    expect(outside.length).toBeGreaterThan(0)
+  it('is reliable from the lowest mode one front-wall subwoofer excites: the first length mode, 343/12 Hz', () => {
+    expect(estimated.reliableFrom).toBeCloseTo(343 / 12, 6)
+    for (const { frequency, reliable } of estimated.rows) {
+      expect(reliable).toBe(frequency >= 343 / 12)
+    }
+  })
+
+  it('is reliable only from 343/6 Hz with front and back subwoofers, which cancel the first length mode (and sit on the width modes’ odd nodes)', () => {
+    // Both on the center line, so odd width modes vanish at them too; the
+    // first mode they excite is the second length mode, 57.17 Hz.
+    const { reliableFrom } = analyzeRoom(withSubwoofers(2)).response.estimated
+    expect(reliableFrom).toBeCloseTo(343 / 6, 6)
+  })
+
+  it('is level-matched to the target over the reliable rows: their average deviation is 0 dB', () => {
+    for (const config of [
+      DEFAULT_CONFIG,
+      { ...DEFAULT_CONFIG, targetCurve: 'house' } as const,
+      withSubwoofers(2),
+    ]) {
+      const reliable = rowsOf(config).filter((row) => row.reliable)
+      expect(mean(reliable.map((r) => r.estimated - r.target))).toBeCloseTo(
+        0,
+        9,
+      )
+    }
+  })
+
+  it('carries the target and its ±3 dB band in every row', () => {
+    const house = rowsOf({ ...DEFAULT_CONFIG, targetCurve: 'house' })
+    // 6 / (1 + 0.2²) at 20 Hz
+    expect(house[0]).toMatchObject({
+      target: expect.closeTo(5.769, 3) as number,
+      low: expect.closeTo(2.769, 3) as number,
+      high: expect.closeTo(8.769, 3) as number,
+    })
+    expect(rowsOf(DEFAULT_CONFIG).every((row) => row.target === 0)).toBe(true)
   })
 
   it('loses the first length mode (28.6 Hz) with two subwoofers at the front and back walls', () => {
-    // The two subwoofers sit at mirrored distances from the front and back
-    // walls, where an odd length mode has opposite signs: they cancel it.
+    const deviation = (config: Config) => {
+      const row = rowAt(rowsOf(config), 343 / 12)
+      return row.estimated - row.target
+    }
     expect(
-      deviationAt(withSubwoofers(1), 343 / 12) -
-        deviationAt(withSubwoofers(2), 343 / 12),
+      deviation(withSubwoofers(1)) - deviation(withSubwoofers(2)),
     ).toBeGreaterThan(10)
   })
 
   it('changes with the room and with the subwoofer count', () => {
-    const levels = (config: Config) =>
-      analyzeRoom(config).response.estimated.points.map((p) => p.level)
+    const levels = (config: Config) => rowsOf(config).map((r) => r.estimated)
     const longer = {
       ...DEFAULT_CONFIG,
       room: { ...DEFAULT_CONFIG.room, length: 7 },
@@ -93,36 +117,34 @@ describe('estimated response at the MLP', () => {
   })
 })
 
-describe('target curve in the analysis', () => {
-  it('follows the config: flat by default, the house curve when chosen', () => {
-    const flat = analyzeRoom(DEFAULT_CONFIG).response
-    const house = analyzeRoom({
-      ...DEFAULT_CONFIG,
-      targetCurve: 'house',
-    }).response
-
-    expect(flat.targetCurve).toBe('flat')
-    expect(flat.target.every((p) => p.level === 0)).toBe(true)
-    expect(house.targetCurve).toBe('house')
-    // 6 / (1 + 0.2²) at 20 Hz
-    expect(house.target[0]?.level).toBeCloseTo(5.769, 3)
-    expect(house.target.map((p) => p.frequency)).toEqual(
-      house.estimated.points.map((p) => p.frequency),
-    )
-  })
-})
-
-describe('room modes in the analysis', () => {
-  it('lists the modes up to 200 Hz, lowest first, for naming peaks and dips', () => {
-    const { roomModes } = analyzeRoom(DEFAULT_CONFIG)
+describe('a room response prepared once', () => {
+  it('gives the same estimate at a receiver as analyzeRoom does at the MLP, for any frequency list', () => {
+    const { response, mlp, subwoofers } = analyzeRoom(DEFAULT_CONFIG)
+    const frequencies = response.estimated.rows.map((r) => r.frequency)
+    const prepared = prepareRoomResponse({
+      room: DEFAULT_CONFIG.room,
+      sources: subwoofers.map((s) => s.position),
+      frequencies,
+    })
 
     expect(
-      roomModes.slice(0, 3).map(({ kind, frequency }) => [kind, frequency]),
-    ).toEqual([
-      ['axial', expect.closeTo(28.583, 3)],
-      ['axial', expect.closeTo(38.111, 3)],
-      ['tangential', expect.closeTo(47.639, 3)],
-    ])
-    expect(roomModes.at(-1)!.frequency).toBeLessThanOrEqual(200)
+      estimateResponse(prepared, mlp, targetCurve('flat', frequencies)),
+    ).toEqual(response.estimated)
+  })
+
+  it('follows the frequencies it is given, beyond the default band', () => {
+    const frequencies = [30, 60, 120, 240, 480]
+    const prepared = prepareRoomResponse({
+      room: DEFAULT_CONFIG.room,
+      sources: [{ x: 0, y: 0.3, z: 0.3 }],
+      frequencies,
+    })
+    const { rows } = estimateResponse(
+      prepared,
+      { x: 0, y: 2.28, z: 1.2 },
+      targetCurve('flat', frequencies),
+    )
+
+    expect(rows.map((r) => r.frequency)).toEqual(frequencies)
   })
 })

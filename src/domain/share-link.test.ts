@@ -5,6 +5,7 @@ import {
   DEFAULT_CONFIG,
   decodeConfig,
   encodeConfig,
+  TARGET_CURVES,
   UNIT_SYSTEM_NAMES,
   V1_DOLBY_LAYOUTS,
   type Config,
@@ -102,6 +103,15 @@ describe('share link codec', () => {
         })
       },
     )
+  })
+
+  it.each(TARGET_CURVES)('rebuilds the %s target curve', (targetCurve) => {
+    const config: Config = { ...DEFAULT_CONFIG, targetCurve }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config,
+      problem: null,
+    })
   })
 
   it('rebuilds subwoofer specs exactly, down to the last digit', () => {
@@ -283,6 +293,16 @@ describe('share link codec', () => {
         'own specs for a subwoofer beyond the subwoofer count',
         withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub2: SEALED_10 } }),
       ],
+      ['an unknown target curve', { ...DEFAULT_CONFIG, targetCurve: 'harman' }],
+      [
+        'no target curve',
+        {
+          units: 'metric',
+          room: DEFAULT_CONFIG.room,
+          layout: DEFAULT_CONFIG.layout,
+          speakerGroups: DEFAULT_CONFIG.speakerGroups,
+        },
+      ],
     ])('for a version 1 config with %s', (_, config) => {
       expect(decodeConfig(encodedHolding({ v: 1, config }))).toEqual(FALLBACK)
     })
@@ -350,6 +370,8 @@ const WORST_CASE_CONFIG: Config = {
       },
     },
   },
+  // The longer of the two names.
+  targetCurve: 'house',
 }
 
 /** Where the app is published (GitHub Pages, see pages.config.ts). */

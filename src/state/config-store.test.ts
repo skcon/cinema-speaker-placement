@@ -103,6 +103,22 @@ describe('config store', () => {
   })
 })
 
+describe('target curve', () => {
+  it('starts flat and switches to the house curve and back, keeping the rest of the config', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setTargetCurve('flat')
+    expect(store.getState().config).toEqual({
+      ...IMPERIAL_ROOM,
+      targetCurve: 'flat',
+    })
+
+    store.getState().setTargetCurve('house')
+    expect(store.getState().config).toEqual(IMPERIAL_ROOM)
+    expect(createConfigStore().getState().config.targetCurve).toBe('flat')
+  })
+})
+
 describe('subwoofers', () => {
   const PORTED_15 = {
     enclosure: 'ported',

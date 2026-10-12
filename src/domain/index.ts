@@ -57,6 +57,11 @@ export {
   type SubwooferSpecs,
 } from './speaker-specs'
 export {
+  TARGET_CURVES,
+  type TargetCurveKind,
+  type TargetPoint,
+} from './target-curve'
+export {
   decodeConfig,
   encodeConfig,
   type DecodedConfig,

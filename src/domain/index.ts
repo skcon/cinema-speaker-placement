@@ -16,6 +16,11 @@ export type {
   ResponsePoint,
 } from './estimated-response'
 export type { RoomMode, RoomModeIndices, RoomModeKind } from './room-modes'
+export type {
+  ResponseDeviation,
+  ResponseSummary,
+  ResponseTableRow,
+} from './response-summary'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
   V1_DOLBY_LAYOUTS,

@@ -17,6 +17,12 @@ import {
   type EstimatedResponse,
 } from './estimated-response'
 import { RESPONSE_BAND } from './reference'
+import {
+  responseTable,
+  summarizeResponse,
+  type ResponseSummary,
+  type ResponseTableRow,
+} from './response-summary'
 import { roomModes, type RoomMode } from './room-modes'
 import {
   targetCurve,
@@ -66,6 +72,10 @@ export type ResponseAnalysis = {
   readonly targetCurve: TargetCurveKind
   /** The target at the estimate's frequencies, with its tolerance band. */
   readonly target: readonly TargetPoint[]
+  /** The estimate against the target, in a few numbers. */
+  readonly summary: ResponseSummary
+  /** The estimate and target at third-octave frequencies, for a table. */
+  readonly tableRows: readonly ResponseTableRow[]
 }
 
 /** Everything derived from a config. Later tickets add overheads. */
@@ -129,6 +139,12 @@ export function analyzeRoom({
     speakers,
     subwoofers,
     roomModes: roomModes(room, RESPONSE_BAND.highestHz),
-    response: { estimated, targetCurve: targetCurveKind, target },
+    response: {
+      estimated,
+      targetCurve: targetCurveKind,
+      target,
+      summary: summarizeResponse(estimated.points, target),
+      tableRows: responseTable(estimated.points, target),
+    },
   }
 }

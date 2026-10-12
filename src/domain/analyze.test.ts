@@ -16,7 +16,7 @@ function configWithLayout(layout: Config['layout']): Config {
 }
 
 describe('the default config', () => {
-  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout and our default subwoofer specs', () => {
+  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout, our default subwoofer specs and the flat target curve', () => {
     expect(DEFAULT_CONFIG).toEqual({
       units: 'metric',
       room: { length: 6, width: 4.5, height: 2.6 },
@@ -33,6 +33,7 @@ describe('the default config', () => {
           ownSpecs: {},
         },
       },
+      targetCurve: 'flat',
     })
   })
 })

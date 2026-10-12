@@ -13,6 +13,7 @@ import {
   type SubwooferGroup,
   type SubwooferId,
   type SubwooferSpecs,
+  type TargetCurveKind,
   type UnitSystem,
 } from '@/domain'
 
@@ -59,6 +60,8 @@ export type ConfigState = {
     subwoofer: SubwooferId,
     hasOwnSpecs: boolean,
   ) => void
+  /** Compare the estimated response against the flat or the house curve. */
+  setTargetCurve: (targetCurve: TargetCurveKind) => void
   /**
    * Put every speaker back at its auto-placed position. Manual positions
    * arrive with #9: then this sets every channel back to auto, dropping the
@@ -176,6 +179,8 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           )
       set({ config: withSubwooferGroup(config, { ...group, ownSpecs }) })
     },
+    setTargetCurve: (targetCurve) =>
+      set(({ config }) => ({ config: { ...config, targetCurve } })),
     autoPlace: () => {},
     openEncodedConfig: (encoded) => {
       const { config, problem } =

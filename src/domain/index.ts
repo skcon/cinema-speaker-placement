@@ -6,8 +6,16 @@ export {
   analyzeRoom,
   type PlacedSpeaker,
   type PlacedSubwoofer,
+  type ResponseAnalysis,
   type RoomAnalysis,
 } from './analyze'
+export type {
+  EstimatedResponse,
+  ResponseComponent,
+  ResponseModel,
+  ResponseRow,
+} from './estimated-response'
+export type { ResponseDeviation, ResponseSummary } from './response-summary'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
   V1_DOLBY_LAYOUTS,
@@ -56,6 +64,13 @@ export {
   type SubwooferSpecProblem,
   type SubwooferSpecs,
 } from './speaker-specs'
+export { TARGET_TOLERANCE } from './reference'
+export {
+  TARGET_CURVE_KINDS,
+  TARGET_CURVES,
+  type TargetCurveKind,
+  type TargetCurveSpec,
+} from './target-curve'
 export {
   decodeConfig,
   encodeConfig,

@@ -1,16 +1,24 @@
 /**
  * Reference values with their sources, as cited in
- * docs/research/dolby-speaker-placement.md and
- * docs/research/multi-subwoofer-placement.md.
+ * docs/research/dolby-speaker-placement.md,
+ * docs/research/multi-subwoofer-placement.md and
+ * docs/research/low-frequency-response.md.
  */
 
 /**
  * The source keys of the research files' section 1: Dolby's documents
- * (docs/research/dolby-speaker-placement.md) and the multi-subwoofer
- * sources (docs/research/multi-subwoofer-placement.md). Keys are unique
- * across both files.
+ * (docs/research/dolby-speaker-placement.md), the multi-subwoofer sources
+ * (docs/research/multi-subwoofer-placement.md) and the low-frequency
+ * model's sources (docs/research/low-frequency-response.md). Keys are
+ * unique across the files.
  */
-export type SourceKey = DolbySourceKey | SubwooferSourceKey
+export type SourceKey =
+  | DolbySourceKey
+  | SubwooferSourceKey
+  | LowFrequencySourceKey
+
+/** docs/research/low-frequency-response.md, section 1. */
+type LowFrequencySourceKey = 'MHA' | 'KUTTRUFF' | 'AES-8994'
 
 /** docs/research/multi-subwoofer-placement.md, section 1. */
 type SubwooferSourceKey = 'HW-SUBS' | 'AES-5602' | 'JAES-2006'
@@ -121,3 +129,96 @@ export const SUBWOOFER_HEIGHT = {
     "low in the cabinet. Welti's white paper gives no subwoofer height " +
     '(docs/research/multi-subwoofer-placement.md section 4, item 7).',
 } as const satisfies { meters: number; note: string }
+
+/**
+ * The speed of sound in air at about 20 °C, for the room-mode
+ * frequencies f = (c/2)·√((nL/L)² + (nW/W)² + (nH/H)²).
+ */
+export const SPEED_OF_SOUND = {
+  metersPerSecond: 343,
+  citations: [
+    { generalReference: 1 },
+    { source: 'MHA', note: 'room-modes chapter; page not checked' },
+  ],
+} as const satisfies { metersPerSecond: number; citations: readonly Citation[] }
+
+/**
+ * The reverberation time the room-mode model assumes at low frequencies,
+ * for every mode. It sets each mode's damping (δ = 3·ln 10 / T) and so its
+ * half-power bandwidth (B = δ/π ≈ 2.2/T, about 4.4 Hz here): wider modes
+ * mean smaller peaks and shallower dips.
+ */
+export const LOW_FREQUENCY_REVERBERATION_TIME = {
+  seconds: 0.5,
+  note:
+    'Our modelling assumption, not a measured or published value: real ' +
+    'rooms differ per room and per mode. Only the relations to damping and ' +
+    'bandwidth are textbook results (docs/research/low-frequency-response.md ' +
+    'section 2, item 5).',
+  citations: [
+    { source: 'KUTTRUFF', note: 'ch. 3: δ = 3·ln 10 / T, B = δ/π' },
+    { source: 'MHA', note: 'mode bandwidth ≈ 2.2 / T; page not checked' },
+  ],
+} as const satisfies {
+  seconds: number
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * The frequencies the estimated response covers, in Hz, and how finely:
+ * `steps + 1` points spread evenly on a log axis. The 20-200 Hz band is the
+ * room-mode range of ADR 0002; with 160 steps over the decade, every 16th
+ * point is a base-10 third-octave frequency (20, 25.2, 31.7 ... 200 Hz).
+ */
+export const RESPONSE_BAND = {
+  lowestHz: 20,
+  highestHz: 200,
+  steps: 160,
+  note: 'Product choice from ADR 0002 and issue #2, not a cited value.',
+} as const
+
+/**
+ * How far above the highest charted frequency the room-mode model still
+ * sums modes: modes above the band only add their tails to it.
+ */
+export const MODE_SUM_HEADROOM = {
+  factor: 1.5,
+  note:
+    'Our modelling assumption: modes above 1.5 × the band add little ' +
+    'inside it (docs/research/low-frequency-response.md section 2).',
+} as const
+
+/** The target curve's tolerance band: ± this many dB around the target. */
+export const TARGET_TOLERANCE = {
+  db: 3,
+  note:
+    'Product choice from the v1 spec (issue #2, user story 41), not a ' +
+    'cited standard.',
+} as const
+
+/**
+ * The house curve: a smooth bass shelf, level = boost / (1 + (f / corner)²)
+ * dB, so close to +6 dB at the lowest frequencies and +3 dB at 100 Hz.
+ */
+export const HOUSE_CURVE = {
+  boostDb: 6,
+  cornerHz: 100,
+  note:
+    'Our assumption, not a published standard: shaped after the v1 spec ' +
+    '(issue #2, user story 42, "bass boost below about 100 Hz"). A Harman ' +
+    'study found listeners on average preferred more bass than flat, but ' +
+    'no curve shape from it could be verified ' +
+    '(docs/research/low-frequency-response.md section 3).',
+  citations: [
+    {
+      source: 'AES-8994',
+      note: 'listeners preferred more bass than flat; abstract only, via summaries',
+    },
+  ],
+} as const satisfies {
+  boostDb: number
+  cornerHz: number
+  note: string
+  citations: readonly Citation[]
+}

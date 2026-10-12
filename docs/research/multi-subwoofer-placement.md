@@ -83,9 +83,13 @@ One arrangement per subwoofer count, from HW-SUBS Investigation 3, as room fract
 | 1 | front-wall midpoint (0.5, 0) | HW-SUBS slide 47 (p.16) |
 | 2 | front- and back-wall midpoints (0.5, 0), (0.5, 1) | HW-SUBS slide 48 (p.17); text slide 75 (p.28) |
 | 3 | front-wall midpoint and both side-wall midpoints (0.5, 0), (0, 0.5), (1, 0.5) | HW-SUBS slide 49 (p.17) |
-| 4 | all four wall midpoints (0.5, 0), (1, 0.5), (0.5, 1), (0, 0.5) | HW-SUBS slide 50 (p.17); configuration #11, slide 59 (p.21); text slide 75 (p.28) |
+| 4 | all four wall midpoints (0.5, 0), (0, 0.5), (1, 0.5), (0.5, 1) | HW-SUBS slide 50 (p.17); configuration #11, slide 59 (p.21); text slide 75 (p.28) |
+
+The positions are listed in the app's subwoofer order (Sub1 first). The numbering is ours, not the source's: it keeps a subwoofer in place when one is added, except from 2 to 3, where Sub2 moves from the back wall to the left wall because the 3-subwoofer optimum has no back-wall subwoofer.
 
 The wall stand-off and height of the cabinets are not in the source and have to be our own modelling assumptions.
+
+The app also shows each optimum's Std from the slide tables (3.9, 1.3, 2.7 and 0.9 dB for 1 to 4 subwoofers, slides 47–50) in a note at 3 subwoofers, which says 2 or 4 usually even out the bass better (section 4, item 4).
 
 ## 4. Gaps, caveats and what the sources do not specify
 

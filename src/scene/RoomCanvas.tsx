@@ -280,7 +280,7 @@ function SubwooferMarkers({
         <SceneLabel
           at={subwoofer.position}
           layer={labelLayer}
-          className="font-medium leading-tight text-slate-600"
+          className="leading-tight font-medium"
           style={{ transform: besideMarker(labelDirection) }}
         >
           {label}

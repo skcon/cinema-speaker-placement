@@ -64,6 +64,28 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toBeVisible()
   })
 
+  await test.step('the estimated response is charted, with its summary and the estimate note', async () => {
+    const panel = page.getByRole('region', { name: 'Estimated response' })
+    const chart = panel.getByRole('img', {
+      name: /^Chart of the estimated response at the MLP against the flat target/,
+    })
+    await expect(chart).toBeVisible()
+    // Recharts draws the target and the estimate as SVG paths.
+    const curves = chart.locator('path.recharts-line-curve')
+    await expect(curves).toHaveCount(2)
+    const estimate = await curves.last().boundingBox()
+    expect(estimate?.width).toBeGreaterThan(100)
+    expect(estimate?.height).toBeGreaterThan(20)
+    await expect(
+      panel.getByText(/^Within ±3 dB of the flat target/),
+    ).toBeVisible()
+    await expect(
+      panel.getByText(
+        'An estimate from a simplified model, never a measurement.',
+      ),
+    ).toBeVisible()
+  })
+
   // 24 x 15 x 9 ft in imperial, 7.1.2 with two subwoofers (7.2.2).
   const { encoded } = V1_LINKS.imperialRoom
   await page.goto(`./?config=${encoded}`)

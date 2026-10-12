@@ -6,8 +6,11 @@
  */
 import { DOLBY_LAYOUTS, type DolbyLayout } from './dolby-layouts'
 
-/** How many subwoofers (the Y): 1 to 4 for every v1 layout (issue #2). */
-export type SubwooferCount = 1 | 2 | 3 | 4
+/** The subwoofer counts (the Y) every v1 layout can have (issue #2). */
+export const SUBWOOFER_COUNTS = [1, 2, 3, 4] as const
+
+/** How many subwoofers (the Y): 1 to 4 for every v1 layout. */
+export type SubwooferCount = (typeof SUBWOOFER_COUNTS)[number]
 
 export type Layout = {
   /**

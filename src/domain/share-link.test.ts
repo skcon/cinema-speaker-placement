@@ -24,6 +24,25 @@ function encodedHolding(json: unknown): string {
 
 const FALLBACK = { config: DEFAULT_CONFIG, problem: 'unreadable' }
 
+/** Two subwoofer models that differ from the defaults in every spec. */
+const PORTED_15 = {
+  enclosure: 'ported',
+  driverDiameter: 15 * 0.0254,
+  rmsWatts: 800,
+  peakWatts: 1600,
+} as const
+const SEALED_10 = {
+  enclosure: 'sealed',
+  driverDiameter: 10 * 0.0254,
+  rmsWatts: 150,
+  peakWatts: 150,
+} as const
+
+/** The default config with this Subwoofers group: specs and own specs. */
+function withSubwooferGroup(subwoofers: unknown) {
+  return { ...DEFAULT_CONFIG, speakerGroups: { subwoofers } }
+}
+
 describe('share link codec', () => {
   it('rebuilds the default config from its share link', () => {
     expect(decodeConfig(encodeConfig(DEFAULT_CONFIG))).toEqual({
@@ -54,17 +73,53 @@ describe('share link codec', () => {
     },
   )
 
-  describe.each(V1_DOLBY_LAYOUTS)('rebuilds a %s layout', (dolbyLayout) => {
-    it.each([1, 2, 3, 4] as const)('with %i subwoofer(s)', (subwoofers) => {
-      const config: Config = {
-        ...IMPERIAL_ROOM,
-        layout: { dolbyLayout, subwoofers },
-      }
+  /** Own specs for every even-numbered subwoofer of the layout. */
+  const EVEN_OWN_SPECS = {
+    1: {},
+    2: { Sub2: SEALED_10 },
+    3: { Sub2: SEALED_10 },
+    4: { Sub2: SEALED_10, Sub4: SEALED_10 },
+  } as const
 
-      expect(decodeConfig(encodeConfig(config))).toEqual({
-        config,
-        problem: null,
-      })
+  describe.each(V1_DOLBY_LAYOUTS)('rebuilds a %s layout', (dolbyLayout) => {
+    it.each([1, 2, 3, 4] as const)(
+      'with %i subwoofer(s), every other one with its own specs',
+      (subwoofers) => {
+        const config: Config = {
+          ...IMPERIAL_ROOM,
+          layout: { dolbyLayout, subwoofers },
+          speakerGroups: {
+            subwoofers: {
+              specs: PORTED_15,
+              ownSpecs: EVEN_OWN_SPECS[subwoofers],
+            },
+          },
+        }
+
+        expect(decodeConfig(encodeConfig(config))).toEqual({
+          config,
+          problem: null,
+        })
+      },
+    )
+  })
+
+  it('rebuilds subwoofer specs exactly, down to the last digit', () => {
+    // 12.3 in converted to meters: 0.31242000000000003
+    const specs = {
+      enclosure: 'ported',
+      driverDiameter: 12.3 * 0.0254,
+      rmsWatts: 333.3,
+      peakWatts: 1234.5678901234567,
+    } as const
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      speakerGroups: { subwoofers: { specs, ownSpecs: { Sub1: specs } } },
+    }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config,
+      problem: null,
     })
   })
 
@@ -154,6 +209,80 @@ describe('share link codec', () => {
           layout: { ...DEFAULT_CONFIG.layout, overheads: 4 },
         },
       ],
+      [
+        'no speaker groups',
+        {
+          units: 'metric',
+          room: DEFAULT_CONFIG.room,
+          layout: DEFAULT_CONFIG.layout,
+        },
+      ],
+      [
+        'an unknown speaker group',
+        {
+          ...DEFAULT_CONFIG,
+          speakerGroups: {
+            ...DEFAULT_CONFIG.speakerGroups,
+            center: { specs: PORTED_15 },
+          },
+        },
+      ],
+      [
+        'subwoofer specs out of range',
+        withSubwooferGroup({
+          specs: { ...PORTED_15, rmsWatts: 5 },
+          ownSpecs: {},
+        }),
+      ],
+      [
+        'a peak power below the RMS power',
+        withSubwooferGroup({
+          specs: { ...PORTED_15, peakWatts: 700 },
+          ownSpecs: {},
+        }),
+      ],
+      [
+        'an unknown enclosure',
+        withSubwooferGroup({
+          specs: { ...PORTED_15, enclosure: 'horn' },
+          ownSpecs: {},
+        }),
+      ],
+      [
+        'a missing subwoofer spec',
+        withSubwooferGroup({
+          specs: { enclosure: 'sealed', rmsWatts: 300, peakWatts: 600 },
+          ownSpecs: {},
+        }),
+      ],
+      [
+        'an unknown subwoofer spec',
+        withSubwooferGroup({
+          specs: { ...PORTED_15, sensitivity: 88 },
+          ownSpecs: {},
+        }),
+      ],
+      ['no own specs field', withSubwooferGroup({ specs: PORTED_15 })],
+      [
+        'own specs out of range',
+        withSubwooferGroup({
+          specs: PORTED_15,
+          ownSpecs: { Sub1: { ...SEALED_10, driverDiameter: 2 } },
+        }),
+      ],
+      [
+        'own specs that are null',
+        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub1: null } }),
+      ],
+      [
+        'own specs for an unknown subwoofer',
+        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub5: SEALED_10 } }),
+      ],
+      // The layout has one subwoofer (Sub1), so Sub2 can't have specs.
+      [
+        'own specs for a subwoofer beyond the subwoofer count',
+        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub2: SEALED_10 } }),
+      ],
     ])('for a version 1 config with %s', (_, config) => {
       expect(decodeConfig(encodedHolding({ v: 1, config }))).toEqual(FALLBACK)
     })
@@ -180,13 +309,27 @@ describe('released share links', () => {
 })
 
 /**
+ * Subwoofer specs with the longest values a user can enter: every number
+ * with all 17 significant digits (a converted inch value, or a typed
+ * decimal such as 9999.9999999999982).
+ */
+function longestSubwooferSpecs(offset: number) {
+  return {
+    enclosure: 'ported',
+    driverDiameter: (23 + 1 / 7 - offset / 81) * 0.0254,
+    rmsWatts: 9999 - 1 / 7 - offset / 81,
+    peakWatts: 19999 - 1 / 7 - offset / 81,
+  } as const
+}
+
+/**
  * The largest config a share link has to carry, for the size budget: the
  * largest real config today. Grow it with the config: the compiler asks for
  * every new field, and each one should take its longest value. Planned
  * growth (issue #2): every speaker (overheads and the four subwoofers
  * included) and the MLP manual with full-precision positions, specs for
- * every speaker group and per-subwoofer specs, amp power, crossover, target
- * curve and seat row width.
+ * the other speaker groups (#13), amp power, crossover, target curve and
+ * seat row width.
  */
 const WORST_CASE_CONFIG: Config = {
   units: 'imperial',
@@ -195,6 +338,18 @@ const WORST_CASE_CONFIG: Config = {
   room: { length: 15 - 1 / 81, width: 15 - 1 / 7, height: 5 - 1 / 81 },
   // The largest v1 layout: 7.4.4.
   layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
+  // Group specs, and different own specs for every subwoofer.
+  speakerGroups: {
+    subwoofers: {
+      specs: longestSubwooferSpecs(0),
+      ownSpecs: {
+        Sub1: longestSubwooferSpecs(1),
+        Sub2: longestSubwooferSpecs(2),
+        Sub3: longestSubwooferSpecs(3),
+        Sub4: longestSubwooferSpecs(4),
+      },
+    },
+  },
 }
 
 /** Where the app is published (GitHub Pages, see pages.config.ts). */
@@ -210,6 +365,13 @@ const PRODUCTION_PAGE = 'https://skcon.github.io/cinema-speaker-placement/'
 const URL_BUDGET = 2000
 
 describe('share link size', () => {
+  it('is measured with a worst-case config the app accepts', () => {
+    expect(decodeConfig(encodeConfig(WORST_CASE_CONFIG))).toEqual({
+      config: WORST_CASE_CONFIG,
+      problem: null,
+    })
+  })
+
   it(`keeps the worst-case config's link within ${URL_BUDGET} characters`, () => {
     const url = new URL(PRODUCTION_PAGE)
     // As the router writes the search param: percent-encoded where needed.

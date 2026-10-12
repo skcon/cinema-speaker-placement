@@ -101,3 +101,33 @@ export function formatLength(
     .map(({ unit, value }) => `${value} ${unit}`)
     .join(' ')
 }
+
+/*
+ * Driver sizes are sold by the inch everywhere (a "12-inch subwoofer"), so
+ * they are written in inches in both unit systems, to the nearest tenth.
+ * They are still stored in meters.
+ */
+
+/** A length, such as a driver size, in inches rounded to the nearest tenth. */
+export function toInches(
+  meters: number,
+  rounding: Rounding = 'nearest',
+): number {
+  return (
+    roundSteps((meters / METERS_PER_INCH) * INCH_TENTHS_PER_INCH, rounding) /
+    INCH_TENTHS_PER_INCH
+  )
+}
+
+/** The length of `inches`, in meters. */
+export function fromInches(inches: number): number {
+  return inches * METERS_PER_INCH
+}
+
+/** A length in inches as text, for example "12 in". */
+export function formatInches(
+  meters: number,
+  rounding: Rounding = 'nearest',
+): string {
+  return `${toInches(meters, rounding)} in`
+}

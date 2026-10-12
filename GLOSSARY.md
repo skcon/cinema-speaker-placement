@@ -55,8 +55,20 @@ A set of channels that share one speaker model and its specs: Front L/R, Center,
 _Avoid_: Speaker set, pair, zone
 
 **Subwoofer**:
-A speaker that reproduces the low-frequency (the `Y` in `X.Y.Z`) part of the layout.
+A speaker that reproduces the low-frequency (the `Y` in `X.Y.Z`) part of the layout. Each has an id, `Sub1` to `Sub4`, that stays with it when the subwoofer count changes.
 _Avoid_: Sub channel, LFE speaker
+
+**Own specs**:
+Specs a single subwoofer has instead of its speaker group's, for a mixed set of subwoofers; a subwoofer without them uses the group's specs.
+_Avoid_: Override, per-sub specs, custom specs
+
+**Enclosure**:
+How a subwoofer's driver is loaded: sealed (a closed box) or ported (a box with a port).
+_Avoid_: Cabinet type, box type
+
+**Arrangement**:
+Where each subwoofer goes for a given subwoofer count, from published multi-subwoofer research, scaled to the Room (`docs/research/multi-subwoofer-placement.md`).
+_Avoid_: Sub layout, configuration, pattern
 
 ## Results
 

@@ -126,6 +126,29 @@ describe('app shell', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows the subwoofers in the room view, ungraded, following the subwoofer count', async () => {
+    renderApp()
+    const roomView = await screen.findByRole('region', { name: 'Room view' })
+    expect(
+      within(roomView).getByText(
+        '1 subwoofer, not graded as Dolby gives subwoofers no placement range: Subwoofer 1 at the front wall.',
+      ),
+    ).toBeInTheDocument()
+
+    fireEvent.click(
+      within(screen.getByRole('radiogroup', { name: 'Subwoofers' })).getByRole(
+        'radio',
+        { name: '3' },
+      ),
+    )
+
+    expect(
+      within(roomView).getByText(
+        '3 subwoofers, not graded as Dolby gives subwoofers no placement range: Subwoofer 1 at the front wall, Subwoofer 2 at the left wall, Subwoofer 3 at the right wall.',
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('says the response is an estimate, not a measurement', async () => {
     renderApp()
 
@@ -160,6 +183,25 @@ describe('share links', () => {
     ).toBeChecked()
     // 7.1.4 with two subwoofers
     expect(screen.getByRole('radio', { name: '7.2.4' })).toBeChecked()
+  })
+
+  it('opens the subwoofer specs a share link holds, group and per subwoofer', async () => {
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+
+    // Ported 15 in for the group; Subwoofer 2 has own specs: a sealed 12 in.
+    const group = await screen.findByRole('group', { name: 'Subwoofers' })
+    expect(within(group).getByRole('radio', { name: 'Ported' })).toBeChecked()
+    expect(
+      within(group).getByRole('textbox', { name: 'Driver size (in)' }),
+    ).toHaveValue('15')
+    expect(
+      screen.getByRole('checkbox', { name: 'Subwoofer 1 has its own specs' }),
+    ).not.toBeChecked()
+    const second = screen.getByRole('group', { name: 'Subwoofer 2' })
+    expect(within(second).getByRole('radio', { name: 'Sealed' })).toBeChecked()
+    expect(
+      within(second).getByRole('textbox', { name: 'RMS power (W)' }),
+    ).toHaveValue('500')
   })
 
   it('writes the room to the address once typing pauses, without adding history entries', async () => {

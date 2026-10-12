@@ -1,7 +1,12 @@
 import { lazy, Suspense, useId, useState } from 'react'
 import { formatLength, UNIT_SYSTEMS } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
-import { describeSpeaker, GRADE_STYLES } from '@/scene/speakers'
+import {
+  describeSpeaker,
+  describeSubwoofer,
+  GRADE_STYLES,
+  UNGRADED_STYLE,
+} from '@/scene/speakers'
 import { canUseWebGL } from '@/scene/webgl'
 
 const RoomCanvas = lazy(() =>
@@ -17,7 +22,7 @@ const RoomCanvas = lazy(() =>
 export function RoomView() {
   const [webGL] = useState(canUseWebGL)
   const { room, units } = useConfig((state) => state.config)
-  const { layout, mlp, speakers } = useRoomAnalysis()
+  const { layout, mlp, speakers, subwoofers } = useRoomAnalysis()
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
 
@@ -29,12 +34,17 @@ export function RoomView() {
     `${layout.name} listener-level speakers, angle from the MLP ` +
     `and Dolby placement-range grade: ` +
     `${speakers.map(describeSpeaker).join(', ')}.`
+  const subwoofersDescription =
+    `${subwoofers.length} ${subwoofers.length === 1 ? 'subwoofer' : 'subwoofers'}, ` +
+    `not graded as Dolby gives subwoofers no placement range: ` +
+    `${subwoofers.map(describeSubwoofer).join(', ')}.`
 
   if (!webGL) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
         <p>{roomDescription}</p>
         <p>{speakersDescription}</p>
+        <p>{subwoofersDescription}</p>
         <p>This browser can&rsquo;t draw the room view (no WebGL 2).</p>
       </div>
     )
@@ -44,7 +54,7 @@ export function RoomView() {
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div
         role="img"
-        aria-label={`${roomDescription} ${speakersDescription}`}
+        aria-label={`${roomDescription} ${speakersDescription} ${subwoofersDescription}`}
         className="relative min-h-0 flex-1 overflow-hidden rounded-lg"
       >
         <Suspense
@@ -58,13 +68,24 @@ export function RoomView() {
             room={room}
             mlp={mlp}
             speakers={speakers}
+            subwoofers={subwoofers}
             gridSpacing={baseUnit.meters}
           />
         </Suspense>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <p>To scale, seen from above. Grid squares are 1 {baseUnit.unit}.</p>
-        <GradeLegend />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <GradeLegend />
+          <p className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="size-2.5 rounded-xs"
+              style={{ backgroundColor: UNGRADED_STYLE.color }}
+            />
+            Subwoofer: {UNGRADED_STYLE.label}
+          </p>
+        </div>
       </div>
     </div>
   )

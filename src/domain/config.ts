@@ -1,12 +1,20 @@
 import { z } from 'zod'
 import { V1_DOLBY_LAYOUTS } from './dolby-layouts'
-import { DEFAULT_LAYOUT, type Layout } from './layout'
+import { DEFAULT_LAYOUT, SUBWOOFER_COUNTS, type Layout } from './layout'
 import {
   checkRoomDimension,
   DEFAULT_ROOM,
   type Room,
   type RoomDimension,
 } from './room'
+import {
+  areValidSubwooferSpecs,
+  DEFAULT_SPEAKER_GROUPS,
+  ENCLOSURES,
+  type SpeakerGroups,
+  type SubwooferSpecs,
+} from './speaker-specs'
+import { SUBWOOFER_IDS, subwooferIds } from './subwoofer-arrangements'
 import { UNIT_SYSTEM_NAMES } from './units'
 
 /** A room dimension in meters, inside the accepted range for that dimension. */
@@ -15,6 +23,16 @@ function roomDimensionSchema(dimension: RoomDimension) {
     .number()
     .refine((meters) => checkRoomDimension(dimension, meters) === null)
 }
+
+/** A subwoofer's specs, every number inside its range and the peak power at least the RMS power. */
+const subwooferSpecsSchema = z
+  .strictObject({
+    enclosure: z.enum(ENCLOSURES),
+    driverDiameter: z.number(),
+    rmsWatts: z.number(),
+    peakWatts: z.number(),
+  })
+  .refine(areValidSubwooferSpecs) satisfies z.ZodType<SubwooferSpecs>
 
 /**
  * The config's shape and rules: a config that passes it is one the store
@@ -27,18 +45,33 @@ function roomDimensionSchema(dimension: RoomDimension) {
  * Once share links are released, any change here needs a new schema
  * version and a migration (see share-link.ts).
  */
-export const configSchema = z.strictObject({
-  units: z.enum(UNIT_SYSTEM_NAMES),
-  room: z.strictObject({
-    length: roomDimensionSchema('length'),
-    width: roomDimensionSchema('width'),
-    height: roomDimensionSchema('height'),
-  }) satisfies z.ZodType<Room>,
-  layout: z.strictObject({
-    dolbyLayout: z.enum(V1_DOLBY_LAYOUTS),
-    subwoofers: z.literal([1, 2, 3, 4]),
-  }) satisfies z.ZodType<Layout>,
-})
+export const configSchema = z
+  .strictObject({
+    units: z.enum(UNIT_SYSTEM_NAMES),
+    room: z.strictObject({
+      length: roomDimensionSchema('length'),
+      width: roomDimensionSchema('width'),
+      height: roomDimensionSchema('height'),
+    }) satisfies z.ZodType<Room>,
+    layout: z.strictObject({
+      dolbyLayout: z.enum(V1_DOLBY_LAYOUTS),
+      subwoofers: z.literal(SUBWOOFER_COUNTS),
+    }) satisfies z.ZodType<Layout>,
+    speakerGroups: z.strictObject({
+      subwoofers: z.strictObject({
+        specs: subwooferSpecsSchema,
+        // Keyed by subwoofer id; a subwoofer without an entry uses `specs`.
+        ownSpecs: z.partialRecord(z.enum(SUBWOOFER_IDS), subwooferSpecsSchema),
+      }),
+    }) satisfies z.ZodType<SpeakerGroups>,
+  })
+  // The subwoofer count lives in the layout: own specs only for its subwoofers.
+  .refine(({ layout, speakerGroups }) => {
+    const inLayout = subwooferIds(layout.subwoofers)
+    return Object.keys(speakerGroups.subwoofers.ownSpecs).every((id) =>
+      inLayout.some((layoutId) => layoutId === id),
+    )
+  })
 
 /**
  * The single source of truth for a room plan: only inputs (and, later,
@@ -53,4 +86,5 @@ export const DEFAULT_CONFIG: Config = {
   units: 'metric',
   room: DEFAULT_ROOM,
   layout: DEFAULT_LAYOUT,
+  speakerGroups: DEFAULT_SPEAKER_GROUPS,
 }

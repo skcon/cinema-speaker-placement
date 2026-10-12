@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { formatLength, UNIT_SYSTEMS, type Rounding } from '@/domain'
+import {
+  formatInches,
+  formatLength,
+  fromInches,
+  toInches,
+  UNIT_SYSTEMS,
+  type Rounding,
+} from '@/domain'
 
 const { metric, imperial } = UNIT_SYSTEMS
 
@@ -134,5 +141,33 @@ describe('formatting a length for the chosen units', () => {
     expect(formatLength(0.3048, 'imperial', 'down')).toBe('1 ft 0 in')
     expect(formatLength(2, 'metric', 'up')).toBe('2 m')
     expect(formatLength(15, 'metric', 'down')).toBe('15 m')
+  })
+})
+
+describe('driver sizes, which are sold by the inch', () => {
+  it('are written in inches to the nearest tenth, whatever the units', () => {
+    expect(toInches(0.3048)).toBe(12)
+    expect(toInches(0.254)).toBe(10)
+    // 30 cm = 11.81 in
+    expect(toInches(0.3)).toBe(11.8)
+  })
+
+  it('are read back in meters, with the exact inch', () => {
+    expect(fromInches(12)).toBeCloseTo(0.3048, 12)
+    expect(fromInches(1)).toBeCloseTo(0.0254, 12)
+  })
+
+  it('round-trip every 0.1 in from 1 to 30 in', () => {
+    for (const tenths of range(10, 300, 1)) {
+      const inches = tenths / 10
+      expect(toInches(fromInches(inches))).toBe(inches)
+    }
+  })
+
+  it('can be formatted, rounding up or down so a shown limit stays inside its range', () => {
+    expect(formatInches(0.3048)).toBe('12 in')
+    // 0.15 m = 5.906 in, 0.61 m = 24.016 in
+    expect(formatInches(0.15, 'up')).toBe('6 in')
+    expect(formatInches(0.61, 'down')).toBe('24 in')
   })
 })

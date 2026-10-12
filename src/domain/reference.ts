@@ -1,10 +1,22 @@
 /**
  * Reference values with their sources, as cited in
- * docs/research/dolby-speaker-placement.md.
+ * docs/research/dolby-speaker-placement.md and
+ * docs/research/multi-subwoofer-placement.md.
  */
 
-/** The source keys of docs/research/dolby-speaker-placement.md, section 1. */
-export type SourceKey =
+/**
+ * The source keys of the research files' section 1: Dolby's documents
+ * (docs/research/dolby-speaker-placement.md) and the multi-subwoofer
+ * sources (docs/research/multi-subwoofer-placement.md). Keys are unique
+ * across both files.
+ */
+export type SourceKey = DolbySourceKey | SubwooferSourceKey
+
+/** docs/research/multi-subwoofer-placement.md, section 1. */
+type SubwooferSourceKey = 'HW-SUBS' | 'AES-5602' | 'JAES-2006'
+
+/** docs/research/dolby-speaker-placement.md, section 1. */
+type DolbySourceKey =
   | 'IG'
   | 'WP'
   | 'SB'
@@ -34,14 +46,16 @@ export type SourceKey =
 
 /**
  * Where a reference value comes from: a keyed source (with a page for the
- * multi-page ones), or, for rules of thumb that are not from Dolby, the
- * numbered entry in section 8 ("General acoustics references") of the
- * research file.
+ * multi-page ones, and the figure or slide when the value is read off
+ * one), or, for rules of thumb that are not from Dolby, the numbered entry
+ * in section 8 ("General acoustics references") of the Dolby research
+ * file.
  */
 export type Citation =
   | {
       readonly source: SourceKey
       readonly page?: number
+      readonly figure?: string
       readonly note?: string
     }
   | {
@@ -84,4 +98,26 @@ export const SPEAKER_WALL_CLEARANCE = {
   note:
     'Our modelling assumption, not Dolby: Dolby gives no distance from ' +
     'the walls (docs/research/dolby-speaker-placement.md section 7).',
+} as const satisfies { meters: number; note: string }
+
+/**
+ * How far a subwoofer's acoustic center stands off the wall it is placed
+ * against. Auto-place keeps every subwoofer at least this far from every
+ * wall.
+ */
+export const SUBWOOFER_WALL_CLEARANCE = {
+  meters: 0.3,
+  note:
+    "Our modelling assumption, not Welti's: his white paper places the " +
+    'subwoofers along the walls without giving a distance ' +
+    '(docs/research/multi-subwoofer-placement.md section 4, item 7).',
+} as const satisfies { meters: number; note: string }
+
+/** The height of a subwoofer's acoustic center above the floor. */
+export const SUBWOOFER_HEIGHT = {
+  meters: 0.3,
+  note:
+    'Our modelling assumption: a floor-standing subwoofer with its driver ' +
+    "low in the cabinet. Welti's white paper gives no subwoofer height " +
+    '(docs/research/multi-subwoofer-placement.md section 4, item 7).',
 } as const satisfies { meters: number; note: string }

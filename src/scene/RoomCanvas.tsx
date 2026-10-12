@@ -12,6 +12,7 @@ import {
   floorCorners,
   wallBases,
   type PlacedSpeaker,
+  type PlacedSubwoofer,
   type Room,
   type RoomPoint,
 } from '@/domain'
@@ -19,6 +20,8 @@ import {
   GRADE_STYLES,
   SPEAKER_FOOTPRINT,
   speakerMarker,
+  SUBWOOFER_FOOTPRINT,
+  subwooferMarker,
   type ScreenDirection,
 } from '@/scene/speakers'
 import {
@@ -59,11 +62,13 @@ export function RoomCanvas({
   room,
   mlp,
   speakers,
+  subwoofers,
   gridSpacing,
 }: {
   room: Room
   mlp: RoomPoint
   speakers: readonly PlacedSpeaker[]
+  subwoofers: readonly PlacedSubwoofer[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
 }) {
@@ -78,6 +83,7 @@ export function RoomCanvas({
         <FloorGrid room={room} spacing={gridSpacing} />
         <Walls room={room} labelLayer={labelLayer} />
         <MlpMarker mlp={mlp} labelLayer={labelLayer} />
+        <SubwooferMarkers subwoofers={subwoofers} labelLayer={labelLayer} />
         <SpeakerMarkers speakers={speakers} labelLayer={labelLayer} />
       </Canvas>
       <div ref={labelLayer} className="pointer-events-none absolute inset-0" />
@@ -244,6 +250,40 @@ function SpeakerMarkers({
           <span className="text-muted-foreground">
             {GRADE_STYLES[grade].label}
           </span>
+        </SceneLabel>
+      </Fragment>
+    )
+  })
+}
+
+/**
+ * The subwoofers as neutral squares on the floor plan. They sit lower than
+ * the listener-level speakers, so a speaker above one (the Center over
+ * Subwoofer 1) is drawn on top, with the subwoofer's outline around it.
+ */
+function SubwooferMarkers({
+  subwoofers,
+  labelLayer,
+}: {
+  subwoofers: readonly PlacedSubwoofer[]
+  labelLayer: LabelLayer
+}) {
+  return subwoofers.map((subwoofer) => {
+    const { position, rotation, color, label, labelDirection } =
+      subwooferMarker(subwoofer)
+    return (
+      <Fragment key={subwoofer.id}>
+        <mesh position={position} rotation={rotation}>
+          <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />
+          <meshBasicMaterial color={color} />
+        </mesh>
+        <SceneLabel
+          at={subwoofer.position}
+          layer={labelLayer}
+          className="leading-tight font-medium"
+          style={{ transform: besideMarker(labelDirection) }}
+        >
+          {label}
         </SceneLabel>
       </Fragment>
     )

@@ -34,6 +34,7 @@ describe('speaker list', () => {
       ['RRight', '26°', 'ideal'],
       ['LsLeft Surround', '115°', 'ideal'],
       ['RsRight Surround', '115°', 'ideal'],
+      ['Sub1Subwoofer 1', '—none', 'ungraded'],
     ])
     expect(
       screen.getByRole('columnheader', { name: 'Angle from MLP' }),
@@ -50,5 +51,26 @@ describe('speaker list', () => {
       '143°',
       'ideal',
     ])
+  })
+
+  it('lists every subwoofer, ungraded, as Dolby gives subwoofers no placement range', () => {
+    renderSpeakerList()
+
+    fireEvent.click(
+      within(screen.getByRole('radiogroup', { name: 'Subwoofers' })).getByRole(
+        'radio',
+        { name: '4' },
+      ),
+    )
+
+    expect(speakerRows().slice(-4)).toEqual([
+      ['Sub1Subwoofer 1', '—none', 'ungraded'],
+      ['Sub2Subwoofer 2', '—none', 'ungraded'],
+      ['Sub3Subwoofer 3', '—none', 'ungraded'],
+      ['Sub4Subwoofer 4', '—none', 'ungraded'],
+    ])
+    expect(
+      screen.getByText(/subwoofers have no dolby placement range/i),
+    ).toBeInTheDocument()
   })
 })

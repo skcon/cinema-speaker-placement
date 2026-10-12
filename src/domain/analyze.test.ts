@@ -16,11 +16,23 @@ function configWithLayout(layout: Config['layout']): Config {
 }
 
 describe('the default config', () => {
-  it('is metric with the default 6 x 4.5 x 2.6 m room and a 5.1.2 layout', () => {
+  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout and our default subwoofer specs', () => {
     expect(DEFAULT_CONFIG).toEqual({
       units: 'metric',
       room: { length: 6, width: 4.5, height: 2.6 },
       layout: { dolbyLayout: '5.1.2', subwoofers: 1 },
+      speakerGroups: {
+        subwoofers: {
+          specs: {
+            enclosure: 'sealed',
+            // 12 in
+            driverDiameter: 12 * 0.0254,
+            rmsWatts: 300,
+            peakWatts: 600,
+          },
+          ownSpecs: {},
+        },
+      },
     })
   })
 })

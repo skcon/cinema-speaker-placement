@@ -7,7 +7,10 @@ import {
   type PlacementRangeCheck,
 } from './placement-range'
 import { aimAtMlp, autoPlaceSpeaker, type Aim } from './placement'
-import { azimuthFromMlp, type RoomPoint } from './room'
+import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
+import type { SubwooferSpecs } from './speaker-specs'
+import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
+import { autoPlaceSubwoofers } from './subwoofer-placement'
 
 /** A listener-level speaker of the layout, auto-placed and checked. */
 export type PlacedSpeaker = {
@@ -22,7 +25,29 @@ export type PlacedSpeaker = {
   readonly placementRange: PlacementRangeCheck
 }
 
-/** Everything derived from a config. Later tickets add overheads, subwoofers and the estimated response. */
+/**
+ * A subwoofer of the layout, auto-placed in the cited multi-subwoofer
+ * arrangement. Dolby gives subwoofers no placement range, so it is not
+ * graded.
+ */
+export type PlacedSubwoofer = {
+  /** Its short id, for example "Sub2". */
+  readonly id: SubwooferId
+  /** For example "Subwoofer 2". */
+  readonly name: string
+  /** Where it is, in room coordinates (its acoustic center). */
+  readonly position: RoomPoint
+  /** The wall it stands against. */
+  readonly wall: Wall
+  /**
+   * The specs it is modelled with: its own specs, or the Subwoofers
+   * group's. Resolved here for the acoustic estimates of #11-#13, which
+   * need each subwoofer's enclosure, driver size and power.
+   */
+  readonly specs: SubwooferSpecs
+}
+
+/** Everything derived from a config. Later tickets add overheads and the estimated response. */
 export type RoomAnalysis = {
   /** The layout's name and channel counts. */
   layout: LayoutSummary
@@ -30,10 +55,16 @@ export type RoomAnalysis = {
   mlp: RoomPoint
   /** The layout's listener-level speakers, in Dolby's channel order. */
   speakers: readonly PlacedSpeaker[]
+  /** The layout's subwoofers, Subwoofer 1 first. */
+  subwoofers: readonly PlacedSubwoofer[]
 }
 
 /** The domain entry point: derive the room plan from a config. */
-export function analyzeRoom({ room, layout }: Config): RoomAnalysis {
+export function analyzeRoom({
+  room,
+  layout,
+  speakerGroups,
+}: Config): RoomAnalysis {
   const mlp = defaultMlp(room)
   const { channels } = DOLBY_LAYOUTS[layout.dolbyLayout]
   const speakers = channels.map((reference): PlacedSpeaker => {
@@ -49,5 +80,15 @@ export function analyzeRoom({ room, layout }: Config): RoomAnalysis {
       ),
     }
   })
-  return { layout: summarizeLayout(layout), mlp, speakers }
+  const { specs: groupSpecs, ownSpecs } = speakerGroups.subwoofers
+  const subwoofers = autoPlaceSubwoofers(room, layout.subwoofers).map(
+    ({ id, position, wall }): PlacedSubwoofer => ({
+      id,
+      name: SUBWOOFERS[id].name,
+      position,
+      wall,
+      specs: ownSpecs[id] ?? groupSpecs,
+    }),
+  )
+  return { layout: summarizeLayout(layout), mlp, speakers, subwoofers }
 }

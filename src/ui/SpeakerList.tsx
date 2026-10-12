@@ -66,8 +66,8 @@ export function SpeakerList() {
         Angles are measured from the MLP, from straight ahead at the screen, and
         graded against Dolby&rsquo;s placement range for each speaker.
         Subwoofers have no Dolby placement range, so they aren&rsquo;t graded:
-        they go where Harman&rsquo;s multi-subwoofer research found the bass
-        most even across a seating area.
+        they follow the layouts that evened out the bass across the seats in a
+        Harman study of one test room, scaled to your room.
       </p>
     </section>
   )

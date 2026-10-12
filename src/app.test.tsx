@@ -188,7 +188,7 @@ describe('share links', () => {
   it('opens the subwoofer specs a share link holds, group and per subwoofer', async () => {
     renderApp(shareLinkPath(IMPERIAL_ROOM))
 
-    // Ported 15 in for the group; Subwoofer 2 a sealed 12 in of its own.
+    // Ported 15 in for the group; Subwoofer 2 has own specs: a sealed 12 in.
     const group = await screen.findByRole('group', { name: 'Subwoofers' })
     expect(within(group).getByRole('radio', { name: 'Ported' })).toBeChecked()
     expect(

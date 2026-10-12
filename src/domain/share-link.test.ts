@@ -338,7 +338,7 @@ const WORST_CASE_CONFIG: Config = {
   room: { length: 15 - 1 / 81, width: 15 - 1 / 7, height: 5 - 1 / 81 },
   // The largest v1 layout: 7.4.4.
   layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
-  // Group specs, and different specs of its own for every subwoofer.
+  // Group specs, and different own specs for every subwoofer.
   speakerGroups: {
     subwoofers: {
       specs: longestSubwooferSpecs(0),

@@ -116,7 +116,7 @@ describe('subwoofers', () => {
     return store.getState().config.speakerGroups.subwoofers
   }
 
-  it('can be 1 to 4 for the same layout, none with specs of its own when added', () => {
+  it('can be 1 to 4 for the same layout, none with own specs when added', () => {
     const store = createConfigStore()
 
     store.getState().setSubwooferCount(3)
@@ -186,7 +186,7 @@ describe('subwoofers', () => {
     expect(store.getState().config).toBe(before)
   })
 
-  it('can each get specs of their own, starting from the group specs, and give them up again', () => {
+  it('can each get own specs, starting from the group specs, and give them up again', () => {
     const store = createConfigStore({
       ...IMPERIAL_ROOM,
       speakerGroups: { subwoofers: { specs: PORTED_15, ownSpecs: {} } },
@@ -205,7 +205,7 @@ describe('subwoofers', () => {
     expect(subwooferGroup(store).ownSpecs).toEqual({})
   })
 
-  it('ignore spec edits for a subwoofer without specs of its own, or not in the layout', () => {
+  it('ignore spec edits for a subwoofer without own specs, or not in the layout', () => {
     const store = createConfigStore(IMPERIAL_ROOM)
     const before = store.getState().config
 

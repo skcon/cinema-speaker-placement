@@ -89,7 +89,7 @@ function OwnSubwooferSpecs() {
   if (count < 2) {
     return (
       <p className="text-xs text-muted-foreground">
-        With two or more subwoofers, each one can have specs of its own.
+        With two or more subwoofers, each one can have its own specs.
       </p>
     )
   }

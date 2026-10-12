@@ -7,7 +7,7 @@
 /**
  * An 8 x 5 x 3 m room in imperial (26 ft 3 in x 16 ft 4.9 in x 9 ft 10.1 in)
  * with a 7.2.4 layout, ported 15 in subwoofers and Subwoofer 2 a sealed
- * 12 in model of its own: nothing at its default.
+ * 12 in model as its own specs: nothing at its default.
  */
 export const IMPERIAL_ROOM = {
   units: 'imperial',
@@ -45,7 +45,7 @@ export const IMPERIAL_ROOM = {
 export const V1_LINKS = {
   /**
    * 24 x 15 x 9 ft (7.3152 x 4.572 x 2.7432 m) in imperial, 7.2.2, ported
-   * 13 in subwoofers with Subwoofer 2 a sealed 10 in model of its own.
+   * 13 in subwoofers with Subwoofer 2 a sealed 10 in model as its own specs.
    */
   imperialRoom: {
     encoded:

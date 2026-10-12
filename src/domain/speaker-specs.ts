@@ -63,7 +63,7 @@ export const DEFAULT_SUBWOOFER_SPECS = {
   peakWatts: 600,
 } as const satisfies SubwooferSpecs
 
-/** First-visit speaker groups: our default specs, with no subwoofer of its own. */
+/** First-visit speaker groups: our default specs, and no own specs for any subwoofer. */
 export const DEFAULT_SPEAKER_GROUPS = {
   subwoofers: { specs: DEFAULT_SUBWOOFER_SPECS, ownSpecs: {} },
 } as const satisfies SpeakerGroups

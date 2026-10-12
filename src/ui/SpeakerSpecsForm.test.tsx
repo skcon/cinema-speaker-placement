@@ -213,7 +213,7 @@ describe('speaker specs form', () => {
     ).not.toBeChecked()
   })
 
-  it('lets one subwoofer have specs of its own, starting from the group specs, and give them up', () => {
+  it('lets one subwoofer have own specs, starting from the group specs, and give them up', () => {
     renderSpecsForm()
     chooseSubwooferCount('2')
     const ownSpecs = screen.getByRole('checkbox', {

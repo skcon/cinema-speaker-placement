@@ -8,12 +8,30 @@
  */
 import type { SubwooferCount } from './layout'
 import type { Citation } from './reference'
+import type { Wall } from './room'
 
-/** A subwoofer's number within the layout: Subwoofer 1 to Subwoofer 4. */
-export type SubwooferNumber = SubwooferCount
+/**
+ * The subwoofers a layout can have, by id. A layout with Y subwoofers has
+ * the first Y. Ids stay with a subwoofer when the count changes, so its own
+ * specs (and, later, a manual position) stay with it too.
+ */
+export const SUBWOOFER_IDS = ['Sub1', 'Sub2', 'Sub3', 'Sub4'] as const
 
-/** A subwoofer's short id, as the room view labels it. */
-export type SubwooferId = `Sub${SubwooferNumber}`
+/** A subwoofer's id, as the room view labels it: "Sub1" to "Sub4". */
+export type SubwooferId = (typeof SUBWOOFER_IDS)[number]
+
+/** The subwoofers' display names. */
+export const SUBWOOFERS = {
+  Sub1: { name: 'Subwoofer 1' },
+  Sub2: { name: 'Subwoofer 2' },
+  Sub3: { name: 'Subwoofer 3' },
+  Sub4: { name: 'Subwoofer 4' },
+} as const satisfies Record<SubwooferId, { name: string }>
+
+/** The ids of a layout's subwoofers: Sub1 up to the subwoofer count. */
+export function subwooferIds(count: SubwooferCount): readonly SubwooferId[] {
+  return SUBWOOFER_IDS.slice(0, count)
+}
 
 /**
  * A point on the floor plan as fractions of the Room's inside dimensions:
@@ -24,19 +42,32 @@ export type SubwooferId = `Sub${SubwooferNumber}`
  */
 export type RoomFraction = { readonly width: number; readonly length: number }
 
-/** One cited arrangement: a position per subwoofer, Subwoofer 1 first. */
-export type SubwooferArrangement = {
-  readonly positions: readonly RoomFraction[]
-  readonly citations: readonly Citation[]
+/** Where one subwoofer of an arrangement goes. */
+export type ArrangedSubwoofer = {
+  readonly id: SubwooferId
+  /** The wall it stands against. */
+  readonly wall: Wall
+  readonly at: RoomFraction
 }
 
-/** The middle of each wall, as room fractions. */
-const WALL_MIDPOINT = {
-  front: { width: 0.5, length: 0 },
-  back: { width: 0.5, length: 1 },
-  left: { width: 0, length: 0.5 },
-  right: { width: 1, length: 0.5 },
-} as const satisfies Record<string, RoomFraction>
+/** One cited arrangement: a place per subwoofer, Subwoofer 1 first. */
+export type SubwooferArrangement = {
+  readonly subwoofers: readonly ArrangedSubwoofer[]
+  readonly citations: readonly Citation[]
+  /** What the source does not confirm about it (research section 4). */
+  readonly caveat?: string
+}
+
+/** A subwoofer at the middle of a wall. */
+function atWallMidpoint(id: SubwooferId, wall: Wall): ArrangedSubwoofer {
+  const at = {
+    front: { width: 0.5, length: 0 },
+    back: { width: 0.5, length: 1 },
+    left: { width: 0, length: 0.5 },
+    right: { width: 1, length: 0.5 },
+  }[wall]
+  return { id, wall, at }
+}
 
 /**
  * Welti's brute-force optimum for 1 to 4 subwoofers (Harman white paper
@@ -47,30 +78,37 @@ const WALL_MIDPOINT = {
  *
  * The slides draw the positions without numbers, so they are read off the
  * figures (research section 4, item 1), and the figures' top wall is read
- * as the front wall (item 2). Subwoofers are numbered front, back, left,
- * right. The 3-subwoofer optimum was only modelled in Welti's one test
- * room and scores worse than the 2-subwoofer one (items 3 and 4).
+ * as the front wall (item 2).
+ *
+ * Numbering keeps a subwoofer in place when one is added: Sub1 is always at
+ * the front wall, Sub2 and Sub3 at the side walls once there are three,
+ * and Sub4 at the back wall. Only going from 2 to 3 moves one: Sub2 leaves
+ * the back wall for the left wall, because the 3-subwoofer optimum has no
+ * back-wall subwoofer.
  */
 export const SUBWOOFER_ARRANGEMENTS = {
   1: {
-    positions: [WALL_MIDPOINT.front],
+    subwoofers: [atWallMidpoint('Sub1', 'front')],
     citations: [
       {
         source: 'HW-SUBS',
         page: 16,
         figure: 'slide 47',
-        note: '"1 subwoofer optimized": the middle of the front wall',
+        note: 'the optimum for 1 subwoofer: the middle of the front wall',
       },
     ],
   },
   2: {
-    positions: [WALL_MIDPOINT.front, WALL_MIDPOINT.back],
+    subwoofers: [
+      atWallMidpoint('Sub1', 'front'),
+      atWallMidpoint('Sub2', 'back'),
+    ],
     citations: [
       {
         source: 'HW-SUBS',
         page: 17,
         figure: 'slide 48',
-        note: '"2 subwoofers optimized": the middle of the front and back walls',
+        note: 'the optimum for 2 subwoofers: the middle of the front and back walls',
       },
       {
         source: 'HW-SUBS',
@@ -79,33 +117,45 @@ export const SUBWOOFER_ARRANGEMENTS = {
         note: 'two at opposing wall midpoints nearly match four, with more output',
       },
     ],
+    caveat:
+      "Welti's test room is longer than wide, and his 2-subwoofer optimum " +
+      'uses its shorter front and back walls. Whether the side walls would ' +
+      'do better in a room wider than long is not addressed (research ' +
+      'section 4, item 5).',
   },
   3: {
-    positions: [WALL_MIDPOINT.front, WALL_MIDPOINT.left, WALL_MIDPOINT.right],
+    subwoofers: [
+      atWallMidpoint('Sub1', 'front'),
+      atWallMidpoint('Sub2', 'left'),
+      atWallMidpoint('Sub3', 'right'),
+    ],
     citations: [
       {
         source: 'HW-SUBS',
         page: 17,
         figure: 'slide 49',
-        note:
-          '"3 subwoofers optimized": the middle of the front wall and of ' +
-          'both side walls',
+        note: 'the optimum for 3 subwoofers: the middle of the front wall and of both side walls',
       },
     ],
+    caveat:
+      'Modelled in only one room: unlike the 1-, 2- and 4-subwoofer ' +
+      'layouts it was not re-checked in other room proportions, and it ' +
+      'scores worse than the 2-subwoofer optimum (Std 2.7 vs 1.3 dB, ' +
+      'slides 48, 49 and 51; research section 4, items 3 and 4).',
   },
   4: {
-    positions: [
-      WALL_MIDPOINT.front,
-      WALL_MIDPOINT.back,
-      WALL_MIDPOINT.left,
-      WALL_MIDPOINT.right,
+    subwoofers: [
+      atWallMidpoint('Sub1', 'front'),
+      atWallMidpoint('Sub2', 'left'),
+      atWallMidpoint('Sub3', 'right'),
+      atWallMidpoint('Sub4', 'back'),
     ],
     citations: [
       {
         source: 'HW-SUBS',
         page: 17,
         figure: 'slide 50',
-        note: '"4 subwoofers optimized": the middle of each wall',
+        note: 'the optimum for 4 subwoofers: the middle of each wall',
       },
       {
         source: 'HW-SUBS',
@@ -122,13 +172,3 @@ export const SUBWOOFER_ARRANGEMENTS = {
     ],
   },
 } as const satisfies Record<SubwooferCount, SubwooferArrangement>
-
-/** The short id of subwoofer `number`, for example "Sub2". */
-export function subwooferId(number: SubwooferNumber): SubwooferId {
-  return `Sub${number}`
-}
-
-/** The name of subwoofer `number`, for example "Subwoofer 2". */
-export function subwooferName(number: SubwooferNumber): string {
-  return `Subwoofer ${number}`
-}

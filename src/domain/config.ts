@@ -14,6 +14,7 @@ import {
   type SpeakerGroups,
   type SubwooferSpecs,
 } from './speaker-specs'
+import { SUBWOOFER_IDS, subwooferIds } from './subwoofer-arrangements'
 import { UNIT_SYSTEM_NAMES } from './units'
 
 /** A room dimension in meters, inside the accepted range for that dimension. */
@@ -59,15 +60,18 @@ export const configSchema = z
     speakerGroups: z.strictObject({
       subwoofers: z.strictObject({
         specs: subwooferSpecsSchema,
-        overrides: z.array(subwooferSpecsSchema.nullable()).readonly(),
+        // Keyed by subwoofer id; a subwoofer without an entry uses `specs`.
+        ownSpecs: z.partialRecord(z.enum(SUBWOOFER_IDS), subwooferSpecsSchema),
       }),
     }) satisfies z.ZodType<SpeakerGroups>,
   })
-  // One override entry per subwoofer, so none is missing or left over.
-  .refine(
-    ({ layout, speakerGroups }) =>
-      speakerGroups.subwoofers.overrides.length === layout.subwoofers,
-  )
+  // The subwoofer count lives in the layout: own specs only for its subwoofers.
+  .refine(({ layout, speakerGroups }) => {
+    const inLayout = subwooferIds(layout.subwoofers)
+    return Object.keys(speakerGroups.subwoofers.ownSpecs).every((id) =>
+      inLayout.some((layoutId) => layoutId === id),
+    )
+  })
 
 /**
  * The single source of truth for a room plan: only inputs (and, later,

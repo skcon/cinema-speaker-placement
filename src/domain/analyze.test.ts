@@ -30,7 +30,7 @@ describe('the default config', () => {
             rmsWatts: 300,
             peakWatts: 600,
           },
-          overrides: [null],
+          ownSpecs: {},
         },
       },
     })

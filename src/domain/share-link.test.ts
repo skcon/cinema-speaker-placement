@@ -38,7 +38,7 @@ const SEALED_10 = {
   peakWatts: 150,
 } as const
 
-/** The default config with these Subwoofers group specs and overrides. */
+/** The default config with this Subwoofers group: specs and own specs. */
 function withSubwooferGroup(subwoofers: unknown) {
   return { ...DEFAULT_CONFIG, speakerGroups: { subwoofers } }
 }
@@ -73,6 +73,14 @@ describe('share link codec', () => {
     },
   )
 
+  /** Own specs for every even-numbered subwoofer of the layout. */
+  const EVEN_OWN_SPECS = {
+    1: {},
+    2: { Sub2: SEALED_10 },
+    3: { Sub2: SEALED_10 },
+    4: { Sub2: SEALED_10, Sub4: SEALED_10 },
+  } as const
+
   describe.each(V1_DOLBY_LAYOUTS)('rebuilds a %s layout', (dolbyLayout) => {
     it.each([1, 2, 3, 4] as const)(
       'with %i subwoofer(s), every other one with its own specs',
@@ -83,9 +91,7 @@ describe('share link codec', () => {
           speakerGroups: {
             subwoofers: {
               specs: PORTED_15,
-              overrides: Array.from({ length: subwoofers }, (_, index) =>
-                index % 2 === 1 ? SEALED_10 : null,
-              ),
+              ownSpecs: EVEN_OWN_SPECS[subwoofers],
             },
           },
         }
@@ -108,7 +114,7 @@ describe('share link codec', () => {
     } as const
     const config: Config = {
       ...DEFAULT_CONFIG,
-      speakerGroups: { subwoofers: { specs, overrides: [specs] } },
+      speakerGroups: { subwoofers: { specs, ownSpecs: { Sub1: specs } } },
     }
 
     expect(decodeConfig(encodeConfig(config))).toEqual({
@@ -225,56 +231,57 @@ describe('share link codec', () => {
         'subwoofer specs out of range',
         withSubwooferGroup({
           specs: { ...PORTED_15, rmsWatts: 5 },
-          overrides: [null],
+          ownSpecs: {},
         }),
       ],
       [
         'a peak power below the RMS power',
         withSubwooferGroup({
           specs: { ...PORTED_15, peakWatts: 700 },
-          overrides: [null],
+          ownSpecs: {},
         }),
       ],
       [
         'an unknown enclosure',
         withSubwooferGroup({
           specs: { ...PORTED_15, enclosure: 'horn' },
-          overrides: [null],
+          ownSpecs: {},
         }),
       ],
       [
         'a missing subwoofer spec',
         withSubwooferGroup({
           specs: { enclosure: 'sealed', rmsWatts: 300, peakWatts: 600 },
-          overrides: [null],
+          ownSpecs: {},
         }),
       ],
       [
         'an unknown subwoofer spec',
         withSubwooferGroup({
           specs: { ...PORTED_15, sensitivity: 88 },
-          overrides: [null],
+          ownSpecs: {},
         }),
       ],
-      ['no subwoofer overrides', withSubwooferGroup({ specs: PORTED_15 })],
+      ['no own specs field', withSubwooferGroup({ specs: PORTED_15 })],
       [
-        'an override out of range',
+        'own specs out of range',
         withSubwooferGroup({
           specs: PORTED_15,
-          overrides: [{ ...SEALED_10, driverDiameter: 2 }],
+          ownSpecs: { Sub1: { ...SEALED_10, driverDiameter: 2 } },
         }),
       ],
-      // One override entry per subwoofer: its own specs, or null.
       [
-        'more overrides than subwoofers',
-        withSubwooferGroup({ specs: PORTED_15, overrides: [null, null] }),
+        'own specs that are null',
+        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub1: null } }),
       ],
       [
-        'fewer overrides than subwoofers',
-        {
-          ...withSubwooferGroup({ specs: PORTED_15, overrides: [SEALED_10] }),
-          layout: { dolbyLayout: '5.1', subwoofers: 3 },
-        },
+        'own specs for an unknown subwoofer',
+        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub5: SEALED_10 } }),
+      ],
+      // The layout has one subwoofer (Sub1), so Sub2 can't have specs.
+      [
+        'own specs for a subwoofer beyond the subwoofer count',
+        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub2: SEALED_10 } }),
       ],
     ])('for a version 1 config with %s', (_, config) => {
       expect(decodeConfig(encodedHolding({ v: 1, config }))).toEqual(FALLBACK)
@@ -335,7 +342,12 @@ const WORST_CASE_CONFIG: Config = {
   speakerGroups: {
     subwoofers: {
       specs: longestSubwooferSpecs(0),
-      overrides: [1, 2, 3, 4].map(longestSubwooferSpecs),
+      ownSpecs: {
+        Sub1: longestSubwooferSpecs(1),
+        Sub2: longestSubwooferSpecs(2),
+        Sub3: longestSubwooferSpecs(3),
+        Sub4: longestSubwooferSpecs(4),
+      },
     },
   },
 }

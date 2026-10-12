@@ -110,7 +110,7 @@ describe('subwoofers', () => {
     rmsWatts: 800,
     peakWatts: 1600,
   } as const
-  const SEALED_12 = IMPERIAL_ROOM.speakerGroups.subwoofers.overrides[1]
+  const SEALED_12 = IMPERIAL_ROOM.speakerGroups.subwoofers.ownSpecs.Sub2
 
   function subwooferGroup(store: ReturnType<typeof createConfigStore>) {
     return store.getState().config.speakerGroups.subwoofers
@@ -125,26 +125,38 @@ describe('subwoofers', () => {
       dolbyLayout: '5.1.2',
       subwoofers: 3,
     })
-    expect(subwooferGroup(store).overrides).toEqual([null, null, null])
+    expect(subwooferGroup(store).ownSpecs).toEqual({})
   })
 
-  it('keep their own specs while they stay in the layout, and drop them when removed', () => {
+  it('keep their own specs, by subwoofer, while they stay in the layout, and drop them when removed', () => {
     // Subwoofer 2 has its own specs.
     const store = createConfigStore(IMPERIAL_ROOM)
 
     store.getState().setSubwooferCount(4)
-    expect(subwooferGroup(store).overrides).toEqual([
-      null,
-      SEALED_12,
-      null,
-      null,
-    ])
+    expect(subwooferGroup(store).ownSpecs).toEqual({ Sub2: SEALED_12 })
 
     store.getState().setSubwooferCount(1)
-    expect(subwooferGroup(store).overrides).toEqual([null])
+    expect(subwooferGroup(store).ownSpecs).toEqual({})
 
     store.getState().setSubwooferCount(2)
-    expect(subwooferGroup(store).overrides).toEqual([null, null])
+    expect(subwooferGroup(store).ownSpecs).toEqual({})
+  })
+
+  it('drop only the removed subwoofer’s own specs when going from 4 to 3', () => {
+    const store = createConfigStore({
+      ...IMPERIAL_ROOM,
+      layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
+      speakerGroups: {
+        subwoofers: {
+          specs: PORTED_15,
+          ownSpecs: { Sub3: SEALED_12, Sub4: SEALED_12 },
+        },
+      },
+    })
+
+    store.getState().setSubwooferCount(3)
+
+    expect(subwooferGroup(store).ownSpecs).toEqual({ Sub3: SEALED_12 })
   })
 
   it('share the Subwoofers group specs, which can be edited one spec at a time', () => {
@@ -157,7 +169,7 @@ describe('subwoofers', () => {
 
     expect(subwooferGroup(store)).toEqual({
       specs: PORTED_15,
-      overrides: [null],
+      ownSpecs: {},
     })
   })
 
@@ -177,22 +189,20 @@ describe('subwoofers', () => {
   it('can each get specs of their own, starting from the group specs, and give them up again', () => {
     const store = createConfigStore({
       ...IMPERIAL_ROOM,
-      speakerGroups: {
-        subwoofers: { specs: PORTED_15, overrides: [null, null] },
-      },
+      speakerGroups: { subwoofers: { specs: PORTED_15, ownSpecs: {} } },
     })
 
-    store.getState().setSubwooferHasOwnSpecs(2, true)
-    expect(subwooferGroup(store).overrides).toEqual([null, PORTED_15])
+    store.getState().setSubwooferHasOwnSpecs('Sub2', true)
+    expect(subwooferGroup(store).ownSpecs).toEqual({ Sub2: PORTED_15 })
 
-    store.getState().setSubwooferSpecs(2, { enclosure: 'sealed' })
+    store.getState().setSubwooferSpecs('Sub2', { enclosure: 'sealed' })
     expect(subwooferGroup(store)).toEqual({
       specs: PORTED_15,
-      overrides: [null, { ...PORTED_15, enclosure: 'sealed' }],
+      ownSpecs: { Sub2: { ...PORTED_15, enclosure: 'sealed' } },
     })
 
-    store.getState().setSubwooferHasOwnSpecs(2, false)
-    expect(subwooferGroup(store).overrides).toEqual([null, null])
+    store.getState().setSubwooferHasOwnSpecs('Sub2', false)
+    expect(subwooferGroup(store).ownSpecs).toEqual({})
   })
 
   it('ignore spec edits for a subwoofer without specs of its own, or not in the layout', () => {
@@ -200,10 +210,12 @@ describe('subwoofers', () => {
     const before = store.getState().config
 
     // Subwoofer 1 uses the group specs; there are only two subwoofers.
-    store.getState().setSubwooferSpecs(1, { rmsWatts: 400 })
-    store.getState().setSubwooferSpecs(3, { rmsWatts: 400 })
-    store.getState().setSubwooferHasOwnSpecs(3, true)
-    store.getState().setSubwooferSpecs(2, { rmsWatts: 5000 })
+    store.getState().setSubwooferSpecs('Sub1', { rmsWatts: 400 })
+    store.getState().setSubwooferSpecs('Sub3', { rmsWatts: 400 })
+    store.getState().setSubwooferHasOwnSpecs('Sub3', true)
+    store.getState().setSubwooferHasOwnSpecs('Sub2', true)
+    store.getState().setSubwooferHasOwnSpecs('Sub1', false)
+    store.getState().setSubwooferSpecs('Sub2', { rmsWatts: 5000 })
 
     expect(store.getState().config).toBe(before)
   })

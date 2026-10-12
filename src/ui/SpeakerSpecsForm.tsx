@@ -4,9 +4,10 @@ import {
   DEFAULT_SUBWOOFER_SPECS,
   ENCLOSURES,
   formatInches,
-  SUBWOOFER_COUNTS,
+  subwooferIds,
+  SUBWOOFERS,
   type Enclosure,
-  type SubwooferNumber,
+  type SubwooferId,
   type SubwooferSpecField,
   type SubwooferSpecs,
 } from '@/domain'
@@ -76,15 +77,16 @@ const DEFAULTS_NOTE = (() => {
   )
 })()
 
-/** A switch per subwoofer for specs of its own, with its fields when on. */
+/** A switch per subwoofer for its own specs, with their fields when on. */
 function OwnSubwooferSpecs() {
-  const overrides = useConfig(
-    (state) => state.config.speakerGroups.subwoofers.overrides,
+  const count = useConfig((state) => state.config.layout.subwoofers)
+  const ownSpecs = useConfig(
+    (state) => state.config.speakerGroups.subwoofers.ownSpecs,
   )
   const setHasOwnSpecs = useConfig((state) => state.setSubwooferHasOwnSpecs)
   const idPrefix = useId()
 
-  if (overrides.length < 2) {
+  if (count < 2) {
     return (
       <p className="text-xs text-muted-foreground">
         With two or more subwoofers, each one can have specs of its own.
@@ -92,29 +94,28 @@ function OwnSubwooferSpecs() {
     )
   }
 
-  return SUBWOOFER_COUNTS.slice(0, overrides.length).map((number) => {
-    const ownSpecs = overrides[number - 1] ?? null
-    const checkboxId = `${idPrefix}-${number}`
+  return subwooferIds(count).map((id) => {
+    const specs = ownSpecs[id]
+    const { name } = SUBWOOFERS[id]
+    const checkboxId = `${idPrefix}-${id}`
     return (
-      <div key={number} className="flex flex-col gap-3">
+      <div key={id} className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <input
             id={checkboxId}
             type="checkbox"
-            checked={ownSpecs !== null}
-            onChange={(event) => setHasOwnSpecs(number, event.target.checked)}
+            checked={specs !== undefined}
+            onChange={(event) => setHasOwnSpecs(id, event.target.checked)}
             className="size-4 accent-primary"
           />
           <Label htmlFor={checkboxId} className="font-normal">
-            Subwoofer {number} has its own specs
+            {name} has its own specs
           </Label>
         </div>
-        {ownSpecs && (
+        {specs && (
           <fieldset className="flex flex-col gap-3 border-l-2 pl-3">
-            <legend className="mb-1.5 text-sm font-medium">
-              Subwoofer {number}
-            </legend>
-            <SubwooferSpecsFields target={number} specs={ownSpecs} />
+            <legend className="mb-1.5 text-sm font-medium">{name}</legend>
+            <SubwooferSpecsFields target={id} specs={specs} />
           </fieldset>
         )}
       </div>
@@ -135,7 +136,7 @@ function SubwooferSpecsFields({
   target,
   specs,
 }: {
-  target: 'group' | SubwooferNumber
+  target: 'group' | SubwooferId
   specs: SubwooferSpecs
 }) {
   const setSubwooferSpecs = useConfig((state) => state.setSubwooferSpecs)

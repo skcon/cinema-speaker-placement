@@ -237,15 +237,14 @@ describe('speaker specs form', () => {
         rmsWatts: 300,
         peakWatts: 600,
       },
-      overrides: [
-        null,
-        {
+      ownSpecs: {
+        Sub2: {
           enclosure: 'ported',
           driverDiameter: 12 * 0.0254,
           rmsWatts: 450,
           peakWatts: 600,
         },
-      ],
+      },
     })
 
     fireEvent.click(ownSpecs)
@@ -253,6 +252,6 @@ describe('speaker specs form', () => {
     expect(
       screen.queryByRole('group', { name: 'Subwoofer 2' }),
     ).not.toBeInTheDocument()
-    expect(storedGroup().overrides).toEqual([null, null])
+    expect(storedGroup().ownSpecs).toEqual({})
   })
 })

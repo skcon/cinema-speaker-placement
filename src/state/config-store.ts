@@ -8,9 +8,10 @@ import {
   type DolbyLayout,
   type RoomDimension,
   type ShareLinkProblem,
+  subwooferIds,
   type SubwooferCount,
   type SubwooferGroup,
-  type SubwooferNumber,
+  type SubwooferId,
   type SubwooferSpecs,
   type UnitSystem,
 } from '@/domain'
@@ -42,21 +43,20 @@ export type ConfigState = {
    */
   setSubwooferCount: (subwoofers: SubwooferCount) => void
   /**
-   * Change specs of the Subwoofers group, or of one subwoofer that has
-   * specs of its own. Ignored when a spec would be out of range (or the
-   * peak power below the RMS power), or the subwoofer has no specs of its
-   * own.
+   * Change specs of the Subwoofers group, or the own specs of one
+   * subwoofer. Ignored when a spec would be out of range (or the peak power
+   * below the RMS power), or the subwoofer has no own specs.
    */
   setSubwooferSpecs: (
-    target: 'group' | SubwooferNumber,
+    target: 'group' | SubwooferId,
     change: Partial<SubwooferSpecs>,
   ) => void
   /**
-   * Give a subwoofer specs of its own, starting as a copy of the group's,
-   * or make it use the group's again (dropping its own).
+   * Give a subwoofer of the layout own specs, starting as a copy of the
+   * group's, or make it use the group's again (dropping its own).
    */
   setSubwooferHasOwnSpecs: (
-    subwoofer: SubwooferNumber,
+    subwoofer: SubwooferId,
     hasOwnSpecs: boolean,
   ) => void
   /**
@@ -87,6 +87,19 @@ export type ConfigStore = ReturnType<typeof createConfigStore>
  */
 export function isShowingLinkFallback(state: ConfigState): boolean {
   return state.config === state.linkFallback
+}
+
+/** The group's own specs, kept only for the subwoofers in `ids`. */
+function ownSpecsOf(
+  { ownSpecs }: SubwooferGroup,
+  ids: readonly SubwooferId[],
+): SubwooferGroup['ownSpecs'] {
+  return Object.fromEntries(
+    ids.flatMap((id) => {
+      const specs = ownSpecs[id]
+      return specs ? [[id, specs] as const] : []
+    }),
+  )
 }
 
 /** The config with its Subwoofers speaker group replaced. */
@@ -121,13 +134,10 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
     setSubwooferCount: (subwoofers) =>
       set(({ config }) => {
         const group = config.speakerGroups.subwoofers
-        const overrides = Array.from(
-          { length: subwoofers },
-          (_, index) => group.overrides[index] ?? null,
-        )
+        const ownSpecs = ownSpecsOf(group, subwooferIds(subwoofers))
         return {
           config: {
-            ...withSubwooferGroup(config, { ...group, overrides }),
+            ...withSubwooferGroup(config, { ...group, ownSpecs }),
             layout: { ...config.layout, subwoofers },
           },
         }
@@ -141,33 +151,30 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
         set({ config: withSubwooferGroup(config, { ...group, specs }) })
         return
       }
-      const index = target - 1
-      const ownSpecs = group.overrides[index]
+      const ownSpecs = group.ownSpecs[target]
       if (!ownSpecs) return
       const specs = { ...ownSpecs, ...change }
       if (!areValidSubwooferSpecs(specs)) return
       set({
         config: withSubwooferGroup(config, {
           ...group,
-          overrides: group.overrides.with(index, specs),
+          ownSpecs: { ...group.ownSpecs, [target]: specs },
         }),
       })
     },
     setSubwooferHasOwnSpecs: (subwoofer, hasOwnSpecs) => {
       const { config } = get()
       const group = config.speakerGroups.subwoofers
-      const index = subwoofer - 1
-      const ownSpecs = group.overrides[index]
-      if (ownSpecs === undefined || (ownSpecs !== null) === hasOwnSpecs) return
-      set({
-        config: withSubwooferGroup(config, {
-          ...group,
-          overrides: group.overrides.with(
-            index,
-            hasOwnSpecs ? group.specs : null,
-          ),
-        }),
-      })
+      const inLayout = subwooferIds(config.layout.subwoofers)
+      if (!inLayout.includes(subwoofer)) return
+      if ((group.ownSpecs[subwoofer] !== undefined) === hasOwnSpecs) return
+      const ownSpecs = hasOwnSpecs
+        ? { ...group.ownSpecs, [subwoofer]: group.specs }
+        : ownSpecsOf(
+            group,
+            inLayout.filter((id) => id !== subwoofer),
+          )
+      set({ config: withSubwooferGroup(config, { ...group, ownSpecs }) })
     },
     autoPlace: () => {},
     openEncodedConfig: (encoded) => {

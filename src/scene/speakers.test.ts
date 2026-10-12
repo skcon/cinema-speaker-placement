@@ -102,12 +102,6 @@ describe('subwoofer markers in the top-down scene', () => {
   const fourSubwoofers = analyzeRoom({
     ...DEFAULT_CONFIG,
     layout: { dolbyLayout: '5.1.2', subwoofers: 4 },
-    speakerGroups: {
-      subwoofers: {
-        ...DEFAULT_CONFIG.speakerGroups.subwoofers,
-        overrides: [null, null, null, null],
-      },
-    },
   }).subwoofers
 
   it('sit at the subwoofer position, mapped to Three.js', () => {
@@ -142,19 +136,19 @@ describe('subwoofer markers in the top-down scene', () => {
     expect(
       fourSubwoofers.map((sub) => subwooferMarker(sub).labelDirection),
     ).toEqual([
-      { x: 1, y: 0 },
-      { x: 1, y: 0 },
-      { x: 0, y: 1 },
-      { x: 0, y: 1 },
+      { x: 1, y: 0 }, // front
+      { x: 0, y: 1 }, // left
+      { x: 0, y: 1 }, // right
+      { x: 1, y: 0 }, // back
     ])
   })
 
   it('describe the subwoofer and its wall in words', () => {
     expect(fourSubwoofers.map(describeSubwoofer)).toEqual([
       'Subwoofer 1 at the front wall',
-      'Subwoofer 2 at the back wall',
-      'Subwoofer 3 at the left wall',
-      'Subwoofer 4 at the right wall',
+      'Subwoofer 2 at the left wall',
+      'Subwoofer 3 at the right wall',
+      'Subwoofer 4 at the back wall',
     ])
   })
 })

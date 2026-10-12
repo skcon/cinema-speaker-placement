@@ -9,11 +9,7 @@ import {
 import { aimAtMlp, autoPlaceSpeaker, type Aim } from './placement'
 import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
 import type { SubwooferSpecs } from './speaker-specs'
-import {
-  subwooferId,
-  subwooferName,
-  type SubwooferId,
-} from './subwoofer-arrangements'
+import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
 import { autoPlaceSubwoofers } from './subwoofer-placement'
 
 /** A listener-level speaker of the layout, auto-placed and checked. */
@@ -43,10 +39,12 @@ export type PlacedSubwoofer = {
   readonly position: RoomPoint
   /** The wall it stands against. */
   readonly wall: Wall
-  /** The specs it is modelled with: its own, or the Subwoofers group's. */
+  /**
+   * The specs it is modelled with: its own specs, or the Subwoofers
+   * group's. Resolved here for the acoustic estimates of #11-#13, which
+   * need each subwoofer's enclosure, driver size and power.
+   */
   readonly specs: SubwooferSpecs
-  /** Whether `specs` are its own rather than the group's. */
-  readonly hasOwnSpecs: boolean
 }
 
 /** Everything derived from a config. Later tickets add overheads and the estimated response. */
@@ -82,19 +80,15 @@ export function analyzeRoom({
       ),
     }
   })
-  const { specs: groupSpecs, overrides } = speakerGroups.subwoofers
+  const { specs: groupSpecs, ownSpecs } = speakerGroups.subwoofers
   const subwoofers = autoPlaceSubwoofers(room, layout.subwoofers).map(
-    ({ number, position, wall }, index): PlacedSubwoofer => {
-      const ownSpecs = overrides[index] ?? null
-      return {
-        id: subwooferId(number),
-        name: subwooferName(number),
-        position,
-        wall,
-        specs: ownSpecs ?? groupSpecs,
-        hasOwnSpecs: ownSpecs !== null,
-      }
-    },
+    ({ id, position, wall }): PlacedSubwoofer => ({
+      id,
+      name: SUBWOOFERS[id].name,
+      position,
+      wall,
+      specs: ownSpecs[id] ?? groupSpecs,
+    }),
   )
   return { layout: summarizeLayout(layout), mlp, speakers, subwoofers }
 }

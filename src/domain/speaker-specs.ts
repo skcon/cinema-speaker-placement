@@ -1,14 +1,15 @@
 /**
- * Speaker specs, entered per speaker group (GLOSSARY.md), with an optional
- * override per subwoofer (issue #2, user stories 13 and 17-19). Only the
+ * Speaker specs, entered per speaker group (GLOSSARY.md), with optional own
+ * specs per subwoofer (issue #2, user stories 13 and 17-19). Only the
  * Subwoofers group has specs so far; #13 adds the other groups with their
  * own spec type, in the same shape: a group's `specs` plus, for
- * subwoofers only, one optional override per speaker.
+ * subwoofers only, own specs by subwoofer id.
  *
  * Specs are inputs for the acoustic estimates of later tickets (#11-#13);
  * nothing here does any acoustics with them.
  */
 import { checkRange, type AcceptedRange, type RangeProblem } from './range'
+import type { SubwooferId } from './subwoofer-arrangements'
 import { fromInches } from './units'
 
 /** How a subwoofer's driver is loaded: a closed box or a box with a port. */
@@ -32,16 +33,16 @@ export type SubwooferSpecs = {
 
 /**
  * The Subwoofers speaker group: the specs its subwoofers share, and the
- * specs of any subwoofer that has its own (a mixed set of subwoofers, user
+ * own specs of any subwoofer that has them (a mixed set of subwoofers, user
  * story 19).
  */
 export type SubwooferGroup = {
   readonly specs: SubwooferSpecs
   /**
-   * One entry per subwoofer of the layout, Subwoofer 1 first: its own
-   * specs, or null when it uses the group's.
+   * Own specs by subwoofer id, only for subwoofers of the layout that have
+   * them; every other subwoofer uses the group's `specs`.
    */
-  readonly overrides: readonly (SubwooferSpecs | null)[]
+  readonly ownSpecs: Readonly<Partial<Record<SubwooferId, SubwooferSpecs>>>
 }
 
 /** Specs per speaker group. #13 adds Front L/R, Center, Surrounds, Rear surrounds and Overheads. */
@@ -64,7 +65,7 @@ export const DEFAULT_SUBWOOFER_SPECS = {
 
 /** First-visit speaker groups: our default specs, with no subwoofer of its own. */
 export const DEFAULT_SPEAKER_GROUPS = {
-  subwoofers: { specs: DEFAULT_SUBWOOFER_SPECS, overrides: [null] },
+  subwoofers: { specs: DEFAULT_SUBWOOFER_SPECS, ownSpecs: {} },
 } as const satisfies SpeakerGroups
 
 /**

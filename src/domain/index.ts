@@ -15,6 +15,12 @@ export {
   type DolbyLayout,
 } from './dolby-layouts'
 export {
+  SUBWOOFER_ARRANGEMENTS,
+  subwooferIds,
+  SUBWOOFERS,
+  type SubwooferId,
+} from './subwoofer-arrangements'
+export {
   formatLayout,
   SUBWOOFER_COUNTS,
   type Layout,
@@ -46,7 +52,6 @@ export {
   type SubwooferSpecProblem,
   type SubwooferSpecs,
 } from './speaker-specs'
-export type { SubwooferId, SubwooferNumber } from './subwoofer-arrangements'
 export {
   decodeConfig,
   encodeConfig,

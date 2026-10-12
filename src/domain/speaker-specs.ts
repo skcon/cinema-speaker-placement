@@ -8,6 +8,7 @@
  * Specs are inputs for the acoustic estimates of later tickets (#11-#13);
  * nothing here does any acoustics with them.
  */
+import { checkRange, type AcceptedRange, type RangeProblem } from './range'
 import { fromSmallUnit } from './units'
 
 /** How a subwoofer's driver is loaded: a closed box or a box with a port. */
@@ -75,15 +76,11 @@ const SUBWOOFER_SPEC_LIMITS = {
   },
   rmsWatts: { min: 10, max: 10_000 },
   peakWatts: { min: 10, max: 20_000 },
-} as const satisfies Record<SubwooferSpecField, { min: number; max: number }>
+} as const satisfies Record<SubwooferSpecField, AcceptedRange>
 
 /** Why a subwoofer spec was rejected. */
 export type SubwooferSpecProblem =
-  | {
-      readonly problem: 'not-a-number' | 'too-small' | 'too-large'
-      readonly min: number
-      readonly max: number
-    }
+  | RangeProblem
   /** On the peak power: it is below the RMS power. */
   | { readonly problem: 'peak-below-rms'; readonly rmsWatts: number }
   /** On the RMS power: it is above the peak power. */
@@ -98,11 +95,8 @@ export function checkSubwooferSpec(
   specs: SubwooferSpecs,
   field: SubwooferSpecField,
 ): SubwooferSpecProblem | null {
-  const value = specs[field]
-  const { min, max } = SUBWOOFER_SPEC_LIMITS[field]
-  if (!Number.isFinite(value)) return { problem: 'not-a-number', min, max }
-  if (value < min) return { problem: 'too-small', min, max }
-  if (value > max) return { problem: 'too-large', min, max }
+  const outOfRange = checkRange(specs[field], SUBWOOFER_SPEC_LIMITS[field])
+  if (outOfRange) return outOfRange
   if (specs.peakWatts < specs.rmsWatts) {
     if (field === 'peakWatts') {
       return { problem: 'peak-below-rms', rmsWatts: specs.rmsWatts }

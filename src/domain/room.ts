@@ -51,6 +51,8 @@
  * (|azimuth| > 90°). For example, top rear at 135° is 45° elevation, behind.
  */
 
+import { checkRange, type AcceptedRange, type RangeProblem } from './range'
+
 /** A point in room coordinates (see above), in meters. */
 export type RoomPoint = { x: number; y: number; z: number }
 
@@ -191,23 +193,15 @@ const ROOM_DIMENSION_LIMITS = {
   length: { min: 2, max: 15 },
   width: { min: 2, max: 15 },
   height: { min: 2, max: 5 },
-} as const satisfies Record<RoomDimension, { min: number; max: number }>
+} as const satisfies Record<RoomDimension, AcceptedRange>
 
 /** Why a room dimension was rejected, with the accepted range. */
-export type RoomDimensionProblem = {
-  problem: 'not-a-number' | 'too-small' | 'too-large'
-  min: number
-  max: number
-}
+export type RoomDimensionProblem = RangeProblem
 
 /** `null` when the value is an accepted size for that dimension. */
 export function checkRoomDimension(
   dimension: RoomDimension,
   meters: number,
 ): RoomDimensionProblem | null {
-  const { min, max } = ROOM_DIMENSION_LIMITS[dimension]
-  if (!Number.isFinite(meters)) return { problem: 'not-a-number', min, max }
-  if (meters < min) return { problem: 'too-small', min, max }
-  if (meters > max) return { problem: 'too-large', min, max }
-  return null
+  return checkRange(meters, ROOM_DIMENSION_LIMITS[dimension])
 }

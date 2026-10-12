@@ -4,6 +4,7 @@ import {
   DEFAULT_SUBWOOFER_SPECS,
   ENCLOSURES,
   formatInches,
+  SUBWOOFER_SPEC_FIELDS,
   subwooferIds,
   SUBWOOFERS,
   type Enclosure,
@@ -18,12 +19,11 @@ import { RadioGroup, RadioGroupItem } from '@/ui/components/radio-group'
 import {
   acceptedSpecs,
   draftsFromSpecs,
+  formatWatts,
   reseedDrafts,
   specsFromDrafts,
-  SUBWOOFER_SPEC_FIELDS,
   SUBWOOFER_SPEC_TEXT,
   subwooferSpecErrorMessage,
-  formatWatts,
   type SubwooferSpecDrafts,
 } from '@/ui/lib/subwoofer-specs'
 

@@ -112,11 +112,22 @@ export function checkSubwooferSpec(
   return null
 }
 
-const SUBWOOFER_SPEC_FIELDS = [
+/** The numeric subwoofer specs, in the order the form shows them. */
+export const SUBWOOFER_SPEC_FIELDS = [
   'driverDiameter',
   'rmsWatts',
   'peakWatts',
 ] as const satisfies readonly SubwooferSpecField[]
+
+/** One value per numeric subwoofer spec. */
+export function mapSubwooferSpecFields<T>(
+  value: (field: SubwooferSpecField) => T,
+): Record<SubwooferSpecField, T> {
+  // Every field is a key, as SUBWOOFER_SPEC_FIELDS lists them all.
+  return Object.fromEntries(
+    SUBWOOFER_SPEC_FIELDS.map((field) => [field, value(field)]),
+  ) as Record<SubwooferSpecField, T>
+}
 
 /** Whether every numeric spec passes its check. */
 export function areValidSubwooferSpecs(specs: SubwooferSpecs): boolean {

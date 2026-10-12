@@ -47,6 +47,8 @@ export {
   checkSubwooferSpec,
   DEFAULT_SUBWOOFER_SPECS,
   ENCLOSURES,
+  mapSubwooferSpecFields,
+  SUBWOOFER_SPEC_FIELDS,
   type Enclosure,
   type SpeakerGroups,
   type SubwooferGroup,

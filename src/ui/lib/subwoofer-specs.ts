@@ -2,6 +2,7 @@ import {
   checkSubwooferSpec,
   formatInches,
   fromInches,
+  mapSubwooferSpecFields,
   toInches,
   type Rounding,
   type SubwooferSpecField,
@@ -9,13 +10,6 @@ import {
   type SubwooferSpecs,
 } from '@/domain'
 import { parseDecimal } from '@/ui/lib/decimal'
-
-/** The numeric subwoofer specs, in the order the form shows them. */
-export const SUBWOOFER_SPEC_FIELDS = [
-  'driverDiameter',
-  'rmsWatts',
-  'peakWatts',
-] as const satisfies readonly SubwooferSpecField[]
 
 /** How one numeric spec is labelled, written and read in a text field. */
 type SpecText = {
@@ -68,13 +62,9 @@ export type SubwooferSpecDrafts = Record<SubwooferSpecField, string>
 
 /** The text each spec field starts with. */
 export function draftsFromSpecs(specs: SubwooferSpecs): SubwooferSpecDrafts {
-  return {
-    driverDiameter: SUBWOOFER_SPEC_TEXT.driverDiameter.toText(
-      specs.driverDiameter,
-    ),
-    rmsWatts: SUBWOOFER_SPEC_TEXT.rmsWatts.toText(specs.rmsWatts),
-    peakWatts: SUBWOOFER_SPEC_TEXT.peakWatts.toText(specs.peakWatts),
-  }
+  return mapSubwooferSpecFields((field) =>
+    SUBWOOFER_SPEC_TEXT[field].toText(specs[field]),
+  )
 }
 
 /**
@@ -88,15 +78,13 @@ export function specsFromDrafts(
   stored: SubwooferSpecs,
 ): SubwooferSpecs {
   const untouched = draftsFromSpecs(stored)
-  const value = (field: SubwooferSpecField) =>
-    drafts[field] === untouched[field]
-      ? stored[field]
-      : SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field])
   return {
     enclosure: stored.enclosure,
-    driverDiameter: value('driverDiameter'),
-    rmsWatts: value('rmsWatts'),
-    peakWatts: value('peakWatts'),
+    ...mapSubwooferSpecFields((field) =>
+      drafts[field] === untouched[field]
+        ? stored[field]
+        : SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field]),
+    ),
   }
 }
 
@@ -113,16 +101,12 @@ export function reseedDrafts(
   stored: SubwooferSpecs,
 ): SubwooferSpecDrafts {
   const fresh = draftsFromSpecs(stored)
-  const keep = (field: SubwooferSpecField) =>
+  return mapSubwooferSpecFields((field) =>
     previous[field] === stored[field] ||
     SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field]) === stored[field]
-  return {
-    driverDiameter: keep('driverDiameter')
-      ? drafts.driverDiameter
-      : fresh.driverDiameter,
-    rmsWatts: keep('rmsWatts') ? drafts.rmsWatts : fresh.rmsWatts,
-    peakWatts: keep('peakWatts') ? drafts.peakWatts : fresh.peakWatts,
-  }
+      ? drafts[field]
+      : fresh[field],
+  )
 }
 
 /**
@@ -133,13 +117,11 @@ export function acceptedSpecs(
   typed: SubwooferSpecs,
   stored: SubwooferSpecs,
 ): SubwooferSpecs {
-  const accepted = (field: SubwooferSpecField) =>
-    checkSubwooferSpec(typed, field) === null ? typed[field] : stored[field]
   return {
     enclosure: stored.enclosure,
-    driverDiameter: accepted('driverDiameter'),
-    rmsWatts: accepted('rmsWatts'),
-    peakWatts: accepted('peakWatts'),
+    ...mapSubwooferSpecFields((field) =>
+      checkSubwooferSpec(typed, field) === null ? typed[field] : stored[field],
+    ),
   }
 }
 

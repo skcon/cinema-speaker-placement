@@ -22,13 +22,14 @@ Researched 2026-10-12 for issue #11 (response chart: room modes at the MLP). Thi
 
 - **Reverberation time 0.5 s** at low frequencies for every mode, which gives every mode a bandwidth of about 4.4 Hz. Real rooms differ per mode and per room; no source gives a value for "a home theater".
 - **Rigid walls, no wall absorption per surface**: damping is one number for every mode.
-- **The (0, 0, 0) term is left out**: it is the uniform pressure change of a sealed room (room gain below the lowest mode), which real, leaky rooms show only partly. Below the lowest mode the estimate is therefore not reliable.
-- **Modes are summed up to 1.5 × the highest charted frequency** (300 Hz for a 200 Hz chart); higher modes add little in the charted band.
+- **The (0, 0, 0) term is left out** (user's decision, #11 review): it is the uniform pressure change of a sealed room (room gain below the lowest mode), which real, leaky rooms show only partly, by an amount no source gives. The chart says room gain isn't modelled.
+- **Reliability**: the estimate counts as reliable only from the **lowest mode the subwoofers excite** together (a mode they cancel, such as the first length mode for front and back subwoofers, doesn't count). Below it the modal sum has only other modes' tails and no room gain. Those frequencies are shaded on the chart, marked in the table, and left out of the level-matching and the peak/dip summary.
+- **Modes are summed up to 1.5 × the highest frequency asked for** (300 Hz for the 200 Hz band); higher modes add little below it.
 - **Every subwoofer is a point source of equal strength, driven in phase** (one bass-managed channel, as in Welti's studies, `multi-subwoofer-placement.md`). Driver size, power, enclosure and the crossover don't change the curve yet (#12 adds enclosure roll-off and the crossover).
-- **Level**: the model has no absolute level. The estimated response is shifted so its average deviation from the target curve is 0 dB, like setting the subwoofer level to the target.
+- **Level**: the model has no absolute level. The estimated response is shifted so its average deviation from the target curve over the reliable frequencies is 0 dB, like setting the subwoofer level to the target.
 
 ## 3. Target curve
 
 - **Flat with a ±3 dB band**: the default, from the v1 spec (issue #2, user story 41). The ±3 dB width is the spec's product choice, not a cited standard.
 - **House curve: ours.** No verifiable published curve shape was found. AES-8994's abstract (as summarized by search engines) reports that listeners, on average, preferred an in-room loudspeaker response with more bass and treble than a flat one, with large differences between listeners. A widely repeated forum summary of the same paper gives a bass boost of about 6.6 dB below about 105 Hz; that figure could not be checked against the paper and is **UNVERIFIED**, so the app does not cite it as a standard.
-  The app's house curve is our assumption, shaped after the spec's wording (user story 42, "bass boost below about 100 Hz"): a smooth shelf rising to +6 dB at the lowest frequencies, half of it (+3 dB) at 100 Hz, level = 6 / (1 + (f / 100)²) dB. It is labelled "our assumption" in the code, not a standard.
+  The app's house curve is our assumption, shaped after the spec's wording (user story 42, "bass boost below about 100 Hz"): a smooth shelf rising to +6 dB at the lowest frequencies, half of it (+3 dB) at 100 Hz, level = 6 / (1 + (f / 100)²) dB. It is labelled "our assumption" in the code and the UI, carries no typed citation (AES-8994 is mentioned in its note as background only), and the user accepted it as ours in the #11 review.

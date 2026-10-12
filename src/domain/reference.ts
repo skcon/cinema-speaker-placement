@@ -154,7 +154,10 @@ export const LOW_FREQUENCY_REVERBERATION_TIME = {
     'bandwidth are textbook results (docs/research/low-frequency-response.md ' +
     'section 2, item 5).',
   citations: [
-    { source: 'KUTTRUFF', note: 'ch. 3: δ = 3·ln 10 / T, B = δ/π' },
+    {
+      source: 'KUTTRUFF',
+      note: 'ch. 3: δ = 3·ln 10 / T, B = δ/π; page not checked',
+    },
     { source: 'MHA', note: 'mode bandwidth ≈ 2.2 / T; page not checked' },
   ],
 } as const satisfies {
@@ -164,28 +167,35 @@ export const LOW_FREQUENCY_REVERBERATION_TIME = {
 }
 
 /**
- * The frequencies the estimated response covers, in Hz, and how finely:
- * `steps + 1` points spread evenly on a log axis. The 20-200 Hz band is the
- * room-mode range of ADR 0002; with 160 steps over the decade, every 16th
- * point is a base-10 third-octave frequency (20, 25.2, 31.7 ... 200 Hz).
+ * The frequencies the estimated response covers by default, in Hz, and
+ * how finely: `steps + 1` points spread evenly on a log axis. The
+ * 20-200 Hz band is the room-mode range of ADR 0002; with 160 steps over
+ * the decade, every 16th point is a base-10 third-octave frequency.
+ * Everything downstream derives from the frequency list, so #12 can widen
+ * the band here.
  */
 export const RESPONSE_BAND = {
   lowestHz: 20,
   highestHz: 200,
   steps: 160,
   note: 'Product choice from ADR 0002 and issue #2, not a cited value.',
-} as const
+} as const satisfies {
+  lowestHz: number
+  highestHz: number
+  steps: number
+  note: string
+}
 
 /**
- * How far above the highest charted frequency the room-mode model still
- * sums modes: modes above the band only add their tails to it.
+ * How far above the highest frequency asked for the room-mode model still
+ * sums modes: modes above it only add their tails.
  */
 export const MODE_SUM_HEADROOM = {
   factor: 1.5,
   note:
-    'Our modelling assumption: modes above 1.5 × the band add little ' +
-    'inside it (docs/research/low-frequency-response.md section 2).',
-} as const
+    'Our modelling assumption: modes above 1.5 × the highest frequency ' +
+    'add little below it (docs/research/low-frequency-response.md section 2).',
+} as const satisfies { factor: number; note: string }
 
 /** The target curve's tolerance band: ± this many dB around the target. */
 export const TARGET_TOLERANCE = {
@@ -193,7 +203,7 @@ export const TARGET_TOLERANCE = {
   note:
     'Product choice from the v1 spec (issue #2, user story 41), not a ' +
     'cited standard.',
-} as const
+} as const satisfies { db: number; note: string }
 
 /**
  * The house curve: a smooth bass shelf, level = boost / (1 + (f / corner)²)
@@ -204,19 +214,9 @@ export const HOUSE_CURVE = {
   cornerHz: 100,
   note:
     'Our assumption, not a published standard: shaped after the v1 spec ' +
-    '(issue #2, user story 42, "bass boost below about 100 Hz"). A Harman ' +
-    'study found listeners on average preferred more bass than flat, but ' +
-    'no curve shape from it could be verified ' +
+    '(issue #2, user story 42, "bass boost below about 100 Hz"). Background ' +
+    'only, not its source: a Harman study (AES-8994, abstract read via ' +
+    'search summaries only) found listeners on average preferred more bass ' +
+    'than flat, but no curve shape from it could be verified ' +
     '(docs/research/low-frequency-response.md section 3).',
-  citations: [
-    {
-      source: 'AES-8994',
-      note: 'listeners preferred more bass than flat; abstract only, via summaries',
-    },
-  ],
-} as const satisfies {
-  boostDb: number
-  cornerHz: number
-  note: string
-  citations: readonly Citation[]
-}
+} as const satisfies { boostDb: number; cornerHz: number; note: string }

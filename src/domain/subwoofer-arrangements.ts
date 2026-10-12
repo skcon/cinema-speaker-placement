@@ -6,7 +6,7 @@
  * docs/research/multi-subwoofer-placement.md (section 3 lists what is
  * encoded here, section 4 the caveats).
  */
-import type { SubwooferCount } from './layout'
+import { SUBWOOFER_COUNTS, type SubwooferCount } from './layout'
 import type { Citation } from './reference'
 import type { Wall } from './room'
 
@@ -53,10 +53,22 @@ export type ArrangedSubwoofer = {
 /** One cited arrangement: a place per subwoofer, Subwoofer 1 first. */
 export type SubwooferArrangement = {
   readonly subwoofers: readonly ArrangedSubwoofer[]
-  readonly citations: readonly Citation[]
+  /**
+   * Welti's seat-to-seat variation (Std) for it, in dB: each seat's
+   * standard deviation from the equalized average of all seats, averaged
+   * over the seats. Lower is evener bass. Read from the slide's table, the
+   * first citation.
+   */
+  readonly seatToSeatStdDb: number
+  /** Where it comes from; the first citation is the slide that draws it. */
+  readonly citations: readonly [Citation, ...Citation[]]
   /** What the source does not confirm about it (research section 4). */
   readonly caveat?: string
 }
+
+/** The source of every arrangement, as the UI names it. */
+export const SUBWOOFER_ARRANGEMENT_SOURCE =
+  'Harman white paper “Subwoofers: Optimum Number and Locations”'
 
 /** A subwoofer at the middle of a wall. */
 function atWallMidpoint(id: SubwooferId, wall: Wall): ArrangedSubwoofer {
@@ -89,6 +101,7 @@ function atWallMidpoint(id: SubwooferId, wall: Wall): ArrangedSubwoofer {
 export const SUBWOOFER_ARRANGEMENTS = {
   1: {
     subwoofers: [atWallMidpoint('Sub1', 'front')],
+    seatToSeatStdDb: 3.9,
     citations: [
       {
         source: 'HW-SUBS',
@@ -103,6 +116,7 @@ export const SUBWOOFER_ARRANGEMENTS = {
       atWallMidpoint('Sub1', 'front'),
       atWallMidpoint('Sub2', 'back'),
     ],
+    seatToSeatStdDb: 1.3,
     citations: [
       {
         source: 'HW-SUBS',
@@ -129,6 +143,7 @@ export const SUBWOOFER_ARRANGEMENTS = {
       atWallMidpoint('Sub2', 'left'),
       atWallMidpoint('Sub3', 'right'),
     ],
+    seatToSeatStdDb: 2.7,
     citations: [
       {
         source: 'HW-SUBS',
@@ -150,6 +165,7 @@ export const SUBWOOFER_ARRANGEMENTS = {
       atWallMidpoint('Sub3', 'right'),
       atWallMidpoint('Sub4', 'back'),
     ],
+    seatToSeatStdDb: 0.9,
     citations: [
       {
         source: 'HW-SUBS',
@@ -172,3 +188,18 @@ export const SUBWOOFER_ARRANGEMENTS = {
     ],
   },
 } as const satisfies Record<SubwooferCount, SubwooferArrangement>
+
+/**
+ * The subwoofer counts whose cited arrangement evened out the bass better
+ * than the one for `count`, when a smaller count is among them: adding
+ * subwoofers made the bass less even in Welti's study, so the user may
+ * want another count. Only 3 subwoofers qualifies, against 2 and 4
+ * (research section 4, item 4); otherwise this is empty.
+ */
+export function evenerSubwooferCounts(count: SubwooferCount): SubwooferCount[] {
+  const { seatToSeatStdDb } = SUBWOOFER_ARRANGEMENTS[count]
+  const evener = SUBWOOFER_COUNTS.filter(
+    (other) => SUBWOOFER_ARRANGEMENTS[other].seatToSeatStdDb < seatToSeatStdDb,
+  )
+  return evener.some((other) => other < count) ? evener : []
+}

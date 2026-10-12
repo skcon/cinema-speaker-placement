@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeRoom,
   DEFAULT_CONFIG,
+  evenerSubwooferCounts,
+  SUBWOOFER_ARRANGEMENTS,
   type Config,
   type Room,
   type SubwooferCount,
@@ -184,6 +186,19 @@ describe('auto-placed subwoofers', () => {
       ['Sub2', ownSpecs],
       ['Sub3', groupSpecs],
     ])
+  })
+
+  it('suggest 2 or 4 instead of 3, whose cited layout evened out the bass less than 2 (Std 2.7 vs 1.3 dB)', () => {
+    expect(evenerSubwooferCounts(3)).toEqual([2, 4])
+    for (const count of [1, 2, 4] as const) {
+      expect(evenerSubwooferCounts(count)).toEqual([])
+    }
+    expect(
+      [1, 2, 3, 4].map(
+        (count) =>
+          SUBWOOFER_ARRANGEMENTS[count as SubwooferCount].seatToSeatStdDb,
+      ),
+    ).toEqual([3.9, 1.3, 2.7, 0.9])
   })
 
   it('stay where they are when only the listener-level layout changes', () => {

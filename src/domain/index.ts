@@ -15,6 +15,8 @@ export {
   type DolbyLayout,
 } from './dolby-layouts'
 export {
+  evenerSubwooferCounts,
+  SUBWOOFER_ARRANGEMENT_SOURCE,
   SUBWOOFER_ARRANGEMENTS,
   subwooferIds,
   SUBWOOFERS,

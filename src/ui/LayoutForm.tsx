@@ -1,5 +1,13 @@
 import { useId } from 'react'
-import { formatLayout, SUBWOOFER_COUNTS, V1_DOLBY_LAYOUTS } from '@/domain'
+import {
+  evenerSubwooferCounts,
+  formatLayout,
+  SUBWOOFER_ARRANGEMENT_SOURCE,
+  SUBWOOFER_ARRANGEMENTS,
+  SUBWOOFER_COUNTS,
+  V1_DOLBY_LAYOUTS,
+  type SubwooferCount,
+} from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { Button } from '@/ui/components/button'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
@@ -77,6 +85,7 @@ export function LayoutForm() {
           ))}
         </ToggleGroup>
       </div>
+      <EvenerCountNote count={layout.subwoofers} />
       {overheads > 0 && (
         <p className="text-xs text-muted-foreground">
           Overhead speakers aren&rsquo;t placed yet: the room view shows the{' '}
@@ -88,4 +97,45 @@ export function LayoutForm() {
       </Button>
     </section>
   )
+}
+
+/**
+ * When other subwoofer counts evened out the bass better in Welti's study
+ * (only 3, against 2 and 4), says so with the numbers and their source.
+ */
+function EvenerCountNote({ count }: { count: SubwooferCount }) {
+  const evener = evenerSubwooferCounts(count)
+  if (evener.length === 0) return null
+  const std = (n: SubwooferCount) =>
+    `${SUBWOOFER_ARRANGEMENTS[n].seatToSeatStdDb} dB`
+  const slides = [count, ...evener]
+    .map((n) => SUBWOOFER_ARRANGEMENTS[n].citations[0].figure)
+    .toSorted()
+    .map((figure) => figure.replace('slide ', ''))
+  return (
+    <p className="text-xs text-muted-foreground">
+      {listWithOr(evener.map(String))} subwoofers usually even out the bass
+      better: in Welti&rsquo;s study the best layout for {count} varied{' '}
+      {std(count)} from seat to seat, against{' '}
+      {listWithAnd(evener.map((n) => `${std(n)} for ${n}`))} (
+      {SUBWOOFER_ARRANGEMENT_SOURCE}, slides {listWithAnd(slides)}).
+    </p>
+  )
+}
+
+/** "a", "a or b", "a, b or c". */
+function listWithOr(items: readonly string[]): string {
+  return joinList(items, 'or')
+}
+
+/** "a", "a and b", "a, b and c". */
+function listWithAnd(items: readonly string[]): string {
+  return joinList(items, 'and')
+}
+
+function joinList(items: readonly string[], word: string): string {
+  const last = items.at(-1) ?? ''
+  return items.length < 2
+    ? last
+    : `${items.slice(0, -1).join(', ')} ${word} ${last}`
 }

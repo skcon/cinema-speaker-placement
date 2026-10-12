@@ -69,6 +69,18 @@ export default defineConfig([
     files: ['src/ui/components/**/*.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
+  // shadcn's chart wraps Recharts' loosely typed payloads (`any`); kept as
+  // generated so a later `shadcn add chart` can replace it cleanly.
+  {
+    files: ['src/ui/components/chart.tsx'],
+    rules: {
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/restrict-template-expressions': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+    },
+  },
   // Layer boundaries from CLAUDE.md: domain <- state <- presentation (ui, scene, charts).
   {
     files: ['src/domain/**/*.{ts,tsx}'],

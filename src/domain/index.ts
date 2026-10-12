@@ -69,6 +69,7 @@ export {
   type SubwooferSpecProblem,
   type SubwooferSpecs,
 } from './speaker-specs'
+export { RESPONSE_BAND, TARGET_TOLERANCE } from './reference'
 export {
   TARGET_CURVES,
   type TargetCurveKind,

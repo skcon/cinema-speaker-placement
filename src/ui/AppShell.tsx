@@ -1,5 +1,6 @@
 import { cn } from 'cn'
 import { useId, type ReactNode } from 'react'
+import { ResponsePanel } from '@/charts/ResponsePanel'
 import type { Config } from '@/domain'
 import { RoomView } from '@/scene/RoomView'
 import { CopyLinkButton } from '@/ui/CopyLinkButton'
@@ -22,7 +23,7 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground lg:h-svh lg:flex-row">
-      <div className="flex flex-col gap-6 border-b bg-sidebar p-4 text-sidebar-foreground lg:w-1/5 lg:min-w-64 lg:overflow-y-auto lg:border-r lg:border-b-0">
+      <div className="relative flex flex-col gap-6 border-b bg-sidebar p-4 text-sidebar-foreground lg:w-1/5 lg:min-w-64 lg:overflow-y-auto lg:border-r lg:border-b-0">
         <header className="flex flex-col gap-3">
           <div>
             <h1 className="text-lg font-semibold">Cinema Speaker Placement</h1>
@@ -53,12 +54,9 @@ export function AppShell({
         <Panel
           title="Estimated response"
           note="An estimate from a simplified model, never a measurement."
-          className="min-h-64 lg:min-h-0 lg:flex-2"
+          className="lg:min-h-0 lg:flex-2 lg:overflow-y-auto"
         >
-          <Placeholder>
-            The estimated response at the MLP, compared with the target curve,
-            will be charted here.
-          </Placeholder>
+          <ResponsePanel />
         </Panel>
       </main>
     </div>
@@ -91,14 +89,5 @@ function Panel({
       {children}
       {note && <p className="text-xs text-muted-foreground">{note}</p>}
     </section>
-  )
-}
-
-/** Stands in for a panel's content until its ticket lands. */
-function Placeholder({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-      <p>{children}</p>
-    </div>
   )
 }

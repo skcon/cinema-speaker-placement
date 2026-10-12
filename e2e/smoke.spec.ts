@@ -85,6 +85,13 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
     }
     await expect(sharedScene.getByText('ideal', { exact: true })).toHaveCount(7)
+    // Two subwoofers, at the middle of the front and back walls.
+    for (const label of ['Sub1', 'Sub2']) {
+      await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
+    }
+    await expect(
+      page.getByRole('table', { name: 'Speakers' }).getByText('Subwoofer 2'),
+    ).toBeVisible()
   })
 
   await test.step('an edit reaches the address, under the base path', async () => {

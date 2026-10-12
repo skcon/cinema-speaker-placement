@@ -8,7 +8,7 @@ import {
   YAxis,
 } from 'recharts'
 import { formatDb, formatHz } from '@/charts/format'
-import type { EstimatedResponse } from '@/domain'
+import { TARGET_TOLERANCE, type EstimatedResponse } from '@/domain'
 import {
   ChartContainer,
   ChartLegend,
@@ -20,11 +20,14 @@ import {
 
 const CHART_CONFIG = {
   estimated: {
-    label: 'Estimated response',
+    label: 'Estimate',
     theme: { light: '#2a78d6', dark: '#3987e5' },
   },
   target: { label: 'Target', color: 'var(--muted-foreground)' },
-  band: { label: 'Tolerance band', color: 'var(--muted-foreground)' },
+  band: {
+    label: `±${TARGET_TOLERANCE.db} dB band`,
+    color: 'var(--muted-foreground)',
+  },
 } satisfies ChartConfig
 
 /** Log-axis ticks a reader can place: each decade split at familiar values. */

@@ -68,34 +68,39 @@ describe('speaker specs form', () => {
     const group = specs('Subwoofers')
 
     expect(within(group).getByRole('radio', { name: 'Sealed' })).toBeChecked()
-    // 12 in = 30.48 cm
     expect(
-      within(group).getByRole('textbox', { name: 'Driver size (cm)' }),
-    ).toHaveValue('30.5')
+      within(group).getByRole('textbox', { name: 'Driver size (in)' }),
+    ).toHaveValue('12')
     expect(
       within(group).getByRole('textbox', { name: 'RMS power (W)' }),
     ).toHaveValue('300')
     expect(
       within(group).getByRole('textbox', { name: 'Peak power (W)' }),
     ).toHaveValue('600')
-    expect(screen.getByText(/starting values are ours/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /^Starting values are ours: a sealed 12 in subwoofer with a 300 W RMS \(600 W peak\) amplifier/,
+      ),
+    ).toBeInTheDocument()
   })
 
-  it('shows the driver size in inches in imperial units', () => {
+  it('shows the driver size in inches in both unit systems, as subwoofers are sold by the inch', () => {
     renderSpecsForm()
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Imperial (ft + in)' }))
-
-    expect(
+    const driver = () =>
       within(specs('Subwoofers')).getByRole('textbox', {
         name: 'Driver size (in)',
-      }),
-    ).toHaveValue('12')
+      })
+    type(driver(), '15')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Imperial (ft + in)' }))
+    expect(driver()).toHaveValue('15')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Metric (m)' }))
+    expect(driver()).toHaveValue('15')
   })
 
   it('stores valid specs for every subwoofer, the driver size in meters', () => {
     renderSpecsForm()
-    fireEvent.click(screen.getByRole('radio', { name: 'Imperial (ft + in)' }))
     const group = specs('Subwoofers')
 
     fireEvent.click(within(group).getByRole('radio', { name: 'Ported' }))
@@ -113,7 +118,6 @@ describe('speaker specs form', () => {
 
   it('explains a spec out of range inline and keeps the last valid value', () => {
     renderSpecsForm()
-    fireEvent.click(screen.getByRole('radio', { name: 'Imperial (ft + in)' }))
     const group = specs('Subwoofers')
     const driver = within(group).getByRole('textbox', {
       name: 'Driver size (in)',
@@ -131,26 +135,12 @@ describe('speaker specs form', () => {
     )
     expect(rms).toBeInvalid()
     expect(storedGroup().specs).toMatchObject({
-      driverDiameter: 0.3048,
+      driverDiameter: 12 * 0.0254,
       rmsWatts: 300,
     })
 
     type(rms, 'loud')
     expect(rms).toHaveAccessibleDescription('Enter the RMS power as a number.')
-  })
-
-  it('shows driver size limits in centimeters in metric units, rounded inward', () => {
-    renderSpecsForm()
-    const driver = within(specs('Subwoofers')).getByRole('textbox', {
-      name: 'Driver size (cm)',
-    })
-
-    type(driver, '10')
-
-    // 6 in = 15.24 cm, 24 in = 60.96 cm
-    expect(driver).toHaveAccessibleDescription(
-      'Driver size must be between 15.3 cm and 60.9 cm.',
-    )
   })
 
   it('needs the peak power to be at least the RMS power, and stores both once they agree', () => {
@@ -185,14 +175,14 @@ describe('speaker specs form', () => {
     const rms = within(group).getByRole('textbox', { name: 'RMS power (W)' })
 
     type(rms, '5')
-    type(within(group).getByRole('textbox', { name: 'Driver size (cm)' }), '38')
+    type(within(group).getByRole('textbox', { name: 'Driver size (in)' }), '15')
 
     expect(rms).toHaveValue('5')
     expect(rms).toHaveAccessibleDescription(
       'RMS power must be between 10 W and 10,000 W.',
     )
     expect(storedGroup().specs).toMatchObject({
-      driverDiameter: 0.38,
+      driverDiameter: 0.381,
       rmsWatts: 300,
     })
   })
@@ -243,7 +233,7 @@ describe('speaker specs form', () => {
     expect(storedGroup()).toEqual({
       specs: {
         enclosure: 'sealed',
-        driverDiameter: 0.3048,
+        driverDiameter: 12 * 0.0254,
         rmsWatts: 300,
         peakWatts: 600,
       },
@@ -251,7 +241,7 @@ describe('speaker specs form', () => {
         null,
         {
           enclosure: 'ported',
-          driverDiameter: 0.3048,
+          driverDiameter: 12 * 0.0254,
           rmsWatts: 450,
           peakWatts: 600,
         },

@@ -55,9 +55,9 @@ export {
 } from './share-link'
 export {
   formatLength,
-  formatSmallLength,
-  fromSmallUnit,
-  toSmallUnit,
+  formatInches,
+  fromInches,
+  toInches,
   UNIT_SYSTEM_NAMES,
   UNIT_SYSTEMS,
   type LengthPart,

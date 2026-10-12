@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatInches,
   formatLength,
-  formatSmallLength,
-  fromSmallUnit,
-  toSmallUnit,
+  fromInches,
+  toInches,
   UNIT_SYSTEMS,
   type Rounding,
 } from '@/domain'
@@ -144,36 +144,30 @@ describe('formatting a length for the chosen units', () => {
   })
 })
 
-describe('small lengths, such as a driver size', () => {
-  it('are written in centimeters (metric) or inches (imperial), to the nearest tenth', () => {
-    expect(metric.smallUnit).toEqual({ unit: 'cm', meters: 0.01 })
-    expect(imperial.smallUnit).toEqual({ unit: 'in', meters: 0.0254 })
-    // A 12 in driver: 30.48 cm
-    expect(toSmallUnit(0.3048, 'metric')).toBe(30.5)
-    expect(toSmallUnit(0.3048, 'imperial')).toBe(12)
-    expect(toSmallUnit(0.254, 'imperial')).toBe(10)
+describe('driver sizes, which are sold by the inch', () => {
+  it('are written in inches to the nearest tenth, whatever the units', () => {
+    expect(toInches(0.3048)).toBe(12)
+    expect(toInches(0.254)).toBe(10)
+    // 30 cm = 11.81 in
+    expect(toInches(0.3)).toBe(11.8)
   })
 
-  it('are read back in meters', () => {
-    expect(fromSmallUnit(30, 'metric')).toBeCloseTo(0.3, 12)
-    expect(fromSmallUnit(12, 'imperial')).toBeCloseTo(0.3048, 12)
+  it('are read back in meters, with the exact inch', () => {
+    expect(fromInches(12)).toBeCloseTo(0.3048, 12)
+    expect(fromInches(1)).toBeCloseTo(0.0254, 12)
   })
 
-  it('round-trips every 0.1 in from 1 to 30 in', () => {
+  it('round-trip every 0.1 in from 1 to 30 in', () => {
     for (const tenths of range(10, 300, 1)) {
       const inches = tenths / 10
-      expect(toSmallUnit(fromSmallUnit(inches, 'imperial'), 'imperial')).toBe(
-        inches,
-      )
+      expect(toInches(fromInches(inches))).toBe(inches)
     }
   })
 
   it('can be formatted, rounding up or down so a shown limit stays inside its range', () => {
-    expect(formatSmallLength(0.3048, 'imperial')).toBe('12 in')
-    expect(formatSmallLength(0.3048, 'metric')).toBe('30.5 cm')
-    // 6 in = 15.24 cm and 24 in = 60.96 cm
-    expect(formatSmallLength(0.1524, 'metric', 'up')).toBe('15.3 cm')
-    expect(formatSmallLength(0.6096, 'metric', 'down')).toBe('60.9 cm')
-    expect(formatSmallLength(0.1524, 'imperial', 'up')).toBe('6 in')
+    expect(formatInches(0.3048)).toBe('12 in')
+    // 0.15 m = 5.906 in, 0.61 m = 24.016 in
+    expect(formatInches(0.15, 'up')).toBe('6 in')
+    expect(formatInches(0.61, 'down')).toBe('24 in')
   })
 })

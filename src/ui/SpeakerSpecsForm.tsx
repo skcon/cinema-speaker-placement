@@ -1,7 +1,9 @@
 import { useId, useState } from 'react'
 import {
   checkSubwooferSpec,
+  DEFAULT_SUBWOOFER_SPECS,
   ENCLOSURES,
+  formatInches,
   SUBWOOFER_COUNTS,
   type Enclosure,
   type SubwooferNumber,
@@ -20,6 +22,7 @@ import {
   SUBWOOFER_SPEC_FIELDS,
   SUBWOOFER_SPEC_TEXT,
   subwooferSpecErrorMessage,
+  formatWatts,
   type SubwooferSpecDrafts,
 } from '@/ui/lib/subwoofer-specs'
 
@@ -55,13 +58,23 @@ function SubwooferGroupSpecs() {
       <legend className="mb-1.5 text-sm font-medium">Subwoofers</legend>
       <SubwooferSpecsFields target="group" specs={specs} />
       <p className="text-xs text-muted-foreground">
-        Starting values are ours: a typical sealed 12&nbsp;in subwoofer with a
-        300&nbsp;W RMS (600&nbsp;W peak) amplifier, not a measured product.
-        Specs aren&rsquo;t used in any estimate yet.
+        {DEFAULTS_NOTE} Specs aren&rsquo;t used in any estimate yet.
       </p>
     </fieldset>
   )
 }
+
+/** Says where the starting specs come from, written from the defaults themselves. */
+const DEFAULTS_NOTE = (() => {
+  const { enclosure, driverDiameter, rmsWatts, peakWatts } =
+    DEFAULT_SUBWOOFER_SPECS
+  return (
+    `Starting values are ours: a ${ENCLOSURE_LABELS[enclosure].toLowerCase()} ` +
+    `${formatInches(driverDiameter)} subwoofer with a ${formatWatts(rmsWatts)} ` +
+    `RMS (${formatWatts(peakWatts)} peak) amplifier, typical of home theater ` +
+    `subwoofers, not a measured product.`
+  )
+})()
 
 /** A switch per subwoofer for specs of its own, with its fields when on. */
 function OwnSubwooferSpecs() {
@@ -110,13 +123,13 @@ function OwnSubwooferSpecs() {
 }
 
 /**
- * One set of subwoofer specs: the enclosure, and the numbers as text in the
- * chosen units. A valid number goes straight to the store; an invalid one
- * stays in its field with an inline error while the store keeps the last
- * valid specs. Peak and RMS power are checked against each other as typed,
- * so fixing one can make the other valid, and then both are stored. When
- * the stored specs or the units change elsewhere, the fields start over
- * from the stored specs.
+ * One set of subwoofer specs: the enclosure, and the numbers as text (the
+ * driver size in inches whatever the units, as drivers are sold by the
+ * inch). A valid number goes straight to the store; an invalid one stays
+ * in its field with an inline error while the store keeps the last valid
+ * specs. Peak and RMS power are checked against each other as typed, so
+ * fixing one can make the other valid, and then both are stored. When the
+ * stored specs change elsewhere, the fields start over from them.
  */
 function SubwooferSpecsFields({
   target,
@@ -125,33 +138,24 @@ function SubwooferSpecsFields({
   target: 'group' | SubwooferNumber
   specs: SubwooferSpecs
 }) {
-  const units = useConfig((state) => state.config.units)
   const setSubwooferSpecs = useConfig((state) => state.setSubwooferSpecs)
-  const [drafts, setDrafts] = useState(() => draftsFromSpecs(specs, units))
-  const [seenInStore, setSeenInStore] = useState({ specs, units })
+  const [drafts, setDrafts] = useState(() => draftsFromSpecs(specs))
+  const [seenInStore, setSeenInStore] = useState(specs)
   const enclosureLabelId = useId()
   const idPrefix = useId()
 
   // Adjust state while rendering, as RoomDimensionField does.
-  if (seenInStore.specs !== specs || seenInStore.units !== units) {
-    setSeenInStore({ specs, units })
-    setDrafts(
-      reseedDrafts(
-        drafts,
-        seenInStore.specs,
-        specs,
-        units,
-        seenInStore.units !== units,
-      ),
-    )
+  if (seenInStore !== specs) {
+    setSeenInStore(specs)
+    setDrafts(reseedDrafts(drafts, seenInStore, specs))
   }
 
-  const typed = specsFromDrafts(drafts, specs, units)
+  const typed = specsFromDrafts(drafts, specs)
 
   function update(field: SubwooferSpecField, text: string) {
     const next: SubwooferSpecDrafts = { ...drafts, [field]: text }
     setDrafts(next)
-    const accepted = acceptedSpecs(specsFromDrafts(next, specs, units), specs)
+    const accepted = acceptedSpecs(specsFromDrafts(next, specs), specs)
     if (SUBWOOFER_SPEC_FIELDS.some((f) => accepted[f] !== specs[f])) {
       setSubwooferSpecs(target, accepted)
     }
@@ -193,10 +197,10 @@ function SubwooferSpecsFields({
         return (
           <SpecField
             key={field}
-            label={`${SUBWOOFER_SPEC_TEXT[field].label} (${SUBWOOFER_SPEC_TEXT[field].unit(units)})`}
+            label={`${SUBWOOFER_SPEC_TEXT[field].label} (${SUBWOOFER_SPEC_TEXT[field].unit})`}
             value={drafts[field]}
             onChange={(text) => update(field, text)}
-            error={problem && subwooferSpecErrorMessage(field, problem, units)}
+            error={problem && subwooferSpecErrorMessage(field, problem)}
           />
         )
       })}

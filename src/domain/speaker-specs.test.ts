@@ -16,7 +16,7 @@ describe('default subwoofer specs', () => {
   it('are a sealed 12 in subwoofer with 300 W RMS and 600 W peak', () => {
     expect(DEFAULT_SUBWOOFER_SPECS).toEqual({
       enclosure: 'sealed',
-      driverDiameter: 0.3048,
+      driverDiameter: 12 * INCH,
       rmsWatts: 300,
       peakWatts: 600,
     })

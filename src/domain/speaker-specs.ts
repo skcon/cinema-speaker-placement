@@ -9,7 +9,7 @@
  * nothing here does any acoustics with them.
  */
 import { checkRange, type AcceptedRange, type RangeProblem } from './range'
-import { fromSmallUnit } from './units'
+import { fromInches } from './units'
 
 /** How a subwoofer's driver is loaded: a closed box or a box with a port. */
 export const ENCLOSURES = ['sealed', 'ported'] as const
@@ -19,7 +19,10 @@ export type Enclosure = (typeof ENCLOSURES)[number]
 /** What the app knows about a subwoofer model. Lengths in meters. */
 export type SubwooferSpecs = {
   readonly enclosure: Enclosure
-  /** The driver's nominal diameter, in meters (a 12 in driver is 0.3048 m). */
+  /**
+   * The driver's nominal diameter, in meters. Drivers are sold by the inch,
+   * so the UI shows it in inches in both unit systems.
+   */
   readonly driverDiameter: number
   /** The amplifier's continuous (RMS) power, in watts. */
   readonly rmsWatts: number
@@ -54,7 +57,7 @@ export type SubwooferSpecField = 'driverDiameter' | 'rmsWatts' | 'peakWatts'
  */
 export const DEFAULT_SUBWOOFER_SPECS = {
   enclosure: 'sealed',
-  driverDiameter: 0.3048,
+  driverDiameter: fromInches(12),
   rmsWatts: 300,
   peakWatts: 600,
 } as const satisfies SubwooferSpecs
@@ -71,8 +74,8 @@ export const DEFAULT_SPEAKER_GROUPS = {
  */
 const SUBWOOFER_SPEC_LIMITS = {
   driverDiameter: {
-    min: fromSmallUnit(6, 'imperial'),
-    max: fromSmallUnit(24, 'imperial'),
+    min: fromInches(6),
+    max: fromInches(24),
   },
   rmsWatts: { min: 10, max: 10_000 },
   peakWatts: { min: 10, max: 20_000 },

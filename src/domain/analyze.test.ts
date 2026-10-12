@@ -25,7 +25,8 @@ describe('the default config', () => {
         subwoofers: {
           specs: {
             enclosure: 'sealed',
-            driverDiameter: 0.3048,
+            // 12 in
+            driverDiameter: 12 * 0.0254,
             rmsWatts: 300,
             peakWatts: 600,
           },

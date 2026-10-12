@@ -1,14 +1,12 @@
 import {
   checkSubwooferSpec,
-  formatSmallLength,
-  fromSmallUnit,
-  toSmallUnit,
-  UNIT_SYSTEMS,
+  formatInches,
+  fromInches,
+  toInches,
   type Rounding,
   type SubwooferSpecField,
   type SubwooferSpecProblem,
   type SubwooferSpecs,
-  type UnitSystem,
 } from '@/domain'
 import { parseDecimal } from '@/ui/lib/decimal'
 
@@ -25,27 +23,23 @@ type SpecText = {
   readonly label: string
   /** The label as it reads mid-sentence, for example "driver size". */
   readonly noun: string
-  /** The unit the field is in, for example "cm" or "W". */
-  readonly unit: (units: UnitSystem) => string
+  /** The unit the field is in: "in" or "W". */
+  readonly unit: string
   /** The stored value as the field's starting text. */
-  readonly toText: (value: number, units: UnitSystem) => string
+  readonly toText: (value: number) => string
   /** The value a field's text describes, in the stored unit; NaN if it is not a number. */
-  readonly fromText: (text: string, units: UnitSystem) => number
+  readonly fromText: (text: string) => number
   /** The value with its unit, for messages. */
-  readonly format: (
-    value: number,
-    units: UnitSystem,
-    rounding?: Rounding,
-  ) => string
+  readonly format: (value: number, rounding?: Rounding) => string
 }
 
 /** Watts with thousands separators, for example "10,000 W". */
-function formatWatts(watts: number): string {
+export function formatWatts(watts: number): string {
   return `${watts.toLocaleString('en-US')} W`
 }
 
 const WATTS = {
-  unit: () => 'W',
+  unit: 'W',
   toText: (watts) => String(watts),
   fromText: (text) => parseDecimal(text),
   format: (watts) => formatWatts(watts),
@@ -53,17 +47,17 @@ const WATTS = {
 
 /**
  * The numeric subwoofer specs as text. The driver size is stored in meters
- * and shown in the unit system's small unit (cm or in); power is in watts.
+ * and shown in inches in both unit systems, as drivers are sold by the
+ * inch; power is in watts.
  */
 export const SUBWOOFER_SPEC_TEXT: Record<SubwooferSpecField, SpecText> = {
   driverDiameter: {
     label: 'Driver size',
     noun: 'driver size',
-    unit: (units) => UNIT_SYSTEMS[units].smallUnit.unit,
-    toText: (meters, units) => String(toSmallUnit(meters, units)),
-    fromText: (text, units) => fromSmallUnit(parseDecimal(text), units),
-    format: (meters, units, rounding) =>
-      formatSmallLength(meters, units, rounding),
+    unit: 'in',
+    toText: (meters) => String(toInches(meters)),
+    fromText: (text) => fromInches(parseDecimal(text)),
+    format: (meters, rounding) => formatInches(meters, rounding),
   },
   rmsWatts: { label: 'RMS power', noun: 'RMS power', ...WATTS },
   peakWatts: { label: 'Peak power', noun: 'peak power', ...WATTS },
@@ -73,36 +67,31 @@ export const SUBWOOFER_SPEC_TEXT: Record<SubwooferSpecField, SpecText> = {
 export type SubwooferSpecDrafts = Record<SubwooferSpecField, string>
 
 /** The text each spec field starts with. */
-export function draftsFromSpecs(
-  specs: SubwooferSpecs,
-  units: UnitSystem,
-): SubwooferSpecDrafts {
+export function draftsFromSpecs(specs: SubwooferSpecs): SubwooferSpecDrafts {
   return {
     driverDiameter: SUBWOOFER_SPEC_TEXT.driverDiameter.toText(
       specs.driverDiameter,
-      units,
     ),
-    rmsWatts: SUBWOOFER_SPEC_TEXT.rmsWatts.toText(specs.rmsWatts, units),
-    peakWatts: SUBWOOFER_SPEC_TEXT.peakWatts.toText(specs.peakWatts, units),
+    rmsWatts: SUBWOOFER_SPEC_TEXT.rmsWatts.toText(specs.rmsWatts),
+    peakWatts: SUBWOOFER_SPEC_TEXT.peakWatts.toText(specs.peakWatts),
   }
 }
 
 /**
  * The specs the drafts describe, with the enclosure as stored. A field
  * still showing its stored value's text counts as the stored value, so an
- * untouched driver size (30.5 cm for 0.3048 m) isn't rounded on its way
- * back. Unreadable numbers are NaN.
+ * untouched driver size isn't rounded on its way back. Unreadable numbers
+ * are NaN.
  */
 export function specsFromDrafts(
   drafts: SubwooferSpecDrafts,
   stored: SubwooferSpecs,
-  units: UnitSystem,
 ): SubwooferSpecs {
-  const untouched = draftsFromSpecs(stored, units)
+  const untouched = draftsFromSpecs(stored)
   const value = (field: SubwooferSpecField) =>
     drafts[field] === untouched[field]
       ? stored[field]
-      : SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field], units)
+      : SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field])
   return {
     enclosure: stored.enclosure,
     driverDiameter: value('driverDiameter'),
@@ -112,26 +101,21 @@ export function specsFromDrafts(
 }
 
 /**
- * Drafts brought back in line with the stored specs after they changed.
- * After switching units every field starts over. Otherwise a field starts
- * over only when its stored value changed to something it doesn't
- * describe (a share link, say): after the user's own edit it keeps what
- * they typed ("12.0"), and a field with an invalid entry keeps it while
- * another field is stored.
+ * Drafts brought back in line with the stored specs after they changed. A
+ * field starts over only when its stored value changed to something it
+ * doesn't describe (a share link, say): after the user's own edit it keeps
+ * what they typed ("12.0"), and a field with an invalid entry keeps it
+ * while another field is stored.
  */
 export function reseedDrafts(
   drafts: SubwooferSpecDrafts,
   previous: SubwooferSpecs,
   stored: SubwooferSpecs,
-  units: UnitSystem,
-  unitsChanged: boolean,
 ): SubwooferSpecDrafts {
-  const fresh = draftsFromSpecs(stored, units)
+  const fresh = draftsFromSpecs(stored)
   const keep = (field: SubwooferSpecField) =>
-    !unitsChanged &&
-    (previous[field] === stored[field] ||
-      SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field], units) ===
-        stored[field])
+    previous[field] === stored[field] ||
+    SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field]) === stored[field]
   return {
     driverDiameter: keep('driverDiameter')
       ? drafts.driverDiameter
@@ -163,7 +147,6 @@ export function acceptedSpecs(
 export function subwooferSpecErrorMessage(
   field: SubwooferSpecField,
   problem: SubwooferSpecProblem,
-  units: UnitSystem,
 ): string {
   const { label, noun, format } = SUBWOOFER_SPEC_TEXT[field]
   switch (problem.problem) {
@@ -172,7 +155,7 @@ export function subwooferSpecErrorMessage(
     case 'too-small':
     case 'too-large':
       // Round the limits inward so the numbers shown are themselves accepted.
-      return `${label} must be between ${format(problem.min, units, 'up')} and ${format(problem.max, units, 'down')}.`
+      return `${label} must be between ${format(problem.min, 'up')} and ${format(problem.max, 'down')}.`
     case 'peak-below-rms':
       return `Peak power can't be below the RMS power (${formatWatts(problem.rmsWatts)}).`
     case 'rms-above-peak':

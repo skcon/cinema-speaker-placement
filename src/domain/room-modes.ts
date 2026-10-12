@@ -7,10 +7,7 @@
  * along the three dimensions, with its maxima at the walls.
  */
 import type { Complex } from './complex'
-import {
-  LOW_FREQUENCY_REVERBERATION_TIME,
-  SPEED_OF_SOUND,
-} from './reference'
+import { LOW_FREQUENCY_REVERBERATION_TIME, SPEED_OF_SOUND } from './reference'
 import type { Room, RoomPoint } from './room'
 
 /** How many walls a mode bounces between: one pair, two pairs or all three. */
@@ -108,7 +105,8 @@ export function roomModeTransfer({
     const normalisation = (volume / 8) * 2 ** zeroIndices
     return {
       weight:
-        (modeShape(room, indices, source) * modeShape(room, indices, receiver)) /
+        (modeShape(room, indices, source) *
+          modeShape(room, indices, receiver)) /
         normalisation,
       squared: frequency * frequency,
       damping: bandwidth * frequency,

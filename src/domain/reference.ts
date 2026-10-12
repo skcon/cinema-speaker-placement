@@ -13,9 +13,7 @@
  * unique across the files.
  */
 export type SourceKey =
-  | DolbySourceKey
-  | SubwooferSourceKey
-  | LowFrequencySourceKey
+  DolbySourceKey | SubwooferSourceKey | LowFrequencySourceKey
 
 /** docs/research/low-frequency-response.md, section 1. */
 type LowFrequencySourceKey = 'MHA' | 'KUTTRUFF' | 'AES-8994'

@@ -109,7 +109,9 @@ describe('the pressure a source makes at a receiver through the room modes', () 
     const frequencies = sweep(5, 18, 0.01)
     const response = levels(atFrontWall, atBackWall, frequencies)
     const top = Math.max(...response)
-    const withinHalfPower = frequencies.filter((_, i) => response[i]! >= top - 3)
+    const withinHalfPower = frequencies.filter(
+      (_, i) => response[i]! >= top - 3,
+    )
     const width = withinHalfPower.at(-1)! - withinHalfPower[0]!
 
     expect(width).toBeGreaterThan(2.2 / 0.5 - 0.5)
@@ -129,10 +131,10 @@ describe('the pressure a source makes at a receiver through the room modes', () 
     const receiver = { x: 0.3, y: 9.7, z: 1.2 }
     const frequencies = sweep(20, 60, 5)
 
-    expect(levels(receiver, source, frequencies)).toEqual(
-      levels(source, receiver, frequencies).map((level) =>
-        expect.closeTo(level, 9),
-      ),
-    )
+    const forward = levels(source, receiver, frequencies)
+    const backward = levels(receiver, source, frequencies)
+
+    expect(backward).toHaveLength(frequencies.length)
+    backward.forEach((level, i) => expect(level).toBeCloseTo(forward[i]!, 9))
   })
 })

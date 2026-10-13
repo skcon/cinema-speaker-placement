@@ -105,6 +105,15 @@ describe('share link codec', () => {
     )
   })
 
+  it.each([40, 80, 117.5, 200])('rebuilds a %d Hz crossover', (crossoverHz) => {
+    const config: Config = { ...DEFAULT_CONFIG, crossoverHz }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config,
+      problem: null,
+    })
+  })
+
   it.each(TARGET_CURVE_KINDS)('rebuilds the %s target curve', (targetCurve) => {
     const config: Config = { ...DEFAULT_CONFIG, targetCurve }
 
@@ -251,6 +260,10 @@ describe('share link codec', () => {
           ownSpecs: {},
         }),
       ],
+      ['a crossover below 40 Hz', { ...DEFAULT_CONFIG, crossoverHz: 39 }],
+      ['a crossover above 200 Hz', { ...DEFAULT_CONFIG, crossoverHz: 250 }],
+      ['a crossover that is text', { ...DEFAULT_CONFIG, crossoverHz: '80' }],
+      ['no crossover', (({ crossoverHz: _, ...rest }) => rest)(DEFAULT_CONFIG)],
       [
         'an unknown enclosure',
         withSubwooferGroup({
@@ -372,6 +385,8 @@ const WORST_CASE_CONFIG: Config = {
   },
   // The longer of the two names.
   targetCurve: 'house',
+  // All 17 significant digits.
+  crossoverHz: 199 - 1 / 7,
 }
 
 /** Where the app is published (GitHub Pages, see pages.config.ts). */

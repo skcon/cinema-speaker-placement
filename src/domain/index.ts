@@ -18,6 +18,11 @@ export type {
 export type { ResponseDeviation, ResponseSummary } from './response-summary'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
+  checkCrossover,
+  DEFAULT_CROSSOVER_HZ,
+  type CrossoverProblem,
+} from './crossover'
+export {
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,

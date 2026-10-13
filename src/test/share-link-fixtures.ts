@@ -7,7 +7,8 @@
 /**
  * An 8 x 5 x 3 m room in imperial (26 ft 3 in x 16 ft 4.9 in x 9 ft 10.1 in)
  * with a 7.2.4 layout, ported 15 in subwoofers, Subwoofer 2 a sealed
- * 12 in model as its own specs and the house curve: nothing at its default.
+ * 12 in model as its own specs, the house curve and a 100 Hz crossover:
+ * nothing at its default.
  */
 export const IMPERIAL_ROOM = {
   units: 'imperial',
@@ -32,6 +33,7 @@ export const IMPERIAL_ROOM = {
     },
   },
   targetCurve: 'house',
+  crossoverHz: 100,
 } as const
 
 /**
@@ -39,7 +41,7 @@ export const IMPERIAL_ROOM = {
  * with the config each one holds. Once version 1 is released, never edit
  * these: if one stops opening, links people already shared no longer open,
  * and the schema change needs a new version and a migration (ADR 0003).
- * Two sit on the edges of the room and subwoofer spec ranges, so
+ * Two sit on the edges of the room, subwoofer spec and crossover ranges, so
  * tightening the limits breaks a test instead of quietly rejecting old
  * links.
  */
@@ -47,11 +49,11 @@ export const V1_LINKS = {
   /**
    * 24 x 15 x 9 ft (7.3152 x 4.572 x 2.7432 m) in imperial, 7.2.2, ported
    * 13 in subwoofers with Subwoofer 2 a sealed 10 in model as its own
-   * specs, and the house curve.
+   * specs, the house curve and a 120 Hz crossover.
    */
   imperialRoom: {
     encoded:
-      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGZoAVgBM8AO4YAJiKgAWCbLGKQw2tmFEo8iWM1T5AX3gsmATyR5TkUKqQsARo4AyTi5uIJLQEvLsICR43kpcaAxkkLbwJHRMANYMAOKceNRJoNGx8Ym8abQIhSACCCxI0fS05NRI9ES0qpGqjGAMACLMlLQd9FAADNJS4-r0lCQA6kxEpFqy4-DpGUsrSQCc4+N2IEhKKADKdFW85zER7jUodQ14TeQktKyd3b0DQyMMCbhWSaDjzHarZLrTafbbLSHrI42ZHwIhMehYEYAYVefXIwhcHxAyKAA',
+      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGZoAVgBM8AO4YAJiKgAWCbLGKQw2tmFEo8iWM1T5AX3gsmATyR5TkUKqQsARo4AyTi5uIJLQEvLsICR43kpcaAxkkLbwJHRMANYMAOKceNRJoNGx8Ym8abQIhSACCCxI0fS05NRI9ES0qpGqjGAMACLMlLQd9FAADNJS4-r0lCQA6kxEpFqy4-DpGUsrSQCc4+N2IEhKKADKdFW85zER7jUodQ14TeQktKyd3b0DQyMMCbhWSaDjzHarZLrTafbbLSHrI42ZHwIhMehYEYAYVefXIwhcH0iCE4JBISD69AAEgAvKDQeRIoA',
     config: {
       units: 'imperial',
       room: { length: 7.3152, width: 4.572, height: 2.7432 },
@@ -75,15 +77,17 @@ export const V1_LINKS = {
         },
       },
       targetCurve: 'house',
+      crossoverHz: 120,
     },
   },
   /**
    * The smallest room accepted, 2 x 2 x 2 m, with 2.1 and the smallest
-   * subwoofer specs accepted: 6 in, 10 W RMS and peak.
+   * subwoofer specs accepted (6 in, 10 W RMS and peak), and the lowest
+   * crossover accepted, 40 Hz.
    */
   smallestRoom: {
     encoded:
-      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAsoAJngB3DABMBw+PyrZ+RYQF94nAIYBPJHiWRQEpJwBGmgDJadekEIB00JiBJ5jo1miq0yMVU4AOVOoA1p4A4ix4ft6gzq7untH+VAiJPAicSM60VOQkgdwSjhL0YJ4AIhjq1ESeUAAM9gCsQgDMAJwdnV0dABzMFCQA6upEpFDQdfABwcOj3hO+SKIoAMoBKbjKW-BE6rRYNADCeLSl5GgaSltAA',
+      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAsoAJngB3DABMBw+PyrZ+RYQF94nAIYBPJHiWRQEpJwBGmgDJadekEIB00JiBJ5jo1miq0yMVU4AOVOoA1p4A4ix4ft6gzq7untH+VAiJPAicSM60VOQkgdwSjhL0YJ4AIhjq1ESeUAAM9gCsQgDMAJwdnV0dABzMFCQA6upEpFDQdfABwcOj3hO+SKIoAMoBKbjKW-BE6rRYNADCeLSl5GgaSvAILCQkSKW0ABIAXlAALHVbQA',
     config: {
       units: 'metric',
       room: { length: 2, width: 2, height: 2 },
@@ -100,16 +104,18 @@ export const V1_LINKS = {
         },
       },
       targetCurve: 'flat',
+      crossoverHz: 40,
     },
   },
   /**
    * The largest room accepted, 15 x 15 x 5 m, with 7.4.4 and the largest
    * subwoofer specs accepted (24 in, 10,000 W RMS, 20,000 W peak), Subwoofer
-   * 4 with them as its own, and the house curve.
+   * 4 with them as its own, the house curve and the highest crossover
+   * accepted, 200 Hz.
    */
   largestRoom: {
     encoded:
-      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAso0AKzwA7hgAmAoaJD8q2fkSjCAvvE4BDAJ5I8KyKElJOAIx0AZXfsMgA7ADpojgCxMQJPGbGs0VWjJIVw1PAAcqLQBrAIBxFjwwoNAvHz8A5PCqBEyeBE4kL1oqcjCkWiIqSQ9JejAAgBEMLWpK2igABkcANg6ATmE+oeGRoeYKEgB1LSJSIQ6FjvgI6OnZoIAmRY7QpDEUAGUInI4D73cjEDyCopLIT0juavhajHraJpaaAM6e-sHRoDxlMZnMYNtlpEomswVtFmoEaEiFpaFgaABhPC0erkfj6EglBFAA',
+      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAso0AKzwA7hgAmAoaJD8q2fkSjCAvvE4BDAJ5I8KyKElJOAIx0AZXfsMgA7ADpojgCxMQJPGbGs0VWjJIVw1PAAcqLQBrAIBxFjwwoNAvHz8A5PCqBEyeBE4kL1oqcjCkWiIqSQ9JejAAgBEMLWpK2igABkcANg6ATmE+oeGRoeYKEgB1LSJSIQ6FjvgI6OnZoIAmRY7QpDEUAGUInI4D73cjEDyCopLIT0juavhajHraJpaaAM6e-sHRoDxlMZnMYNtlpEomswVtFmoEaEiFpaFgaABhPC0erkfj6EgleAIFgkEhId4ACQAXlA4QigA',
     config: {
       units: 'metric',
       room: { length: 15, width: 15, height: 5 },
@@ -133,6 +139,7 @@ export const V1_LINKS = {
         },
       },
       targetCurve: 'house',
+      crossoverHz: 200,
     },
   },
 } as const

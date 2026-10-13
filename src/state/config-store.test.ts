@@ -119,6 +119,29 @@ describe('target curve', () => {
   })
 })
 
+describe('crossover', () => {
+  it('starts at 80 Hz and takes any frequency from 40 to 200 Hz, keeping the rest of the config', () => {
+    expect(createConfigStore().getState().config.crossoverHz).toBe(80)
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setCrossover(60)
+    expect(store.getState().config).toEqual({
+      ...IMPERIAL_ROOM,
+      crossoverHz: 60,
+    })
+    store.getState().setCrossover(200)
+    expect(store.getState().config.crossoverHz).toBe(200)
+  })
+
+  it.each([39, 201, Number.NaN])('ignores %d Hz', (hz) => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setCrossover(hz)
+
+    expect(store.getState().config).toBe(IMPERIAL_ROOM)
+  })
+})
+
 describe('subwoofers', () => {
   const PORTED_15 = {
     enclosure: 'ported',

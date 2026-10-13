@@ -1,6 +1,7 @@
 import { createStore } from 'zustand/vanilla'
 import {
   areValidSubwooferSpecs,
+  checkCrossover,
   checkRoomDimension,
   decodeConfig,
   DEFAULT_CONFIG,
@@ -62,6 +63,11 @@ export type ConfigState = {
   ) => void
   /** Compare the estimated response against the flat or the house curve. */
   setTargetCurve: (targetCurve: TargetCurveKind) => void
+  /**
+   * Set the crossover between the Speakers and the Subwoofers, in Hz.
+   * Out-of-range values are ignored.
+   */
+  setCrossover: (crossoverHz: number) => void
   /**
    * Put every speaker back at its auto-placed position. Manual positions
    * arrive with #9: then this sets every channel back to auto, dropping the
@@ -181,6 +187,10 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
     },
     setTargetCurve: (targetCurve) =>
       set(({ config }) => ({ config: { ...config, targetCurve } })),
+    setCrossover: (crossoverHz) => {
+      if (checkCrossover(crossoverHz) !== null) return
+      set(({ config }) => ({ config: { ...config, crossoverHz } }))
+    },
     autoPlace: () => {},
     openEncodedConfig: (encoded) => {
       const { config, problem } =

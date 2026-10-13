@@ -110,6 +110,83 @@ export function wallBases(room: Room): Record<Wall, RoomSegment> {
   }
 }
 
+/** The walls, clockwise seen from above, starting at the front wall. */
+export const WALLS = [
+  'front',
+  'right',
+  'back',
+  'left',
+] as const satisfies readonly Wall[]
+
+/** How far a point is from a wall, in meters, measured along the floor. */
+export function distanceToWall(
+  { length, width }: Room,
+  { x, y }: RoomPoint,
+  wall: Wall,
+): number {
+  switch (wall) {
+    case 'front':
+      return y
+    case 'back':
+      return length - y
+    case 'left':
+      return x + width / 2
+    case 'right':
+      return width / 2 - x
+  }
+}
+
+/** The wall a point is closest to (the first, clockwise from the front wall, on a tie). */
+export function nearestWall(room: Room, point: RoomPoint): Wall {
+  return WALLS.reduce((nearest, wall) =>
+    distanceToWall(room, point, wall) < distanceToWall(room, point, nearest)
+      ? wall
+      : nearest,
+  )
+}
+
+/** A point's distance to one wall, in meters. */
+export type WallDistance = { wall: Wall; meters: number }
+
+/**
+ * How far a point is from the walls nearest to it: the nearer side wall
+ * (left or right) and the nearer end wall (front or back). Where it is
+ * halfway, the left and front walls count as nearer.
+ */
+export function wallDistances(
+  room: Room,
+  point: RoomPoint,
+): { across: WallDistance; along: WallDistance } {
+  const nearer = (a: Wall, b: Wall): WallDistance => {
+    const toA = distanceToWall(room, point, a)
+    const toB = distanceToWall(room, point, b)
+    return toB < toA ? { wall: b, meters: toB } : { wall: a, meters: toA }
+  }
+  return { across: nearer('left', 'right'), along: nearer('front', 'back') }
+}
+
+/**
+ * The point moved straight toward or away from `wall` until it is `meters`
+ * from it; the other coordinates stay.
+ */
+export function atDistanceFromWall(
+  { length, width }: Room,
+  point: RoomPoint,
+  wall: Wall,
+  meters: number,
+): RoomPoint {
+  switch (wall) {
+    case 'front':
+      return { ...point, y: meters }
+    case 'back':
+      return { ...point, y: length - meters }
+    case 'left':
+      return { ...point, x: meters - width / 2 }
+    case 'right':
+      return { ...point, x: width / 2 - meters }
+  }
+}
+
 const DEGREES_PER_RADIAN = 180 / Math.PI
 
 /**

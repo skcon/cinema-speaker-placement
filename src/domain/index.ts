@@ -18,6 +18,19 @@ export type {
 export type { ResponseDeviation, ResponseSummary } from './response-summary'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
+  placeAtWallDistance,
+  placeManually,
+  withAutoPlacement,
+  withLayout,
+  withRoom,
+} from './config-edits'
+export {
+  MLP_ID,
+  type ManualPositions,
+  type PlaceableId,
+  type Placement,
+} from './manual-positions'
+export {
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,
@@ -49,6 +62,8 @@ export {
   type RoomPoint,
   type RoomSegment,
   type Wall,
+  type WallDistance,
+  wallDistances,
 } from './room'
 export {
   areValidSubwooferSpecs,

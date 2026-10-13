@@ -86,12 +86,20 @@ export type RoomAnalysis = {
   response: ResponseAnalysis
 }
 
+/** The channels whose Speakers make up the chart's Speakers' part. */
+const CHARTED_CHANNELS = ['L', 'R'] as const satisfies readonly ChannelId[]
+
+function isChartedChannel(channel: ChannelId): boolean {
+  return CHARTED_CHANNELS.some((charted) => charted === channel)
+}
+
 /** The domain entry point: derive the room plan from a config. */
 export function analyzeRoom({
   room,
   layout,
   speakerGroups,
   targetCurve: targetCurveKind,
+  crossoverHz,
 }: Config): RoomAnalysis {
   const mlp = defaultMlp(room)
   const { channels } = DOLBY_LAYOUTS[layout.dolbyLayout]
@@ -121,12 +129,21 @@ export function analyzeRoom({
   const frequencies = responseFrequencies()
   const prepared = prepareRoomResponse({
     room,
-    sources: subwoofers.map(({ position }) => position),
+    subwoofers: subwoofers.map(({ position, specs }) => ({
+      position,
+      enclosure: specs.enclosure,
+    })),
+    crossoverHz,
     frequencies,
   })
   const estimated = estimateResponse(
     prepared,
-    mlp,
+    {
+      receiver: mlp,
+      // The chart's Speakers' part: the Left and Right pair, which every
+      // v1 layout has. Every Speaker's own notches go in the notes.
+      speakers: speakers.filter(({ channel }) => isChartedChannel(channel)),
+    },
     targetCurve(targetCurveKind, frequencies),
   )
   return {

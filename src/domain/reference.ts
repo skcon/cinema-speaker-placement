@@ -180,16 +180,16 @@ export const LOW_FREQUENCY_REVERBERATION_TIME = {
 
 /**
  * The frequencies the estimated response covers by default, in Hz, and
- * how finely: `steps + 1` points spread evenly on a log axis. The
- * 20-200 Hz band is the room-mode range of ADR 0002; with 160 steps over
- * the decade, every 16th point is a base-10 third-octave frequency.
- * Everything downstream derives from the frequency list, so #12 can widen
- * the band here.
+ * how finely: `steps + 1` points spread evenly on a log axis. About
+ * 20-500 Hz: the room-mode range and the boundary-interference range of
+ * ADR 0002 together (issue #2, user story 40). At 160 steps per decade,
+ * every 16th point is a base-10 third-octave frequency, so the band ends
+ * on one: 20·10^1.4 ≈ 502 Hz, 224 steps.
  */
 export const RESPONSE_BAND = {
   lowestHz: 20,
-  highestHz: 200,
-  steps: 160,
+  highestHz: 20 * 10 ** 1.4,
+  steps: 224,
   note: 'Product choice from ADR 0002 and issue #2, not a cited value.',
 } as const satisfies {
   lowestHz: number
@@ -197,6 +197,38 @@ export const RESPONSE_BAND = {
   steps: number
   note: string
 }
+
+/**
+ * The highest frequency the room-mode model is worked out at, in Hz: the
+ * room-mode range of ADR 0002. Above it the subwoofers' sound is taken as
+ * flat at their level (they are mostly crossed out there), and only the
+ * Speakers' boundary interference shapes the estimate. It also keeps the
+ * modal sum to a few thousand modes in the largest room, so the seat score
+ * (#14) stays fast.
+ */
+export const ROOM_MODE_BAND = {
+  highestHz: 200,
+  note:
+    'Our modelling choice after ADR 0002: modes become too dense to ' +
+    'model one by one well above 200 Hz in a home theater.',
+} as const satisfies { highestHz: number; note: string }
+
+/**
+ * How the subwoofers' and the speakers' parts are added up at the MLP.
+ * Each part's level is set so its average over its own pass band (the
+ * subwoofers' reliable rows up to the crossover, the speakers' rows from
+ * it) is 0 dB, like a receiver's level calibration. Then the parts are
+ * added with the crossover's LR4 filters, in phase, as if the receiver's
+ * distance (delay) setting had time-aligned them: only each part's
+ * magnitude comes from the room. The room's own phase difference between
+ * the two parts is not modelled, so the crossover region is smoother than
+ * in a real room.
+ */
+export const SUBWOOFER_SPEAKER_SUM = {
+  note:
+    'Our modelling assumption, not a cited method ' +
+    '(docs/research/crossover-enclosure-boundaries.md section 5).',
+} as const satisfies { note: string }
 
 /**
  * How far above the highest frequency asked for the room-mode model still

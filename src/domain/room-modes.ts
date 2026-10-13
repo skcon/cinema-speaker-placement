@@ -88,6 +88,12 @@ export type ModalResponse = {
   /** The modes summed: up to MODE_SUM_HEADROOM × the highest frequency. */
   readonly modes: readonly RoomMode[]
   /**
+   * Per mode (in `modes` order), whether the sources excite it at some
+   * frequency: false for a mode they cancel, such as the first length
+   * mode for identical front and back sources.
+   */
+  readonly excited: readonly boolean[]
+  /**
    * The lowest mode the sources excite together (sources that cancel a
    * mode don't excite it), or undefined if none. Below it the modal sum
    * has only other modes' tails, and no room gain (left out), so it is not
@@ -107,9 +113,10 @@ const CANCELLED = 1e-9
  * room modes (the modal sum of docs/research/low-frequency-response.md
  * section 2, item 4):
  *
- *     p(f) = Σₙ ψₙ(receiver)·Σₛ ψₙ(source) / (Kₙ·(fₙ² − f² + j·B·fₙ))
+ *     p(f) = Σₙ ψₙ(receiver)·Σₛ ψₙ(source)·Hₛ(f) / (Kₙ·(fₙ² − f² + j·B·fₙ))
  *
- * where ψ is a mode's shape, K = (V/8)·2^(zero indices) its normalisation
+ * where ψ is a mode's shape, Hₛ the source's own filter (its enclosure
+ * roll-off; 1 without one), K = (V/8)·2^(zero indices) its normalisation
  * and B the modal bandwidth. Written in Hz instead of rad/s, which only
  * scales every term by the same (2π)². Symmetric in source and receiver.
  *
@@ -117,18 +124,21 @@ const CANCELLED = 1e-9
  * one multiply-add per mode and frequency: a 20 x 20 receiver grid in the
  * largest room (15 x 15 x 5 m, about 3,100 modes, 161 frequencies, 4
  * sources) takes about 0.45 s (see room-modes.test.ts).
- *
- * #12: a per-source filter (enclosure roll-off, crossover) multiplies into
- * that source's term inside Σₛ, per frequency.
  */
 export function prepareModalResponse({
   room,
   sources,
+  sourceFilters,
   frequencies,
   bandwidth = modalBandwidth(),
 }: {
   room: Room
   sources: readonly RoomPoint[]
+  /**
+   * Per source, a filter per frequency (its enclosure roll-off), or none
+   * for a source heard unfiltered.
+   */
+  sourceFilters?: readonly (readonly Complex[])[]
   frequencies: readonly number[]
   bandwidth?: number
 }): ModalResponse {
@@ -138,39 +148,48 @@ export function prepareModalResponse({
   )
   const volume = room.length * room.width * room.height
   const count = frequencies.length
-  // Per mode and frequency: Σₛ ψₙ(source) / (Kₙ·Dₙ(f)), real and imaginary.
+  // Per mode and frequency: Σₛ ψₙ(source)·Hₛ(f) / (Kₙ·Dₙ(f)), re and im.
   const re = new Float64Array(modes.length * count)
   const im = new Float64Array(modes.length * count)
   let lowestExcitedMode: RoomMode | undefined
-  modes.forEach((mode, n) => {
-    const sourceWeight = sources.reduce(
-      (sum, source) => sum + modeShape(room, mode.indices, source),
-      0,
+  const excited = modes.map((mode, n) => {
+    const shapes = sources.map((source) =>
+      modeShapeAt(room, mode.indices, source),
     )
-    if (!lowestExcitedMode && Math.abs(sourceWeight) > CANCELLED) {
-      lowestExcitedMode = mode
-    }
     const zeroIndices = 3 - NON_ZERO_INDICES[mode.kind]
-    const weight = sourceWeight / ((volume / 8) * 2 ** zeroIndices)
+    const normalisation = (volume / 8) * 2 ** zeroIndices
     const squared = mode.frequency * mode.frequency
     const damping = bandwidth * mode.frequency
+    let isExcited = false
     frequencies.forEach((f, i) => {
-      // weight / (x + jy) = weight·(x − jy) / (x² + y²)
+      // Σₛ ψₙ(source)·Hₛ(f), with Hₛ = 1 for a source without a filter.
+      let weightRe = 0
+      let weightIm = 0
+      shapes.forEach((shape, s) => {
+        const filter = sourceFilters?.[s]?.[i]
+        weightRe += shape * (filter?.re ?? 1)
+        weightIm += shape * (filter?.im ?? 0)
+      })
+      if (Math.hypot(weightRe, weightIm) > CANCELLED) isExcited = true
+      // weight / (K·(x + jy)) = weight·(x − jy) / (K·(x² + y²))
       const x = squared - f * f
-      const scale = weight / (x * x + damping * damping)
-      re[n * count + i] = scale * x
-      im[n * count + i] = -scale * damping
+      const scale = 1 / (normalisation * (x * x + damping * damping))
+      re[n * count + i] = scale * (weightRe * x + weightIm * damping)
+      im[n * count + i] = scale * (weightIm * x - weightRe * damping)
     })
+    if (!lowestExcitedMode && isExcited) lowestExcitedMode = mode
+    return isExcited
   })
 
   return {
     modes,
+    excited,
     lowestExcitedMode,
     pressureAt: (receiver) => {
       const sumRe = new Float64Array(count)
       const sumIm = new Float64Array(count)
       modes.forEach((mode, n) => {
-        const shape = modeShape(room, mode.indices, receiver)
+        const shape = modeShapeAt(room, mode.indices, receiver)
         const offset = n * count
         for (let i = 0; i < count; i++) {
           sumRe[i]! += shape * re[offset + i]!
@@ -187,7 +206,7 @@ export function prepareModalResponse({
  * nodal planes. Room coordinates put x = 0 on the center line, so x is
  * shifted to start at the left wall.
  */
-function modeShape(
+export function modeShapeAt(
   room: Room,
   indices: RoomModeIndices,
   { x, y, z }: RoomPoint,

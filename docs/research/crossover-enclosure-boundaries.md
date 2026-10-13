@@ -29,7 +29,7 @@ Researched 2026-10-13 for issue #12 (boundary interference, crossover, roll-off 
 
 ## 4. Boundary interference (SBIR)
 
-- **Three nearest boundaries** (ALLISON-1974, through its abstract and STRUCK-2016): Allison showed, by theory and measurement, that the floor and walls nearest a loudspeaker change its low-frequency output by several dB depending on placement. STRUCK-2016 reproduces his figure for up to three mutually perpendicular boundaries and puts the response dip, when the boundary distance approaches a quarter wavelength, down to earlier work (Waterhouse, 1955, not read).
+- **Three nearest boundaries** (ALLISON-1974, through its abstract and STRUCK-2016): Allison showed, by theory and measurement, that the floor and walls nearest a loudspeaker change its low-frequency output by several dB depending on placement. STRUCK-2016 reproduces his figure 8 (as STRUCK-2016 numbers it; the original was not seen), the effect of up to three mutually perpendicular boundaries, and puts the response dip, when the boundary distance approaches a quarter wavelength, down to earlier work (Waterhouse, 1955, not read).
 - **Notch frequencies** (textbook geometry, no source needed): a reflection that travels Δ further than the direct sound cancels it partly where Δ is an odd number of half wavelengths, f = (2k + 1)·c/(2Δ). For the wall behind a speaker d away, heard on its axis, Δ ≈ 2d and the first notch is the quarter-wave one, f = c/(4d).
 - **What the app encodes** (all **ours** except the three-boundary idea):
   - First-order image sources only, summed with the direct sound with their extra delay and 1/r spreading loss.

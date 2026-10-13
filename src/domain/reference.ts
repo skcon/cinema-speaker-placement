@@ -337,8 +337,6 @@ export const ENCLOSURE_ROLL_OFF = {
  */
 export const BOUNDARY_INTERFERENCE = {
   reflectionCoefficient: 1,
-  directivity: 'omnidirectional',
-  surfaces: 'wall behind, nearest other wall, nearer of floor and ceiling',
   note:
     'Simplified model; every parameter here is our assumption except the ' +
     "choice of three nearby boundaries, after Allison's study " +
@@ -348,12 +346,13 @@ export const BOUNDARY_INTERFERENCE = {
       source: 'ALLISON-1974',
       note: 'three nearest boundaries; abstract and summaries only',
     },
-    { source: 'STRUCK-2016', note: "reproduces Allison's figure 8" },
+    {
+      source: 'STRUCK-2016',
+      note: "reproduces Allison's figure 8 (numbering per STRUCK-2016)",
+    },
   ],
 } as const satisfies {
   reflectionCoefficient: number
-  directivity: string
-  surfaces: string
   note: string
   citations: readonly Citation[]
 }

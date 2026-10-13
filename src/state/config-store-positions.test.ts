@@ -249,6 +249,23 @@ describe('undo and redo', () => {
     expect(store.getState().history.canUndo).toBe(false)
   })
 
+  it('keep a sidebar edit applied as a drag starts as its own step', () => {
+    // The room view leaves the text field (applying its edit) before it
+    // starts the drag.
+    const store = createConfigStore()
+
+    store.getState().setItemHeight('C', 1.5)
+    store.getState().beginGesture()
+    store.getState().moveItem('R', { x: 1, y: 1 })
+    store.getState().endGesture()
+
+    store.getState().undo()
+    expect(Object.keys(manual(store))).toEqual(['C'])
+    expect(manual(store).C?.z).toBe(1.5)
+    store.getState().undo()
+    expect(manual(store)).toEqual({})
+  })
+
   it('wait while a drag is in progress', () => {
     const store = createConfigStore()
     store.getState().setRoomDimension('length', 7)

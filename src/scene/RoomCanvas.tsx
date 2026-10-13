@@ -3,6 +3,7 @@ import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { cn } from 'cn'
 import {
   Fragment,
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -29,6 +30,11 @@ import {
   subwooferMarker,
   type ScreenDirection,
 } from '@/scene/speakers'
+import {
+  createDragController,
+  type DragCallbacks,
+  type DragController,
+} from '@/scene/drag'
 import {
   FLAT_ON_FLOOR,
   floorGrid,
@@ -60,17 +66,6 @@ const MLP_MARKER_RADIUS = 0.18
 /** Free space between a speaker's center and its label, in pixels. */
 const SPEAKER_LABEL_GAP_PX = 14
 
-/**
- * Dragging items on the floor plan. A drag is `start`, any number of
- * `move`s (the point under the pointer, keeping where the item was
- * grabbed) and `end`, so it can become one undo step.
- */
-export type DragHandlers = {
-  start: () => void
-  move: (id: PlaceableId, to: FloorPoint) => void
-  end: () => void
-}
-
 /** The floor plane in Three.js coordinates, where pointer rays are read. */
 const FLOOR = new Plane(new Vector3(0, 1, 0), 0)
 
@@ -86,7 +81,7 @@ export function RoomCanvas({
   speakers,
   subwoofers,
   gridSpacing,
-  drag,
+  ...callbacks
 }: {
   room: Room
   mlp: RoomPoint
@@ -94,13 +89,27 @@ export function RoomCanvas({
   subwoofers: readonly PlacedSubwoofer[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
-  drag: DragHandlers
-}) {
+} & DragCallbacks) {
   // Labels render into this layer over the canvas. Without a fixed target,
   // drei's Html can remount once r3f connects events and lose its content.
   const labelLayer = useRef<HTMLDivElement>(null!)
   const [cursor, setCursor] = useState<DragCursor>('auto')
-  const grab: Grab = { room, drag, setCursor }
+  // One controller for every marker, so only one pointer drags at a time.
+  // The callbacks are store actions, which never change.
+  const [controller] = useState(() => createDragController(callbacks))
+  // A drag can't outlive the window's focus (alt-tab mid-drag, say).
+  useEffect(() => {
+    const endDrag = () => {
+      controller.cancel()
+      setCursor('auto')
+    }
+    window.addEventListener('blur', endDrag)
+    return () => {
+      window.removeEventListener('blur', endDrag)
+      endDrag()
+    }
+  }, [controller])
+  const markerDrag: MarkerDrag = { room, controller, setCursor }
   return (
     <div className="absolute inset-0" style={{ cursor }}>
       {/* No touch scrolling or zooming over the room, so a finger can drag. */}
@@ -114,16 +123,16 @@ export function RoomCanvas({
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
         <Walls room={room} labelLayer={labelLayer} />
-        <MlpMarker mlp={mlp} labelLayer={labelLayer} grab={grab} />
+        <MlpMarker mlp={mlp} labelLayer={labelLayer} markerDrag={markerDrag} />
         <SubwooferMarkers
           subwoofers={subwoofers}
           labelLayer={labelLayer}
-          grab={grab}
+          markerDrag={markerDrag}
         />
         <SpeakerMarkers
           speakers={speakers}
           labelLayer={labelLayer}
-          grab={grab}
+          markerDrag={markerDrag}
         />
       </Canvas>
       <div ref={labelLayer} className="pointer-events-none absolute inset-0" />
@@ -135,11 +144,36 @@ type LabelLayer = RefObject<HTMLDivElement>
 
 type DragCursor = 'auto' | 'grab' | 'grabbing'
 
-/** What a draggable marker needs: the Room, the handlers and the cursor. */
-type Grab = {
+/** What a draggable marker needs: the Room, the drag controller and the cursor. */
+type MarkerDrag = {
   room: Room
-  drag: DragHandlers
+  controller: DragController
   setCursor: (cursor: DragCursor) => void
+}
+
+/**
+ * The pointer-capture methods of a react-three-fiber event's `target`:
+ * react-three-fiber replaces the DOM target with this object, which
+ * captures the pointer for the 3D object that handled the event.
+ */
+type PointerCaptureTarget = {
+  setPointerCapture: (pointerId: number) => void
+  releasePointerCapture: (pointerId: number) => void
+  hasPointerCapture: (pointerId: number) => boolean
+}
+
+function captureTarget(event: ThreeEvent<PointerEvent>): PointerCaptureTarget {
+  return event.target as unknown as PointerCaptureTarget
+}
+
+/**
+ * Leaves any text field the user is typing in, so its pending edit is
+ * applied (as its own undo step) before a drag pauses the undo history.
+ */
+function leaveTextField() {
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
 }
 
 /**
@@ -152,20 +186,18 @@ function Draggable({
   id,
   at,
   radius,
-  grab: { room, drag, setCursor },
+  markerDrag: { room, controller, setCursor },
   children,
 }: {
   id: PlaceableId
   at: RoomPoint
   /** The marker's own radius, in meters. */
   radius: number
-  grab: Grab
+  markerDrag: MarkerDrag
   children: ReactNode
 }) {
   const size = useThree((state) => state.size)
   const zoom = topDownCamera(room, size).zoom
-  // From the pointer to the item's center when it was grabbed, or null.
-  const offset = useRef<FloorPoint | null>(null)
   const hit = new Vector3()
 
   function floorPoint(event: ThreeEvent<PointerEvent>): FloorPoint | null {
@@ -173,15 +205,15 @@ function Draggable({
     return point && toFloorPoint(point)
   }
 
+  // Release, cancel and lost capture all end the drag (once).
   function release(event: ThreeEvent<PointerEvent>) {
-    if (!offset.current) return
-    offset.current = null
-    const target = event.target as Element
+    if (!controller.isDragging()) return
+    const target = captureTarget(event)
     if (target.hasPointerCapture(event.pointerId)) {
       target.releasePointerCapture(event.pointerId)
     }
-    setCursor('grab')
-    drag.end()
+    controller.release(event.pointerId)
+    if (!controller.isDragging()) setCursor('grab')
   }
 
   return (
@@ -189,29 +221,28 @@ function Draggable({
       onPointerDown={(event) => {
         const pointer = floorPoint(event)
         if (!pointer || event.button !== 0) return
+        leaveTextField()
+        if (!controller.press(event.pointerId, id, at, pointer)) return
         event.stopPropagation()
-        ;(event.target as Element).setPointerCapture(event.pointerId)
-        offset.current = { x: at.x - pointer.x, y: at.y - pointer.y }
+        captureTarget(event).setPointerCapture(event.pointerId)
         setCursor('grabbing')
-        drag.start()
       }}
       onPointerMove={(event) => {
-        const pointer = offset.current && floorPoint(event)
-        if (!pointer || !offset.current) return
+        if (!controller.isDragging()) return
+        const pointer = floorPoint(event)
+        if (!pointer) return
         event.stopPropagation()
-        drag.move(id, {
-          x: pointer.x + offset.current.x,
-          y: pointer.y + offset.current.y,
-        })
+        controller.move(event.pointerId, pointer)
       }}
       onPointerUp={release}
       onPointerCancel={release}
+      onLostPointerCapture={release}
       onPointerOver={(event) => {
         event.stopPropagation()
-        if (!offset.current) setCursor('grab')
+        if (!controller.isDragging()) setCursor('grab')
       }}
       onPointerOut={() => {
-        if (!offset.current) setCursor('auto')
+        if (!controller.isDragging()) setCursor('auto')
       }}
     >
       {children}
@@ -335,15 +366,20 @@ function FloorLine({
 function MlpMarker({
   mlp,
   labelLayer,
-  grab,
+  markerDrag,
 }: {
   mlp: RoomPoint
   labelLayer: LabelLayer
-  grab: Grab
+  markerDrag: MarkerDrag
 }) {
   return (
     <>
-      <Draggable id={MLP_ID} at={mlp} radius={MLP_MARKER_RADIUS} grab={grab}>
+      <Draggable
+        id={MLP_ID}
+        at={mlp}
+        radius={MLP_MARKER_RADIUS}
+        markerDrag={markerDrag}
+      >
         <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
           <circleGeometry args={[MLP_MARKER_RADIUS, 32]} />
           <meshBasicMaterial color={COLORS.mlp} />
@@ -364,11 +400,11 @@ function MlpMarker({
 function SpeakerMarkers({
   speakers,
   labelLayer,
-  grab,
+  markerDrag,
 }: {
   speakers: readonly PlacedSpeaker[]
   labelLayer: LabelLayer
-  grab: Grab
+  markerDrag: MarkerDrag
 }) {
   return speakers.map((speaker) => {
     const { position, rotation, color, label, grade, labelDirection } =
@@ -379,7 +415,7 @@ function SpeakerMarkers({
           id={speaker.channel}
           at={speaker.position}
           radius={SPEAKER_FOOTPRINT.width / 2}
-          grab={grab}
+          markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
             <planeGeometry
@@ -412,11 +448,11 @@ function SpeakerMarkers({
 function SubwooferMarkers({
   subwoofers,
   labelLayer,
-  grab,
+  markerDrag,
 }: {
   subwoofers: readonly PlacedSubwoofer[]
   labelLayer: LabelLayer
-  grab: Grab
+  markerDrag: MarkerDrag
 }) {
   return subwoofers.map((subwoofer) => {
     const { position, rotation, color, label, labelDirection } =
@@ -427,7 +463,7 @@ function SubwooferMarkers({
           id={subwoofer.id}
           at={subwoofer.position}
           radius={SUBWOOFER_FOOTPRINT / 2}
-          grab={grab}
+          markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
             <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useId, useMemo, useState } from 'react'
+import { lazy, Suspense, useId, useState } from 'react'
 import { formatLength, UNIT_SYSTEMS } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import {
@@ -25,10 +25,6 @@ export function RoomView() {
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveItem = useConfig((state) => state.moveItem)
   const endGesture = useConfig((state) => state.endGesture)
-  const drag = useMemo(
-    () => ({ start: beginGesture, move: moveItem, end: endGesture }),
-    [beginGesture, moveItem, endGesture],
-  )
   const { layout, mlp, speakers, subwoofers } = useRoomAnalysis()
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
@@ -77,7 +73,9 @@ export function RoomView() {
             speakers={speakers}
             subwoofers={subwoofers}
             gridSpacing={baseUnit.meters}
-            drag={drag}
+            onDragStart={beginGesture}
+            onDragMove={moveItem}
+            onDragEnd={endGesture}
           />
         </Suspense>
       </div>

@@ -4,6 +4,7 @@ import { ResponsePanel } from '@/charts/ResponsePanel'
 import type { Config } from '@/domain'
 import { RoomView } from '@/scene/RoomView'
 import { CopyLinkButton } from '@/ui/CopyLinkButton'
+import { CrossoverField } from '@/ui/CrossoverField'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { LayoutForm } from '@/ui/LayoutForm'
 import { RoomForm } from '@/ui/RoomForm'
@@ -45,6 +46,7 @@ export function AppShell({
           <LayoutForm />
           <SpeakerList />
           <SpeakerSpecsForm />
+          <CrossoverField />
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">

@@ -59,7 +59,8 @@ function SubwooferGroupSpecs() {
       <legend className="mb-1.5 text-sm font-medium">Subwoofers</legend>
       <SubwooferSpecsFields target="group" specs={specs} />
       <p className="text-xs text-muted-foreground">
-        {DEFAULTS_NOTE} Specs aren&rsquo;t used in any estimate yet.
+        {DEFAULTS_NOTE} The enclosure shapes the estimated bass roll-off; driver
+        size and power aren&rsquo;t used in any estimate yet.
       </p>
     </fieldset>
   )

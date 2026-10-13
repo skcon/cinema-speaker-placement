@@ -56,6 +56,9 @@ import { checkRange, type AcceptedRange, type RangeProblem } from './range'
 /** A point in room coordinates (see above), in meters. */
 export type RoomPoint = { x: number; y: number; z: number }
 
+/** A point on the floor plan: room coordinates without the height. */
+export type FloorPoint = { x: number; y: number }
+
 /** A rectangular Room's inside dimensions, in meters. */
 export type Room = {
   /** Front wall to back wall (along y). */
@@ -118,22 +121,29 @@ export const WALLS = [
   'left',
 ] as const satisfies readonly Wall[]
 
+/**
+ * Each wall as the floor axis it is measured along, where on that axis the
+ * wall is, and which way is into the room. Distances to a wall and moving a
+ * point to a distance from it both read this one table.
+ */
+const WALL_AXES: Record<
+  Wall,
+  { axis: 'x' | 'y'; at: (room: Room) => number; inward: 1 | -1 }
+> = {
+  front: { axis: 'y', at: () => 0, inward: 1 },
+  back: { axis: 'y', at: ({ length }) => length, inward: -1 },
+  left: { axis: 'x', at: ({ width }) => -width / 2, inward: 1 },
+  right: { axis: 'x', at: ({ width }) => width / 2, inward: -1 },
+}
+
 /** How far a point is from a wall, in meters, measured along the floor. */
 export function distanceToWall(
-  { length, width }: Room,
-  { x, y }: RoomPoint,
+  room: Room,
+  point: RoomPoint,
   wall: Wall,
 ): number {
-  switch (wall) {
-    case 'front':
-      return y
-    case 'back':
-      return length - y
-    case 'left':
-      return x + width / 2
-    case 'right':
-      return width / 2 - x
-  }
+  const { axis, at, inward } = WALL_AXES[wall]
+  return inward * (point[axis] - at(room))
 }
 
 /** The wall a point is closest to (the first, clockwise from the front wall, on a tie). */
@@ -170,21 +180,13 @@ export function wallDistances(
  * from it; the other coordinates stay.
  */
 export function atDistanceFromWall(
-  { length, width }: Room,
+  room: Room,
   point: RoomPoint,
   wall: Wall,
   meters: number,
 ): RoomPoint {
-  switch (wall) {
-    case 'front':
-      return { ...point, y: meters }
-    case 'back':
-      return { ...point, y: length - meters }
-    case 'left':
-      return { ...point, x: meters - width / 2 }
-    case 'right':
-      return { ...point, x: width / 2 - meters }
-  }
+  const { axis, at, inward } = WALL_AXES[wall]
+  return { ...point, [axis]: at(room) + inward * meters }
 }
 
 const DEGREES_PER_RADIAN = 180 / Math.PI

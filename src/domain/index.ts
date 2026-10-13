@@ -56,6 +56,7 @@ export {
   floorCenter,
   floorCorners,
   wallBases,
+  type FloorPoint,
   type Room,
   type RoomDimension,
   type RoomDimensionProblem,

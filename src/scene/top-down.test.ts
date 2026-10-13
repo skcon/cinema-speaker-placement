@@ -4,6 +4,8 @@ import type { Room, RoomPoint } from '@/domain'
 import {
   floorGrid,
   floorPlane,
+  draggedTo,
+  grabOffset,
   grabRadius,
   toFloorPoint,
   toScenePosition,
@@ -51,6 +53,15 @@ describe('room points in the scene', () => {
 
   it('maps a Three.js point back to the floor plan, for dragging', () => {
     expect(toFloorPoint(new Vector3(1, 3, 2))).toEqual({ x: 1, y: 2 })
+  })
+
+  it('keeps a dragged marker where it was grabbed, not centered on the pointer', () => {
+    // Grabbed 0.1 m right of and 0.2 m behind its center.
+    const offset = grabOffset({ x: 1, y: 2 }, { x: 1.1, y: 2.2 })
+
+    const moved = draggedTo({ x: 2.1, y: 3.2 }, offset)
+    expect(moved.x).toBeCloseTo(2, 9)
+    expect(moved.y).toBeCloseTo(3, 9)
   })
 
   it('makes markers grabbable over at least a 44 px touch target', () => {

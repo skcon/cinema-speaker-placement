@@ -1,5 +1,6 @@
 import {
   floorCenter,
+  type FloorPoint,
   type Room,
   type RoomPoint,
   type RoomSegment,
@@ -31,9 +32,6 @@ export function toScenePosition({ x, y, z }: RoomPoint): Vec3 {
   return [x, z, y]
 }
 
-/** A point on the floor plan, in room coordinates (meters). */
-export type FloorPoint = { x: number; y: number }
-
 /** The floor-plan point under a Three.js point: the inverse of toScenePosition, height dropped. */
 export function toFloorPoint({ x, z }: { x: number; z: number }): FloorPoint {
   return { x, y: z }
@@ -52,6 +50,16 @@ const TOUCH_TARGET_PX = 44
  */
 export function grabRadius(radius: number, zoom: number): number {
   return Math.max(radius, TOUCH_TARGET_PX / 2 / zoom)
+}
+
+/** From the pointer to a marker's center when it is grabbed. */
+export function grabOffset(at: FloorPoint, pointer: FloorPoint): FloorPoint {
+  return { x: at.x - pointer.x, y: at.y - pointer.y }
+}
+
+/** Where a grabbed marker goes with the pointer at `pointer`: it keeps the grab offset. */
+export function draggedTo(pointer: FloorPoint, offset: FloorPoint): FloorPoint {
+  return { x: pointer.x + offset.x, y: pointer.y + offset.y }
 }
 
 /**

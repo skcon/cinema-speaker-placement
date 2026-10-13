@@ -13,6 +13,7 @@ import { Plane, Vector3 } from 'three'
 import {
   floorCorners,
   MLP_ID,
+  type FloorPoint,
   wallBases,
   type PlaceableId,
   type PlacedSpeaker,
@@ -36,7 +37,6 @@ import {
   toFloorPoint,
   toScenePosition,
   topDownCamera,
-  type FloorPoint,
 } from '@/scene/top-down'
 
 /** Neutral palette matching the light theme; the MLP gets the one accent. */

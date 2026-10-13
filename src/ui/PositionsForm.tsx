@@ -105,6 +105,13 @@ function PositionItem({
           >
             {placement}
           </span>
+          {/* The flex summary hides the browser's own disclosure marker. */}
+          <span
+            aria-hidden
+            className="w-4 text-center text-muted-foreground transition-transform group-open:rotate-90"
+          >
+            ›
+          </span>
         </summary>
         <div className="flex flex-col gap-2 pb-3">
           {height === 'editable' ? (

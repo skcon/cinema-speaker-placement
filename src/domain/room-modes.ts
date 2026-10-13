@@ -116,7 +116,7 @@ const CANCELLED = 1e-9
  *     p(f) = Σₙ ψₙ(receiver)·Σₛ ψₙ(source)·Hₛ(f) / (Kₙ·(fₙ² − f² + j·B·fₙ))
  *
  * where ψ is a mode's shape, Hₛ the source's own filter (its enclosure
- * roll-off; 1 without one), K = (V/8)·2^(zero indices) its normalisation
+ * roll-off), K = (V/8)·2^(zero indices) its normalisation
  * and B the modal bandwidth. Written in Hz instead of rad/s, which only
  * scales every term by the same (2π)². Symmetric in source and receiver.
  *
@@ -134,11 +134,8 @@ export function prepareModalResponse({
 }: {
   room: Room
   sources: readonly RoomPoint[]
-  /**
-   * Per source, a filter per frequency (its enclosure roll-off), or none
-   * for a source heard unfiltered.
-   */
-  sourceFilters?: readonly (readonly Complex[])[]
+  /** Per source, its filter at each frequency (its enclosure roll-off). */
+  sourceFilters: readonly (readonly Complex[])[]
   frequencies: readonly number[]
   bandwidth?: number
 }): ModalResponse {
@@ -162,13 +159,13 @@ export function prepareModalResponse({
     const damping = bandwidth * mode.frequency
     let isExcited = false
     frequencies.forEach((f, i) => {
-      // Σₛ ψₙ(source)·Hₛ(f), with Hₛ = 1 for a source without a filter.
+      // Σₛ ψₙ(source)·Hₛ(f)
       let weightRe = 0
       let weightIm = 0
       shapes.forEach((shape, s) => {
-        const filter = sourceFilters?.[s]?.[i]
-        weightRe += shape * (filter?.re ?? 1)
-        weightIm += shape * (filter?.im ?? 0)
+        const filter = sourceFilters[s]![i]!
+        weightRe += shape * filter.re
+        weightIm += shape * filter.im
       })
       if (Math.hypot(weightRe, weightIm) > CANCELLED) isExcited = true
       // weight / (K·(x + jy)) = weight·(x − jy) / (K·(x² + y²))

@@ -1,5 +1,10 @@
 import type { Config } from './config'
-import { CHANNELS, DOLBY_LAYOUTS, type ChannelId } from './dolby-layouts'
+import {
+  CHANNELS,
+  DOLBY_LAYOUTS,
+  type ChannelId,
+  type ChannelReference,
+} from './dolby-layouts'
 import { summarizeLayout, type LayoutSummary } from './layout'
 import { defaultMlp } from './mlp'
 import {
@@ -24,7 +29,10 @@ import {
   type ResponseSummary,
 } from './response-summary'
 import { targetCurve, type TargetCurveKind } from './target-curve'
-import { boundaryReflections } from './boundary-interference'
+import {
+  boundaryReflections,
+  interferenceLevels,
+} from './boundary-interference'
 import { responseNotes, type ResponseNotes } from './response-notes'
 
 /** A listener-level speaker of the layout, auto-placed and checked. */
@@ -90,38 +98,73 @@ export type RoomAnalysis = {
   response: ResponseAnalysis
 }
 
-/** The channels whose Speakers make up the chart's Speakers' part. */
-const CHARTED_CHANNELS = ['L', 'R'] as const satisfies readonly ChannelId[]
+/**
+ * The channels whose Speakers make up the chart's Speakers' part: the
+ * front three, which every listener-level layout but 2.1 has all of. The
+ * Center usually sits nearest the front wall.
+ */
+const CHARTED_CHANNELS = ['L', 'C', 'R'] as const satisfies readonly ChannelId[]
 
-function isChartedChannel(channel: ChannelId): boolean {
-  return CHARTED_CHANNELS.some((charted) => charted === channel)
+/**
+ * Where everything is: the MLP, each listener-level channel's position and
+ * each subwoofer's. The one place positions come from, so manual
+ * positions (#9) replace auto-placed ones here and everything derived
+ * (aims, reflections, the estimate) follows.
+ */
+function positionsOf({ room, layout }: Config): {
+  mlp: RoomPoint
+  speakers: { reference: ChannelReference; position: RoomPoint }[]
+  subwoofers: ReturnType<typeof autoPlaceSubwoofers>
+} {
+  const mlp = defaultMlp(room)
+  return {
+    mlp,
+    speakers: DOLBY_LAYOUTS[layout.dolbyLayout].channels.map((reference) => ({
+      reference,
+      position: autoPlaceSpeaker(room, mlp, reference),
+    })),
+    subwoofers: autoPlaceSubwoofers(room, layout.subwoofers),
+  }
 }
 
 /** The domain entry point: derive the room plan from a config. */
-export function analyzeRoom({
-  room,
-  layout,
-  speakerGroups,
-  targetCurve: targetCurveKind,
-  crossoverHz,
-}: Config): RoomAnalysis {
-  const mlp = defaultMlp(room)
-  const { channels } = DOLBY_LAYOUTS[layout.dolbyLayout]
-  const speakers = channels.map((reference): PlacedSpeaker => {
-    const position = autoPlaceSpeaker(room, mlp, reference)
-    return {
+export function analyzeRoom(config: Config): RoomAnalysis {
+  const {
+    room,
+    layout,
+    speakerGroups,
+    targetCurve: targetCurveKind,
+    crossoverHz,
+  } = config
+  const positions = positionsOf(config)
+  const { mlp } = positions
+  const frequencies = responseFrequencies()
+
+  // Each speaker faces the current MLP; its reflections follow from that
+  // aim and are worked out once, for both the estimate and the notes.
+  const heardSpeakers = positions.speakers.map(({ reference, position }) => {
+    const aim = aimAtMlp(position, mlp)
+    const reflections = boundaryReflections(room, { position, aim }, mlp)
+    const speaker: PlacedSpeaker = {
       channel: reference.channel,
       name: CHANNELS[reference.channel].name,
       position,
-      aim: aimAtMlp(position, mlp),
+      aim,
       placementRange: checkPlacementRange(
         reference,
         azimuthFromMlp(mlp, position),
       ),
     }
+    return {
+      speaker,
+      charted: CHARTED_CHANNELS.some((c) => c === reference.channel),
+      reflections,
+      levels: interferenceLevels(reflections, frequencies),
+    }
   })
+
   const { specs: groupSpecs, ownSpecs } = speakerGroups.subwoofers
-  const subwoofers = autoPlaceSubwoofers(room, layout.subwoofers).map(
+  const subwoofers = positions.subwoofers.map(
     ({ id, position, wall }): PlacedSubwoofer => ({
       id,
       name: SUBWOOFERS[id].name,
@@ -130,7 +173,7 @@ export function analyzeRoom({
       specs: ownSpecs[id] ?? groupSpecs,
     }),
   )
-  const frequencies = responseFrequencies()
+
   const prepared = prepareRoomResponse({
     room,
     subwoofers: subwoofers.map(({ position, specs }) => ({
@@ -144,9 +187,9 @@ export function analyzeRoom({
     prepared,
     {
       receiver: mlp,
-      // The chart's Speakers' part: the Left and Right pair, which every
-      // v1 layout has. Every Speaker's own notches go in the notes.
-      speakers: speakers.filter(({ channel }) => isChartedChannel(channel)),
+      speakerLevels: heardSpeakers
+        .filter(({ charted }) => charted)
+        .map(({ levels }) => levels),
     },
     targetCurve(targetCurveKind, frequencies),
   )
@@ -157,17 +200,20 @@ export function analyzeRoom({
     crossoverHz,
     modalBandwidth: estimated.model.modalBandwidth,
     roomModes: estimated.roomModes,
-    speakers: speakers.map((speaker) => ({
-      name: speaker.name,
-      charted: isChartedChannel(speaker.channel),
-      reflections: boundaryReflections(room, speaker, mlp),
-    })),
+    speakers: heardSpeakers.map(
+      ({ speaker, charted, reflections, levels }) => ({
+        name: speaker.name,
+        charted,
+        reflections,
+        levels,
+      }),
+    ),
     enclosures: subwoofers.map(({ specs }) => specs.enclosure),
   })
   return {
     layout: summarizeLayout(layout),
     mlp,
-    speakers,
+    speakers: heardSpeakers.map(({ speaker }) => speaker),
     subwoofers,
     response: {
       estimated,

@@ -11,7 +11,7 @@
  * image's sound is added to the direct sound with its extra delay and the
  * spreading loss of its longer path.
  */
-import { add, phasor, scale, type Complex } from './complex'
+import { add, decibels, phasor, scale, type Complex } from './complex'
 import type { Aim } from './placement'
 import { BOUNDARY_INTERFERENCE, SPEED_OF_SOUND } from './reference'
 import type { Room, RoomPoint } from './room'
@@ -89,7 +89,7 @@ function wallBehind(
  * The surfaces whose reflections a speaker's response includes: the wall
  * behind it (from its aim), the nearest other wall (both side walls for a
  * speaker on the center line), and the nearer of the
- * floor and the ceiling (BOUNDARY_INTERFERENCE.surfaces).
+ * floor and the ceiling (BOUNDARY_INTERFERENCE in reference.ts).
  */
 export function reflectingSurfaces(
   room: Room,
@@ -165,7 +165,7 @@ export function boundaryReflections(
 /**
  * The speaker's pressure at the receiver relative to its direct sound, per
  * frequency: 1 + Σ a·e^(−j·2π·f·Δ/c) over the reflections. The speaker
- * itself is omnidirectional (BOUNDARY_INTERFERENCE.directivity).
+ * itself is omnidirectional (BOUNDARY_INTERFERENCE in reference.ts).
  */
 export function boundaryInterference(
   reflections: readonly BoundaryReflection[],
@@ -182,4 +182,12 @@ export function boundaryInterference(
       { re: 1, im: 0 },
     ),
   )
+}
+
+/** The speaker's boundary interference as a level in dB at each frequency. */
+export function interferenceLevels(
+  reflections: readonly BoundaryReflection[],
+  frequencies: readonly number[],
+): number[] {
+  return boundaryInterference(reflections, frequencies).map(decibels)
 }

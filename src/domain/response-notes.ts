@@ -11,12 +11,7 @@
  * a cause is "likely", never certain. The matching rules are ours
  * (RESPONSE_NOTES in reference.ts).
  */
-import {
-  boundaryInterference,
-  type BoundaryReflection,
-  type Surface,
-} from './boundary-interference'
-import { decibels } from './complex'
+import type { BoundaryReflection, Surface } from './boundary-interference'
 import type { HeardMode, ResponseRow } from './estimated-response'
 import {
   ENCLOSURE_ROLL_OFF,
@@ -89,9 +84,14 @@ export type ResponseNotes = {
 /** A listener-level speaker's reflections, for the notes. */
 export type NotedSpeaker = {
   readonly name: string
-  /** Whether it is part of the chart's estimate (the Left and Right pair). */
+  /** Whether it is part of the chart's estimate (Left, Center and Right). */
   readonly charted: boolean
   readonly reflections: readonly BoundaryReflection[]
+  /**
+   * Its boundary interference level in dB at each row's frequency: the
+   * same values the estimate uses (`interferenceLevels`).
+   */
+  readonly levels: readonly number[]
 }
 
 export type ResponseNotesInput = {
@@ -298,13 +298,12 @@ function speakerNotches({ rows, speakers, crossoverHz }: ResponseNotesInput): {
   speaker: NotedSpeaker
   notches: ResponseWeakness[]
 }[] {
-  const frequencies = rows
-    .map((row) => row.frequency)
-    .filter((f) => f >= crossoverHz)
+  const above = rows.flatMap((row, i) =>
+    row.frequency >= crossoverHz ? [i] : [],
+  )
+  const frequencies = above.map((i) => rows[i]!.frequency)
   return speakers.map((speaker) => {
-    const levels = boundaryInterference(speaker.reflections, frequencies).map(
-      decibels,
-    )
+    const levels = above.map((i) => speaker.levels[i] ?? 0)
     const average =
       levels.reduce((sum, level) => sum + level, 0) / (levels.length || 1)
     const tolerance = TARGET_TOLERANCE.db

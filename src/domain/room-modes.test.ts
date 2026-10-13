@@ -7,6 +7,14 @@ function db({ re, im }: { re: number; im: number }): number {
   return 20 * Math.log10(Math.hypot(re, im))
 }
 
+/** No filter (1) for every source at every frequency. */
+function unfiltered(
+  sources: readonly unknown[],
+  frequencies: readonly number[],
+) {
+  return sources.map(() => frequencies.map(() => ({ re: 1, im: 0 })))
+}
+
 /** Frequencies from `low` to `high` Hz in `step` Hz steps. */
 function sweep(low: number, high: number, step: number): number[] {
   const count = Math.round((high - low) / step)
@@ -86,7 +94,12 @@ describe('the pressure a source makes at a receiver through the room modes', () 
   const halfwayBack: RoomPoint = { x: 0, y: 7.5, z: 0 }
 
   function prepare(sources: RoomPoint[], frequencies: number[]) {
-    return prepareModalResponse({ room: LONG_ROOM, sources, frequencies })
+    return prepareModalResponse({
+      room: LONG_ROOM,
+      sources,
+      sourceFilters: unfiltered(sources, frequencies),
+      frequencies,
+    })
   }
 
   function levels(source: RoomPoint, receiver: RoomPoint, at: number[]) {
@@ -226,14 +239,16 @@ describe('the pressure a source makes at a receiver through the room modes', () 
       (_, i) => 20 * 10 ** (i / 160),
     )
     const started = performance.now()
+    const sources = [
+      { x: 0, y: 0.3, z: 0.3 },
+      { x: -7.2, y: 7.5, z: 0.3 },
+      { x: 7.2, y: 7.5, z: 0.3 },
+      { x: 0, y: 14.7, z: 0.3 },
+    ]
     const prepared = prepareModalResponse({
       room,
-      sources: [
-        { x: 0, y: 0.3, z: 0.3 },
-        { x: -7.2, y: 7.5, z: 0.3 },
-        { x: 7.2, y: 7.5, z: 0.3 },
-        { x: 0, y: 14.7, z: 0.3 },
-      ],
+      sources,
+      sourceFilters: unfiltered(sources, frequencies),
       frequencies,
     })
     for (let i = 0; i < 20; i++) {

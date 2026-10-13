@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { analyzeRoom, DEFAULT_CONFIG, type Config } from '@/domain'
-import type { BoundaryReflection } from './boundary-interference'
+import {
+  interferenceLevels,
+  type BoundaryReflection,
+} from './boundary-interference'
 import type { HeardMode, ResponseRow } from './estimated-response'
-import { responseNotes, type ResponseNotesInput } from './response-notes'
+import {
+  responseNotes,
+  type NotedSpeaker,
+  type ResponseNotesInput,
+} from './response-notes'
 import { summarizeResponse } from './response-summary'
 import type { RoomMode } from './room-modes'
 
@@ -68,7 +75,14 @@ function reflection(
   }
 }
 
-function input(overrides: Partial<ResponseNotesInput>): ResponseNotesInput {
+/** A speaker as a test writes it: its levels follow from its reflections. */
+type TestSpeaker = Omit<NotedSpeaker, 'levels'>
+
+type Overrides = Partial<Omit<ResponseNotesInput, 'speakers'>> & {
+  speakers?: TestSpeaker[]
+}
+
+function input({ speakers = [], ...overrides }: Overrides): ResponseNotesInput {
   const base = rows()
   return {
     rows: base,
@@ -76,15 +90,18 @@ function input(overrides: Partial<ResponseNotesInput>): ResponseNotesInput {
     crossoverHz: 80,
     modalBandwidth: 4.4,
     roomModes: [],
-    speakers: [],
     enclosures: ['sealed'],
     ...overrides,
+    speakers: speakers.map((speaker) => ({
+      ...speaker,
+      levels: interferenceLevels(speaker.reflections, FREQUENCIES),
+    })),
   }
 }
 
 function withRows(
   bumps: { hz: number; db: number }[],
-  overrides: Partial<ResponseNotesInput> = {},
+  overrides: Overrides = {},
   reliableFrom = 20,
 ): ResponseNotesInput {
   const chart = rows(bumps, reliableFrom)
@@ -347,19 +364,31 @@ describe('notes for a room', () => {
     layout: { ...DEFAULT_CONFIG.layout, subwoofers: 2 },
   }
 
-  it('finds the default Left and Right speakers’ floor-reflection notch near c/(2Δ) ≈ 152 Hz', () => {
-    const { weaknesses } = analyzeRoom(DEFAULT_CONFIG).response.notes
-    const notch = weaknesses.find(
+  it('finds the default Left and Right speakers’ front-wall reflection notch near c/(2Δ) ≈ 184 Hz', () => {
+    const { response, speakers, mlp } = analyzeRoom(DEFAULT_CONFIG)
+    const notch = response.notes.weaknesses.find(
       (w) =>
-        w.cause.kind === 'reflection' && w.cause.surfaces.includes('floor'),
+        w.cause.kind === 'reflection' &&
+        w.cause.surfaces.includes('front wall'),
     )
+    // The Left speaker and its image behind the front wall, seen from the MLP.
+    const { x, y } = speakers.find((s) => s.channel === 'L')!.position
+    const direct = Math.hypot(x - mlp.x, y - mlp.y)
+    const image = Math.hypot(x - mlp.x, -y - mlp.y)
 
-    // Speaker and ear 1.2 m up, 1.98 m apart: Δ = √(1.98² + 2.4²) − 1.98.
-    expect(notch?.frequency).toBeCloseTo(
-      343 / (2 * (Math.hypot(1.98, 2.4) - 1.98)),
-      -1,
-    )
+    expect(notch?.frequency).toBeCloseTo(343 / (2 * (image - direct)), -1)
     expect(notch?.speakers).toEqual(['Left', 'Right'])
+  })
+
+  it('lists the charted speakers’ notches only through the chart, and the others’ own', () => {
+    const { weaknesses } = analyzeRoom(DEFAULT_CONFIG).response.notes
+    const own = weaknesses.filter((w) => w.speakers.includes('Center'))
+
+    // The Center is charted: its reflections shape the chart, not a list entry of its own.
+    expect(own.filter((w) => w.speakers.length === 1)).toEqual([])
+    expect(weaknesses.some((w) => w.speakers.includes('Left Surround'))).toBe(
+      true,
+    )
   })
 
   it('credits front and back subwoofers with cancelling the first length mode (28.6 Hz) and, on the center line, the first width mode', () => {

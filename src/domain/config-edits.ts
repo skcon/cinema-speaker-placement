@@ -7,6 +7,7 @@ import type { Config } from './config'
 import type { Layout } from './layout'
 import {
   clampToRoom,
+  hasFixedHeight,
   keepInLayout,
   keepInRoom,
   placeablesIn,
@@ -23,7 +24,8 @@ import {
 /**
  * Item `id` made manual at its current position with `change` applied, and
  * kept where it may go (manual-positions.ts). The config comes back as it
- * was when the layout has no such item or a coordinate is not a number.
+ * was when the layout has no such item, a coordinate is not a number, or
+ * only the height of an item with a fixed height would change.
  */
 export function placeManually(
   config: Config,
@@ -31,6 +33,10 @@ export function placeManually(
   change: Partial<RoomPoint>,
 ): Config {
   if (Object.values(change).some((value) => !Number.isFinite(value))) {
+    return config
+  }
+  // A subwoofer or the MLP keeps its height: a height edit changes nothing.
+  if (hasFixedHeight(id) && change.x === undefined && change.y === undefined) {
     return config
   }
   if (!placeablesIn(config.layout).includes(id)) return config

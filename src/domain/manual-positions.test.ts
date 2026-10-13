@@ -125,6 +125,11 @@ describe('placing an item by hand', () => {
     })
   })
 
+  it('ignores a height change for a subwoofer or the MLP, whose heights are fixed', () => {
+    expect(placeManually(ROOM, 'Sub1', { z: 1 })).toBe(ROOM)
+    expect(placeManually(ROOM, 'MLP', { z: 1.5 })).toBe(ROOM)
+  })
+
   it('ignores items the layout lacks and coordinates that are not numbers', () => {
     // The default 5.1.2 has no rear surrounds and one subwoofer.
     expect(placeManually(ROOM, 'Lrs', { x: 1 })).toBe(ROOM)

@@ -25,7 +25,7 @@
  * When the Room shrinks past a manual item, the item moves in with the
  * wall; otherwise it stays where it was left.
  */
-import { CHANNEL_IDS, DOLBY_LAYOUTS, type ChannelId } from './dolby-layouts'
+import { CHANNEL_IDS, DOLBY_LAYOUTS } from './dolby-layouts'
 import type { Layout } from './layout'
 import {
   EAR_HEIGHT,
@@ -34,26 +34,89 @@ import {
   SUBWOOFER_WALL_CLEARANCE,
 } from './reference'
 import type { Room, RoomPoint } from './room'
-import {
-  SUBWOOFER_IDS,
-  subwooferIds,
-  type SubwooferId,
-} from './subwoofer-arrangements'
+import { SUBWOOFER_IDS, subwooferIds } from './subwoofer-arrangements'
 
 /** The key the MLP's manual position is stored under. */
 export const MLP_ID = 'MLP'
 
-/** Everything that can be placed by hand: channels, subwoofers and the MLP. */
-export const PLACEABLE_IDS = [...CHANNEL_IDS, ...SUBWOOFER_IDS, MLP_ID] as const
+/**
+ * Everything that can be placed by hand, by kind. Each kind has its own
+ * rules (PLACEMENT_RULES) and its own ids; overhead speakers (#8) join as
+ * one more kind here, and everything below follows.
+ */
+const PLACEABLES = {
+  listenerLevel: CHANNEL_IDS,
+  subwoofer: SUBWOOFER_IDS,
+  mlp: [MLP_ID],
+} as const satisfies Record<string, readonly string[]>
+
+/** A kind of placeable item, each with its own placement rules. */
+export type PlaceableKind = keyof typeof PLACEABLES
+
+/** Every placeable id: what the share link's schema accepts as a key. */
+export const PLACEABLE_IDS = [
+  ...PLACEABLES.listenerLevel,
+  ...PLACEABLES.subwoofer,
+  ...PLACEABLES.mlp,
+] as const
+
+// A new kind in PLACEABLES must be spread into PLACEABLE_IDS too.
+true satisfies Exclude<
+  PlaceableId,
+  (typeof PLACEABLE_IDS)[number]
+> extends never
+  ? true
+  : never
 
 /** A listener-level channel, a subwoofer or the MLP. */
-export type PlaceableId = ChannelId | SubwooferId | typeof MLP_ID
+export type PlaceableId = (typeof PLACEABLES)[PlaceableKind][number]
 
 /** Whether an item's position is derived (auto) or stored (manual). */
 export type Placement = 'auto' | 'manual'
 
 /** The stored positions of the manual items, in room coordinates (meters). */
 export type ManualPositions = Partial<Record<PlaceableId, RoomPoint>>
+
+/**
+ * Where each kind of item may go (see above): how far it keeps from the
+ * walls, and its height, either fixed or kept this far from the floor and
+ * the ceiling. All our modelling assumptions (reference.ts).
+ */
+const PLACEMENT_RULES: Record<
+  PlaceableKind,
+  {
+    wallClearance: number
+    height: { fixed: number } | { surfaceClearance: number }
+  }
+> = {
+  listenerLevel: {
+    wallClearance: SPEAKER_WALL_CLEARANCE.meters,
+    height: { surfaceClearance: SPEAKER_WALL_CLEARANCE.meters },
+  },
+  subwoofer: {
+    wallClearance: SUBWOOFER_WALL_CLEARANCE.meters,
+    height: { fixed: SUBWOOFER_HEIGHT.meters },
+  },
+  mlp: {
+    wallClearance: SPEAKER_WALL_CLEARANCE.meters,
+    height: { fixed: EAR_HEIGHT.meters },
+  },
+}
+
+/** Which kind of item `id` is. */
+export function kindOf(id: PlaceableId): PlaceableKind {
+  const kinds = Object.keys(PLACEABLES) as PlaceableKind[]
+  const kind = kinds.find((k) =>
+    (PLACEABLES[k] as readonly string[]).includes(id),
+  )
+  if (!kind) throw new Error(`Unknown placeable item ${id}`)
+  return kind
+}
+
+/** Whether item `id` keeps a fixed height, so its height can't be edited. */
+export function hasFixedHeight(id: PlaceableId): boolean {
+  return 'fixed' in PLACEMENT_RULES[kindOf(id)].height
+}
 
 /** The items a layout has: its channels, its subwoofers and the MLP. */
 export function placeablesIn(layout: Layout): readonly PlaceableId[] {
@@ -64,28 +127,25 @@ export function placeablesIn(layout: Layout): readonly PlaceableId[] {
   ]
 }
 
-function isSubwoofer(id: PlaceableId): id is SubwooferId {
-  return SUBWOOFER_IDS.some((subwoofer) => subwoofer === id)
-}
-
 /** The point moved to the nearest place where item `id` may be (see above). */
 export function clampToRoom(
   room: Room,
   id: PlaceableId,
   { x, y, z }: RoomPoint,
 ): RoomPoint {
-  const clearance = isSubwoofer(id)
-    ? SUBWOOFER_WALL_CLEARANCE.meters
-    : SPEAKER_WALL_CLEARANCE.meters
-  const xLimit = room.width / 2 - clearance
+  const { wallClearance, height } = PLACEMENT_RULES[kindOf(id)]
+  const xLimit = room.width / 2 - wallClearance
   return {
     x: clamp(x, -xLimit, xLimit),
-    y: clamp(y, clearance, room.length - clearance),
-    z: isSubwoofer(id)
-      ? SUBWOOFER_HEIGHT.meters
-      : id === MLP_ID
-        ? EAR_HEIGHT.meters
-        : clamp(z, clearance, room.height - clearance),
+    y: clamp(y, wallClearance, room.length - wallClearance),
+    z:
+      'fixed' in height
+        ? height.fixed
+        : clamp(
+            z,
+            height.surfaceClearance,
+            room.height - height.surfaceClearance,
+          ),
   }
 }
 

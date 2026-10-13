@@ -15,7 +15,8 @@
  *
  * Version 1 is whatever ships in the first release with share links; until
  * then `configSchema` can change, and the frozen links in
- * src/test/share-link-fixtures.ts are regenerated. After that, every change
+ * src/test/share-link-fixtures.ts are regenerated (as they were when manual
+ * positions joined version 1, before any release). After that, every change
  * to `configSchema` is a new version, however small (a new, removed or
  * renamed field, a new meaning, a wider or tighter range):
  *
@@ -38,6 +39,7 @@ import {
 } from 'lz-string'
 import { z } from 'zod'
 import { configSchema, DEFAULT_CONFIG, type Config } from './config'
+import { roundToMillimeter } from './manual-positions'
 
 /**
  * Why a share link could not be opened: it is damaged or not a share link
@@ -147,9 +149,16 @@ const configCodec = createConfigCodec({
 
 /**
  * The config as an encoded config: the URL-safe text a share link carries
- * in its `config` search param.
+ * in its `config` search param. Manual positions are written to the
+ * nearest millimeter, which keeps links short: a drag gives 17 significant
+ * digits, and nobody mounts a speaker more precisely than that.
  */
-export const encodeConfig: (config: Config) => string = configCodec.encode
+export function encodeConfig(config: Config): string {
+  return configCodec.encode({
+    ...config,
+    manualPositions: roundToMillimeter(config.manualPositions),
+  })
+}
 
 /**
  * The config an encoded config holds, or the default config with the

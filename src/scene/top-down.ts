@@ -1,5 +1,6 @@
 import {
   floorCenter,
+  type FloorPoint,
   type Room,
   type RoomPoint,
   type RoomSegment,
@@ -29,6 +30,36 @@ const WALL_EPSILON = 1e-9
 
 export function toScenePosition({ x, y, z }: RoomPoint): Vec3 {
   return [x, z, y]
+}
+
+/** The floor-plan point under a Three.js point: the inverse of toScenePosition, height dropped. */
+export function toFloorPoint({ x, z }: { x: number; z: number }): FloorPoint {
+  return { x, y: z }
+}
+
+/**
+ * The smallest touch target, in pixels: the size WCAG 2.5.5 (AAA) and the
+ * Apple and Android guidelines give for something a finger has to hit.
+ */
+const TOUCH_TARGET_PX = 44
+
+/**
+ * The radius, in meters, of the area that picks up a marker for dragging:
+ * at least `radius`, and never smaller on screen than a touch target at
+ * this zoom (pixels per meter).
+ */
+export function grabRadius(radius: number, zoom: number): number {
+  return Math.max(radius, TOUCH_TARGET_PX / 2 / zoom)
+}
+
+/** From the pointer to a marker's center when it is grabbed. */
+export function grabOffset(at: FloorPoint, pointer: FloorPoint): FloorPoint {
+  return { x: at.x - pointer.x, y: at.y - pointer.y }
+}
+
+/** Where a grabbed marker goes with the pointer at `pointer`: it keeps the grab offset. */
+export function draggedTo(pointer: FloorPoint, offset: FloorPoint): FloorPoint {
+  return { x: pointer.x + offset.x, y: pointer.y + offset.y }
 }
 
 /**

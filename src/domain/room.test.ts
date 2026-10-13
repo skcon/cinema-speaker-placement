@@ -6,7 +6,12 @@ import {
   floorCorners,
   wallBases,
 } from '@/domain'
-import { azimuthFromMlp } from '@/domain/room'
+import {
+  atDistanceFromWall,
+  azimuthFromMlp,
+  distanceToWall,
+  nearestWall,
+} from '@/domain/room'
 
 describe('room geometry in room coordinates', () => {
   // 6 m long, 4.5 m wide: the side walls are at x = ±2.25
@@ -136,5 +141,51 @@ describe('azimuth seen from the MLP', () => {
       12.4,
       1,
     )
+  })
+})
+
+describe('distances to the walls', () => {
+  // The default room: 4.5 m wide (x from -2.25 to 2.25), 6 m long.
+  const point = { x: 1, y: 2, z: 1.2 }
+
+  it.each([
+    ['front', 2],
+    ['back', 4],
+    ['left', 3.25],
+    ['right', 1.25],
+  ] as const)('measures %s wall distance along the floor', (wall, meters) => {
+    expect(distanceToWall(DEFAULT_ROOM, point, wall)).toBeCloseTo(meters, 9)
+  })
+
+  it.each([
+    ['front', { x: 1, y: 0.5, z: 1.2 }],
+    ['back', { x: 1, y: 5.5, z: 1.2 }],
+    ['left', { x: -1.75, y: 2, z: 1.2 }],
+    ['right', { x: 1.75, y: 2, z: 1.2 }],
+  ] as const)(
+    'moves a point straight to 0.5 m from the %s wall, keeping the rest',
+    (wall, moved) => {
+      const result = atDistanceFromWall(DEFAULT_ROOM, point, wall, 0.5)
+
+      expect(result.x).toBeCloseTo(moved.x, 9)
+      expect(result.y).toBeCloseTo(moved.y, 9)
+      expect(result.z).toBe(1.2)
+      expect(distanceToWall(DEFAULT_ROOM, result, wall)).toBeCloseTo(0.5, 9)
+    },
+  )
+
+  it('finds the nearest wall', () => {
+    expect(nearestWall(DEFAULT_ROOM, { x: 2, y: 3, z: 0 })).toBe('right')
+    expect(nearestWall(DEFAULT_ROOM, { x: 0, y: 5.9, z: 0 })).toBe('back')
+    expect(nearestWall(DEFAULT_ROOM, { x: -2, y: 1, z: 0 })).toBe('left')
+  })
+
+  it('breaks a tie clockwise from the front wall: front, right, back, left', () => {
+    // 0.5 m from the front and the right wall.
+    expect(nearestWall(DEFAULT_ROOM, { x: 1.75, y: 0.5, z: 0 })).toBe('front')
+    // 0.5 m from the back and the left wall.
+    expect(nearestWall(DEFAULT_ROOM, { x: -1.75, y: 5.5, z: 0 })).toBe('back')
+    // 0.5 m from the right and the back wall.
+    expect(nearestWall(DEFAULT_ROOM, { x: 1.75, y: 5.5, z: 0 })).toBe('right')
   })
 })

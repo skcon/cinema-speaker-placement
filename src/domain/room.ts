@@ -56,6 +56,9 @@ import { checkRange, type AcceptedRange, type RangeProblem } from './range'
 /** A point in room coordinates (see above), in meters. */
 export type RoomPoint = { x: number; y: number; z: number }
 
+/** A point on the floor plan: room coordinates without the height. */
+export type FloorPoint = { x: number; y: number }
+
 /** A rectangular Room's inside dimensions, in meters. */
 export type Room = {
   /** Front wall to back wall (along y). */
@@ -108,6 +111,82 @@ export function wallBases(room: Room): Record<Wall, RoomSegment> {
     back: [backRight, backLeft],
     left: [backLeft, frontLeft],
   }
+}
+
+/** The walls, clockwise seen from above, starting at the front wall. */
+export const WALLS = [
+  'front',
+  'right',
+  'back',
+  'left',
+] as const satisfies readonly Wall[]
+
+/**
+ * Each wall as the floor axis it is measured along, where on that axis the
+ * wall is, and which way is into the room. Distances to a wall and moving a
+ * point to a distance from it both read this one table.
+ */
+const WALL_AXES: Record<
+  Wall,
+  { axis: 'x' | 'y'; at: (room: Room) => number; inward: 1 | -1 }
+> = {
+  front: { axis: 'y', at: () => 0, inward: 1 },
+  back: { axis: 'y', at: ({ length }) => length, inward: -1 },
+  left: { axis: 'x', at: ({ width }) => -width / 2, inward: 1 },
+  right: { axis: 'x', at: ({ width }) => width / 2, inward: -1 },
+}
+
+/** How far a point is from a wall, in meters, measured along the floor. */
+export function distanceToWall(
+  room: Room,
+  point: RoomPoint,
+  wall: Wall,
+): number {
+  const { axis, at, inward } = WALL_AXES[wall]
+  return inward * (point[axis] - at(room))
+}
+
+/** The wall a point is closest to (the first, clockwise from the front wall, on a tie). */
+export function nearestWall(room: Room, point: RoomPoint): Wall {
+  return WALLS.reduce((nearest, wall) =>
+    distanceToWall(room, point, wall) < distanceToWall(room, point, nearest)
+      ? wall
+      : nearest,
+  )
+}
+
+/** A point's distance to one wall, in meters. */
+export type WallDistance = { wall: Wall; meters: number }
+
+/**
+ * How far a point is from the walls nearest to it: the nearer side wall
+ * (left or right) and the nearer end wall (front or back). Where it is
+ * halfway, the left and front walls count as nearer.
+ */
+export function wallDistances(
+  room: Room,
+  point: RoomPoint,
+): { across: WallDistance; along: WallDistance } {
+  const nearer = (a: Wall, b: Wall): WallDistance => {
+    const toA = distanceToWall(room, point, a)
+    const toB = distanceToWall(room, point, b)
+    return toB < toA ? { wall: b, meters: toB } : { wall: a, meters: toA }
+  }
+  return { across: nearer('left', 'right'), along: nearer('front', 'back') }
+}
+
+/**
+ * The point moved straight toward or away from `wall` until it is `meters`
+ * from it; the other coordinates stay.
+ */
+export function atDistanceFromWall(
+  room: Room,
+  point: RoomPoint,
+  wall: Wall,
+  meters: number,
+): RoomPoint {
+  const { axis, at, inward } = WALL_AXES[wall]
+  return { ...point, [axis]: at(room) + inward * meters }
 }
 
 const DEGREES_PER_RADIAN = 180 / Math.PI

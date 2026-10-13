@@ -9,6 +9,7 @@ import {
   type SubwooferCount,
 } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
+import { hasManualPositions } from '@/state/config-store'
 import { Button } from '@/ui/components/button'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
 
@@ -18,7 +19,8 @@ const CHOSEN_OPTION =
 
 /**
  * The Layout picker, in X.Y.Z notation, the subwoofer count (the Y) and the
- * Auto-place button.
+ * Auto-place button, which puts every manual item back to auto (and is off
+ * while nothing is manual).
  */
 export function LayoutForm() {
   const headingId = useId()
@@ -27,6 +29,7 @@ export function LayoutForm() {
   const setLayout = useConfig((state) => state.setLayout)
   const setSubwooferCount = useConfig((state) => state.setSubwooferCount)
   const autoPlace = useConfig((state) => state.autoPlace)
+  const anythingManual = useConfig(hasManualPositions)
   const { listenerLevel, overheads } = useRoomAnalysis().layout
 
   return (
@@ -92,7 +95,11 @@ export function LayoutForm() {
           {listenerLevel} listener-level speakers and the subwoofers.
         </p>
       )}
-      <Button onClick={autoPlace} className="self-start">
+      <Button
+        onClick={autoPlace}
+        disabled={!anythingManual}
+        className="self-start max-lg:h-11"
+      >
         Auto-place
       </Button>
     </section>

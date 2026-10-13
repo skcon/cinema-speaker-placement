@@ -1,5 +1,6 @@
 import { lazy, Suspense, useId } from 'react'
 import { formatDb, formatHz, formatHzRange } from '@/charts/format'
+import { strengthText, weaknessText } from '@/charts/notes-text'
 import { TARGET_CURVE_KINDS, TARGET_CURVES, TARGET_TOLERANCE } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
@@ -10,6 +11,56 @@ const ResponsePlot = lazy(() =>
     default: module.ResponsePlot,
   })),
 )
+
+/**
+ * The estimate's weaknesses and strengths, each with its likely cause, as
+ * two labelled lists.
+ */
+function ResponseNotesList() {
+  const weaknessesId = useId()
+  const strengthsId = useId()
+  const { weaknesses, strengths } = useRoomAnalysis().response.notes
+  return (
+    <section className="flex flex-col gap-3 text-sm sm:flex-row sm:gap-6">
+      <div className="flex flex-col gap-1 sm:flex-1">
+        <h3 id={weaknessesId} className="font-medium">
+          Weaknesses
+        </h3>
+        {weaknesses.length > 0 ? (
+          <ul aria-labelledby={weaknessesId} className="list-disc pl-5">
+            {weaknesses.map((weakness) => {
+              const text = weaknessText(weakness)
+              return <li key={text}>{text}</li>
+            })}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground">
+            No peak or dip outside the ±{TARGET_TOLERANCE.db} dB band.
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col gap-1 sm:flex-1">
+        <h3 id={strengthsId} className="font-medium">
+          Strengths
+        </h3>
+        {strengths.length > 0 ? (
+          <ul aria-labelledby={strengthsId} className="list-disc pl-5">
+            {strengths.map((strength) => {
+              const text = strengthText(strength)
+              return <li key={text}>{text}</li>
+            })}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground">None found by this model.</p>
+        )}
+        <p className="mt-1 text-xs text-muted-foreground">
+          Likely causes in this simplified model, matched by frequency: a guide
+          to what to try, not a diagnosis.
+        </p>
+      </div>
+    </section>
+  )
+}
 
 /** The look of the chosen target curve, as in the layout form's pickers. */
 const CHOSEN_OPTION =
@@ -27,7 +78,7 @@ export function ResponsePanel() {
   const setTargetCurve = useConfig((state) => state.setTargetCurve)
   const { response } = useRoomAnalysis()
   const { summary, estimated, tableRows } = response
-  const { rows, reliableFrom } = estimated
+  const { rows, reliableFrom, model } = estimated
   const target = TARGET_CURVES[targetCurve].name
   const lowest = rows[0]?.frequency ?? 0
   const highest = rows.at(-1)?.frequency ?? 0
@@ -93,10 +144,16 @@ export function ResponsePanel() {
           </p>
         )}
       </div>
+      <ResponseNotesList />
       <p className="text-xs text-muted-foreground">
-        Room modes only, for all subwoofers playing the same bass together;
-        assumes a {estimated.model.reverberationTime} s reverberation time at
-        low frequencies. Room gain below the lowest mode isn&rsquo;t modelled.
+        Room modes up to {model.roomModesUpTo} Hz for all subwoofers playing the
+        same bass together, each rolled off by its enclosure (corner frequencies
+        are our assumption); assumes a {model.reverberationTime} s reverberation
+        time at low frequencies. Above the {formatHz(model.crossoverHz)}{' '}
+        crossover (a Linkwitz-Riley 24 dB/octave model), the Left and Right
+        speakers with reflections off their three nearest surfaces, treated as
+        rigid, with speakers radiating equally in all directions. Room gain
+        below the lowest mode isn&rsquo;t modelled.
         {targetCurve === 'house' &&
           ' The house curve is our own assumption (a gentle bass boost below about 100 Hz), not a published standard.'}
       </p>

@@ -29,7 +29,7 @@ describe('response panel', () => {
 
     // One front-wall subwoofer: reliable from the first length mode, 28.6 Hz.
     expect(summary()).toMatch(
-      /^Within ±3 dB of the flat target over \d+% of 28\.6–200 Hz\. Largest peak: \+\d+\.\d dB at \d+(\.\d)? Hz\. Deepest dip: −\d+\.\d dB at \d+(\.\d)? Hz\.$/,
+      /^Within ±3 dB of the flat target over \d+% of 28\.6–502 Hz\. Largest peak: \+\d+\.\d dB at \d+(\.\d)? Hz\. Deepest dip: −\d+\.\d dB at \d+(\.\d)? Hz\.$/,
     )
   })
 
@@ -73,14 +73,14 @@ describe('response panel', () => {
       name: 'Estimated response and target by frequency',
     })
     const rows = within(table).getAllByRole('row')
-    // A header row and 20, 25.2 ... 200 Hz.
-    expect(rows).toHaveLength(12)
+    // A header row and 20, 25.2 ... 502 Hz.
+    expect(rows).toHaveLength(16)
     const [frequency, estimate] = within(rows[1]!).getAllByRole('cell')
     expect(frequency).toHaveTextContent('20 Hz')
     // Below 28.6 Hz.
     expect(estimate).toHaveTextContent('(unreliable)')
-    expect(within(rows[11]!).getAllByRole('cell')[0]).toHaveTextContent(
-      '200 Hz',
+    expect(within(rows[15]!).getAllByRole('cell')[0]).toHaveTextContent(
+      '502 Hz',
     )
   })
 
@@ -88,7 +88,34 @@ describe('response panel', () => {
     renderPanel()
 
     expect(
-      screen.getByText(/room modes only.*0\.5 s reverberation time/i),
+      screen.getByText(/room modes up to 200 Hz.*0\.5 s reverberation time/i),
+    ).toBeVisible()
+    expect(screen.getByText(/80 Hz crossover/)).toBeVisible()
+  })
+
+  it('lists weaknesses with their likely cause, labelled as coming from the estimate', () => {
+    renderPanel()
+
+    const weaknesses = screen.getByRole('list', { name: 'Weaknesses' })
+    expect(
+      within(weaknesses).getByText(
+        /^Dip at 15\d Hz \(−\d+\.\d dB\): likely a floor reflection notch \(Left and Right\)\.$/,
+      ),
+    ).toBeVisible()
+    expect(
+      screen.getByText(/likely causes in this simplified model/i),
+    ).toBeVisible()
+  })
+
+  it('lists strengths', () => {
+    renderPanel()
+
+    const strengths = screen.getByRole('list', { name: 'Strengths' })
+    // One subwoofer in the middle of the front wall: on the first width mode's node.
+    expect(
+      within(strengths).getByText(
+        'The subwoofers cancel the first width mode (38.1 Hz).',
+      ),
     ).toBeVisible()
   })
 })

@@ -99,13 +99,17 @@ describe('positions in the sidebar', () => {
     expect(field('Center', /^Height/, 'in')).toHaveValue('11.2')
   })
 
-  it('all go back to auto on Auto-place', () => {
+  it('all go back to auto on Auto-place, which is off while nothing is manual', () => {
     renderPositions()
-    enter(field('Center', /^Height/), '1.5')
+    const autoPlace = screen.getByRole('button', { name: 'Auto-place' })
+    expect(autoPlace).toBeDisabled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Auto-place' }))
+    enter(field('Center', /^Height/), '1.5')
+    expect(autoPlace).toBeEnabled()
+    fireEvent.click(autoPlace)
 
     expect(field('Center', /^Height/)).toHaveValue('1.2')
     expect(item('Center')).toHaveTextContent('auto')
+    expect(autoPlace).toBeDisabled()
   })
 })

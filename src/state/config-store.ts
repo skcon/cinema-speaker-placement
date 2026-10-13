@@ -135,6 +135,11 @@ export function isShowingLinkFallback(state: ConfigState): boolean {
   return state.config === state.linkFallback
 }
 
+/** Whether anything is manual, so Auto-place has something to reset. */
+export function hasManualPositions(state: ConfigState): boolean {
+  return Object.keys(state.config.manualPositions).length > 0
+}
+
 /** The group's own specs, kept only for the subwoofers in `ids`. */
 function ownSpecsOf(
   { ownSpecs }: SubwooferGroup,

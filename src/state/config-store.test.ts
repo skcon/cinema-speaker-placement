@@ -59,7 +59,8 @@ describe('config store', () => {
     })
   })
 
-  it('switches to another v1 layout, keeping the room, the subwoofers and their specs', () => {
+  it('switches to another v1 layout, keeping the room, the subwoofers with their specs and positions, and dropping removed channels', () => {
+    // Subwoofer 2 and the Right Rear Surround are manual.
     const store = createConfigStore(IMPERIAL_ROOM)
 
     store.getState().setLayout('5.1')
@@ -67,6 +68,7 @@ describe('config store', () => {
     expect(store.getState().config).toEqual({
       ...IMPERIAL_ROOM,
       layout: { dolbyLayout: '5.1', subwoofers: 2 },
+      manualPositions: { Sub2: IMPERIAL_ROOM.manualPositions.Sub2 },
     })
   })
 

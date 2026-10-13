@@ -31,6 +31,29 @@ export function toScenePosition({ x, y, z }: RoomPoint): Vec3 {
   return [x, z, y]
 }
 
+/** A point on the floor plan, in room coordinates (meters). */
+export type FloorPoint = { x: number; y: number }
+
+/** The floor-plan point under a Three.js point: the inverse of toScenePosition, height dropped. */
+export function toFloorPoint({ x, z }: { x: number; z: number }): FloorPoint {
+  return { x, y: z }
+}
+
+/**
+ * The smallest touch target, in pixels: the size WCAG 2.5.5 (AAA) and the
+ * Apple and Android guidelines give for something a finger has to hit.
+ */
+const TOUCH_TARGET_PX = 44
+
+/**
+ * The radius, in meters, of the area that picks up a marker for dragging:
+ * at least `radius`, and never smaller on screen than a touch target at
+ * this zoom (pixels per meter).
+ */
+export function grabRadius(radius: number, zoom: number): number {
+  return Math.max(radius, TOUCH_TARGET_PX / 2 / zoom)
+}
+
 /**
  * A quarter turn about x that points an object's +z axis straight up. A
  * Three.js plane or circle (drawn facing +z) then lies flat on the floor,

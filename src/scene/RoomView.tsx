@@ -1,4 +1,4 @@
-import { lazy, Suspense, useId, useState } from 'react'
+import { lazy, Suspense, useId, useMemo, useState } from 'react'
 import { formatLength, UNIT_SYSTEMS } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import {
@@ -22,6 +22,13 @@ const RoomCanvas = lazy(() =>
 export function RoomView() {
   const [webGL] = useState(canUseWebGL)
   const { room, units } = useConfig((state) => state.config)
+  const beginGesture = useConfig((state) => state.beginGesture)
+  const moveItem = useConfig((state) => state.moveItem)
+  const endGesture = useConfig((state) => state.endGesture)
+  const drag = useMemo(
+    () => ({ start: beginGesture, move: moveItem, end: endGesture }),
+    [beginGesture, moveItem, endGesture],
+  )
   const { layout, mlp, speakers, subwoofers } = useRoomAnalysis()
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
@@ -70,11 +77,15 @@ export function RoomView() {
             speakers={speakers}
             subwoofers={subwoofers}
             gridSpacing={baseUnit.meters}
+            drag={drag}
           />
         </Suspense>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <p>To scale, seen from above. Grid squares are 1 {baseUnit.unit}.</p>
+        <p>
+          To scale, seen from above. Grid squares are 1 {baseUnit.unit}. Drag
+          the speakers and the MLP to move them.
+        </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <GradeLegend />
           <p className="flex items-center gap-1.5">

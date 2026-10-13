@@ -4,6 +4,8 @@ import type { Room, RoomPoint } from '@/domain'
 import {
   floorGrid,
   floorPlane,
+  grabRadius,
+  toFloorPoint,
   toScenePosition,
   topDownCamera,
 } from '@/scene/top-down'
@@ -45,6 +47,17 @@ function project(
 describe('room points in the scene', () => {
   it('maps room x, y, z to Three.js x, z, y (Three.js has y up)', () => {
     expect(toScenePosition({ x: 1, y: 2, z: 3 })).toEqual([1, 3, 2])
+  })
+
+  it('maps a Three.js point back to the floor plan, for dragging', () => {
+    expect(toFloorPoint(new Vector3(1, 3, 2))).toEqual({ x: 1, y: 2 })
+  })
+
+  it('makes markers grabbable over at least a 44 px touch target', () => {
+    // At 50 px per meter, 44 px is 0.88 m across.
+    expect(grabRadius(0.2, 50)).toBeCloseTo(0.44, 9)
+    // Zoomed in to 400 px per meter, the marker itself is larger.
+    expect(grabRadius(0.2, 400)).toBe(0.2)
   })
 })
 

@@ -89,8 +89,12 @@ How good a candidate MLP is, combining bass smoothness against the target curve 
 _Avoid_: Rating, quality
 
 **Auto-place**:
-Placing every speaker and the MLP from the reference recommendations for the current room and layout.
+Placing every speaker and the MLP from the reference recommendations for the current room and layout. The button sets everything back to auto.
 _Avoid_: Auto-layout, optimize
+
+**Auto / manual**:
+Whether a channel's speaker, a subwoofer or the MLP is placed by Auto-place (auto, follows Room and MLP changes) or was dragged or edited by the user (manual, stays where it was left; its **manual position** is stored in the config).
+_Avoid_: Locked, pinned, custom position
 
 ## Sharing
 

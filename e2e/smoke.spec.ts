@@ -64,7 +64,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toBeVisible()
   })
 
-  await test.step('the estimated response is charted, with its summary and the estimate note', async () => {
+  await test.step('the estimated response is charted, with its summary, weaknesses and the estimate note', async () => {
     const panel = page.getByRole('region', { name: 'Estimated response' })
     const chart = panel.getByRole('img', {
       name: /^Chart of the estimated response at the MLP against the flat target/,
@@ -80,6 +80,13 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       panel.getByText(/^Within ±3 dB of the flat target/),
     ).toBeVisible()
     await expect(
+      panel
+        .getByRole('list', { name: 'Weaknesses' })
+        .getByText(
+          /^Dip at 15\d Hz .*floor reflection notch \(Left and Right\)/,
+        ),
+    ).toBeVisible()
+    await expect(
       panel.getByText(
         'An estimate from a simplified model, never a measurement.',
       ),
@@ -93,7 +100,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     .getByRole('region', { name: 'Room view' })
     .getByRole('img', { name: /24 ft 0 in long and 15 ft 0 in wide/ })
 
-  await test.step('a share link opens its room and speakers', async () => {
+  await test.step('a share link opens its room, speakers and crossover', async () => {
     await expect(
       page.getByRole('radio', { name: 'Imperial (ft + in)' }),
     ).toBeChecked()
@@ -103,6 +110,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('radio', { name: '7.2.2', checked: true }),
     ).toBeVisible()
+    await expect(
+      page.getByRole('textbox', { name: 'Crossover (Hz)' }),
+    ).toHaveValue('120')
     for (const label of ['L 26°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
     }

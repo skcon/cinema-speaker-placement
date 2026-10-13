@@ -306,7 +306,7 @@ describe('a room response prepared once', () => {
     ).toEqual(response.estimated)
   })
 
-  it('reuses the preparation when only the listening position changes', () => {
+  it('reuses the preparation when nothing it is prepared from changes (an MLP drag in #9, a target curve here), and not otherwise', () => {
     const first = defaultSetup().prepared
     const moved = defaultSetup({ ...DEFAULT_CONFIG, targetCurve: 'house' })
 

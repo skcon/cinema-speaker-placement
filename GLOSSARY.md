@@ -66,6 +66,10 @@ _Avoid_: Override, per-sub specs, custom specs
 How a subwoofer's driver is loaded: sealed (a closed box) or ported (a box with a port).
 _Avoid_: Cabinet type, box type
 
+**Crossover**:
+The frequency (default 80 Hz) where the bass hands over from the Speakers to the Subwoofers: below it the Subwoofers play, above it the Speakers.
+_Avoid_: Bass management frequency, cutoff, LPF
+
 **Arrangement**:
 Where each subwoofer goes for a given subwoofer count, from published multi-subwoofer research, scaled to the Room (`docs/research/multi-subwoofer-placement.md`).
 _Avoid_: Sub layout, configuration, pattern
@@ -83,6 +87,14 @@ _Avoid_: Ideal curve, reference curve
 **Estimated response**:
 The modeled frequency response at the MLP; an estimate, never a measurement.
 _Avoid_: Measured response, projected result
+
+**Boundary interference**:
+A Speaker's sound reflected off a nearby wall, the floor or the ceiling, arriving late enough to cancel part of the direct sound at some frequencies (a notch) and add to it at others.
+_Avoid_: SBIR (in the UI), comb filtering, wall bounce
+
+**Weakness** / **Strength**:
+A peak or dip of the estimated response outside the target's tolerance band, or something the plan gets right, each with its likely cause in the model.
+_Avoid_: Problem, issue, error
 
 **Seat score**:
 How good a candidate MLP is, combining bass smoothness against the target curve with placement-range fit.

@@ -24,8 +24,8 @@ Researched 2026-10-12 for issue #11 (response chart: room modes at the MLP). Thi
 - **Rigid walls, no wall absorption per surface**: damping is one number for every mode.
 - **The (0, 0, 0) term is left out** (user's decision, #11 review): it is the uniform pressure change of a sealed room (room gain below the lowest mode), which real, leaky rooms show only partly, by an amount no source gives. The chart says room gain isn't modelled.
 - **Reliability**: the estimate counts as reliable only from the **lowest mode the subwoofers excite** together (a mode they cancel, such as the first length mode for front and back subwoofers, doesn't count). Below it the modal sum has only other modes' tails and no room gain. Those frequencies are shaded on the chart, marked in the table, and left out of the level-matching and the peak/dip summary.
-- **Modes are summed up to 1.5 × the highest frequency asked for** (300 Hz for the 200 Hz band); higher modes add little below it.
-- **Every subwoofer is a point source of equal strength, driven in phase** (one bass-managed channel, as in Welti's studies, `multi-subwoofer-placement.md`). Driver size, power, enclosure and the crossover don't change the curve yet (#12 adds enclosure roll-off and the crossover).
+- **Modes are summed up to 1.5 × the highest frequency they are worked out at** (300 Hz, as the room-mode model stops at 200 Hz while the chart goes on to about 500 Hz); higher modes add little below it.
+- **Every subwoofer is a point source of equal strength, driven in phase** (one bass-managed channel, as in Welti's studies, `multi-subwoofer-placement.md`). Driver size and power don't change the curve; the enclosure roll-off and the crossover do (see `crossover-enclosure-boundaries.md`).
 - **Level**: the model has no absolute level. The estimated response is shifted so its average deviation from the target curve over the reliable frequencies is 0 dB, like setting the subwoofer level to the target.
 
 ## 3. Target curve

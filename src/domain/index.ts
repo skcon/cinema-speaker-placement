@@ -16,6 +16,14 @@ export type {
   ResponseRow,
 } from './estimated-response'
 export type { ResponseDeviation, ResponseSummary } from './response-summary'
+export type {
+  ResponseCause,
+  ResponseNotes,
+  ResponseStrength,
+  ResponseWeakness,
+} from './response-notes'
+export type { Surface } from './boundary-interference'
+export type { RoomMode, RoomModeKind } from './room-modes'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
   checkCrossover,

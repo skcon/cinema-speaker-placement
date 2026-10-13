@@ -24,6 +24,8 @@ import {
   type ResponseSummary,
 } from './response-summary'
 import { targetCurve, type TargetCurveKind } from './target-curve'
+import { boundaryReflections } from './boundary-interference'
+import { responseNotes, type ResponseNotes } from './response-notes'
 
 /** A listener-level speaker of the layout, auto-placed and checked. */
 export type PlacedSpeaker = {
@@ -70,6 +72,8 @@ export type ResponseAnalysis = {
   readonly summary: ResponseSummary
   /** The rows at third-octave frequencies, for a table. */
   readonly tableRows: readonly ResponseRow[]
+  /** Weaknesses and strengths, each with its likely cause. */
+  readonly notes: ResponseNotes
 }
 
 /** Everything derived from a config. Later tickets add overheads. */
@@ -146,6 +150,20 @@ export function analyzeRoom({
     },
     targetCurve(targetCurveKind, frequencies),
   )
+  const summary = summarizeResponse(estimated.rows)
+  const notes = responseNotes({
+    rows: estimated.rows,
+    summary,
+    crossoverHz,
+    modalBandwidth: estimated.model.modalBandwidth,
+    roomModes: estimated.roomModes,
+    speakers: speakers.map((speaker) => ({
+      name: speaker.name,
+      charted: isChartedChannel(speaker.channel),
+      reflections: boundaryReflections(room, speaker, mlp),
+    })),
+    enclosures: subwoofers.map(({ specs }) => specs.enclosure),
+  })
   return {
     layout: summarizeLayout(layout),
     mlp,
@@ -154,8 +172,9 @@ export function analyzeRoom({
     response: {
       estimated,
       targetCurve: targetCurveKind,
-      summary: summarizeResponse(estimated.rows),
+      summary,
       tableRows: responseTable(estimated.rows),
+      notes,
     },
   }
 }

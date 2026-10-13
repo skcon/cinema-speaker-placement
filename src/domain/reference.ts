@@ -356,6 +356,33 @@ export const BOUNDARY_INTERFERENCE = {
   citations: readonly Citation[]
 }
 
+/**
+ * How the weaknesses and strengths list matches a peak or dip to its
+ * likely cause (response-notes.ts). Every value is our own rule of thumb,
+ * not a cited one:
+ *
+ * - `matchWithin`: a room mode explains a peak or dip within this share
+ *   of its frequency, or within one modal bandwidth if that is wider.
+ * - `nodeBelow`: the MLP is "near a mode's node" where the mode's
+ *   relative pressure there is below this (and "hears" it from it up).
+ * - `reflectionWithin`: a reflection's notch or boost explains a dip or
+ *   peak within this share of its frequency.
+ * - `mergeWithin`: notches of different speakers this close are one entry.
+ * - `rollOffUpTo`: a dip up to this multiple of the enclosure's corner
+ *   frequency, with no mode to explain it, is put down to the roll-off.
+ * - `smoothFrom`: the response counts as smooth when at least this share
+ *   of the reliable range is inside the tolerance band.
+ */
+export const RESPONSE_NOTES = {
+  matchWithin: 0.05,
+  nodeBelow: 0.3,
+  reflectionWithin: 0.1,
+  mergeWithin: 0.03,
+  rollOffUpTo: 1.25,
+  smoothFrom: 0.7,
+  note: 'Our matching rules, not cited values.',
+} as const satisfies Record<string, number | string>
+
 /** The target curve's tolerance band: ± this many dB around the target. */
 export const TARGET_TOLERANCE = {
   db: 3,

@@ -24,6 +24,16 @@ describe('reflecting surfaces of a listener-level speaker', () => {
     ])
   })
 
+  it('takes both side walls for a speaker on the center line, as neither is nearer', () => {
+    const center = { position: { x: 0, y: 0.3, z: 1.2 }, aim: { yaw: 180 } }
+    expect(reflectingSurfaces(ROOM, center)).toEqual([
+      'front wall',
+      'left wall',
+      'right wall',
+      'floor',
+    ])
+  })
+
   it('picks the ceiling when it is nearer than the floor', () => {
     const speaker = { position: { x: 0, y: 0.5, z: 2 }, aim: { yaw: 180 } }
     expect(reflectingSurfaces(ROOM, speaker)).toContain('ceiling')

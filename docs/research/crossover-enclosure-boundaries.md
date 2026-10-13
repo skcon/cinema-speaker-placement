@@ -33,7 +33,7 @@ Researched 2026-10-13 for issue #12 (boundary interference, crossover, roll-off 
 - **Notch frequencies** (textbook geometry, no source needed): a reflection that travels Δ further than the direct sound cancels it partly where Δ is an odd number of half wavelengths, f = (2k + 1)·c/(2Δ). For the wall behind a speaker d away, heard on its axis, Δ ≈ 2d and the first notch is the quarter-wave one, f = c/(4d).
 - **What the app encodes** (all **ours** except the three-boundary idea):
   - First-order image sources only, summed with the direct sound with their extra delay and 1/r spreading loss.
-  - The surfaces: the wall behind the speaker (the first wall a ray opposite its aim meets), the nearest other wall, and the nearer of the floor and ceiling.
+  - The surfaces: the wall behind the speaker (the first wall a ray opposite its aim meets), the nearest other wall (both side walls when they are equally near, as for the Center), and the nearer of the floor and ceiling.
   - Reflection coefficient 1 (rigid surfaces), as in the room-mode model. Real notches are shallower.
   - Omnidirectional speakers. Real cabinets send less sound backwards as the frequency rises, so notches from the wall behind are overstated toward 500 Hz.
   - The chart's Speakers' part is the Left and Right pair; every other listener-level speaker's own deepest notch is listed in the weaknesses.

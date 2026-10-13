@@ -87,21 +87,30 @@ function wallBehind(
 
 /**
  * The surfaces whose reflections a speaker's response includes: the wall
- * behind it (from its aim), the nearest other wall, and the nearer of the
+ * behind it (from its aim), the nearest other wall (both side walls for a
+ * speaker on the center line), and the nearer of the
  * floor and the ceiling (BOUNDARY_INTERFERENCE.surfaces).
  */
 export function reflectingSurfaces(
   room: Room,
   speaker: BoundarySource,
-): [WallSurface, WallSurface, 'floor' | 'ceiling'] {
+): Surface[] {
   const behind = wallBehind(room, speaker)
   const distances = wallDistances(room, speaker.position)
-  const [nearestOther] = (Object.keys(distances) as WallSurface[])
-    .filter((wall) => wall !== behind)
-    .sort((a, b) => distances[a] - distances[b])
+  const others = (Object.keys(distances) as WallSurface[]).filter(
+    (wall) => wall !== behind,
+  )
+  const nearest = Math.min(...others.map((wall) => distances[wall]))
+  // Walls equally near (a speaker on the center line) all count.
+  const nearestOthers = others.filter(
+    (wall) => distances[wall] - nearest < TIED,
+  )
   const { z } = speaker.position
-  return [behind, nearestOther!, z <= room.height - z ? 'floor' : 'ceiling']
+  return [behind, ...nearestOthers, z <= room.height - z ? 'floor' : 'ceiling']
 }
+
+/** Walls whose distances differ by less than this, in m, are equally near. */
+const TIED = 1e-6
 
 /** The speaker mirrored in a surface: its image source. */
 function image(

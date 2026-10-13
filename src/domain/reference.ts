@@ -312,7 +312,7 @@ export const ENCLOSURE_ROLL_OFF = {
 
 /**
  * The speaker-boundary interference model for listener-level Speakers
- * (ADR 0002, about 80-500 Hz): first-order reflections off three nearby
+ * (ADR 0002, about 80-500 Hz): first-order reflections off three (or four) nearby
  * surfaces, each an image source with the extra delay and spreading loss
  * of its longer path, summed with the direct sound.
  *
@@ -320,8 +320,10 @@ export const ENCLOSURE_ROLL_OFF = {
  *   room boundaries nearest a loudspeaker: the floor, the wall behind it
  *   and a side wall (ALLISON-1974, abstract and secondary summaries only;
  *   STRUCK-2016). Here: the wall behind the speaker (found from its aim),
- *   the nearest other wall, and the nearer of the floor and the ceiling.
- *   Taking the ceiling when it is nearer, and only these three, is ours.
+ *   the nearest other wall (both, when equally near), and the nearer of
+ *   the floor and the ceiling.
+ *   Taking the ceiling when it is nearer, both side walls when equally
+ *   near, and only these surfaces, is ours.
  * - **Reflection coefficient 1** (rigid surfaces, no absorption), as in
  *   the room-mode model's rigid walls: ours. Real walls absorb some bass,
  *   so real notches are shallower.

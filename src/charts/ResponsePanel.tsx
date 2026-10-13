@@ -150,10 +150,10 @@ export function ResponsePanel() {
         same bass together, each rolled off by its enclosure (corner frequencies
         are our assumption); assumes a {model.reverberationTime} s reverberation
         time at low frequencies. Above the {formatHz(model.crossoverHz)}{' '}
-        crossover (a Linkwitz-Riley 24 dB/octave model), the Left and Right
-        speakers with reflections off their nearest surfaces, treated as rigid,
-        with speakers radiating equally in all directions. Room gain below the
-        lowest mode isn&rsquo;t modelled.
+        crossover (a Linkwitz-Riley 24 dB/octave model), the Left, Center and
+        Right speakers with reflections off their nearest surfaces, treated as
+        rigid, with speakers radiating equally in all directions. Room gain
+        below the lowest mode isn&rsquo;t modelled.
         {targetCurve === 'house' &&
           ' The house curve is our own assumption (a gentle bass boost below about 100 Hz), not a published standard.'}
       </p>

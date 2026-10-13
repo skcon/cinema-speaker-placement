@@ -90,7 +90,9 @@ describe('response panel', () => {
     expect(
       screen.getByText(/room modes up to 200 Hz.*0\.5 s reverberation time/i),
     ).toBeVisible()
-    expect(screen.getByText(/80 Hz crossover/)).toBeVisible()
+    expect(screen.getByText(/80 Hz crossover/)).toHaveTextContent(
+      /the Left, Center and Right speakers/,
+    )
   })
 
   it('lists weaknesses with their likely cause, labelled as coming from the estimate', () => {
@@ -99,7 +101,7 @@ describe('response panel', () => {
     const weaknesses = screen.getByRole('list', { name: 'Weaknesses' })
     expect(
       within(weaknesses).getByText(
-        /^Dip at 15\d Hz \(−\d+\.\d dB\): likely a floor reflection notch \(Left and Right\)\.$/,
+        /^Dip at 18\d Hz \(−\d+\.\d dB\): likely a front-wall reflection notch \(Left and Right\)\.$/,
       ),
     ).toBeVisible()
     expect(

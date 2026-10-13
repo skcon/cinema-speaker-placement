@@ -36,13 +36,13 @@ Researched 2026-10-13 for issue #12 (boundary interference, crossover, roll-off 
   - The surfaces: the wall behind the speaker (the first wall a ray opposite its aim meets), the nearest other wall (both side walls when they are equally near, as for the Center), and the nearer of the floor and ceiling.
   - Reflection coefficient 1 (rigid surfaces), as in the room-mode model. Real notches are shallower.
   - Omnidirectional speakers. Real cabinets send less sound backwards as the frequency rises, so notches from the wall behind are overstated toward 500 Hz.
-  - The chart's Speakers' part is the Left and Right pair; every other listener-level speaker's own deepest notch is listed in the weaknesses.
+  - The chart's Speakers' part is the front three, Left, Center and Right (the Center usually sits nearest the front wall), power averaged; every other listener-level speaker's own deepest notch is listed in the weaknesses.
 
 ## 5. Adding the subwoofers and the speakers (ours)
 
-- Each part is set to 0 dB averaged over its own pass band (the subwoofers over their reliable rows up to the crossover, the speakers from the crossover up), like a receiver's level calibration.
+- Each part is set to 0 dB averaged over its own pass band (the subwoofers over their reliable rows up to the crossover, the speakers from the crossover up), like a receiver's level calibration. The sum is then shifted so its average deviation from the target over the reliable rows is 0 dB. These three offsets are worked out at the MLP, as a receiver calibrates there, and kept fixed for other seats (the seat score, #14), so a seat with weaker bass than the MLP shows it.
 - The parts are then added through the LR4 filters, in phase, as if the receiver's distance setting had time-aligned them. Only each part's magnitude comes from the room, so the crossover region is smoother than a real room's.
-- The room-mode model runs only up to 200 Hz (ADR 0002's room-mode range). Above it the subwoofers are flat at their level, and there they are mostly crossed out. This also keeps the seat-score grid (#14) fast: 20 × 20 positions in the largest room with 4 subwoofers take about 0.9 s under Vitest.
+- The room-mode model runs only up to 200 Hz (ADR 0002's room-mode range). Above it the subwoofers are flat at their level, and there they are mostly crossed out. This also keeps the seat-score grid (#14) fast: scoring 20 × 20 seats in the largest room with 4 subwoofers and 3 speakers takes about 0.7 s under Vitest.
 
 ## 6. Weaknesses and strengths (ours)
 

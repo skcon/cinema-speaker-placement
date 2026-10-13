@@ -263,7 +263,14 @@ describe('share link codec', () => {
       ['a crossover below 40 Hz', { ...DEFAULT_CONFIG, crossoverHz: 39 }],
       ['a crossover above 200 Hz', { ...DEFAULT_CONFIG, crossoverHz: 250 }],
       ['a crossover that is text', { ...DEFAULT_CONFIG, crossoverHz: '80' }],
-      ['no crossover', (({ crossoverHz: _, ...rest }) => rest)(DEFAULT_CONFIG)],
+      [
+        'no crossover',
+        Object.fromEntries(
+          Object.entries(DEFAULT_CONFIG).filter(
+            ([key]) => key !== 'crossoverHz',
+          ),
+        ),
+      ],
       [
         'an unknown enclosure',
         withSubwooferGroup({

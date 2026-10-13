@@ -200,6 +200,23 @@ describe('weaknesses on the chart', () => {
     ])
   })
 
+  it('skips a peak or dip deepest at an edge of the chart, whose center lies outside it', () => {
+    const { weaknesses } = responseNotes(
+      withRows(
+        [
+          // A dip centered above the chart, and a peak below its reliable rows.
+          { hz: 560, db: -9 },
+          { hz: 26, db: 8 },
+          { hz: 150, db: -6 },
+        ],
+        {},
+        28.6,
+      ),
+    )
+
+    expect(weaknesses.map((w) => Math.round(w.frequency))).toEqual([150])
+  })
+
   it('skips the unreliable rows below the lowest excited mode', () => {
     const { weaknesses } = responseNotes(
       withRows([{ hz: 24, db: -15 }], {}, 28.6),
@@ -404,6 +421,17 @@ describe('notes for a room', () => {
       }),
       expect.objectContaining({ indices: { length: 0, width: 1, height: 0 } }),
     ])
+  })
+
+  it('leaves out the default room’s dip at the chart’s top row, 502 Hz, which only runs into the edge', () => {
+    const { response } = analyzeRoom(DEFAULT_CONFIG)
+    const top = response.estimated.rows.at(-1)!
+    // The chart does end below its ±3 dB band there.
+    expect(top.estimated).toBeLessThan(top.low)
+
+    expect(response.notes.weaknesses).not.toContainEqual(
+      expect.objectContaining({ frequency: top.frequency }),
+    )
   })
 
   it('lists nothing from below the reliable range', () => {

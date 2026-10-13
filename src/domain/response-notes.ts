@@ -5,7 +5,9 @@
  *
  * Builds on the peak/dip summary (response-summary.ts): a weakness is a
  * peak or dip where the reliable rows leave the target's tolerance band,
- * one per stretch outside it, at its extreme. Unreliable rows are
+ * one per stretch outside it, at its extreme. A stretch deepest at the
+ * first or last reliable row is left out: its center lies outside the
+ * chart, so its frequency is not known. Unreliable rows are
  * skipped. The causes are the model's own ingredients (room modes,
  * boundary reflections, the enclosure roll-off), matched by frequency, so
  * a cause is "likely", never certain. The matching rules are ours
@@ -109,15 +111,17 @@ export type ResponseNotesInput = {
 
 /** The weaknesses and strengths of an estimated response. */
 export function responseNotes(input: ResponseNotesInput): ResponseNotes {
-  const chart = outsideBand(
-    input.rows
-      .filter((row) => row.reliable)
-      .map((row) => ({
+  const reliable = input.rows.filter((row) => row.reliable)
+  const chart = awayFromEdges(
+    outsideBand(
+      reliable.map((row) => ({
         frequency: row.frequency,
         deviation: row.estimated - row.target,
         above: row.estimated > row.high,
         below: row.estimated < row.low,
       })),
+    ),
+    reliable.map((row) => row.frequency),
   ).map((extreme) => chartWeakness(extreme, input))
   const ownNotches = speakerNotches(input)
   // The chart already covers the charted speakers; for the others, each
@@ -137,6 +141,22 @@ type Deviation = {
   readonly deviation: number
   readonly above: boolean
   readonly below: boolean
+}
+
+/**
+ * The extremes not at the first or last of `frequencies`: a stretch
+ * deepest at an edge runs into it, so its center lies outside what is
+ * worked out (below the reliable rows or the crossover, or above the
+ * chart) and is not known.
+ */
+function awayFromEdges<T extends { frequency: number }>(
+  extremes: readonly T[],
+  frequencies: readonly number[],
+): T[] {
+  return extremes.filter(
+    ({ frequency }) =>
+      frequency !== frequencies[0] && frequency !== frequencies.at(-1),
+  )
 }
 
 type Extreme = { kind: 'peak' | 'dip'; frequency: number; deviation: number }
@@ -307,30 +327,26 @@ function speakerNotches({ rows, speakers, crossoverHz }: ResponseNotesInput): {
     const average =
       levels.reduce((sum, level) => sum + level, 0) / (levels.length || 1)
     const tolerance = TARGET_TOLERANCE.db
-    const notches = outsideBand(
-      levels.map((level, i) => ({
-        frequency: frequencies[i]!,
-        deviation: level - average,
-        above: false,
-        below: level - average < -tolerance,
-      })),
-    )
-      // A stretch deepest at an end of the band has its notch outside it:
-      // below the crossover, or above the chart.
-      .filter(
-        ({ frequency }) =>
-          frequency !== frequencies[0] && frequency !== frequencies.at(-1),
-      )
-      .map(({ frequency, deviation }): ResponseWeakness => {
-        const found = reflectionCause('dip', frequency, [speaker])
-        return {
-          kind: 'dip',
-          frequency,
-          deviation,
-          cause: found?.cause ?? { kind: 'reflections-combined' },
-          speakers: [speaker.name],
-        }
-      })
+    const notches = awayFromEdges(
+      outsideBand(
+        levels.map((level, i) => ({
+          frequency: frequencies[i]!,
+          deviation: level - average,
+          above: false,
+          below: level - average < -tolerance,
+        })),
+      ),
+      frequencies,
+    ).map(({ frequency, deviation }): ResponseWeakness => {
+      const found = reflectionCause('dip', frequency, [speaker])
+      return {
+        kind: 'dip',
+        frequency,
+        deviation,
+        cause: found?.cause ?? { kind: 'reflections-combined' },
+        speakers: [speaker.name],
+      }
+    })
     return { speaker, notches }
   })
 }

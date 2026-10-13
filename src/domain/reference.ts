@@ -1,8 +1,9 @@
 /**
  * Reference values with their sources, as cited in
  * docs/research/dolby-speaker-placement.md,
- * docs/research/multi-subwoofer-placement.md and
- * docs/research/low-frequency-response.md.
+ * docs/research/multi-subwoofer-placement.md,
+ * docs/research/low-frequency-response.md and
+ * docs/research/crossover-enclosure-boundaries.md.
  */
 
 /**
@@ -13,7 +14,18 @@
  * unique across the files.
  */
 export type SourceKey =
-  DolbySourceKey | SubwooferSourceKey | LowFrequencySourceKey
+  DolbySourceKey | SubwooferSourceKey | LowFrequencySourceKey | BassSourceKey
+
+/** docs/research/crossover-enclosure-boundaries.md, section 1. */
+type BassSourceKey =
+  | 'LR-1976'
+  | 'RANE-160'
+  | 'SV-BASS'
+  | 'SMALL-CB'
+  | 'SMALL-VB'
+  | 'THIELE-VB'
+  | 'ALLISON-1974'
+  | 'STRUCK-2016'
 
 /** docs/research/low-frequency-response.md, section 1. */
 type LowFrequencySourceKey = 'MHA' | 'KUTTRUFF' | 'AES-8994'
@@ -196,6 +208,121 @@ export const MODE_SUM_HEADROOM = {
     'Our modelling assumption: modes above 1.5 × the highest frequency ' +
     'add little below it (docs/research/low-frequency-response.md section 2).',
 } as const satisfies { factor: number; note: string }
+
+/**
+ * The crossover between the Speakers and the Subwoofers: its default, the
+ * frequencies a config accepts, and the filter it is modelled with.
+ *
+ * The filter is an acoustic 4th-order Linkwitz-Riley (LR4) crossover: the
+ * Subwoofers' low-pass and the Speakers' high-pass are each a 2nd-order
+ * Butterworth filter twice, −6 dB at the crossover, 24 dB per octave, in
+ * phase, summing flat (LR-1976; RANE-160). THX's bass management, as a
+ * magazine article describes it (SV-BASS, read only through search
+ * summaries, UNVERIFIED), sends a 24 dB/octave low-pass to the subwoofer
+ * and a 12 dB/octave high-pass to the speakers, whose own 12 dB/octave
+ * roll-off makes the acoustic sum LR4-like. Modelling every receiver's
+ * acoustic result as LR4 is our assumption.
+ */
+export const CROSSOVER = {
+  defaultHz: 80,
+  limits: { min: 40, max: 200 },
+  note:
+    'The 80 Hz default is the v1 spec (issue #2, user story 20). The ' +
+    '40-200 Hz range is our product limit, catching typos while covering ' +
+    'the settings AV receivers commonly offer; it is not a cited value. ' +
+    'The LR4 model is ours, after the sources cited ' +
+    '(docs/research/crossover-enclosure-boundaries.md section 2).',
+  citations: [
+    {
+      source: 'LR-1976',
+      note: 'origin of the Linkwitz-Riley alignment; abstract only',
+    },
+    { source: 'RANE-160', note: 'LR4: −6 dB at fc, in phase, flat sum' },
+    {
+      source: 'SV-BASS',
+      note: 'THX slopes, via search summaries only (UNVERIFIED)',
+    },
+  ],
+} as const satisfies {
+  defaultHz: number
+  limits: { min: number; max: number }
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * How each Enclosure rolls a subwoofer off below its pass band, modelled
+ * as a Butterworth high-pass: a sealed (closed) box is a 2nd-order
+ * (12 dB/octave) high-pass (SMALL-CB), a ported (vented) box a 4th-order
+ * (24 dB/octave) one (THIELE-VB; SMALL-VB). The orders come from those
+ * papers (read as abstracts only). The Butterworth shape and the corner
+ * (−3 dB) frequencies are ours: real subwoofers differ per model, and the
+ * specs don't hold a corner frequency. The ported corner is lower, as a
+ * port typically extends the bass before its steeper fall.
+ */
+export const ENCLOSURE_ROLL_OFF = {
+  sealed: { order: 2, cornerHz: 30 },
+  ported: { order: 4, cornerHz: 20 },
+  note:
+    'Orders from the cited papers; Butterworth alignment and corner ' +
+    'frequencies (30 Hz sealed, 20 Hz ported) are our modelling ' +
+    'assumptions, not measured or published values ' +
+    '(docs/research/crossover-enclosure-boundaries.md section 3).',
+  citations: [
+    { source: 'SMALL-CB', note: 'closed box: 2nd-order high-pass; abstract' },
+    { source: 'THIELE-VB', note: 'vented box: 4th-order; abstract' },
+    { source: 'SMALL-VB', note: 'vented box: 4th-order high-pass; abstract' },
+  ],
+} as const satisfies Record<
+  'sealed' | 'ported',
+  { order: 2 | 4; cornerHz: number }
+> & { note: string; citations: readonly Citation[] }
+
+/**
+ * The speaker-boundary interference model for listener-level Speakers
+ * (ADR 0002, about 80-500 Hz): first-order reflections off three nearby
+ * surfaces, each an image source with the extra delay and spreading loss
+ * of its longer path, summed with the direct sound.
+ *
+ * - **Surfaces**: Allison measured and modelled the effect of the three
+ *   room boundaries nearest a loudspeaker: the floor, the wall behind it
+ *   and a side wall (ALLISON-1974, abstract and secondary summaries only;
+ *   STRUCK-2016). Here: the wall behind the speaker (found from its aim),
+ *   the nearest other wall, and the nearer of the floor and the ceiling.
+ *   Taking the ceiling when it is nearer, and only these three, is ours.
+ * - **Reflection coefficient 1** (rigid surfaces, no absorption), as in
+ *   the room-mode model's rigid walls: ours. Real walls absorb some bass,
+ *   so real notches are shallower.
+ * - **Omnidirectional speakers**: ours. Below about 500 Hz a home theater
+ *   speaker's woofer radiates broadly, but real cabinets send less sound
+ *   backwards as frequency rises, so notches from the wall behind are
+ *   overstated toward 500 Hz. The aim picks the wall behind; it doesn't
+ *   weight the reflections.
+ * - **Only first-order reflections** and no room modes for the Speakers:
+ *   ours.
+ */
+export const BOUNDARY_INTERFERENCE = {
+  reflectionCoefficient: 1,
+  directivity: 'omnidirectional',
+  surfaces: 'wall behind, nearest other wall, nearer of floor and ceiling',
+  note:
+    'Simplified model; every parameter here is our assumption except the ' +
+    "choice of three nearby boundaries, after Allison's study " +
+    '(docs/research/crossover-enclosure-boundaries.md section 4).',
+  citations: [
+    {
+      source: 'ALLISON-1974',
+      note: 'three nearest boundaries; abstract and summaries only',
+    },
+    { source: 'STRUCK-2016', note: "reproduces Allison's figure 8" },
+  ],
+} as const satisfies {
+  reflectionCoefficient: number
+  directivity: string
+  surfaces: string
+  note: string
+  citations: readonly Citation[]
+}
 
 /** The target curve's tolerance band: ± this many dB around the target. */
 export const TARGET_TOLERANCE = {

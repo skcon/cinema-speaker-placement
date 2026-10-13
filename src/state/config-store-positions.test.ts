@@ -41,6 +41,16 @@ describe('auto and manual items', () => {
     expect(speaker(store, 'L').placement).toBe('auto')
   })
 
+  it('stay auto when a subwoofer or the MLP is given a height, as theirs are fixed', () => {
+    const store = createConfigStore()
+
+    store.getState().setItemHeight('Sub1', 1)
+    store.getState().setItemHeight('MLP', 1.6)
+
+    expect(manual(store)).toEqual({})
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
   it('stay inside the Room when dragged past a wall', () => {
     const store = createConfigStore()
 
@@ -186,7 +196,7 @@ describe('undo and redo', () => {
     const store = createConfigStore()
     expect(store.getState().history).toEqual({ canUndo: false, canRedo: false })
 
-    store.getState().setTargetCurve('house')
+    store.getState().setLayout('7.1')
     expect(store.getState().history).toEqual({ canUndo: true, canRedo: false })
 
     store.getState().undo()
@@ -216,6 +226,81 @@ describe('undo and redo', () => {
     store.getState().endGesture()
 
     expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('count a drag started twice (a second finger) as one, ended by its last end', () => {
+    const store = createConfigStore()
+
+    store.getState().beginGesture()
+    store.getState().moveItem('R', { x: 1, y: 1 })
+    store.getState().beginGesture()
+    store.getState().moveItem('L', { x: -1, y: 1 })
+    store.getState().endGesture()
+    // Still dragging: nothing is recorded yet.
+    expect(store.getState().history.canUndo).toBe(false)
+    store.getState().moveItem('R', { x: 1.5, y: 1 })
+    store.getState().endGesture()
+    // An extra end changes nothing.
+    store.getState().endGesture()
+
+    expect(Object.keys(manual(store)).toSorted()).toEqual(['L', 'R'])
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('wait while a drag is in progress', () => {
+    const store = createConfigStore()
+    store.getState().setRoomDimension('length', 7)
+
+    store.getState().beginGesture()
+    store.getState().moveItem('R', { x: 1, y: 1 })
+    store.getState().undo()
+    store.getState().redo()
+
+    expect(store.getState().config.room.length).toBe(7)
+    expect(manual(store).R).toBeDefined()
+    store.getState().endGesture()
+    store.getState().undo()
+    expect(manual(store)).toEqual({})
+    expect(store.getState().config.room.length).toBe(7)
+  })
+
+  it('keep a drag one step when a share link opens in the middle of it', () => {
+    const store = createConfigStore()
+
+    store.getState().beginGesture()
+    store.getState().moveItem('R', { x: 1, y: 1 })
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
+    store.getState().endGesture()
+    // The link replaced the room and the drag with it; edits are tracked again.
+    store.getState().setTargetCurve('flat')
+    store.getState().setRoomDimension('length', 9)
+
+    expect(store.getState().config).toMatchObject({
+      ...IMPERIAL_ROOM,
+      targetCurve: 'flat',
+      room: { length: 9 },
+    })
+    store.getState().undo()
+    expect(store.getState().config.room.length).toBe(8)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('leave out view preferences: units and the target curve', () => {
+    const store = createConfigStore()
+
+    store.getState().setUnits('imperial')
+    store.getState().setTargetCurve('house')
+    expect(store.getState().history.canUndo).toBe(false)
+
+    store.getState().setRoomDimension('length', 7)
+    store.getState().undo()
+    expect(store.getState().config).toMatchObject({
+      units: 'imperial',
+      targetCurve: 'house',
+      room: { length: 6 },
+    })
   })
 
   it('never undo into a share link opened from the address, nor past it', () => {

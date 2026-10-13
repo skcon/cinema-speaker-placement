@@ -12,6 +12,7 @@ import {
   withRoom,
   type Config,
   type DolbyLayout,
+  type FloorPoint,
   type PlaceableId,
   type RoomDimension,
   type ShareLinkProblem,
@@ -42,11 +43,14 @@ export type ConfigState = {
   /** Whether undo and redo have anything to do. */
   history: { canUndo: boolean; canRedo: boolean }
   /**
-   * The config when the drag in progress started, or null between drags;
-   * see beginGesture.
+   * The drag in progress, or null between drags: the config when it
+   * started, and how many pointers are still dragging (see beginGesture).
    */
-  gestureStart: Config | null
-  /** Show and accept lengths in these units. The stored meters don't change. */
+  gesture: { start: Config; depth: number } | null
+  /**
+   * Show and accept lengths in these units. The stored meters don't change.
+   * A view preference: not an undo step.
+   */
   setUnits: (units: UnitSystem) => void
   /** Set one room dimension, in meters. Out-of-range values are ignored. */
   setRoomDimension: (dimension: RoomDimension, meters: number) => void
@@ -75,14 +79,17 @@ export type ConfigState = {
     subwoofer: SubwooferId,
     hasOwnSpecs: boolean,
   ) => void
-  /** Compare the estimated response against the flat or the house curve. */
+  /**
+   * Compare the estimated response against the flat or the house curve. A
+   * view preference: not an undo step.
+   */
   setTargetCurve: (targetCurve: TargetCurveKind) => void
   /**
    * Move a channel, a subwoofer or the MLP on the floor plan (a drag),
    * making it manual. It stays inside the Room by the wall clearances; its
    * height stays. Ignored for an item the layout doesn't have.
    */
-  moveItem: (id: PlaceableId, to: { x: number; y: number }) => void
+  moveItem: (id: PlaceableId, to: FloorPoint) => void
   /**
    * Set a listener-level speaker's height above the floor, in meters,
    * making it manual. Kept inside the floor and ceiling clearances;
@@ -104,13 +111,17 @@ export type ConfigState = {
   /**
    * Start a drag: until endGesture, edits change the config (so the view
    * and the grades follow live) without each one becoming an undo step.
+   * Starts are counted, so a second pointer joins the drag in progress.
    */
   beginGesture: () => void
-  /** End a drag: everything it changed becomes one undo step. */
+  /**
+   * End a drag: when every start has ended, everything it changed becomes
+   * one undo step. Extra ends do nothing.
+   */
   endGesture: () => void
-  /** Take back the last edit (a drag counts as one). */
+  /** Take back the last edit (a drag counts as one). Ignored mid-drag. */
   undo: () => void
-  /** Make the last undone edit again. */
+  /** Make the last undone edit again. Ignored mid-drag. */
   redo: () => void
   /**
    * Replace the config with the one an encoded config (a share link's
@@ -173,21 +184,48 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
   const store = createStore<ConfigState>()(
     temporal(
       (set, get) => {
-        /** Replace the config without making an undo step. */
+        /**
+         * Change state without making an undo step. Tracking stays paused
+         * while a drag is open, so the drag still becomes one step.
+         */
         const setUntracked = (state: Partial<ConfigState>) => {
           const history = store.temporal.getState()
           history.pause()
           set(state)
-          history.resume()
+          if (!get().gesture) history.resume()
+        }
+        /** Apply a config edit, unless it changed nothing. */
+        const setConfigIfChanged = (edit: (config: Config) => Config) => {
+          const { config } = get()
+          const edited = edit(config)
+          if (edited !== config) set({ config: edited })
+        }
+        /**
+         * Step through the history, keeping the current view preferences
+         * (units, target curve), which are not part of it.
+         */
+        const travel = (step: 'undo' | 'redo') => {
+          if (get().gesture) return
+          const { units, targetCurve } = get().config
+          store.temporal.getState()[step]()
+          const { config } = get()
+          // An undone edit is still an edit of the room shown for a broken link.
+          setUntracked({
+            linkFallback: null,
+            config:
+              config.units === units && config.targetCurve === targetCurve
+                ? config
+                : { ...config, units, targetCurve },
+          })
         }
         return {
           config: initialConfig,
           linkProblem: null,
           linkFallback: null,
           history: { canUndo: false, canRedo: false },
-          gestureStart: null,
+          gesture: null,
           setUnits: (units) =>
-            set(({ config }) => ({ config: { ...config, units } })),
+            setUntracked({ config: { ...get().config, units } }),
           setRoomDimension: (dimension, meters) => {
             if (checkRoomDimension(dimension, meters) !== null) return
             set(({ config }) => ({
@@ -245,58 +283,57 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             set({ config: withSubwooferGroup(config, { ...group, ownSpecs }) })
           },
           setTargetCurve: (targetCurve) =>
-            set(({ config }) => ({ config: { ...config, targetCurve } })),
-          moveItem: (id, { x, y }) => {
-            const { config } = get()
-            const moved = placeManually(config, id, { x, y })
-            if (moved !== config) set({ config: moved })
-          },
-          setItemHeight: (id, meters) => {
-            const { config } = get()
-            const moved = placeManually(config, id, { z: meters })
-            if (moved !== config) set({ config: moved })
-          },
-          setWallDistance: (id, wall, meters) => {
-            const { config } = get()
-            const moved = placeAtWallDistance(config, id, wall, meters)
-            if (moved !== config) set({ config: moved })
-          },
+            setUntracked({ config: { ...get().config, targetCurve } }),
+          moveItem: (id, { x, y }) =>
+            setConfigIfChanged((config) => placeManually(config, id, { x, y })),
+          setItemHeight: (id, meters) =>
+            setConfigIfChanged((config) =>
+              placeManually(config, id, { z: meters }),
+            ),
+          setWallDistance: (id, wall, meters) =>
+            setConfigIfChanged((config) =>
+              placeAtWallDistance(config, id, wall, meters),
+            ),
           autoPlace: () => {
             const { config } = get()
             if (Object.keys(config.manualPositions).length === 0) return
             set({ config: withAutoPlacement(config) })
           },
           beginGesture: () => {
+            const { gesture, config } = get()
+            if (gesture) {
+              set({ gesture: { ...gesture, depth: gesture.depth + 1 } })
+              return
+            }
             store.temporal.getState().pause()
-            set({ gestureStart: get().config })
+            set({ gesture: { start: config, depth: 1 } })
           },
           endGesture: () => {
-            const { gestureStart, config } = get()
-            if (gestureStart === null) return
-            // Put the config back as it was before the drag while not tracking,
-            // then make the whole drag one tracked change.
-            setUntracked({ gestureStart: null, config: gestureStart })
-            if (config !== gestureStart) set({ config })
+            const { gesture, config } = get()
+            if (!gesture) return
+            if (gesture.depth > 1) {
+              set({ gesture: { ...gesture, depth: gesture.depth - 1 } })
+              return
+            }
+            // Put the config back as it was before the drag while not
+            // tracking, then make the whole drag one tracked change.
+            set({ gesture: null, config: gesture.start })
+            store.temporal.getState().resume()
+            if (config !== gesture.start) set({ config })
           },
-          undo: () => {
-            store.temporal.getState().undo()
-            // An undone edit is still an edit of the room shown for a broken link.
-            set({ linkFallback: null })
-          },
-          redo: () => {
-            store.temporal.getState().redo()
-            set({ linkFallback: null })
-          },
+          undo: () => travel('undo'),
+          redo: () => travel('redo'),
           openEncodedConfig: (encoded) => {
             const { config, problem } =
               encoded === undefined
                 ? { config: DEFAULT_CONFIG, problem: null }
                 : decodeConfig(encoded)
+            // The link replaces the room, and any drag in progress with it.
+            set({ gesture: null })
             setUntracked({
               config,
               linkProblem: problem,
               linkFallback: problem ? config : null,
-              gestureStart: null,
             })
             store.temporal.getState().clear()
           },
@@ -304,7 +341,9 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
         }
       },
       {
-        // Only the config is undone; the rest is about the page, not the room.
+        // Only the config is undone; the rest is about the page, not the
+        // room. Units and the target curve are view preferences: they are
+        // changed untracked and kept on undo and redo (see travel).
         partialize: ({ config }) => ({ config }),
         equality: (past, current) => past.config === current.config,
         limit: UNDO_LIMIT,

@@ -70,13 +70,14 @@ describe('response table', () => {
     expect(responseTable(rows).map((r) => r.frequency)).toEqual([20, 31.6])
   })
 
-  it('gives the analysis 20, 25.2 ... 200 Hz', () => {
+  it('gives the analysis 20, 25.2 ... 502 Hz', () => {
     const { response } = analyzeRoom(DEFAULT_CONFIG)
 
     expect(response.tableRows.map((r) => r.frequency)).toEqual(
-      [20, 25.2, 31.7, 39.9, 50.2, 63.2, 79.6, 100.2, 126.2, 158.9, 200].map(
-        (hz) => expect.closeTo(hz, 1) as number,
-      ),
+      [
+        20, 25.2, 31.7, 39.9, 50.2, 63.2, 79.6, 100.2, 126.2, 158.9, 200, 251.8,
+        317, 399.1, 502.4,
+      ].map((hz) => expect.closeTo(hz, 1) as number),
     )
     expect(response.tableRows[0]).toEqual(response.estimated.rows[0])
   })

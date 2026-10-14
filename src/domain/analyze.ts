@@ -24,6 +24,11 @@ import {
   type ResponseSummary,
 } from './response-summary'
 import { targetCurve, type TargetCurveKind } from './target-curve'
+import {
+  boundaryReflections,
+  interferenceLevels,
+} from './boundary-interference'
+import { responseNotes, type ResponseNotes } from './response-notes'
 
 /** A listener-level speaker of the layout, placed and checked. */
 export type PlacedSpeaker = {
@@ -74,6 +79,8 @@ export type ResponseAnalysis = {
   readonly summary: ResponseSummary
   /** The rows at third-octave frequencies, for a table. */
   readonly tableRows: readonly ResponseRow[]
+  /** Weaknesses and strengths, each with its likely cause. */
+  readonly notes: ResponseNotes
 }
 
 /** Everything derived from a config. Later tickets add overheads. */
@@ -92,24 +99,54 @@ export type RoomAnalysis = {
   response: ResponseAnalysis
 }
 
+/**
+ * The channels whose Speakers make up the chart's Speakers' part: the
+ * front three, which every listener-level layout but 2.1 has all of. The
+ * Center usually sits nearest the front wall.
+ */
+const CHARTED_CHANNELS = ['L', 'C', 'R'] as const satisfies readonly ChannelId[]
+
 /** The domain entry point: derive the room plan from a config. */
 export function analyzeRoom(config: Config): RoomAnalysis {
-  const { room, layout, speakerGroups, targetCurve: targetCurveKind } = config
+  const {
+    room,
+    layout,
+    speakerGroups,
+    targetCurve: targetCurveKind,
+    crossoverHz,
+  } = config
+  // The one place positions come from: manual where the user put an item,
+  // else auto-placed (placements.ts). Everything below follows from them.
   const placements = placeAll(config)
   const mlp = placements.mlp.position
-  const speakers = placements.speakers.map(
-    ({ reference, position, placement }): PlacedSpeaker => ({
-      channel: reference.channel,
-      name: CHANNELS[reference.channel].name,
-      position,
-      placement,
-      aim: aimAtMlp(position, mlp),
-      placementRange: checkPlacementRange(
-        reference,
-        azimuthFromMlp(mlp, position),
-      ),
-    }),
+  const frequencies = responseFrequencies()
+
+  // Each speaker faces the current MLP; its reflections follow from that
+  // aim and are worked out once, for both the estimate and the notes.
+  const heardSpeakers = placements.speakers.map(
+    ({ reference, position, placement }) => {
+      const aim = aimAtMlp(position, mlp)
+      const reflections = boundaryReflections(room, { position, aim }, mlp)
+      const speaker: PlacedSpeaker = {
+        channel: reference.channel,
+        name: CHANNELS[reference.channel].name,
+        position,
+        placement,
+        aim,
+        placementRange: checkPlacementRange(
+          reference,
+          azimuthFromMlp(mlp, position),
+        ),
+      }
+      return {
+        speaker,
+        charted: CHARTED_CHANNELS.some((c) => c === reference.channel),
+        reflections,
+        levels: interferenceLevels(reflections, frequencies),
+      }
+    },
   )
+
   const { specs: groupSpecs, ownSpecs } = speakerGroups.subwoofers
   const subwoofers = placements.subwoofers.map(
     ({ id, position, placement, wall }): PlacedSubwoofer => ({
@@ -121,28 +158,55 @@ export function analyzeRoom(config: Config): RoomAnalysis {
       specs: ownSpecs[id] ?? groupSpecs,
     }),
   )
-  const frequencies = responseFrequencies()
+
   const prepared = prepareRoomResponse({
     room,
-    sources: subwoofers.map(({ position }) => position),
+    subwoofers: subwoofers.map(({ position, specs }) => ({
+      position,
+      enclosure: specs.enclosure,
+    })),
+    crossoverHz,
     frequencies,
   })
   const estimated = estimateResponse(
     prepared,
-    mlp,
+    {
+      receiver: mlp,
+      speakerLevels: heardSpeakers
+        .filter(({ charted }) => charted)
+        .map(({ levels }) => levels),
+    },
     targetCurve(targetCurveKind, frequencies),
   )
+  const summary = summarizeResponse(estimated.rows)
+  const notes = responseNotes({
+    rows: estimated.rows,
+    summary,
+    crossoverHz,
+    modalBandwidth: estimated.model.modalBandwidth,
+    roomModes: estimated.roomModes,
+    speakers: heardSpeakers.map(
+      ({ speaker, charted, reflections, levels }) => ({
+        name: speaker.name,
+        charted,
+        reflections,
+        levels,
+      }),
+    ),
+    enclosures: subwoofers.map(({ specs }) => specs.enclosure),
+  })
   return {
     layout: summarizeLayout(layout),
     mlp,
     mlpPlacement: placements.mlp.placement,
-    speakers,
+    speakers: heardSpeakers.map(({ speaker }) => speaker),
     subwoofers,
     response: {
       estimated,
       targetCurve: targetCurveKind,
-      summary: summarizeResponse(estimated.rows),
+      summary,
       tableRows: responseTable(estimated.rows),
+      notes,
     },
   }
 }

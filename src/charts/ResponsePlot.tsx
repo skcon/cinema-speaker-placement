@@ -4,6 +4,7 @@ import {
   ComposedChart,
   Line,
   ReferenceArea,
+  ReferenceLine,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -122,6 +123,16 @@ export function ResponsePlot({ estimated }: { estimated: EstimatedResponse }) {
             }}
           />
         )}
+        <ReferenceLine
+          x={estimated.model.crossoverHz}
+          stroke="var(--muted-foreground)"
+          strokeDasharray="2 3"
+          label={{
+            value: 'Crossover',
+            position: 'insideTopRight',
+            className: 'fill-muted-foreground text-[10px]',
+          }}
+        />
         <ChartTooltip
           content={
             <ChartTooltipContent

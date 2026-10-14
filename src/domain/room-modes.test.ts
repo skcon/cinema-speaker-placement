@@ -7,6 +7,14 @@ function db({ re, im }: { re: number; im: number }): number {
   return 20 * Math.log10(Math.hypot(re, im))
 }
 
+/** No filter (1) for every source at every frequency. */
+function unfiltered(
+  sources: readonly unknown[],
+  frequencies: readonly number[],
+) {
+  return sources.map(() => frequencies.map(() => ({ re: 1, im: 0 })))
+}
+
 /** Frequencies from `low` to `high` Hz in `step` Hz steps. */
 function sweep(low: number, high: number, step: number): number[] {
   const count = Math.round((high - low) / step)
@@ -86,7 +94,12 @@ describe('the pressure a source makes at a receiver through the room modes', () 
   const halfwayBack: RoomPoint = { x: 0, y: 7.5, z: 0 }
 
   function prepare(sources: RoomPoint[], frequencies: number[]) {
-    return prepareModalResponse({ room: LONG_ROOM, sources, frequencies })
+    return prepareModalResponse({
+      room: LONG_ROOM,
+      sources,
+      sourceFilters: unfiltered(sources, frequencies),
+      frequencies,
+    })
   }
 
   function levels(source: RoomPoint, receiver: RoomPoint, at: number[]) {
@@ -157,6 +170,48 @@ describe('the pressure a source makes at a receiver through the room modes', () 
     })
   })
 
+  it('multiplies each source by its own filter (enclosure roll-off) before summing', () => {
+    const frequencies = [20, 30, 40]
+    const second = { x: 0.5, y: 11, z: 0.3 }
+    // Front source halved, second source turned by 90° (times j).
+    const filters = [
+      frequencies.map(() => ({ re: 0.5, im: 0 })),
+      frequencies.map(() => ({ re: 0, im: 1 })),
+    ]
+    const filtered = prepareModalResponse({
+      room: LONG_ROOM,
+      sources: [atFrontWall, second],
+      sourceFilters: filters,
+      frequencies,
+    }).pressureAt(halfwayBack)
+    const first = prepare([atFrontWall], frequencies).pressureAt(halfwayBack)
+    const alone = prepare([second], frequencies).pressureAt(halfwayBack)
+
+    filtered.forEach(({ re, im }, i) => {
+      // 0.5·p₁ + j·p₂ = (0.5·re₁ − im₂) + j·(0.5·im₁ + re₂)
+      expect(re).toBeCloseTo(0.5 * first[i]!.re - alone[i]!.im, 12)
+      expect(im).toBeCloseTo(0.5 * first[i]!.im + alone[i]!.re, 12)
+    })
+  })
+
+  it('tells which modes the sources excite, and which they cancel', () => {
+    const { modes, excited } = prepare(
+      [
+        { x: 0, y: 0.3, z: 0 },
+        { x: 0, y: 14.7, z: 0 },
+      ],
+      sweep(5, 30, 1),
+    )
+    const firstLength = modes.findIndex(
+      (m) => m.indices.length === 1 && m.kind === 'axial',
+    )
+    const secondLength = modes.findIndex(
+      (m) => m.indices.length === 2 && m.kind === 'axial',
+    )
+    expect(excited[firstLength]).toBe(false)
+    expect(excited[secondLength]).toBe(true)
+  })
+
   it('knows the lowest mode the sources excite: one source excites the first length mode', () => {
     const { lowestExcitedMode } = prepare([atFrontWall], sweep(5, 60, 1))
 
@@ -184,14 +239,16 @@ describe('the pressure a source makes at a receiver through the room modes', () 
       (_, i) => 20 * 10 ** (i / 160),
     )
     const started = performance.now()
+    const sources = [
+      { x: 0, y: 0.3, z: 0.3 },
+      { x: -7.2, y: 7.5, z: 0.3 },
+      { x: 7.2, y: 7.5, z: 0.3 },
+      { x: 0, y: 14.7, z: 0.3 },
+    ]
     const prepared = prepareModalResponse({
       room,
-      sources: [
-        { x: 0, y: 0.3, z: 0.3 },
-        { x: -7.2, y: 7.5, z: 0.3 },
-        { x: 7.2, y: 7.5, z: 0.3 },
-        { x: 0, y: 14.7, z: 0.3 },
-      ],
+      sources,
+      sourceFilters: unfiltered(sources, frequencies),
       frequencies,
     })
     for (let i = 0; i < 20; i++) {

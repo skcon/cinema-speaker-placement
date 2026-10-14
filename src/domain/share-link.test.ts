@@ -116,6 +116,15 @@ describe('share link codec', () => {
     )
   })
 
+  it.each([40, 80, 117.5, 200])('rebuilds a %d Hz crossover', (crossoverHz) => {
+    const config: Config = { ...DEFAULT_CONFIG, crossoverHz }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config,
+      problem: null,
+    })
+  })
+
   it.each(TARGET_CURVE_KINDS)('rebuilds the %s target curve', (targetCurve) => {
     const config: Config = { ...DEFAULT_CONFIG, targetCurve }
 
@@ -284,6 +293,17 @@ describe('share link codec', () => {
           specs: { ...PORTED_15, peakWatts: 700 },
           ownSpecs: {},
         }),
+      ],
+      ['a crossover below 40 Hz', { ...DEFAULT_CONFIG, crossoverHz: 39 }],
+      ['a crossover above 200 Hz', { ...DEFAULT_CONFIG, crossoverHz: 250 }],
+      ['a crossover that is text', { ...DEFAULT_CONFIG, crossoverHz: '80' }],
+      [
+        'no crossover',
+        Object.fromEntries(
+          Object.entries(DEFAULT_CONFIG).filter(
+            ([key]) => key !== 'crossoverHz',
+          ),
+        ),
       ],
       [
         'an unknown enclosure',
@@ -476,6 +496,8 @@ const WORST_CASE_CONFIG: Config = {
   },
   // The longer of the two names.
   targetCurve: 'house',
+  // All 17 significant digits.
+  crossoverHz: 199 - 1 / 7,
   // Every listener-level speaker, every subwoofer (at subwoofer height)
   // and the MLP (at ear height) moved by hand.
   manualPositions: {

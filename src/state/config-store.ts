@@ -2,6 +2,7 @@ import { temporal } from 'zundo'
 import { createStore } from 'zustand/vanilla'
 import {
   areValidSubwooferSpecs,
+  checkCrossover,
   checkRoomDimension,
   decodeConfig,
   DEFAULT_CONFIG,
@@ -84,6 +85,11 @@ export type ConfigState = {
    * view preference: not an undo step.
    */
   setTargetCurve: (targetCurve: TargetCurveKind) => void
+  /**
+   * Set the crossover between the Speakers and the Subwoofers, in Hz.
+   * Out-of-range values are ignored.
+   */
+  setCrossover: (crossoverHz: number) => void
   /**
    * Move a channel, a subwoofer or the MLP on the floor plan (a drag),
    * making it manual. It stays inside the Room by the wall clearances; its
@@ -284,6 +290,10 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           },
           setTargetCurve: (targetCurve) =>
             setUntracked({ config: { ...get().config, targetCurve } }),
+          setCrossover: (crossoverHz) => {
+            if (checkCrossover(crossoverHz) !== null) return
+            set(({ config }) => ({ config: { ...config, crossoverHz } }))
+          },
           moveItem: (id, { x, y }) =>
             setConfigIfChanged((config) => placeManually(config, id, { x, y })),
           setItemHeight: (id, meters) =>

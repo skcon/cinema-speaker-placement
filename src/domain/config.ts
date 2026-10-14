@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { checkCrossover, DEFAULT_CROSSOVER_HZ } from './crossover'
 import { V1_DOLBY_LAYOUTS } from './dolby-layouts'
 import { DEFAULT_LAYOUT, SUBWOOFER_COUNTS, type Layout } from './layout'
 import {
@@ -82,6 +83,8 @@ export const configSchema = z
     }) satisfies z.ZodType<SpeakerGroups>,
     // What the estimated response is compared against on the chart.
     targetCurve: z.enum(TARGET_CURVE_KINDS),
+    // The crossover between the Speakers and the Subwoofers, in Hz.
+    crossoverHz: z.number().refine((hz) => checkCrossover(hz) === null),
     // Keyed by channel, subwoofer id or MLP; an item without one is auto.
     manualPositions: z.partialRecord(
       z.enum(PLACEABLE_IDS),
@@ -111,12 +114,13 @@ export const configSchema = z
  */
 export type Config = z.infer<typeof configSchema>
 
-/** The first-visit config (issue #2, user stories 3 and 6). */
+/** The first-visit config (issue #2, user stories 3, 6 and 20). */
 export const DEFAULT_CONFIG: Config = {
   units: 'metric',
   room: DEFAULT_ROOM,
   layout: DEFAULT_LAYOUT,
   speakerGroups: DEFAULT_SPEAKER_GROUPS,
   targetCurve: 'flat',
+  crossoverHz: DEFAULT_CROSSOVER_HZ,
   manualPositions: {},
 }

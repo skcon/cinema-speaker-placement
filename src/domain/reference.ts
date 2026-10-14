@@ -1,8 +1,9 @@
 /**
  * Reference values with their sources, as cited in
  * docs/research/dolby-speaker-placement.md,
- * docs/research/multi-subwoofer-placement.md and
- * docs/research/low-frequency-response.md.
+ * docs/research/multi-subwoofer-placement.md,
+ * docs/research/low-frequency-response.md and
+ * docs/research/crossover-enclosure-boundaries.md.
  */
 
 /**
@@ -13,7 +14,18 @@
  * unique across the files.
  */
 export type SourceKey =
-  DolbySourceKey | SubwooferSourceKey | LowFrequencySourceKey
+  DolbySourceKey | SubwooferSourceKey | LowFrequencySourceKey | BassSourceKey
+
+/** docs/research/crossover-enclosure-boundaries.md, section 1. */
+type BassSourceKey =
+  | 'LR-1976'
+  | 'RANE-160'
+  | 'SV-BASS'
+  | 'SMALL-CB'
+  | 'SMALL-VB'
+  | 'THIELE-VB'
+  | 'ALLISON-1974'
+  | 'STRUCK-2016'
 
 /** docs/research/low-frequency-response.md, section 1. */
 type LowFrequencySourceKey = 'MHA' | 'KUTTRUFF' | 'AES-8994'
@@ -168,16 +180,16 @@ export const LOW_FREQUENCY_REVERBERATION_TIME = {
 
 /**
  * The frequencies the estimated response covers by default, in Hz, and
- * how finely: `steps + 1` points spread evenly on a log axis. The
- * 20-200 Hz band is the room-mode range of ADR 0002; with 160 steps over
- * the decade, every 16th point is a base-10 third-octave frequency.
- * Everything downstream derives from the frequency list, so #12 can widen
- * the band here.
+ * how finely: `steps + 1` points spread evenly on a log axis. About
+ * 20-500 Hz: the room-mode range and the boundary-interference range of
+ * ADR 0002 together (issue #2, user story 40). At 160 steps per decade,
+ * every 16th point is a base-10 third-octave frequency, so the band ends
+ * on one: 20·10^1.4 ≈ 502 Hz, 224 steps.
  */
 export const RESPONSE_BAND = {
   lowestHz: 20,
-  highestHz: 200,
-  steps: 160,
+  highestHz: 20 * 10 ** 1.4,
+  steps: 224,
   note: 'Product choice from ADR 0002 and issue #2, not a cited value.',
 } as const satisfies {
   lowestHz: number
@@ -185,6 +197,38 @@ export const RESPONSE_BAND = {
   steps: number
   note: string
 }
+
+/**
+ * The highest frequency the room-mode model is worked out at, in Hz: the
+ * room-mode range of ADR 0002. Above it the subwoofers' sound is taken as
+ * flat at their level (they are mostly crossed out there), and only the
+ * Speakers' boundary interference shapes the estimate. It also keeps the
+ * modal sum to a few thousand modes in the largest room, so the seat score
+ * (#14) stays fast.
+ */
+export const ROOM_MODE_BAND = {
+  highestHz: 200,
+  note:
+    'Our modelling choice after ADR 0002: modes become too dense to ' +
+    'model one by one well above 200 Hz in a home theater.',
+} as const satisfies { highestHz: number; note: string }
+
+/**
+ * How the subwoofers' and the speakers' parts are added up at the MLP.
+ * Each part's level is set so its average over its own pass band (the
+ * subwoofers' reliable rows up to the crossover, the speakers' rows from
+ * it) is 0 dB, like a receiver's level calibration. Then the parts are
+ * added with the crossover's LR4 filters, in phase, as if the receiver's
+ * distance (delay) setting had time-aligned them: only each part's
+ * magnitude comes from the room. The room's own phase difference between
+ * the two parts is not modelled, so the crossover region is smoother than
+ * in a real room.
+ */
+export const SUBWOOFER_SPEAKER_SUM = {
+  note:
+    'Our modelling assumption, not a cited method ' +
+    '(docs/research/crossover-enclosure-boundaries.md section 5).',
+} as const satisfies { note: string }
 
 /**
  * How far above the highest frequency asked for the room-mode model still
@@ -196,6 +240,149 @@ export const MODE_SUM_HEADROOM = {
     'Our modelling assumption: modes above 1.5 × the highest frequency ' +
     'add little below it (docs/research/low-frequency-response.md section 2).',
 } as const satisfies { factor: number; note: string }
+
+/**
+ * The crossover between the Speakers and the Subwoofers: its default, the
+ * frequencies a config accepts, and the filter it is modelled with.
+ *
+ * The filter is an acoustic 4th-order Linkwitz-Riley (LR4) crossover: the
+ * Subwoofers' low-pass and the Speakers' high-pass are each a 2nd-order
+ * Butterworth filter twice, −6 dB at the crossover, 24 dB per octave, in
+ * phase, summing flat (LR-1976; RANE-160). THX's bass management, as a
+ * magazine article describes it (SV-BASS, read only through search
+ * summaries, UNVERIFIED), sends a 24 dB/octave low-pass to the subwoofer
+ * and a 12 dB/octave high-pass to the speakers, whose own 12 dB/octave
+ * roll-off makes the acoustic sum LR4-like. Modelling every receiver's
+ * acoustic result as LR4 is our assumption.
+ */
+export const CROSSOVER = {
+  defaultHz: 80,
+  limits: { min: 40, max: 200 },
+  note:
+    'The 80 Hz default is the v1 spec (issue #2, user story 20). The ' +
+    '40-200 Hz range is our product limit, catching typos while covering ' +
+    'the settings AV receivers commonly offer; it is not a cited value. ' +
+    'The LR4 model is ours, after the sources cited ' +
+    '(docs/research/crossover-enclosure-boundaries.md section 2).',
+  citations: [
+    {
+      source: 'LR-1976',
+      note: 'origin of the Linkwitz-Riley alignment; abstract only',
+    },
+    { source: 'RANE-160', note: 'LR4: −6 dB at fc, in phase, flat sum' },
+    {
+      source: 'SV-BASS',
+      note: 'THX slopes, via search summaries only (UNVERIFIED)',
+    },
+  ],
+} as const satisfies {
+  defaultHz: number
+  limits: { min: number; max: number }
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * How each Enclosure rolls a subwoofer off below its pass band, modelled
+ * as a Butterworth high-pass: a sealed (closed) box is a 2nd-order
+ * (12 dB/octave) high-pass (SMALL-CB), a ported (vented) box a 4th-order
+ * (24 dB/octave) one (THIELE-VB; SMALL-VB). The orders come from those
+ * papers (read as abstracts only). The Butterworth shape and the corner
+ * (−3 dB) frequencies are ours: real subwoofers differ per model, and the
+ * specs don't hold a corner frequency. The ported corner is lower, as a
+ * port typically extends the bass before its steeper fall.
+ */
+export const ENCLOSURE_ROLL_OFF = {
+  sealed: { order: 2, cornerHz: 30 },
+  ported: { order: 4, cornerHz: 20 },
+  note:
+    'Orders from the cited papers; Butterworth alignment and corner ' +
+    'frequencies (30 Hz sealed, 20 Hz ported) are our modelling ' +
+    'assumptions, not measured or published values ' +
+    '(docs/research/crossover-enclosure-boundaries.md section 3).',
+  citations: [
+    { source: 'SMALL-CB', note: 'closed box: 2nd-order high-pass; abstract' },
+    { source: 'THIELE-VB', note: 'vented box: 4th-order; abstract' },
+    { source: 'SMALL-VB', note: 'vented box: 4th-order high-pass; abstract' },
+  ],
+} as const satisfies Record<
+  'sealed' | 'ported',
+  { order: 2 | 4; cornerHz: number }
+> & { note: string; citations: readonly Citation[] }
+
+/**
+ * The speaker-boundary interference model for listener-level Speakers
+ * (ADR 0002, about 80-500 Hz): first-order reflections off three (or four) nearby
+ * surfaces, each an image source with the extra delay and spreading loss
+ * of its longer path, summed with the direct sound.
+ *
+ * - **Surfaces**: Allison measured and modelled the effect of the three
+ *   room boundaries nearest a loudspeaker: the floor, the wall behind it
+ *   and a side wall (ALLISON-1974, abstract and secondary summaries only;
+ *   STRUCK-2016). Here: the wall behind the speaker (found from its aim),
+ *   the nearest other wall (both, when equally near), and the nearer of
+ *   the floor and the ceiling.
+ *   Taking the ceiling when it is nearer, both side walls when equally
+ *   near, and only these surfaces, is ours.
+ * - **Reflection coefficient 1** (rigid surfaces, no absorption), as in
+ *   the room-mode model's rigid walls: ours. Real walls absorb some bass,
+ *   so real notches are shallower.
+ * - **Omnidirectional speakers**: ours. Below about 500 Hz a home theater
+ *   speaker's woofer radiates broadly, but real cabinets send less sound
+ *   backwards as frequency rises, so notches from the wall behind are
+ *   overstated toward 500 Hz. The aim picks the wall behind; it doesn't
+ *   weight the reflections.
+ * - **Only first-order reflections** and no room modes for the Speakers:
+ *   ours.
+ */
+export const BOUNDARY_INTERFERENCE = {
+  reflectionCoefficient: 1,
+  note:
+    'Simplified model; every parameter here is our assumption except the ' +
+    "choice of three nearby boundaries, after Allison's study " +
+    '(docs/research/crossover-enclosure-boundaries.md section 4).',
+  citations: [
+    {
+      source: 'ALLISON-1974',
+      note: 'three nearest boundaries; abstract and summaries only',
+    },
+    {
+      source: 'STRUCK-2016',
+      note: "reproduces Allison's figure 8 (numbering per STRUCK-2016)",
+    },
+  ],
+} as const satisfies {
+  reflectionCoefficient: number
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * How the weaknesses and strengths list matches a peak or dip to its
+ * likely cause (response-notes.ts). Every value is our own rule of thumb,
+ * not a cited one:
+ *
+ * - `matchWithin`: a room mode explains a peak or dip within this share
+ *   of its frequency, or within one modal bandwidth if that is wider.
+ * - `nodeBelow`: the MLP is "near a mode's node" where the mode's
+ *   relative pressure there is below this (and "hears" it from it up).
+ * - `reflectionWithin`: a reflection's notch or boost explains a dip or
+ *   peak within this share of its frequency.
+ * - `mergeWithin`: notches of different speakers this close are one entry.
+ * - `rollOffUpTo`: a dip up to this multiple of the enclosure's corner
+ *   frequency, with no mode to explain it, is put down to the roll-off.
+ * - `smoothFrom`: the response counts as smooth when at least this share
+ *   of the reliable range is inside the tolerance band.
+ */
+export const RESPONSE_NOTES = {
+  matchWithin: 0.05,
+  nodeBelow: 0.3,
+  reflectionWithin: 0.1,
+  mergeWithin: 0.03,
+  rollOffUpTo: 1.25,
+  smoothFrom: 0.7,
+  note: 'Our matching rules, not cited values.',
+} as const satisfies Record<string, number | string>
 
 /** The target curve's tolerance band: ± this many dB around the target. */
 export const TARGET_TOLERANCE = {

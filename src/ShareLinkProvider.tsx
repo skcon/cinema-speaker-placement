@@ -5,6 +5,7 @@ import { withConfigParam } from '@/search'
 import { useConfig } from '@/state/config-context'
 import { isShowingLinkFallback } from '@/state/config-store'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
+import { useRecentRooms } from '@/state/recent-rooms-context'
 
 /**
  * How long the address waits after the last edit before it follows. Fewer
@@ -21,6 +22,14 @@ const ADDRESS_UPDATE_DELAY_MS = 300
  * A link that couldn't be opened stays in the address until the user edits
  * the default room shown instead, so reloading (after an app update, say)
  * can still open it.
+ *
+ * It also saves the room to the recent rooms whenever the address has
+ * settled on it: once the debounced address update has written an edit,
+ * or a link has opened (then, if the address is rewritten, once that has
+ * settled), but never while the default room stands in for a link that
+ * couldn't be opened. Edits replace the entry of the room they were made
+ * to, so a room keeps one entry however much it is edited; a room opened
+ * from outside (a link, back/forward, a recent room) gets its own.
  *
  * Only this component reads the search params, so a new address re-renders
  * it but not `children`.
@@ -47,12 +56,29 @@ function ShareLinkSync({ configParam }: { configParam: string | undefined }) {
   // The config param as this component last opened or wrote it, so our own
   // writes aren't mistaken for an address changed from outside.
   const lastSyncedConfigParam = useRef(configParam)
+  const saveRecentRoom = useRecentRooms((state) => state.save)
+  // The recent room the next settled edit replaces: the one last saved,
+  // unless a room has opened from outside since.
+  const editedFrom = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     if (configParam === lastSyncedConfigParam.current) return
     lastSyncedConfigParam.current = configParam
+    editedFrom.current = undefined
     openEncodedConfig(configParam)
   }, [configParam, openEncodedConfig])
+
+  useEffect(() => {
+    if (
+      configParam === undefined ||
+      configParam !== storeConfigParam ||
+      showingLinkFallback
+    ) {
+      return
+    }
+    saveRecentRoom(configParam, editedFrom.current)
+    editedFrom.current = configParam
+  }, [configParam, storeConfigParam, showingLinkFallback, saveRecentRoom])
 
   useEffect(() => {
     if (showingLinkFallback || storeConfigParam === configParam) return

@@ -10,6 +10,7 @@ import { HistoryButtons } from '@/ui/HistoryButtons'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { LayoutForm } from '@/ui/LayoutForm'
 import { PositionsForm } from '@/ui/PositionsForm'
+import { RecentRooms } from '@/ui/RecentRooms'
 import { Seating } from '@/ui/Seating'
 import { RoomForm } from '@/ui/RoomForm'
 import { SidebarSection } from '@/ui/SidebarSection'
@@ -61,6 +62,9 @@ export function AppShell({
             <HeadroomIndicator />
           </SidebarSection>
         </aside>
+        <SidebarSection title="Recent rooms">
+          <RecentRooms />
+        </SidebarSection>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <Panel title="Room view" className="min-h-128 lg:min-h-0 lg:flex-3">

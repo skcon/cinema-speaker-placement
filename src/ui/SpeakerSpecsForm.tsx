@@ -88,6 +88,12 @@ const sensitivityError = rangeErrorMessage(
   (db) => `${db} dB`,
 )
 
+const amplifierWattsError = rangeErrorMessage(
+  'amplifier power',
+  'Amplifier power',
+  formatWatts,
+)
+
 /** One speaker group's specs: bookshelf or tower (not for overheads), and sensitivity. */
 function SpeakerGroupSpecs({ group }: { group: SpeakerGroupId }) {
   const specs = useConfig((state) => state.config.speakerGroups[group].specs)
@@ -100,7 +106,7 @@ function SpeakerGroupSpecs({ group }: { group: SpeakerGroupId }) {
       <legend className="mb-1.5 text-sm font-medium">
         {SPEAKER_GROUP_NAMES[group]}
       </legend>
-      {'type' in specs && group !== 'overheads' && (
+      {'type' in specs && (
         <div className="flex flex-col gap-2">
           <span id={typeLabelId} className="text-sm font-medium">
             Type
@@ -131,11 +137,6 @@ function SpeakerGroupSpecs({ group }: { group: SpeakerGroupId }) {
         check={checkSensitivity}
         onValid={(sensitivity) => setSpeakerSpecs(group, { sensitivity })}
         errorMessage={sensitivityError}
-        note={
-          group === 'overheads'
-            ? 'Overheads are not placed yet, so they are not in the headroom check.'
-            : undefined
-        }
       />
     </fieldset>
   )
@@ -151,11 +152,7 @@ function AmplifierPowerField() {
       value={watts}
       check={checkAmplifierWatts}
       onValid={setAmplifierWatts}
-      errorMessage={rangeErrorMessage(
-        'amplifier power',
-        'Amplifier power',
-        formatWatts,
-      )}
+      errorMessage={amplifierWattsError}
       note="Your receiver's or amplifier's rated power per channel, for the headroom check."
     />
   )

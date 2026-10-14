@@ -8,19 +8,20 @@
  * speakers' dispersion, so it is a hint at whether gear is underpowered,
  * never a measurement.
  */
-import { CHANNELS, type ChannelId } from './dolby-layouts'
+import { CHANNELS } from './dolby-layouts'
 import {
   HEADROOM_MODEL,
   HEADROOM_STATUS,
   REFERENCE_LEVEL,
   SUBWOOFER_SENSITIVITY,
 } from './reference'
-import type { RoomPoint } from './room'
+import { distanceBetween, type RoomPoint } from './room'
 import {
-  LISTENER_GROUP_IDS,
   SPEAKER_GROUP_NAMES,
   SPEAKER_GROUP_OF,
-  type ListenerGroupId,
+  type OverheadSpecs,
+  type SpeakerChannelId,
+  type SpeakerGroupId,
   type SpeakerGroups,
   type SpeakerSpecs,
   type SubwooferSpecs,
@@ -29,56 +30,75 @@ import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
 import { fromInches } from './units'
 
 /**
- * The loudest peak a channel is asked to play at the MLP: Dolby's
- * calibration level plus the 20 dB from the test signal to full scale.
+ * How far a full-scale peak is above the reference level: the reference
+ * level is measured with a test signal this far below full scale.
  */
+const PEAK_ABOVE_REFERENCE_DB = -REFERENCE_LEVEL.testSignalDbfs
+
+/** The loudest peak a channel is asked to play at the MLP (reference peak). */
 const REFERENCE_PEAK_DB =
-  REFERENCE_LEVEL.calibrationDb - REFERENCE_LEVEL.testSignalDbfs
+  REFERENCE_LEVEL.calibrationDb + PEAK_ABOVE_REFERENCE_DB
+
+/** What a speaker or subwoofer can play at the MLP. */
+export type SplAtMlp = {
+  /** From it to the MLP, in meters. */
+  readonly distance: number
+  /** The SPL it can reach at the MLP with its full power, in dB. */
+  readonly maxSpl: number
+}
 
 /** One Speaker's headroom at the MLP. */
-export type ChannelHeadroom = {
-  readonly channel: ChannelId
+export type ChannelHeadroom = SplAtMlp & {
+  readonly channel: SpeakerChannelId
   /** Dolby's name for the channel, for example "Left Surround". */
   readonly name: string
-  /** From the speaker to the MLP, in meters. */
-  readonly distance: number
-  /** The SPL it can reach at the MLP with the full amplifier power, in dB. */
-  readonly maxSpl: number
-  /** How far that is above the reference peak level, in dB (negative: short). */
+  /** How far its max SPL is above the reference peak, in dB (negative: short). */
   readonly headroomDb: number
 }
 
-/** A speaker group's headroom: its weakest speaker's. */
+/**
+ * A speaker group's headroom: its weakest speaker's. A group the layout
+ * uses but whose speakers aren't placed (the overheads until #8) is listed
+ * without one, so placing them is all it takes to check them.
+ */
 export type GroupHeadroom = {
-  readonly group: ListenerGroupId
+  readonly group: SpeakerGroupId
   /** For example "Front L/R". */
   readonly name: string
-  readonly specs: SpeakerSpecs
-  /** The group's speakers in the layout, in Dolby's channel order. */
+  readonly specs: SpeakerSpecs | OverheadSpecs
+  /** The group's placed speakers, in the layout's channel order. */
   readonly channels: readonly ChannelHeadroom[]
-  /** The weakest speaker's headroom, in dB. */
-  readonly headroomDb: number
-  readonly status: HeadroomStatus
-  /**
-   * The amplifier power per channel that would give the weakest speaker
-   * enough headroom (HEADROOM_STATUS.enoughFromDb), in watts.
-   */
-  readonly wattsForEnough: number
-}
+} & (
+  | { readonly placed: false }
+  | {
+      readonly placed: true
+      /** The speaker with the least headroom: usually the farthest. */
+      readonly weakest: ChannelHeadroom
+      /** The weakest speaker's headroom, in dB. */
+      readonly headroomDb: number
+      readonly status: HeadroomStatus
+      /**
+       * The amplifier power per channel that would give the weakest
+       * speaker enough headroom (HEADROOM_STATUS.enoughFromDb), in watts.
+       */
+      readonly wattsForEnough: number
+    }
+)
 
 /** The Subwoofers' rough headroom at the MLP, all of them together. */
 export type SubwooferHeadroom = {
-  /** The LFE's peak level at the MLP, in dB: 10 dB above a channel's. */
+  /** The LFE's peak at the MLP, in dB: the reference peak plus the LFE gain. */
   readonly targetDb: number
-  /** Each subwoofer on its own, Subwoofer 1 first. */
-  readonly subwoofers: readonly {
+  /**
+   * Each subwoofer on its own, Subwoofer 1 first, driven at its RMS power:
+   * the peak power is not used (yet), the conservative choice.
+   */
+  readonly subwoofers: readonly (SplAtMlp & {
     readonly id: SubwooferId
     readonly name: string
-    readonly distance: number
     /** Its rough sensitivity from driver size and enclosure (ours). */
     readonly sensitivity: number
-    readonly maxSpl: number
-  }[]
+  })[]
   /** All of them together (a power sum), in dB. */
   readonly maxSpl: number
   readonly headroomDb: number
@@ -87,15 +107,21 @@ export type SubwooferHeadroom = {
 
 /** SPL headroom at the MLP: an estimate, never a measurement. */
 export type HeadroomAnalysis = {
-  /** The reference peak level per channel at the MLP, in dB SPL. */
+  /** Dolby's reference (calibration) level per channel at the MLP, dB SPL(C). */
+  readonly referenceLevelDb: number
+  /** How far a full-scale peak is above the reference level, in dB. */
+  readonly peakAboveReferenceDb: number
+  /** The reference peak per channel at the MLP, in dB SPL. */
   readonly referencePeakDb: number
+  /** How much louder the LFE channel plays than a full-range one, in dB. */
+  readonly lfeGainDb: number
+  /** From how many dB of headroom a group or the subwoofers have enough. */
+  readonly enoughFromDb: number
   /** The amplifier power per channel the speakers are checked with, in W. */
   readonly amplifierWatts: number
-  /** The layout's listener-level speaker groups, in form order. */
+  /** Every speaker group the layout uses, in form order. */
   readonly groups: readonly GroupHeadroom[]
   readonly subwoofers: SubwooferHeadroom
-  /** Whether the layout has overheads, which aren't placed yet (#8). */
-  readonly overheadsNotPlaced: boolean
 }
 
 /** What the headroom estimate needs: the specs, and where everything is. */
@@ -103,8 +129,11 @@ export type HeadroomInput = {
   readonly mlp: RoomPoint
   readonly speakerGroups: SpeakerGroups
   readonly amplifierWatts: number
+  /** The speaker groups the layout uses (speakerGroupsIn), in form order. */
+  readonly groups: readonly SpeakerGroupId[]
+  /** The placed Speakers. */
   readonly speakers: readonly {
-    readonly channel: ChannelId
+    readonly channel: SpeakerChannelId
     readonly position: RoomPoint
   }[]
   readonly subwoofers: readonly {
@@ -112,7 +141,6 @@ export type HeadroomInput = {
     readonly position: RoomPoint
     readonly specs: SubwooferSpecs
   }[]
-  readonly hasOverheads: boolean
 }
 
 /** Estimate every Speaker's and the Subwoofers' headroom at the MLP. */
@@ -120,9 +148,9 @@ export function estimateHeadroom({
   mlp,
   speakerGroups,
   amplifierWatts,
+  groups,
   speakers,
   subwoofers,
-  hasOverheads,
 }: HeadroomInput): HeadroomAnalysis {
   const channels = speakers.map(({ channel, position }): ChannelHeadroom => {
     const distance = distanceBetween(position, mlp)
@@ -141,29 +169,37 @@ export function estimateHeadroom({
     }
   })
 
-  const groups = LISTENER_GROUP_IDS.flatMap((group): GroupHeadroom[] => {
+  const groupRows = groups.map((group): GroupHeadroom => {
     const inGroup = channels.filter(
       ({ channel }) => SPEAKER_GROUP_OF[channel] === group,
     )
-    if (inGroup.length === 0) return []
-    const headroomDb = Math.min(...inGroup.map((c) => c.headroomDb))
-    return [
-      {
-        group,
-        name: SPEAKER_GROUP_NAMES[group],
-        specs: speakerGroups[group].specs,
-        channels: inGroup,
-        headroomDb,
-        status: headroomStatus(headroomDb),
-        wattsForEnough: wattsForHeadroom({
-          watts: amplifierWatts,
-          headroomDb,
-          wantedDb: HEADROOM_STATUS.enoughFromDb,
-        }),
-      },
-    ]
+    const row = {
+      group,
+      name: SPEAKER_GROUP_NAMES[group],
+      specs: speakerGroups[group].specs,
+      channels: inGroup,
+    }
+    const [first, ...rest] = inGroup
+    if (!first) return { ...row, placed: false }
+    const weakest = rest.reduce(
+      (low, c) => (c.headroomDb < low.headroomDb ? c : low),
+      first,
+    )
+    return {
+      ...row,
+      placed: true,
+      weakest,
+      headroomDb: weakest.headroomDb,
+      status: headroomStatus(weakest.headroomDb),
+      wattsForEnough: wattsForHeadroom({
+        watts: amplifierWatts,
+        headroomDb: weakest.headroomDb,
+        wantedDb: HEADROOM_STATUS.enoughFromDb,
+      }),
+    }
   })
 
+  // RMS power on purpose: the conservative choice; peak power isn't used.
   const subs = subwoofers.map(({ id, position, specs }) => {
     const distance = distanceBetween(position, mlp)
     const sensitivity = subwooferSensitivity(specs)
@@ -179,9 +215,13 @@ export function estimateHeadroom({
   const subMaxSpl = sumLevels(subs.map(({ maxSpl }) => maxSpl))
 
   return {
+    referenceLevelDb: REFERENCE_LEVEL.calibrationDb,
+    peakAboveReferenceDb: PEAK_ABOVE_REFERENCE_DB,
     referencePeakDb: REFERENCE_PEAK_DB,
+    lfeGainDb: REFERENCE_LEVEL.lfeGainDb,
+    enoughFromDb: HEADROOM_STATUS.enoughFromDb,
     amplifierWatts,
-    groups,
+    groups: groupRows,
     subwoofers: {
       targetDb,
       subwoofers: subs,
@@ -189,13 +229,7 @@ export function estimateHeadroom({
       headroomDb: subMaxSpl - targetDb,
       status: headroomStatus(subMaxSpl - targetDb),
     },
-    overheadsNotPlaced: hasOverheads,
   }
-}
-
-/** The straight-line distance between two points, in meters. */
-function distanceBetween(a: RoomPoint, b: RoomPoint): number {
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 }
 
 /**

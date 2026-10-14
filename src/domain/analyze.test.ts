@@ -19,17 +19,17 @@ function configWithLayout(layout: Config['layout']): Config {
 
 describe('the default config', () => {
   it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout, our default speaker specs and 100 W amplifier, the flat target curve, an 80 Hz crossover and everything auto-placed', () => {
-    const bookshelf87 = { specs: { type: 'bookshelf', sensitivity: 87 } }
+    const bookshelf88 = { specs: { type: 'bookshelf', sensitivity: 88 } }
     expect(DEFAULT_CONFIG).toEqual({
       units: 'metric',
       room: { length: 6, width: 4.5, height: 2.6 },
       layout: { dolbyLayout: '5.1.2', subwoofers: 1 },
       speakerGroups: {
-        front: bookshelf87,
-        center: bookshelf87,
-        surrounds: bookshelf87,
-        rearSurrounds: bookshelf87,
-        overheads: { specs: { sensitivity: 87 } },
+        front: bookshelf88,
+        center: bookshelf88,
+        surrounds: bookshelf88,
+        rearSurrounds: bookshelf88,
+        overheads: { specs: { sensitivity: 88 } },
         subwoofers: {
           specs: {
             enclosure: 'sealed',

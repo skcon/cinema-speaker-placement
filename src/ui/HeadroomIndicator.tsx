@@ -3,7 +3,7 @@ import type { HeadroomStatus } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import {
   groupSentence,
-  HEADROOM_STATUS_STYLES,
+  HEADROOM_STATUS_TEXT,
   referenceSentence,
   subwooferSentence,
 } from '@/ui/lib/headroom-text'
@@ -17,7 +17,7 @@ export function HeadroomIndicator() {
   const listId = useId()
   const { headroom } = useRoomAnalysis()
   const units = useConfig((state) => state.config.units)
-  const { groups, subwoofers, amplifierWatts, overheadsNotPlaced } = headroom
+  const { groups, subwoofers } = headroom
 
   return (
     <div className="flex flex-col gap-2">
@@ -34,17 +34,10 @@ export function HeadroomIndicator() {
           <HeadroomItem
             key={group.group}
             name={group.name}
-            status={group.status}
-            text={groupSentence(group, amplifierWatts, units)}
+            status={group.placed ? group.status : null}
+            text={groupSentence(group, headroom, units)}
           />
         ))}
-        {overheadsNotPlaced && (
-          <HeadroomItem
-            name="Overheads"
-            status={null}
-            text="Not placed yet, so not checked."
-          />
-        )}
         <HeadroomItem
           name="Subwoofers"
           status={subwoofers.status}
@@ -64,7 +57,7 @@ function HeadroomItem({
   status: HeadroomStatus | null
   text: string
 }) {
-  const style = status && HEADROOM_STATUS_STYLES[status]
+  const style = status && HEADROOM_STATUS_TEXT[status]
   return (
     <li className="flex flex-col gap-0.5 border-t pt-2">
       <span className="flex items-center justify-between gap-2">

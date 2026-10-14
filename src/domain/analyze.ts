@@ -12,6 +12,7 @@ import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
 import { estimateHeadroom, type HeadroomAnalysis } from './headroom'
 import {
   SPEAKER_GROUP_OF,
+  speakerGroupsIn,
   wooferPosition,
   type SubwooferSpecs,
 } from './speaker-specs'
@@ -139,8 +140,10 @@ export function analyzeRoom(config: Config): RoomAnalysis {
   const heardSpeakers = placements.speakers.map(
     ({ reference, position, placement }) => {
       const aim = aimAtMlp(position, mlp)
-      const group = SPEAKER_GROUP_OF[reference.channel]
-      const woofer = wooferPosition(position, speakerGroups[group].specs.type)
+      const { specs } = speakerGroups[SPEAKER_GROUP_OF[reference.channel]]
+      // Overheads have no type: their woofer is taken at their position.
+      const woofer =
+        'type' in specs ? wooferPosition(position, specs.type) : position
       // Below about 500 Hz the woofer is what reflects off the surfaces.
       const reflections = boundaryReflections(
         room,
@@ -222,8 +225,8 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     speakerGroups,
     amplifierWatts,
     speakers: heardSpeakers.map(({ speaker }) => speaker),
+    groups: speakerGroupsIn(layout),
     subwoofers,
-    hasOverheads: layoutSummary.overheads > 0,
   })
   return {
     layout: layoutSummary,

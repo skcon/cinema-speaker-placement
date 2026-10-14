@@ -207,6 +207,11 @@ function wrapDegrees(angle: number): number {
   return turn
 }
 
+/** The straight-line distance between two points, in meters. */
+export function distanceBetween(a: RoomPoint, b: RoomPoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+}
+
 /**
  * The horizontal direction from one point to another, seen from above: in
  * degrees clockwise from facing the front wall, in (-180°, +180°].

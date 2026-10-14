@@ -59,7 +59,12 @@ export type SpeakerType = (typeof SPEAKER_TYPES)[number]
 /** What the app knows about a listener-level speaker model. */
 export type SpeakerSpecs = {
   readonly type: SpeakerType
-  /** dB SPL at 1 m with 1 W (2.83 V into 8 Ω) into it. */
+  /**
+   * dB SPL on axis at 1 m from a 1 W input, as speaker data sheets rate it
+   * (often as 2.83 V, which is 1 W into 8 Ω). The headroom estimate then
+   * scales it by the amplifier's watts, taken as delivered into the
+   * speaker's rated load (headroom.ts).
+   */
   readonly sensitivity: number
 }
 
@@ -95,8 +100,17 @@ export type SpeakerGroups = {
   readonly subwoofers: SubwooferGroup
 }
 
-/** The speaker group each listener-level channel belongs to. */
-export const SPEAKER_GROUP_OF = {
+/**
+ * A channel a Speaker of some speaker group plays. Only the listener-level
+ * channels so far; #8 widens it with the overhead channels, and adds them
+ * to SPEAKER_GROUP_OF as 'overheads'.
+ */
+export type SpeakerChannelId = ChannelId
+
+/** The speaker group each channel's Speaker belongs to. */
+export const SPEAKER_GROUP_OF: Readonly<
+  Record<SpeakerChannelId, SpeakerGroupId>
+> = {
   L: 'front',
   R: 'front',
   C: 'center',
@@ -104,12 +118,12 @@ export const SPEAKER_GROUP_OF = {
   Rs: 'surrounds',
   Lrs: 'rearSurrounds',
   Rrs: 'rearSurrounds',
-} as const satisfies Record<ChannelId, ListenerGroupId>
+}
 
 /**
  * The speaker groups (other than the Subwoofers) a layout has speakers in,
- * in form order. The overheads count once the layout has any, though they
- * aren't placed yet (#8).
+ * in form order. The overheads count from the layout's overhead count,
+ * as the reference map has no overhead channels until #8.
  */
 export function speakerGroupsIn({
   dolbyLayout,
@@ -133,15 +147,15 @@ export const SPEAKER_GROUP_NAMES = {
 
 /**
  * The specs every listener-level speaker group starts with: a bookshelf
- * speaker with 87 dB sensitivity. Our default, typical of home theater
+ * speaker with 88 dB sensitivity. Our default, typical of home theater
  * speakers, not a cited or measured product.
  */
 export const DEFAULT_SPEAKER_SPECS = {
   type: 'bookshelf',
-  sensitivity: 87,
+  sensitivity: 88,
 } as const satisfies SpeakerSpecs
 
-/** The overheads' starting specs: the same 87 dB, ours. */
+/** The overheads' starting specs: the same 88 dB, ours. */
 export const DEFAULT_OVERHEAD_SPECS = {
   sensitivity: DEFAULT_SPEAKER_SPECS.sensitivity,
 } as const satisfies OverheadSpecs

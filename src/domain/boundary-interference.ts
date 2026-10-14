@@ -14,7 +14,7 @@
 import { add, decibels, phasor, scale, type Complex } from './complex'
 import type { Aim } from './placement'
 import { BOUNDARY_INTERFERENCE, SPEED_OF_SOUND } from './reference'
-import type { Room, RoomPoint } from './room'
+import { distanceBetween, type Room, type RoomPoint } from './room'
 
 /** A surface of the Room that sound reflects off. */
 export type Surface =
@@ -134,10 +134,6 @@ function image(
   }
 }
 
-function distance(a: RoomPoint, b: RoomPoint): number {
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
-}
-
 /** The reflections of `speaker`'s reflecting surfaces, heard at `receiver`. */
 export function boundaryReflections(
   room: Room,
@@ -145,9 +141,12 @@ export function boundaryReflections(
   receiver: RoomPoint,
 ): BoundaryReflection[] {
   const c = SPEED_OF_SOUND.metersPerSecond
-  const direct = distance(speaker.position, receiver)
+  const direct = distanceBetween(speaker.position, receiver)
   return reflectingSurfaces(room, speaker).map((surface) => {
-    const reflected = distance(image(room, speaker.position, surface), receiver)
+    const reflected = distanceBetween(
+      image(room, speaker.position, surface),
+      receiver,
+    )
     const pathDifference = reflected - direct
     return {
       surface,

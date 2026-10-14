@@ -76,7 +76,7 @@ describe('speaker group specs', () => {
     expect(stored().speakerGroups.front).toEqual({
       specs: { type: 'tower', sensitivity: 90.5 },
     })
-    expect(stored().speakerGroups.center.specs.sensitivity).toBe(87)
+    expect(stored().speakerGroups.center.specs.sensitivity).toBe(88)
   })
 
   it('has no bookshelf or tower choice for overheads', () => {
@@ -88,7 +88,7 @@ describe('speaker group specs', () => {
     ).not.toBeInTheDocument()
     expect(
       within(overheads).getByRole('textbox', { name: 'Sensitivity (dB)' }),
-    ).toHaveValue('87')
+    ).toHaveValue('88')
   })
 
   it('flags a sensitivity out of range inline and keeps the last valid one', () => {
@@ -102,7 +102,7 @@ describe('speaker group specs', () => {
     expect(field).toHaveAccessibleDescription(
       expect.stringContaining('Sensitivity must be between 70 dB and 110 dB.'),
     )
-    expect(stored().speakerGroups.center.specs.sensitivity).toBe(87)
+    expect(stored().speakerGroups.center.specs.sensitivity).toBe(88)
   })
 })
 

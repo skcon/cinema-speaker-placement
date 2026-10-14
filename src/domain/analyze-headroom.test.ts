@@ -1,16 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeRoom, DEFAULT_CONFIG, type Config } from '@/domain'
+import {
+  analyzeRoom,
+  DEFAULT_CONFIG,
+  type Config,
+  type SpeakerGroupId,
+} from '@/domain'
 
 /**
  * The default 5.1.2 room with every item moved by hand to round distances
  * from the MLP at (0, 3, 1.2): Left and Right 2 m away, the Center 1 m,
  * the surrounds 3 m, and Subwoofer 1 1.5 m (1.2 m along, 0.9 m down).
+ * Front and surrounds 87 dB, the Center 90 dB.
  */
 const MEASURED: Config = {
   ...DEFAULT_CONFIG,
   speakerGroups: {
     ...DEFAULT_CONFIG.speakerGroups,
+    front: { specs: { type: 'bookshelf', sensitivity: 87 } },
     center: { specs: { type: 'bookshelf', sensitivity: 90 } },
+    surrounds: { specs: { type: 'bookshelf', sensitivity: 87 } },
   },
   manualPositions: {
     MLP: { x: 0, y: 3, z: 1.2 },
@@ -23,21 +31,39 @@ const MEASURED: Config = {
   },
 }
 
+/** A speaker group's headroom row, which must have placed speakers. */
+function placedGroup(config: Config, group: SpeakerGroupId) {
+  const row = analyzeRoom(config).headroom.groups.find((g) => g.group === group)
+  if (!row?.placed) throw new Error(`${group} has no placed speakers`)
+  return row
+}
+
 describe('headroom at the MLP', () => {
-  // Reference: 82 dB SPL(C) at −20 dBFS (IG p.15), so 102 dB peaks per
-  // channel, and the LFE 10 dB above (ATSC A/52), 112 dB.
-  it('checks the speakers against 102 dB and the subwoofers against 112 dB peaks', () => {
+  // Reference level: 82 dB SPL(C) at −20 dBFS (IG p.15), so 102 dB peaks
+  // per channel, and the LFE 10 dB above (ATSC A/52), 112 dB.
+  it('checks the speakers against 102 dB and the subwoofers against 112 dB peaks, from the reference level', () => {
     const { headroom } = analyzeRoom(MEASURED)
 
-    expect(headroom.referencePeakDb).toBe(102)
+    expect(headroom).toMatchObject({
+      referenceLevelDb: 82,
+      peakAboveReferenceDb: 20,
+      referencePeakDb: 102,
+      lfeGainDb: 10,
+      enoughFromDb: 3,
+    })
     expect(headroom.subwoofers.targetDb).toBe(112)
   })
 
-  it('lists only the speaker groups the layout uses, in form order', () => {
+  it('lists every speaker group the layout uses, in form order', () => {
     const groups = (config: Config) =>
       analyzeRoom(config).headroom.groups.map(({ group }) => group)
 
-    expect(groups(MEASURED)).toEqual(['front', 'center', 'surrounds'])
+    expect(groups(MEASURED)).toEqual([
+      'front',
+      'center',
+      'surrounds',
+      'overheads',
+    ])
     expect(
       groups({
         ...DEFAULT_CONFIG,
@@ -49,12 +75,13 @@ describe('headroom at the MLP', () => {
         ...DEFAULT_CONFIG,
         layout: { dolbyLayout: '7.1.4', subwoofers: 1 },
       }),
-    ).toEqual(['front', 'center', 'surrounds', 'rearSurrounds'])
+    ).toEqual(['front', 'center', 'surrounds', 'rearSurrounds', 'overheads'])
   })
 
   it('works out each speaker from its sensitivity, the amplifier power and its distance', () => {
-    const { groups } = analyzeRoom(MEASURED).headroom
-    const channels = groups.flatMap(({ channels }) => channels)
+    const channels = analyzeRoom(MEASURED).headroom.groups.flatMap(
+      ({ channels }) => channels,
+    )
     const byChannel = Object.fromEntries(channels.map((c) => [c.channel, c]))
 
     // 87 dB + 10·log10(100 W) − 20·log10(2 m) = 100.98 dB
@@ -68,22 +95,37 @@ describe('headroom at the MLP', () => {
     expect(byChannel.Ls!.maxSpl).toBeCloseTo(97.4576, 4)
   })
 
-  it('gives a group its weakest speaker’s headroom, a status, and the power for 3 dB to spare', () => {
-    const { groups } = analyzeRoom(MEASURED).headroom
-    const byGroup = Object.fromEntries(groups.map((g) => [g.group, g]))
+  it('gives a group its weakest speaker, its headroom, a status, and the power for 3 dB to spare', () => {
+    const front = placedGroup(MEASURED, 'front')
 
-    expect(byGroup.front).toMatchObject({ name: 'Front L/R', status: 'short' })
-    expect(byGroup.front!.headroomDb).toBeCloseTo(-1.0206, 4)
+    expect(front).toMatchObject({ name: 'Front L/R', status: 'short' })
+    expect(front.weakest.channel).toBe('L')
+    expect(front.headroomDb).toBeCloseTo(-1.0206, 4)
     // 87 + 10·log10(P) − 6.0206 = 105 → P = 10^2.40206 = 252.38 W
-    expect(byGroup.front!.wattsForEnough).toBeCloseTo(252.38, 1)
-    expect(byGroup.center).toMatchObject({ status: 'enough' })
-    expect(byGroup.surrounds!.headroomDb).toBeCloseTo(-4.5424, 4)
+    expect(front.wattsForEnough).toBeCloseTo(252.38, 1)
+    expect(placedGroup(MEASURED, 'center').status).toBe('enough')
+    expect(placedGroup(MEASURED, 'surrounds').headroomDb).toBeCloseTo(
+      -4.5424,
+      4,
+    )
+  })
+
+  it('names the farther speaker as a group’s weakest', () => {
+    const config: Config = {
+      ...MEASURED,
+      // Right Surround moved from 3 m to 3.5 m behind the MLP's side.
+      manualPositions: {
+        ...MEASURED.manualPositions,
+        Rs: { x: 1.8, y: 5.7, z: 1.2 },
+      },
+    }
+
+    expect(placedGroup(config, 'surrounds').weakest.channel).toBe('Rs')
   })
 
   it('gains 3 dB everywhere when the amplifier power doubles', () => {
     const at = (amplifierWatts: number) =>
-      analyzeRoom({ ...MEASURED, amplifierWatts }).headroom.groups[0]!
-        .headroomDb
+      placedGroup({ ...MEASURED, amplifierWatts }, 'front').headroomDb
 
     expect(at(200) - at(100)).toBeCloseTo(3.0103, 4)
   })
@@ -97,13 +139,11 @@ describe('headroom at the MLP', () => {
         C: { x: 0, y: 1, z: 1.2 },
       },
     }
-    const center = (config: Config) =>
-      analyzeRoom(config).headroom.groups.find((g) => g.group === 'center')!
 
-    expect(center(MEASURED).headroomDb - center(moved).headroomDb).toBeCloseTo(
-      6.0206,
-      4,
-    )
+    expect(
+      placedGroup(MEASURED, 'center').headroomDb -
+        placedGroup(moved, 'center').headroomDb,
+    ).toBeCloseTo(6.0206, 4)
   })
 
   it('estimates a sealed 12 in, 300 W subwoofer 1.5 m away at 109.25 dB, short of 112 dB', () => {
@@ -114,6 +154,27 @@ describe('headroom at the MLP', () => {
     expect(subwoofers.maxSpl).toBeCloseTo(109.2494, 4)
     expect(subwoofers.headroomDb).toBeCloseTo(-2.7506, 4)
     expect(subwoofers.status).toBe('short')
+  })
+
+  it('uses a subwoofer’s RMS power, not its peak power', () => {
+    const peakier: Config = {
+      ...MEASURED,
+      speakerGroups: {
+        ...MEASURED.speakerGroups,
+        subwoofers: {
+          ...MEASURED.speakerGroups.subwoofers,
+          specs: {
+            ...MEASURED.speakerGroups.subwoofers.specs,
+            peakWatts: 2400,
+          },
+        },
+      },
+    }
+
+    expect(analyzeRoom(peakier).headroom.subwoofers.maxSpl).toBeCloseTo(
+      109.2494,
+      4,
+    )
   })
 
   it('adds subwoofers as a power sum, each with its own specs', () => {
@@ -149,14 +210,28 @@ describe('headroom at the MLP', () => {
     expect(subwoofers.status).toBe('enough')
   })
 
-  it('says overheads are not placed yet when the layout has them, so they get no headroom', () => {
-    expect(analyzeRoom(MEASURED).headroom.overheadsNotPlaced).toBe(true)
-    expect(
-      analyzeRoom({
-        ...MEASURED,
-        layout: { dolbyLayout: '5.1', subwoofers: 1 },
-      }).headroom.overheadsNotPlaced,
-    ).toBe(false)
+  it('lists a group without placed speakers (the overheads, until they are placed) as not placed, with its specs', () => {
+    const overheads = analyzeRoom(MEASURED).headroom.groups.find(
+      (g) => g.group === 'overheads',
+    )
+
+    expect(overheads).toEqual({
+      group: 'overheads',
+      name: 'Overheads',
+      specs: { sensitivity: 88 },
+      channels: [],
+      placed: false,
+    })
+  })
+
+  it('reads tight, not short, for the first-visit room', () => {
+    const { groups } = analyzeRoom(DEFAULT_CONFIG).headroom
+
+    expect(groups.flatMap((g) => (g.placed ? [g.status] : []))).toEqual([
+      'tight',
+      'tight',
+      'tight',
+    ])
   })
 })
 

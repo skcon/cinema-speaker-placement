@@ -417,13 +417,13 @@ export const HOUSE_CURVE = {
 } as const satisfies { boostDb: number; cornerHz: number; note: string }
 
 /**
- * Reference level: how loud each channel is set up to play at the MLP, and
- * so the loudest it is asked to play. Dolby's home calibration sets every
- * full-range channel to 79-82 dB SPL(C) at the MLP with pink noise at
- * −20 dBFS RMS, "depending on the room size" (IG p.15). A full-scale
- * signal is 20 dB above that test signal, so the loudest peak a channel is
- * asked for is the calibration level plus 20 dB. The app checks against
- * the top of Dolby's range, 82 dB, so 102 dB peaks per channel: rooms that
+ * Reference level (GLOSSARY.md): the level each channel is calibrated to
+ * at the MLP. Dolby's home calibration sets every full-range channel to
+ * 79-82 dB SPL(C) at the MLP with pink noise at −20 dBFS RMS, "depending
+ * on the room size" (IG p.15). A full-scale signal is 20 dB above that
+ * test signal, so the reference peak, the loudest a channel is asked for,
+ * is the reference level plus 20 dB. The app uses the top of Dolby's
+ * range, 82 dB, so 102 dB reference peaks per channel: rooms that
  * calibrate lower need less. The cinema reference (85 dB at −20 dBFS, so
  * 105 dB peaks, FLORIAN-2000) is 3 dB louder still.
  *
@@ -498,7 +498,8 @@ export const HEADROOM_STATUS = {
  * ratio), plus 3 dB for a ported enclosure. Several subwoofers are added
  * as a power sum (+3 dB per doubling), the conservative case: in-phase
  * subwoofers close together can add up to 3 dB more at the lowest
- * frequencies. Each subwoofer is driven at its RMS power.
+ * frequencies. Each subwoofer is driven at its RMS power on purpose, the
+ * conservative choice: the peak power is not used (yet).
  */
 export const SUBWOOFER_SENSITIVITY = {
   referenceDiameterInches: 12,

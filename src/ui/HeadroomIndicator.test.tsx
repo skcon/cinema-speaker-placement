@@ -29,18 +29,23 @@ describe('headroom indicator', () => {
   it('says what it checks against, and that it is an estimate', () => {
     renderIndicator()
 
-    expect(screen.getByText(/102 dB/)).toBeVisible()
+    expect(
+      screen.getByText(/102 dB .*reference level, 82 dB, plus 20 dB/),
+    ).toBeVisible()
     expect(screen.getByText(/rough estimate, not a measurement/i)).toBeVisible()
   })
 
   it('gives every speaker group of the layout and the subwoofers a status in plain language', () => {
     renderIndicator()
 
-    expect(item(/^Front L\/R/)).toHaveTextContent(/(Enough|Tight|Short)/)
+    // Our 88 dB, 100 W defaults just reach reference peaks.
+    expect(item(/^Front L\/R/)).toHaveTextContent(/Tight/)
+    expect(item(/^Front L\/R/)).toHaveTextContent(/would leave 3\.0 dB/)
     expect(item(/^Center/)).toBeDefined()
     expect(item(/^Surrounds/)).toBeDefined()
     expect(item(/^Subwoofers/)).toHaveTextContent(/112 dB/)
     expect(item(/^Subwoofers/)).toHaveTextContent(/very rough/i)
+    expect(item(/^Subwoofers/)).toHaveTextContent(/RMS power on purpose/)
   })
 
   it('says overheads are not checked until they are placed', () => {

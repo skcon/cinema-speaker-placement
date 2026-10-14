@@ -2,8 +2,9 @@
  * Reference values with their sources, as cited in
  * docs/research/dolby-speaker-placement.md,
  * docs/research/multi-subwoofer-placement.md,
- * docs/research/low-frequency-response.md and
- * docs/research/crossover-enclosure-boundaries.md.
+ * docs/research/low-frequency-response.md,
+ * docs/research/crossover-enclosure-boundaries.md and
+ * docs/research/reference-level-headroom.md.
  */
 
 /**
@@ -14,7 +15,14 @@
  * unique across the files.
  */
 export type SourceKey =
-  DolbySourceKey | SubwooferSourceKey | LowFrequencySourceKey | BassSourceKey
+  | DolbySourceKey
+  | SubwooferSourceKey
+  | LowFrequencySourceKey
+  | BassSourceKey
+  | HeadroomSourceKey
+
+/** docs/research/reference-level-headroom.md, section 1. */
+type HeadroomSourceKey = 'ATSC-A52' | 'FLORIAN-2000'
 
 /** docs/research/crossover-enclosure-boundaries.md, section 1. */
 type BassSourceKey =
@@ -407,3 +415,130 @@ export const HOUSE_CURVE = {
     'than flat, but no curve shape from it could be verified ' +
     '(docs/research/low-frequency-response.md section 3).',
 } as const satisfies { boostDb: number; cornerHz: number; note: string }
+
+/**
+ * Reference level: how loud each channel is set up to play at the MLP, and
+ * so the loudest it is asked to play. Dolby's home calibration sets every
+ * full-range channel to 79-82 dB SPL(C) at the MLP with pink noise at
+ * −20 dBFS RMS, "depending on the room size" (IG p.15). A full-scale
+ * signal is 20 dB above that test signal, so the loudest peak a channel is
+ * asked for is the calibration level plus 20 dB. The app checks against
+ * the top of Dolby's range, 82 dB, so 102 dB peaks per channel: rooms that
+ * calibrate lower need less. The cinema reference (85 dB at −20 dBFS, so
+ * 105 dB peaks, FLORIAN-2000) is 3 dB louder still.
+ *
+ * The LFE channel is reproduced 10 dB above a full-range channel
+ * (ATSC-A52), so the subwoofers are checked against 112 dB peaks.
+ */
+export const REFERENCE_LEVEL = {
+  calibrationDb: 82,
+  testSignalDbfs: -20,
+  lfeGainDb: 10,
+  note:
+    'Calibration level and test signal from Dolby (IG p.15); the 20 dB ' +
+    'from the test signal to full scale follows from dBFS. Taking the top ' +
+    'of the 79-82 dB range is our choice, and bass redirected from the ' +
+    "speakers is not added to the subwoofers' target " +
+    '(docs/research/reference-level-headroom.md section 2).',
+  citations: [
+    {
+      source: 'IG',
+      page: 15,
+      note: '79-82 dB SPL(C) per channel at −20 dBFS RMS pink noise',
+    },
+    {
+      source: 'ATSC-A52',
+      note: 'LFE reproduced +10 dB relative to the full-bandwidth channels',
+    },
+    {
+      source: 'FLORIAN-2000',
+      note: 'cinema reference: 85 dB at −20 dB, 105 dB peaks, 115 dB LFE',
+    },
+  ],
+} as const satisfies {
+  calibrationDb: number
+  testSignalDbfs: number
+  lfeGainDb: number
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * How the headroom estimate treats distance and power. SPL = sensitivity +
+ * 10·log10(P) − 20·log10(d) is the textbook free-field (inverse-square)
+ * estimate. Nearer than `minDistance` the formula is not used (near
+ * field), and the amplifier power is taken as continuous power into the
+ * speaker's rated load. Room gain and reflections, which make a real room
+ * louder than free field, and power compression, which makes it quieter,
+ * are not modelled.
+ */
+export const HEADROOM_MODEL = {
+  minDistance: 0.5,
+  note:
+    'Our modelling assumptions: free field, the 0.5 m near-field floor, ' +
+    'and no room gain or power compression ' +
+    '(docs/research/reference-level-headroom.md section 3).',
+} as const satisfies { minDistance: number; note: string }
+
+/**
+ * When a headroom counts as enough, tight or short, in dB above the
+ * reference peak level. 3 dB is a doubling of power: our margin for what
+ * the free-field estimate leaves out.
+ */
+export const HEADROOM_STATUS = {
+  enoughFromDb: 3,
+  tightFromDb: 0,
+  note: 'Our thresholds, not cited values.',
+} as const satisfies { enoughFromDb: number; tightFromDb: number; note: string }
+
+/**
+ * A very rough 1 W / 1 m sensitivity for a subwoofer from its specs, as
+ * the specs hold no sensitivity: 88 dB for a sealed 12 in driver, plus
+ * 20·log10(diameter / 12 in) for the cone area (10·log10 of the area
+ * ratio), plus 3 dB for a ported enclosure. Several subwoofers are added
+ * as a power sum (+3 dB per doubling), the conservative case: in-phase
+ * subwoofers close together can add up to 3 dB more at the lowest
+ * frequencies. Each subwoofer is driven at its RMS power.
+ */
+export const SUBWOOFER_SENSITIVITY = {
+  referenceDiameterInches: 12,
+  sealedDb: 88,
+  portedGainDb: 3,
+  note:
+    'Entirely our modelling assumption, not a cited or measured value: ' +
+    'no verifiable source relating driver size and enclosure to ' +
+    'sensitivity was found (docs/research/reference-level-headroom.md ' +
+    'section 4).',
+} as const satisfies {
+  referenceDiameterInches: number
+  sealedDb: number
+  portedGainDb: number
+  note: string
+}
+
+/**
+ * How a bookshelf or tower speaker is modelled. Both have their acoustic
+ * center (the tweeter) at seated ear height, as Dolby asks for every
+ * listener-level speaker (EAR_HEIGHT, IG p.6): a bookshelf on a stand, a
+ * tower on the floor. What differs is the woofer, which is what radiates
+ * in the boundary-interference range (below about 500 Hz): just below the
+ * tweeter in a bookshelf, low in the cabinet in a tower.
+ * `wooferBelowTweeter` is how far below the speaker's height its woofer
+ * sits, kept at least `minWooferHeight` above the floor.
+ */
+export const SPEAKER_TYPE_GEOMETRY = {
+  bookshelf: { wooferBelowTweeter: 0.15 },
+  tower: { wooferBelowTweeter: 0.8 },
+  minWooferHeight: 0.1,
+  note:
+    'Tweeter at ear height from Dolby (IG p.6); the woofer offsets ' +
+    '(0.15 m bookshelf, 0.8 m tower, so a tower woofer at 0.4 m) and the ' +
+    '0.1 m floor are our modelling assumptions for typical cabinets, not ' +
+    'cited values (docs/research/reference-level-headroom.md section 5).',
+  citations: [
+    { source: 'IG', page: 6, note: 'listener-level speakers at 1.2 m' },
+  ],
+} as const satisfies Record<
+  'bookshelf' | 'tower',
+  { wooferBelowTweeter: number }
+> & { minWooferHeight: number; note: string; citations: readonly Citation[] }

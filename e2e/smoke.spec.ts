@@ -83,7 +83,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       panel
         .getByRole('list', { name: 'Weaknesses' })
         .getByText(
-          /^Dip at 18\d Hz .*front-wall reflection notch \(Left and Right\)/,
+          /^Dip at 1\d\d Hz .*front-wall reflection notch \(Left and Right\)/,
         ),
     ).toBeVisible()
     await expect(

@@ -154,6 +154,68 @@ describe('crossover', () => {
   })
 })
 
+describe('speaker group specs', () => {
+  it('change one group at a time, one spec at a time, keeping the rest of the config', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setSpeakerSpecs('center', { type: 'tower' })
+    store.getState().setSpeakerSpecs('center', { sensitivity: 92.5 })
+    store.getState().setSpeakerSpecs('overheads', { sensitivity: 80 })
+
+    expect(store.getState().config).toEqual({
+      ...IMPERIAL_ROOM,
+      speakerGroups: {
+        ...IMPERIAL_ROOM.speakerGroups,
+        center: { specs: { type: 'tower', sensitivity: 92.5 } },
+        overheads: { specs: { sensitivity: 80 } },
+      },
+    })
+  })
+
+  it.each([69.9, 110.1, Number.NaN])('ignore a sensitivity of %d dB', (db) => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setSpeakerSpecs('front', { sensitivity: db })
+
+    expect(store.getState().config).toBe(IMPERIAL_ROOM)
+  })
+
+  it('are undoable', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setSpeakerSpecs('front', { type: 'bookshelf' })
+    store.getState().undo()
+    expect(store.getState().config.speakerGroups.front.specs.type).toBe('tower')
+    store.getState().redo()
+    expect(store.getState().config.speakerGroups.front.specs.type).toBe(
+      'bookshelf',
+    )
+  })
+})
+
+describe('amplifier power', () => {
+  it('takes any power per channel from 1 to 5,000 W, undoably', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setAmplifierWatts(1)
+    expect(store.getState().config).toEqual({
+      ...IMPERIAL_ROOM,
+      amplifierWatts: 1,
+    })
+    store.getState().setAmplifierWatts(5000)
+    store.getState().undo()
+    expect(store.getState().config.amplifierWatts).toBe(1)
+  })
+
+  it.each([0.5, 5001, Number.NaN])('ignores %d W', (watts) => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setAmplifierWatts(watts)
+
+    expect(store.getState().config).toBe(IMPERIAL_ROOM)
+  })
+})
+
 describe('subwoofers', () => {
   const PORTED_15 = {
     enclosure: 'ported',

@@ -90,17 +90,37 @@ export function withLayout(config: Config, layout: Layout): Config {
 }
 
 /**
- * The MLP made manual at the recommended seat ("Move MLP here"); the config
- * comes back as it was when the MLP already is there.
+ * The MLP made manual at `seat`, the recommended seat the user is looking
+ * at ("Move MLP here"). The config comes back as it was when the MLP
+ * already is there.
  */
-export function withMlpAtRecommendedSeat(config: Config): Config {
-  const { recommended, mlpIsRecommended } = recommendSeat(config)
-  if (mlpIsRecommended) return config
-  const { x, y } = recommended.position
-  return placeManually(config, MLP_ID, { x, y })
+export function withMlpAtRecommendedSeat(
+  config: Config,
+  seat: RoomPoint,
+): Config {
+  const moved = placeManually(config, MLP_ID, { x: seat.x, y: seat.y })
+  return samePositions(moved, config) ? config : moved
 }
 
-/** Every item back to auto: what Auto-place does. */
+/**
+ * What Auto-place does: every item back to auto, then the MLP at the
+ * recommended seat for that (manual there, unless the auto MLP already is
+ * the recommended seat). The config comes back as it was when that changes
+ * nothing.
+ */
 export function withAutoPlacement(config: Config): Config {
-  return { ...config, manualPositions: {} }
+  const reset: Config = { ...config, manualPositions: {} }
+  const { recommended, mlpIsRecommended } = recommendSeat(reset)
+  const placed = mlpIsRecommended
+    ? reset
+    : placeManually(reset, MLP_ID, {
+        x: recommended.position.x,
+        y: recommended.position.y,
+      })
+  return samePositions(placed, config) ? config : placed
+}
+
+/** Whether two configs have the same manual positions. */
+function samePositions(a: Config, b: Config): boolean {
+  return JSON.stringify(a.manualPositions) === JSON.stringify(b.manualPositions)
 }

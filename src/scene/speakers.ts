@@ -31,6 +31,9 @@ export const UNGRADED_STYLE = {
  */
 export const RECOMMENDED_SEAT_COLOR = '#7c3aed'
 
+/** The "38% rule" reference line in the room view and its legend. */
+export const RULE_OF_THUMB_COLOR = '#a3a3a3'
+
 /**
  * The drawn size of a speaker cabinet seen from above, in meters: a
  * drawing size only, not a speaker spec.

@@ -2,12 +2,12 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { PositionsForm } from '@/ui/PositionsForm'
-import { RecommendedSeat } from '@/ui/RecommendedSeat'
+import { Seating } from '@/ui/Seating'
 
 function renderSeating() {
   render(
     <ConfigStoreProvider>
-      <RecommendedSeat />
+      <Seating />
       <PositionsForm />
     </ConfigStoreProvider>,
   )
@@ -44,7 +44,9 @@ describe('seating in the sidebar', () => {
 
     expect(seating).toHaveTextContent(/38% rule/)
     expect(seating).toHaveTextContent(/2\.28 m from the front wall/)
-    expect(seating).toHaveTextContent(/not a standard/)
+    expect(seating).toHaveTextContent(
+      /Reference only.*not a standard.*not part of the recommendation/,
+    )
   })
 
   it('takes a seat row width', () => {

@@ -10,7 +10,7 @@ import { HistoryButtons } from '@/ui/HistoryButtons'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { LayoutForm } from '@/ui/LayoutForm'
 import { PositionsForm } from '@/ui/PositionsForm'
-import { RecommendedSeat } from '@/ui/RecommendedSeat'
+import { Seating } from '@/ui/Seating'
 import { RoomForm } from '@/ui/RoomForm'
 import { SidebarSection } from '@/ui/SidebarSection'
 import { SpeakerList } from '@/ui/SpeakerList'
@@ -52,7 +52,7 @@ export function AppShell({
           <LayoutForm />
           <SpeakerList />
           <PositionsForm />
-          <RecommendedSeat />
+          <Seating />
           <SidebarSection title="Speaker specs">
             <SpeakerSpecsForm />
             <CrossoverField />

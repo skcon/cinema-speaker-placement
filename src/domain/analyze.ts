@@ -30,7 +30,7 @@ import {
   prepareConfigResponse,
   subwooferSpecsOf,
 } from './listening'
-import { seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
+import { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 import { seatRowFootprint, type SeatRowFootprint } from './seat-row'
 import { responseNotes, type ResponseNotes } from './response-notes'
 
@@ -102,8 +102,10 @@ export type RoomAnalysis = {
   mlpPlacement: Placement
   /** The Seat row drawn around the MLP (a visual cue, not analyzed). */
   seatRow: SeatRowFootprint
-  /** The informal "38% rule", a reference only, and where the MLP is by it. */
+  /** Where the informal "38% rule" puts the seat: a reference only. */
   seatRuleOfThumb: SeatRuleOfThumb
+  /** How far back the MLP is, as a share of the room length. */
+  mlpFrontWallFraction: number
   /** The layout's listener-level speakers, in Dolby's channel order. */
   speakers: readonly PlacedSpeaker[]
   /** The layout's subwoofers, Subwoofer 1 first. */
@@ -213,7 +215,8 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     mlp,
     mlpPlacement: placements.mlp.placement,
     seatRow: seatRowFootprint(config.room, mlp, config.seatRowWidth),
-    seatRuleOfThumb: seatRuleOfThumb(config.room, mlp),
+    seatRuleOfThumb: seatRuleOfThumb(config.room),
+    mlpFrontWallFraction: frontWallFraction(config.room, mlp),
     speakers: heardSpeakers.map(({ speaker }) => speaker),
     subwoofers,
     response: {

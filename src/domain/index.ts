@@ -30,7 +30,7 @@ export {
   type ScoredSeat,
   type SeatRecommendation,
 } from './seat-score'
-export { seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
+export { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 export {
   checkSeatRowWidth,
   clampSeatRowWidth,

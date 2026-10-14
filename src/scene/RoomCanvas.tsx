@@ -26,6 +26,7 @@ import {
 import {
   GRADE_STYLES,
   RECOMMENDED_SEAT_COLOR,
+  RULE_OF_THUMB_COLOR,
   SPEAKER_FOOTPRINT,
   speakerMarker,
   SUBWOOFER_FOOTPRINT,
@@ -55,7 +56,7 @@ const COLORS = {
   frontWall: '#171717',
   mlp: '#2563eb',
   seatRow: '#dbeafe',
-  ruleOfThumb: '#a3a3a3',
+  ruleOfThumb: RULE_OF_THUMB_COLOR,
   recommended: RECOMMENDED_SEAT_COLOR,
 } as const
 
@@ -147,11 +148,7 @@ export function RoomCanvas({
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
         <SeatRow footprint={seatRow} />
-        <RuleOfThumbLine
-          room={room}
-          fromFrontWall={ruleOfThumbFromFrontWall}
-          labelLayer={labelLayer}
-        />
+        <RuleOfThumbLine room={room} fromFrontWall={ruleOfThumbFromFrontWall} />
         <Walls room={room} labelLayer={labelLayer} />
         {recommendedSeat && (
           <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
@@ -411,45 +408,35 @@ function SeatRow({ footprint }: { footprint: SeatRowFootprint }) {
 }
 
 /**
- * The informal "38% rule" as a faint dashed line across the room, labelled
- * at the left wall: a reference only.
+ * The informal "38% rule" as a faint dashed line across the room: a
+ * reference only. It has no label in the scene, where one would run into
+ * the speaker labels on a narrow screen; the legend names it.
  */
 function RuleOfThumbLine({
   room,
   fromFrontWall,
-  labelLayer,
 }: {
   room: Room
   fromFrontWall: number
-  labelLayer: LabelLayer
 }) {
   const half = room.width / 2
   const z = LAYER.ruleOfThumb
   return (
-    <>
-      <Line
-        points={[
-          toScenePosition({ x: -half, y: fromFrontWall, z }),
-          toScenePosition({ x: half, y: fromFrontWall, z }),
-        ]}
-        color={COLORS.ruleOfThumb}
-        lineWidth={1}
-        dashed
-        dashSize={0.15}
-        gapSize={0.1}
-      />
-      <SceneLabel
-        at={{ x: -half, y: fromFrontWall, z }}
-        layer={labelLayer}
-        className="translate-x-1/2 -translate-y-2.5 text-[10px] text-muted-foreground"
-      >
-        38% rule
-      </SceneLabel>
-    </>
+    <Line
+      points={[
+        toScenePosition({ x: -half, y: fromFrontWall, z }),
+        toScenePosition({ x: half, y: fromFrontWall, z }),
+      ]}
+      color={COLORS.ruleOfThumb}
+      lineWidth={1}
+      dashed
+      dashSize={0.15}
+      gapSize={0.1}
+    />
   )
 }
 
-/** A green ring around the recommended MLP, labelled above it. */
+/** A violet ring around the recommended MLP, labelled above it. */
 function RecommendedSeatMarker({
   at,
   labelLayer,

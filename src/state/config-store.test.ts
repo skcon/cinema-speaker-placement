@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeRoom, DEFAULT_CONFIG, encodeConfig } from '@/domain'
+import {
+  analyzeRoom,
+  DEFAULT_CONFIG,
+  encodeConfig,
+  recommendSeat,
+} from '@/domain'
 import { createConfigStore, isShowingLinkFallback } from '@/state/config-store'
 import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
@@ -72,7 +77,7 @@ describe('config store', () => {
     })
   })
 
-  it('auto-place keeps the room and layout and puts every speaker at its auto-placed position', () => {
+  it('auto-place keeps the room and layout, puts every speaker at its auto-placed position and the MLP at the recommended seat', () => {
     const store = createConfigStore()
     store.getState().setLayout('7.1')
     store.getState().setRoomDimension('width', 5)
@@ -84,14 +89,20 @@ describe('config store', () => {
       room: { length: 6, width: 5, height: 2.6 },
       layout: { dolbyLayout: '7.1', subwoofers: 1 },
     } as const
-    expect(store.getState().config).toEqual(sevenOneInFiveMeters)
+    const { recommended } = recommendSeat(sevenOneInFiveMeters)
+    const autoPlaced = {
+      ...sevenOneInFiveMeters,
+      manualPositions: { MLP: recommended.position },
+    }
+    expect(store.getState().config).toEqual(autoPlaced)
     expect(analyzeRoom(store.getState().config).speakers).toEqual(
-      analyzeRoom(sevenOneInFiveMeters).speakers,
+      analyzeRoom(autoPlaced).speakers,
     )
   })
 
-  it('auto-place changes nothing while every position is derived, so undo has nothing to record', () => {
+  it('auto-place changes nothing when everything is already where it puts it, so undo has nothing to record', () => {
     const store = createConfigStore()
+    store.getState().autoPlace()
     const before = store.getState().config
     let notified = 0
     store.subscribe(() => {

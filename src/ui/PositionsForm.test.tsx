@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { LayoutForm } from '@/ui/LayoutForm'
@@ -99,10 +105,9 @@ describe('positions in the sidebar', () => {
     expect(field('Center', /^Height/, 'in')).toHaveValue('11.2')
   })
 
-  it('all go back to auto on Auto-place, which is off while nothing is manual', () => {
+  it('all go back to auto on Auto-place, the MLP to the recommended seat, and Auto-place is off once that changes nothing', async () => {
     renderPositions()
     const autoPlace = screen.getByRole('button', { name: 'Auto-place' })
-    expect(autoPlace).toBeDisabled()
 
     enter(field('Center', /^Height/), '1.5')
     expect(autoPlace).toBeEnabled()
@@ -110,6 +115,8 @@ describe('positions in the sidebar', () => {
 
     expect(field('Center', /^Height/)).toHaveValue('1.2')
     expect(item('Center')).toHaveTextContent('auto')
-    expect(autoPlace).toBeDisabled()
+    // In the default room the recommended seat beats the 38% seed.
+    expect(item('MLP')).toHaveTextContent('manual')
+    await waitFor(() => expect(autoPlace).toBeDisabled())
   })
 })

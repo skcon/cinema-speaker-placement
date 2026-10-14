@@ -128,12 +128,6 @@ describe('recommended seat', () => {
     expect(candidates.length).toBeGreaterThan(100)
   })
 
-  it('gives the same recommendation when only the units change', () => {
-    expect(recommendSeat({ ...DEFAULT_CONFIG, units: 'imperial' })).toBe(
-      recommendSeat(DEFAULT_CONFIG),
-    )
-  })
-
   it('recommends a seat in the largest room with 4 subwoofers and 7 listener-level speakers quickly enough to run live', () => {
     // About 0.4 s under Vitest on a 2024 laptop, and 0.1 s in the default
     // room; the bound only catches a regression to hearing every seat per

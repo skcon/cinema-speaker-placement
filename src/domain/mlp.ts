@@ -10,9 +10,32 @@ import type { Room, RoomPoint } from './room'
  * MLP manual.
  */
 export function defaultMlp(room: Room): RoomPoint {
+  return { x: 0, y: seatRuleOfThumb(room).fromFrontWall, z: EAR_HEIGHT.meters }
+}
+
+/** The informal "38% rule" in a Room, and where a seat is by the same measure. */
+export type SeatRuleOfThumb = {
+  /** The rule's share of the room length from the front wall, 0 to 1. */
+  readonly fraction: number
+  /** The rule's distance from the front wall, in meters. */
+  readonly fromFrontWall: number
+  /** The seat's share of the room length from the front wall, 0 to 1. */
+  readonly seatFraction: number
+}
+
+/**
+ * The informal "38% rule" in this Room, shown beside the recommended seat
+ * as a reference only (MLP_FRONT_WALL_FRACTION), and how far back `seat`
+ * is by the same measure.
+ */
+export function seatRuleOfThumb(
+  room: Room,
+  seat: RoomPoint = { x: 0, y: 0, z: 0 },
+): SeatRuleOfThumb {
+  const { fraction } = MLP_FRONT_WALL_FRACTION
   return {
-    x: 0,
-    y: room.length * MLP_FRONT_WALL_FRACTION.fraction,
-    z: EAR_HEIGHT.meters,
+    fraction,
+    fromFrontWall: room.length * fraction,
+    seatFraction: seat.y / room.length,
   }
 }

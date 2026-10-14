@@ -121,6 +121,27 @@ describe('layouts', () => {
   })
 })
 
+describe('the seat row and the 38% rule', () => {
+  it('draws the seat row centered on the MLP, as wide as the config says', () => {
+    const { seatRow, mlp } = analyzeRoom({ ...DEFAULT_CONFIG, seatRowWidth: 3 })
+
+    expect(seatRow.center.x).toBeCloseTo(mlp.x, 9)
+    expect(seatRow.center.y).toBeCloseTo(mlp.y, 9)
+    expect(seatRow.width).toBeCloseTo(3, 9)
+  })
+
+  it('gives the 38% rule’s distance in this room and where the MLP is by it', () => {
+    const { seatRuleOfThumb } = analyzeRoom({
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0, y: 3, z: 1.2 } },
+    })
+
+    expect(seatRuleOfThumb.fraction).toBe(0.38)
+    expect(seatRuleOfThumb.fromFrontWall).toBeCloseTo(2.28, 9)
+    expect(seatRuleOfThumb.seatFraction).toBeCloseTo(0.5, 9)
+  })
+})
+
 describe('the auto MLP', () => {
   it('sits 38% of the room length from the front wall, centered, at ear height', () => {
     const { mlp } = analyzeRoom(DEFAULT_CONFIG)

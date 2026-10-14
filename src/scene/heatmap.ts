@@ -26,12 +26,12 @@ export function heatmapColor(level: number): string {
   const clamped = Math.min(1, Math.max(0, level))
   const position = clamped * (HEATMAP_STOPS.length - 1)
   const index = Math.min(Math.floor(position), HEATMAP_STOPS.length - 2)
-  const low = channels(HEATMAP_STOPS[index])
-  const high = channels(HEATMAP_STOPS[index + 1])
+  const low = channels(HEATMAP_STOPS[index]!)
+  const high = channels(HEATMAP_STOPS[index + 1]!)
   const t = position - index
   return `#${low
     .map((value, i) =>
-      Math.round(value + (high[i] - value) * t)
+      Math.round(value + (high[i]! - value) * t)
         .toString(16)
         .padStart(2, '0'),
     )

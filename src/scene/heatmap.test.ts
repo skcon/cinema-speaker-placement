@@ -9,7 +9,7 @@ import {
 
 /** Relative luminance of a #rrggbb color (WCAG 2.x). */
 function luminance(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => {
+  const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => {
     const c = parseInt(hex.slice(i, i + 2), 16) / 255
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
   })
@@ -34,9 +34,8 @@ describe('heatmap color scale', () => {
     const levels = Array.from({ length: 21 }, (_, i) => i / 20)
     const lightness = levels.map((level) => luminance(heatmapColor(level)))
 
-    for (let i = 1; i < lightness.length; i++) {
-      expect(lightness[i]).toBeGreaterThan(lightness[i - 1])
-    }
+    expect(lightness).toEqual(lightness.toSorted((a, b) => a - b))
+    expect(new Set(lightness).size).toBe(lightness.length)
   })
 
   it('draws the legend as a CSS gradient through every stop', () => {

@@ -82,8 +82,9 @@ function cellSpans(
   return new Map(
     sorted.map((value, i) => {
       if (sorted.length === 1) return [value, [value - half, value + half]]
-      const low = i === 0 ? value : (sorted[i - 1] + value) / 2
-      const high = i === sorted.length - 1 ? value : (value + sorted[i + 1]) / 2
+      const low = i === 0 ? value : (sorted[i - 1]! + value) / 2
+      const high =
+        i === sorted.length - 1 ? value : (value + sorted[i + 1]!) / 2
       return [value, [low, high]]
     }),
   )

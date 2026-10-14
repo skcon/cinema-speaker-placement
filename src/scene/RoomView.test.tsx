@@ -46,7 +46,7 @@ describe('seat-score heatmap in the room view', () => {
     expect(await screen.findByText('heatmap drawn')).toBeInTheDocument()
     const legend = screen.getByRole('group', { name: 'Seat score (estimate)' })
     expect(legend).toHaveTextContent(/low.*high/)
-    expect(screen.getByText(/relative to the current MLP/)).toHaveTextContent(
+    expect(screen.getByText(/Relative to the current MLP/)).toHaveTextContent(
       /simplified model/,
     )
     expect(scene()).toHaveAccessibleName(

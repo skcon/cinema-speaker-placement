@@ -128,8 +128,9 @@ export function RoomView() {
         <Toggle
           variant="outline"
           size="sm"
-          // A finger-sized target on phones (44 px), compact from sm up.
-          className="h-11 sm:h-8"
+          // A finger-sized target (44 px) below the desktop layout; shown
+          // pressed like the app's other chosen options.
+          className="text-foreground data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground max-lg:h-11 max-lg:px-4"
           pressed={showHeatmap}
           onPressedChange={setShowHeatmap}
         >
@@ -191,8 +192,8 @@ function HeatmapLegend() {
         <span>high</span>
       </div>
       <p>
-        Scores are relative to the current MLP&rsquo;s calibration and compare
-        seats in this room only: an estimate from a simplified model.
+        Relative to the current MLP&rsquo;s calibration: an estimate from a
+        simplified model.
       </p>
     </div>
   )

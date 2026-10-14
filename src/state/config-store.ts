@@ -10,6 +10,7 @@ import {
   placeManually,
   withAutoPlacement,
   withLayout,
+  withMlpAtRecommendedSeat,
   withRoom,
   type Config,
   type DolbyLayout,
@@ -107,6 +108,12 @@ export type ConfigState = {
    * inside the wall clearances.
    */
   setWallDistance: (id: PlaceableId, wall: Wall, meters: number) => void
+  /**
+   * Move the MLP to the recommended seat ("Move MLP here"), making it
+   * manual, as one undoable step; auto speakers follow it. With the MLP
+   * already there it changes nothing.
+   */
+  moveMlpToRecommendedSeat: () => void
   /**
    * Put every channel, subwoofer and the MLP back to auto, dropping the
    * stored manual positions, as one undoable change. With nothing manual it
@@ -304,6 +311,8 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             setConfigIfChanged((config) =>
               placeAtWallDistance(config, id, wall, meters),
             ),
+          moveMlpToRecommendedSeat: () =>
+            setConfigIfChanged(withMlpAtRecommendedSeat),
           autoPlace: () => {
             const { config } = get()
             if (Object.keys(config.manualPositions).length === 0) return

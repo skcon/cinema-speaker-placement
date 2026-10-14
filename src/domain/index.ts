@@ -41,6 +41,7 @@ export {
   placeManually,
   withAutoPlacement,
   withLayout,
+  withMlpAtRecommendedSeat,
   withRoom,
 } from './config-edits'
 export {

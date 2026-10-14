@@ -61,10 +61,10 @@ export function AppShell({
           <SidebarSection title="Headroom at the MLP">
             <HeadroomIndicator />
           </SidebarSection>
+          <SidebarSection title="Recent rooms">
+            <RecentRooms />
+          </SidebarSection>
         </aside>
-        <SidebarSection title="Recent rooms">
-          <RecentRooms />
-        </SidebarSection>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <Panel title="Room view" className="min-h-128 lg:min-h-0 lg:flex-3">

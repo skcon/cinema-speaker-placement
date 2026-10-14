@@ -1,9 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { RecentRoomsContext } from './recent-rooms-context'
-import {
-  createRecentRoomsStore,
-  RECENT_ROOMS_STORAGE_KEY,
-} from './recent-rooms-store'
+import { RECENT_ROOMS_STORAGE_KEY } from './recent-rooms-storage'
+import { createRecentRoomsStore } from './recent-rooms-store'
 
 /**
  * One recent rooms store for everything inside it, kept in localStorage

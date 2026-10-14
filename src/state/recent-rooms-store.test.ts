@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CONFIG, encodeConfig } from '@/domain'
+import { DEFAULT_CONFIG, encodeConfig, type EncodedConfig } from '@/domain'
 import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
 import {
-  createRecentRoomsStore,
   RECENT_ROOMS_STORAGE_KEY,
   type KeyValueStorage,
-} from '@/state/recent-rooms-store'
+} from '@/state/recent-rooms-storage'
+import { createRecentRoomsStore } from '@/state/recent-rooms-store'
 
-const ROOM_A = V1_LINKS.imperialRoom.encoded
+const ROOM_A = V1_LINKS.imperialRoom.encoded as EncodedConfig
 const ROOM_B = encodeConfig(IMPERIAL_ROOM)
 
 /** A storage like localStorage, holding `stored` under the recent-rooms key. */
@@ -156,6 +156,18 @@ describe('recent rooms store', () => {
     expect(store.getState().rooms.map(({ encoded }) => encoded)).toEqual([
       ROOM_A,
     ])
+  })
+
+  it('only reads when asked to reload, so tabs never write back and forth', () => {
+    const { storage, stored } = memoryStorage()
+    const store = storeWith(storage)
+    const damaged = JSON.stringify([{ encoded: ROOM_A, savedAt: 5 }, 'junk'])
+    storage.setItem(RECENT_ROOMS_STORAGE_KEY, damaged)
+
+    store.getState().reload()
+
+    expect(store.getState().rooms).toEqual([{ encoded: ROOM_A, savedAt: 5 }])
+    expect(stored()).toBe(damaged)
   })
 
   describe('without storage', () => {

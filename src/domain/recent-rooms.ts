@@ -3,45 +3,53 @@
  * newest first (ADR 0001: a per-browser convenience; the share link stays
  * the save feature). Pure list logic; reading and writing browser storage
  * is the state layer's job.
+ *
+ * Entries saved by a newer version of the app (in another tab, before this
+ * one reloaded) can't be opened here, but are kept for that version: at
+ * most NEWER_ROOMS_LIMIT of them, on top of the RECENT_ROOMS_LIMIT rooms
+ * this version can open, so they never crowd those out. Damaged entries
+ * are dropped.
  */
 import { z } from 'zod'
 import type { Config } from './config'
 import { formatLayout } from './layout'
-import { decodeConfig } from './share-link'
-import { UNIT_SYSTEMS } from './units'
+import { decodeConfig, type EncodedConfig } from './share-link'
+import { formatLength } from './units'
 
 /** A room worked on in this browser: its encoded config and when it was saved. */
 export type RecentRoom = {
-  /** The encoded config, as a share link's `config` search param holds it. */
-  encoded: string
+  encoded: EncodedConfig
   /** When it was last saved, in milliseconds since the epoch. */
   savedAt: number
 }
 
-/** How many recent rooms are kept; saving another drops the oldest. */
+/** How many rooms this version can open are kept; saving another drops the oldest. */
 export const RECENT_ROOMS_LIMIT = 10
+
+/** How many rooms saved by a newer version of the app are kept besides. */
+const NEWER_ROOMS_LIMIT = 5
 
 /**
  * The list with `room` first, newest first: one entry per encoded config,
- * at most RECENT_ROOMS_LIMIT. `replacing` is the encoded config of the
- * entry `room` was edited from, which it takes the place of, so editing a
- * room keeps one entry for it rather than one per edit.
+ * within the limits. `replacing` is the encoded config of the entry `room`
+ * was edited from, which it takes the place of, so editing a room keeps
+ * one entry for it rather than one per edit.
  */
 export function saveRecentRoom(
   rooms: readonly RecentRoom[],
   room: RecentRoom,
-  replacing?: string,
+  replacing?: EncodedConfig,
 ): RecentRoom[] {
   const others = rooms.filter(
     ({ encoded }) => encoded !== room.encoded && encoded !== replacing,
   )
-  return [room, ...others].slice(0, RECENT_ROOMS_LIMIT)
+  return withinLimits([room, ...others])
 }
 
 /** The list without the entry for `encoded`. */
 export function removeRecentRoom(
   rooms: readonly RecentRoom[],
-  encoded: string,
+  encoded: EncodedConfig,
 ): RecentRoom[] {
   return rooms.filter((room) => room.encoded !== encoded)
 }
@@ -60,8 +68,7 @@ const recentRoomSchema = z.object({
  * The recent rooms in stored text, or none for nothing stored. Never
  * throws: the text may be damaged, hand-edited or from another version of
  * the app, so anything that isn't a recent room is skipped, and repeats and
- * entries past the limit are dropped. Whether an entry's encoded config
- * still opens is left to describeRecentRoom.
+ * entries past the limits are dropped.
  */
 export function parseRecentRooms(stored: string | null): RecentRoom[] {
   if (stored === null) return []
@@ -72,44 +79,68 @@ export function parseRecentRooms(stored: string | null): RecentRoom[] {
     return []
   }
   if (!Array.isArray(json)) return []
-  return json
-    .flatMap((entry) => {
-      const result = recentRoomSchema.safeParse(entry)
-      return result.success ? [result.data] : []
-    })
-    .filter(
-      (room, index, rooms) =>
+  const rooms = json.flatMap((entry) => {
+    const result = recentRoomSchema.safeParse(entry)
+    // Branded here; withinLimits drops what doesn't decode.
+    return result.success
+      ? [{ ...result.data, encoded: result.data.encoded as EncodedConfig }]
+      : []
+  })
+  return withinLimits(
+    rooms.filter(
+      (room, index) =>
         rooms.findIndex(({ encoded }) => encoded === room.encoded) === index,
-    )
-    .slice(0, RECENT_ROOMS_LIMIT)
+    ),
+  )
+}
+
+/** A recent room this version can open, with a short name for the list. */
+export type DescribedRecentRoom = RecentRoom & { label: string }
+
+/** What the recent rooms list shows. */
+export type RecentRoomsSummary = {
+  /** The rooms this version can open, newest first. */
+  rooms: DescribedRecentRoom[]
+  /** How many rooms saved by a newer version of the app are left out. */
+  hiddenNewer: number
 }
 
 /**
- * A short name for a recent room, from its encoded config: its size in its
- * own units and its layout, such as "6 × 4.5 × 2.6 m · 5.1.2" or
- * "24 ft × 15 ft 6 in × 9 ft · 7.2.4". Null when the encoded config no
- * longer opens (damaged, or saved by a newer version of the app), so the
- * list can leave it out instead of opening the default room.
+ * The rooms to list, each named by its size in its own units and its
+ * layout, such as "6 m × 4.5 m × 2.6 m · 5.1.2", and how many rooms saved
+ * by a newer version are left out.
  */
-export function describeRecentRoom(encoded: string): string | null {
-  const { config, problem } = decodeConfig(encoded)
-  if (problem) return null
-  return `${describeSize(config)} · ${formatLayout(config.layout)}`
+export function summarizeRecentRooms(
+  rooms: readonly RecentRoom[],
+): RecentRoomsSummary {
+  const summary: RecentRoomsSummary = { rooms: [], hiddenNewer: 0 }
+  for (const room of rooms) {
+    const { config, problem } = decodeConfig(room.encoded)
+    if (problem === 'newer-version') summary.hiddenNewer += 1
+    else if (!problem) summary.rooms.push({ ...room, label: describe(config) })
+  }
+  return summary
 }
 
-function describeSize({ room, units }: Config): string {
-  const sides = [room.length, room.width, room.height].map((meters) =>
-    UNIT_SYSTEMS[units].toParts(meters, 'nearest'),
-  )
-  if (units === 'metric') {
-    return `${sides.map((parts) => parts.map(({ value }) => value).join(' ')).join(' × ')} m`
-  }
-  return sides
-    .map((parts) =>
-      parts
-        .filter(({ unit, value }) => unit !== 'in' || value !== 0)
-        .map(({ unit, value }) => `${value} ${unit}`)
-        .join(' '),
-    )
+function describe({ room, units, layout }: Config): string {
+  const size = [room.length, room.width, room.height]
+    .map((meters) => formatLength(meters, units))
     .join(' × ')
+  return `${size} · ${formatLayout(layout)}`
+}
+
+/**
+ * The rooms within the limits, in order: the first RECENT_ROOMS_LIMIT this
+ * version can open and the first NEWER_ROOMS_LIMIT from a newer version;
+ * damaged entries are dropped.
+ */
+function withinLimits(rooms: readonly RecentRoom[]): RecentRoom[] {
+  let openable = 0
+  let newer = 0
+  return rooms.filter(({ encoded }) => {
+    const { problem } = decodeConfig(encoded)
+    if (!problem) return ++openable <= RECENT_ROOMS_LIMIT
+    if (problem === 'newer-version') return ++newer <= NEWER_ROOMS_LIMIT
+    return false
+  })
 }

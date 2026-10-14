@@ -8,9 +8,11 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
+import { compressToEncodedURIComponent } from 'lz-string'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_CONFIG, encodeConfig, type Config } from '@/domain'
 import { createAppRouter } from '@/router'
+import { RECENT_ROOMS_STORAGE_KEY } from '@/state/recent-rooms-storage'
 import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
 function renderApp(path = '/') {
@@ -60,21 +62,96 @@ describe('recent rooms', () => {
     )
   })
 
-  it('lists an opened room by size and layout, and keeps one entry while it is edited', async () => {
+  it('lists an opened room by size and layout', async () => {
     renderApp(shareLinkPath(TEN_BY_SIX))
 
-    let section = await findRecentRooms(1)
+    const section = await findRecentRooms(1)
     expect(
-      within(section).getByRole('link', { name: /^10 × 6 × 3\.2 m · 5\.1\.2/ }),
+      within(section).getByRole('link', {
+        name: /^10 m × 6 m × 3\.2 m · 5\.1\.2/,
+      }),
     ).toBeInTheDocument()
+  })
+
+  it('keeps the opened room and gives its edits one entry of their own', async () => {
+    renderApp(shareLinkPath(TEN_BY_SIX))
+    await findRecentRooms(1)
 
     await editLength('11')
+    let section = await findRecentRooms(2)
+    await editLength('12')
+    await waitFor(() =>
+      expect(within(section).getAllByRole('link')[0]).toHaveTextContent(
+        /^12 m × 6 m/,
+      ),
+    )
 
-    section = await findRecentRooms(1)
+    section = await findRecentRooms(2)
+    expect(within(section).getAllByRole('link')[1]).toHaveTextContent(
+      /^10 m × 6 m/,
+    )
+  })
+
+  it('keeps a reopened recent room when it is edited', async () => {
+    renderApp(shareLinkPath(IMPERIAL_ROOM))
+    await findRecentRooms(1)
+    renderAppAgain(shareLinkPath(TEN_BY_SIX))
+    const section = await findRecentRooms(2)
+
+    fireEvent.click(within(section).getByRole('link', { name: /^26 ft 3 in/ }))
+    const length = await screen.findByRole('group', { name: 'Length' })
+    const feet = await within(length).findByRole('textbox', { name: 'ft' })
+    fireEvent.change(feet, { target: { value: '30' } })
+
+    await findRecentRooms(3)
     expect(
-      await within(section).findByRole('link', {
-        name: /^11 × 6 × 3\.2 m · 5\.1\.2/,
-      }),
+      within(section)
+        .getAllByRole('link')
+        .map((link) => link.textContent?.slice(0, 9)),
+    ).toEqual(['30 ft 3 i', '26 ft 3 i', '10 m × 6 '])
+  })
+
+  it('saves a room once, not again when it is changed and changed back before the address follows', async () => {
+    renderApp(shareLinkPath(TEN_BY_SIX))
+    await findRecentRooms(1)
+    const savedAt = localStorage.getItem(RECENT_ROOMS_STORAGE_KEY)
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Imperial (ft + in)' }))
+    fireEvent.click(screen.getByRole('radio', { name: /^Metric/ }))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 700)))
+
+    expect(localStorage.getItem(RECENT_ROOMS_STORAGE_KEY)).toBe(savedAt)
+  })
+
+  it('says how many rooms from a newer version are hidden', async () => {
+    const newer = compressToEncodedURIComponent(
+      JSON.stringify({ v: 99, config: {} }),
+    )
+    localStorage.setItem(
+      RECENT_ROOMS_STORAGE_KEY,
+      JSON.stringify([
+        { encoded: newer, savedAt: 2 },
+        { encoded: encodeConfig(TEN_BY_SIX), savedAt: 1 },
+      ]),
+    )
+
+    renderApp()
+
+    const section = await findRecentRooms(1)
+    expect(section).toHaveTextContent(
+      '1 room from a newer version of the app is hidden.',
+    )
+  })
+
+  it('shows the Recent rooms in the sidebar', async () => {
+    renderApp()
+
+    const sidebar = await screen.findByRole('complementary', {
+      name: 'Room and layout',
+    })
+    expect(
+      within(sidebar).getByRole('region', { name: 'Recent rooms' }),
     ).toBeInTheDocument()
   })
 
@@ -139,7 +216,7 @@ describe('recent rooms', () => {
 
     const section = await findRecentRooms(1)
     expect(
-      within(section).getByRole('link', { name: /^10 × 6 × 3\.2 m/ }),
+      within(section).getByRole('link', { name: /^10 m × 6 m × 3\.2 m/ }),
     ).toBeInTheDocument()
   })
 })

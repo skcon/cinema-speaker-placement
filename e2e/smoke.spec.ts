@@ -229,15 +229,20 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toContainText('manual')
   })
 
-  await test.step('Recent rooms lists both rooms, once each, and opens the earlier one', async () => {
+  await test.step('Recent rooms keeps each opened room and its edits, and opens the first room', async () => {
     const recent = page.getByRole('region', { name: 'Recent rooms' })
-    const rooms = recent.getByRole('listitem')
-    await expect(rooms).toHaveCount(2)
-    await expect(rooms.first()).toContainText('30 ft × 15 ft × 9 ft · 7.2.2')
+    // Newest first: the dragged room (edits after the reload), the edited
+    // room, the shared 24 ft room as opened, and the first room with the
+    // MLP moved.
+    await expect(recent.getByRole('listitem')).toHaveCount(4)
+    await expect(recent.getByRole('listitem').first()).toContainText(
+      '30 ft 0 in × 15 ft 0 in × 9 ft 0 in · 7.2.2',
+    )
+    await expect(
+      recent.getByRole('link', { name: /^24 ft 0 in × 15 ft 0 in/ }),
+    ).toBeVisible()
 
-    await recent
-      .getByRole('link', { name: /^6 × 4\.5 × 2\.6 m · 5\.1\.2/ })
-      .click()
+    await recent.getByRole('link', { name: /^6 m × 4\.5 m × 2\.6 m/ }).click()
 
     await expect(dimensionInput(page, 'Length', 'm')).toHaveValue('6')
     await page.goBack()

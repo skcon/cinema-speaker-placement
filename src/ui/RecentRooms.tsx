@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import { describeRecentRoom } from '@/domain'
+import { summarizeRecentRooms } from '@/domain'
 import { withConfigParam } from '@/search'
 import { useRecentRooms } from '@/state/recent-rooms-context'
 import { Button } from '@/ui/components/button'
@@ -12,34 +12,39 @@ const CLOCK_TICK_MS = 60_000
 /**
  * The rooms worked on in this browser, newest first. Each opens like a
  * share link (a new history entry, so Back returns to the room before) and
- * can be removed. Rooms whose encoded config no longer opens are left out.
+ * can be removed. Rooms saved by a newer version of the app are left out,
+ * with a note saying how many.
  */
 export function RecentRooms() {
   const rooms = useRecentRooms((state) => state.rooms)
   const remove = useRecentRooms((state) => state.remove)
   const clear = useRecentRooms((state) => state.clear)
   const now = useNow()
-  const described = useMemo(
-    () =>
-      rooms.flatMap((room) => {
-        const label = describeRecentRoom(room.encoded)
-        return label ? [{ ...room, label }] : []
-      }),
-    [rooms],
+  const summary = useMemo(() => summarizeRecentRooms(rooms), [rooms])
+  const hiddenNote = summary.hiddenNewer > 0 && (
+    <p className="text-xs text-muted-foreground">
+      {summary.hiddenNewer === 1
+        ? '1 room from a newer version of the app is hidden.'
+        : `${summary.hiddenNewer} rooms from a newer version of the app are hidden.`}{' '}
+      Reload the page to see {summary.hiddenNewer === 1 ? 'it' : 'them'}.
+    </p>
   )
 
-  if (described.length === 0) {
+  if (summary.rooms.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Rooms you work on in this browser show up here.
-      </p>
+      <>
+        <p className="text-sm text-muted-foreground">
+          Rooms you work on in this browser show up here.
+        </p>
+        {hiddenNote}
+      </>
     )
   }
 
   return (
     <>
       <ul className="flex flex-col gap-1">
-        {described.map(({ encoded, savedAt, label }) => (
+        {summary.rooms.map(({ encoded, savedAt, label }) => (
           <li key={encoded} className="flex items-center gap-1">
             <Link
               to="."
@@ -75,6 +80,7 @@ export function RecentRooms() {
       >
         Clear all
       </Button>
+      {hiddenNote}
     </>
   )
 }

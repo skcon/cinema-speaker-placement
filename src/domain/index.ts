@@ -63,6 +63,7 @@ export {
   type SubwooferCount,
 } from './layout'
 export type { PlacementGrade } from './placement-range'
+export type { RangeProblem } from './range'
 export {
   checkRoomDimension,
   DEFAULT_ROOM,
@@ -102,6 +103,7 @@ export {
   SPEAKER_GROUP_NAMES,
   SPEAKER_GROUP_OF,
   SPEAKER_TYPES,
+  speakerGroupsIn,
   SUBWOOFER_SPEC_FIELDS,
   type Enclosure,
   type ListenerGroupId,

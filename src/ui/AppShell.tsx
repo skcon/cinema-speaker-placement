@@ -5,11 +5,13 @@ import type { Config } from '@/domain'
 import { RoomView } from '@/scene/RoomView'
 import { CopyLinkButton } from '@/ui/CopyLinkButton'
 import { CrossoverField } from '@/ui/CrossoverField'
+import { HeadroomIndicator } from '@/ui/HeadroomIndicator'
 import { HistoryButtons } from '@/ui/HistoryButtons'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { LayoutForm } from '@/ui/LayoutForm'
 import { PositionsForm } from '@/ui/PositionsForm'
 import { RoomForm } from '@/ui/RoomForm'
+import { SidebarSection } from '@/ui/SidebarSection'
 import { SpeakerList } from '@/ui/SpeakerList'
 import { SpeakerSpecsForm } from '@/ui/SpeakerSpecsForm'
 
@@ -49,8 +51,13 @@ export function AppShell({
           <LayoutForm />
           <SpeakerList />
           <PositionsForm />
-          <SpeakerSpecsForm />
-          <CrossoverField />
+          <SidebarSection title="Speaker specs">
+            <SpeakerSpecsForm />
+            <CrossoverField />
+          </SidebarSection>
+          <SidebarSection title="Headroom at the MLP">
+            <HeadroomIndicator />
+          </SidebarSection>
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">

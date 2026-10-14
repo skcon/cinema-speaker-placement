@@ -7,7 +7,8 @@
  * Specs are inputs for the acoustic estimates (the response, headroom.ts);
  * nothing here does any acoustics with them.
  */
-import type { ChannelId } from './dolby-layouts'
+import { DOLBY_LAYOUTS, type ChannelId } from './dolby-layouts'
+import type { Layout } from './layout'
 import { checkRange, type AcceptedRange, type RangeProblem } from './range'
 import { SPEAKER_TYPE_GEOMETRY } from './reference'
 import type { RoomPoint } from './room'
@@ -104,6 +105,22 @@ export const SPEAKER_GROUP_OF = {
   Lrs: 'rearSurrounds',
   Rrs: 'rearSurrounds',
 } as const satisfies Record<ChannelId, ListenerGroupId>
+
+/**
+ * The speaker groups (other than the Subwoofers) a layout has speakers in,
+ * in form order. The overheads count once the layout has any, though they
+ * aren't placed yet (#8).
+ */
+export function speakerGroupsIn({
+  dolbyLayout,
+}: Layout): readonly SpeakerGroupId[] {
+  const { channels, overheads } = DOLBY_LAYOUTS[dolbyLayout]
+  return SPEAKER_GROUP_IDS.filter((group) =>
+    group === 'overheads'
+      ? overheads > 0
+      : channels.some(({ channel }) => SPEAKER_GROUP_OF[channel] === group),
+  )
+}
 
 /** The speaker groups' names, as the UI shows them (GLOSSARY.md). */
 export const SPEAKER_GROUP_NAMES = {

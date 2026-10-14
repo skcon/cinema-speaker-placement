@@ -6,14 +6,13 @@ import {
   checkPlacementRange,
   type PlacementRangeCheck,
 } from './placement-range'
-import { aimAtMlp, type Aim } from './placement'
+import type { Aim } from './placement'
 import { placeAll } from './placements'
 import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
 import type { SubwooferSpecs } from './speaker-specs'
 import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
 import {
   estimateResponse,
-  prepareRoomResponse,
   responseFrequencies,
   type EstimatedResponse,
   type ResponseRow,
@@ -25,9 +24,13 @@ import {
 } from './response-summary'
 import { targetCurve, type TargetCurveKind } from './target-curve'
 import {
-  boundaryReflections,
-  interferenceLevels,
-} from './boundary-interference'
+  hearSpeaker,
+  isCharted,
+  prepareConfigResponse,
+  subwooferSpecsOf,
+} from './listening'
+import { seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
+import { seatRowFootprint, type SeatRowFootprint } from './seat-row'
 import { responseNotes, type ResponseNotes } from './response-notes'
 
 /** A listener-level speaker of the layout, placed and checked. */
@@ -91,6 +94,10 @@ export type RoomAnalysis = {
   mlp: RoomPoint
   /** Whether the MLP is auto-placed or left by the user where it is. */
   mlpPlacement: Placement
+  /** The Seat row drawn around the MLP (a visual cue, not analyzed). */
+  seatRow: SeatRowFootprint
+  /** The informal "38% rule", a reference only, and where the MLP is by it. */
+  seatRuleOfThumb: SeatRuleOfThumb
   /** The layout's listener-level speakers, in Dolby's channel order. */
   speakers: readonly PlacedSpeaker[]
   /** The layout's subwoofers, Subwoofer 1 first. */
@@ -99,22 +106,9 @@ export type RoomAnalysis = {
   response: ResponseAnalysis
 }
 
-/**
- * The channels whose Speakers make up the chart's Speakers' part: the
- * front three, which every listener-level layout but 2.1 has all of. The
- * Center usually sits nearest the front wall.
- */
-const CHARTED_CHANNELS = ['L', 'C', 'R'] as const satisfies readonly ChannelId[]
-
 /** The domain entry point: derive the room plan from a config. */
 export function analyzeRoom(config: Config): RoomAnalysis {
-  const {
-    room,
-    layout,
-    speakerGroups,
-    targetCurve: targetCurveKind,
-    crossoverHz,
-  } = config
+  const { layout, targetCurve: targetCurveKind, crossoverHz } = config
   // The one place positions come from: manual where the user put an item,
   // else auto-placed (placements.ts). Everything below follows from them.
   const placements = placeAll(config)
@@ -125,8 +119,12 @@ export function analyzeRoom(config: Config): RoomAnalysis {
   // aim and are worked out once, for both the estimate and the notes.
   const heardSpeakers = placements.speakers.map(
     ({ reference, position, placement }) => {
-      const aim = aimAtMlp(position, mlp)
-      const reflections = boundaryReflections(room, { position, aim }, mlp)
+      const { aim, reflections, levels } = hearSpeaker(
+        config,
+        position,
+        mlp,
+        frequencies,
+      )
       const speaker: PlacedSpeaker = {
         channel: reference.channel,
         name: CHANNELS[reference.channel].name,
@@ -140,14 +138,13 @@ export function analyzeRoom(config: Config): RoomAnalysis {
       }
       return {
         speaker,
-        charted: CHARTED_CHANNELS.some((c) => c === reference.channel),
+        charted: isCharted(reference.channel),
         reflections,
-        levels: interferenceLevels(reflections, frequencies),
+        levels,
       }
     },
   )
 
-  const { specs: groupSpecs, ownSpecs } = speakerGroups.subwoofers
   const subwoofers = placements.subwoofers.map(
     ({ id, position, placement, wall }): PlacedSubwoofer => ({
       id,
@@ -155,19 +152,11 @@ export function analyzeRoom(config: Config): RoomAnalysis {
       position,
       placement,
       wall,
-      specs: ownSpecs[id] ?? groupSpecs,
+      specs: subwooferSpecsOf(config, id),
     }),
   )
 
-  const prepared = prepareRoomResponse({
-    room,
-    subwoofers: subwoofers.map(({ position, specs }) => ({
-      position,
-      enclosure: specs.enclosure,
-    })),
-    crossoverHz,
-    frequencies,
-  })
+  const prepared = prepareConfigResponse(config, placements, frequencies)
   const estimated = estimateResponse(
     prepared,
     {
@@ -199,6 +188,8 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     layout: summarizeLayout(layout),
     mlp,
     mlpPlacement: placements.mlp.placement,
+    seatRow: seatRowFootprint(config.room, mlp, config.seatRowWidth),
+    seatRuleOfThumb: seatRuleOfThumb(config.room, mlp),
     speakers: heardSpeakers.map(({ speaker }) => speaker),
     subwoofers,
     response: {

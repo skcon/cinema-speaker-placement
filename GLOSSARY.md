@@ -97,7 +97,7 @@ A peak or dip of the estimated response outside the target's tolerance band, or 
 _Avoid_: Problem, issue, error
 
 **Seat score**:
-How good a candidate MLP is, combining bass smoothness against the target curve with placement-range fit.
+How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The best of a grid of candidates is the recommended seat; an estimate, never a measurement.
 _Avoid_: Rating, quality
 
 **Auto-place**:

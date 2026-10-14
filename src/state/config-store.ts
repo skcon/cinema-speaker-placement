@@ -4,12 +4,14 @@ import {
   areValidSubwooferSpecs,
   checkCrossover,
   checkRoomDimension,
+  clampSeatRowWidth,
   decodeConfig,
   DEFAULT_CONFIG,
   placeAtWallDistance,
   placeManually,
   withAutoPlacement,
   withLayout,
+  withMlpAtRecommendedSeat,
   withRoom,
   type Config,
   type DolbyLayout,
@@ -91,6 +93,12 @@ export type ConfigState = {
    */
   setCrossover: (crossoverHz: number) => void
   /**
+   * Set the Seat row's width, in meters, kept between one seat and the
+   * widest row (SEAT_ROW in the domain's reference data). Values that are
+   * not numbers are ignored.
+   */
+  setSeatRowWidth: (meters: number) => void
+  /**
    * Move a channel, a subwoofer or the MLP on the floor plan (a drag),
    * making it manual. It stays inside the Room by the wall clearances; its
    * height stays. Ignored for an item the layout doesn't have.
@@ -107,6 +115,12 @@ export type ConfigState = {
    * inside the wall clearances.
    */
   setWallDistance: (id: PlaceableId, wall: Wall, meters: number) => void
+  /**
+   * Move the MLP to the recommended seat ("Move MLP here"), making it
+   * manual, as one undoable step; auto speakers follow it. With the MLP
+   * already there it changes nothing.
+   */
+  moveMlpToRecommendedSeat: () => void
   /**
    * Put every channel, subwoofer and the MLP back to auto, dropping the
    * stored manual positions, as one undoable change. With nothing manual it
@@ -294,6 +308,15 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             if (checkCrossover(crossoverHz) !== null) return
             set(({ config }) => ({ config: { ...config, crossoverHz } }))
           },
+          setSeatRowWidth: (meters) => {
+            const seatRowWidth = clampSeatRowWidth(meters)
+            if (Number.isNaN(seatRowWidth)) return
+            setConfigIfChanged((config) =>
+              config.seatRowWidth === seatRowWidth
+                ? config
+                : { ...config, seatRowWidth },
+            )
+          },
           moveItem: (id, { x, y }) =>
             setConfigIfChanged((config) => placeManually(config, id, { x, y })),
           setItemHeight: (id, meters) =>
@@ -304,6 +327,8 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             setConfigIfChanged((config) =>
               placeAtWallDistance(config, id, wall, meters),
             ),
+          moveMlpToRecommendedSeat: () =>
+            setConfigIfChanged(withMlpAtRecommendedSeat),
           autoPlace: () => {
             const { config } = get()
             if (Object.keys(config.manualPositions).length === 0) return

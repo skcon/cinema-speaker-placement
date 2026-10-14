@@ -24,6 +24,19 @@ export type {
 } from './response-notes'
 export type { Surface } from './boundary-interference'
 export type { RoomMode, RoomModeKind } from './room-modes'
+export {
+  recommendSeat,
+  scoreSeat,
+  type ScoredSeat,
+  type SeatRecommendation,
+} from './seat-score'
+export { seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
+export {
+  checkSeatRowWidth,
+  clampSeatRowWidth,
+  seatRowFootprint,
+  type SeatRowFootprint,
+} from './seat-row'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
   checkCrossover,
@@ -35,6 +48,7 @@ export {
   placeManually,
   withAutoPlacement,
   withLayout,
+  withMlpAtRecommendedSeat,
   withRoom,
 } from './config-edits'
 export {

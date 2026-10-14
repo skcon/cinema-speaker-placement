@@ -8,11 +8,11 @@ type WebGLCanvas = { getContext(contextId: 'webgl2'): object | null }
 function dimensionInput(page: Page, dimension: string, unit: string) {
   return page
     .getByRole('complementary', { name: 'Room and layout' })
-    .getByRole('group', { name: dimension })
+    .getByRole('group', { name: dimension, exact: true })
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, opens, follows and restores a share link, and keeps a dragged speaker', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, moves the MLP to the recommended seat, opens, follows and restores a share link, and keeps a dragged speaker', async ({
   page,
 }) => {
   await page.goto('./')
@@ -91,6 +91,25 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
         'An estimate from a simplified model, never a measurement.',
       ),
     ).toBeVisible()
+  })
+
+  await test.step('the recommended seat is ringed, and "Move MLP here" moves the MLP there and reaches the address', async () => {
+    await expect(scene.getByText('Recommended', { exact: true })).toBeVisible()
+    const seating = page.getByRole('region', { name: 'Seating' })
+    const move = seating.getByRole('button', { name: 'Move MLP here' })
+    await expect(move).toBeEnabled()
+    const addressBefore = page.url()
+
+    await move.click()
+
+    await expect(page).toHaveURL((url) => url.href !== addressBefore)
+    await expect(
+      seating.getByText(/^Your MLP is at the recommended seat/),
+    ).toBeVisible()
+    await expect(move).toBeDisabled()
+    await expect(
+      page.getByRole('group', { name: 'MLP position' }),
+    ).toContainText('manual')
   })
 
   // 24 x 15 x 9 ft in imperial, 7.1.2 with two subwoofers (7.2.2).

@@ -3,6 +3,7 @@ import {
   analyzeRoom,
   DEFAULT_CONFIG,
   encodeConfig,
+  recommendSeat,
   type ChannelId,
   type Config,
 } from '@/domain'
@@ -125,6 +126,41 @@ describe('auto and manual items', () => {
 
     store.getState().undo()
     expect(store.getState().config).toEqual(beforeAutoPlace)
+  })
+})
+
+describe('moving the MLP to the recommended seat', () => {
+  it('makes the MLP manual there in one undoable step, and auto speakers follow it', () => {
+    const store = createConfigStore()
+    const { recommended } = recommendSeat(DEFAULT_CONFIG)
+
+    store.getState().moveMlpToRecommendedSeat()
+
+    expect(analysis(store).mlp).toEqual(recommended.position)
+    expect(analysis(store).mlpPlacement).toBe('manual')
+    expect(recommendSeat(store.getState().config).mlpIsRecommended).toBe(true)
+    // The Center is auto, so it moves with the MLP.
+    expect(speaker(store, 'C').placement).toBe('auto')
+    expect(speaker(store, 'C').position).not.toEqual(
+      analyzeRoom(DEFAULT_CONFIG).speakers[1]!.position,
+    )
+
+    store.getState().undo()
+
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('records nothing when the MLP already is there', () => {
+    const store = createConfigStore()
+    store.getState().moveMlpToRecommendedSeat()
+    const moved = store.getState().config
+
+    store.getState().moveMlpToRecommendedSeat()
+    store.getState().undo()
+
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(moved).not.toEqual(DEFAULT_CONFIG)
   })
 })
 

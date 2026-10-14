@@ -21,9 +21,11 @@ import {
   type PlacedSubwoofer,
   type Room,
   type RoomPoint,
+  type SeatRowFootprint,
 } from '@/domain'
 import {
   GRADE_STYLES,
+  RECOMMENDED_SEAT_COLOR,
   SPEAKER_FOOTPRINT,
   speakerMarker,
   SUBWOOFER_FOOTPRINT,
@@ -52,16 +54,29 @@ const COLORS = {
   walls: '#737373',
   frontWall: '#171717',
   mlp: '#2563eb',
+  seatRow: '#dbeafe',
+  ruleOfThumb: '#a3a3a3',
+  recommended: RECOMMENDED_SEAT_COLOR,
 } as const
 
 /**
  * Small heights (in meters) that stack the flat floor layers so they don't
  * z-fight. The top-down camera is orthographic, so they don't move anything.
  */
-const LAYER = { grid: 0.005, walls: 0.01, grab: 0.015 } as const
+const LAYER = {
+  grid: 0.005,
+  seatRow: 0.007,
+  ruleOfThumb: 0.008,
+  walls: 0.01,
+  recommended: 0.012,
+  grab: 0.015,
+} as const
 
 /** Radius of the MLP marker, in meters. */
 const MLP_MARKER_RADIUS = 0.18
+
+/** The ring around the recommended seat, inner and outer radius in meters. */
+const RECOMMENDED_RING = { inner: 0.24, outer: 0.3 } as const
 
 /** Free space between a speaker's center and its label, in pixels. */
 const SPEAKER_LABEL_GAP_PX = 14
@@ -81,6 +96,9 @@ export function RoomCanvas({
   speakers,
   subwoofers,
   gridSpacing,
+  seatRow,
+  recommendedSeat,
+  ruleOfThumbFromFrontWall,
   ...callbacks
 }: {
   room: Room
@@ -89,6 +107,12 @@ export function RoomCanvas({
   subwoofers: readonly PlacedSubwoofer[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
+  /** The Seat row around the MLP. */
+  seatRow: SeatRowFootprint
+  /** The recommended MLP, or null while it is worked out. */
+  recommendedSeat: RoomPoint | null
+  /** Where the "38% rule" puts the seat, in meters from the front wall. */
+  ruleOfThumbFromFrontWall: number
 } & DragCallbacks) {
   // Labels render into this layer over the canvas. Without a fixed target,
   // drei's Html can remount once r3f connects events and lose its content.
@@ -122,7 +146,16 @@ export function RoomCanvas({
         <TopDownCamera room={room} />
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
+        <SeatRow footprint={seatRow} />
+        <RuleOfThumbLine
+          room={room}
+          fromFrontWall={ruleOfThumbFromFrontWall}
+          labelLayer={labelLayer}
+        />
         <Walls room={room} labelLayer={labelLayer} />
+        {recommendedSeat && (
+          <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
+        )}
         <MlpMarker mlp={mlp} labelLayer={labelLayer} markerDrag={markerDrag} />
         <SubwooferMarkers
           subwoofers={subwoofers}
@@ -360,6 +393,89 @@ function FloorLine({
       color={color}
       lineWidth={width}
     />
+  )
+}
+
+/** The Seat row: a pale rectangle on the floor around the MLP, drawn only. */
+function SeatRow({ footprint }: { footprint: SeatRowFootprint }) {
+  const { center, width, depth } = footprint
+  return (
+    <mesh
+      position={toScenePosition({ ...center, z: LAYER.seatRow })}
+      rotation={FLAT_ON_FLOOR}
+    >
+      <planeGeometry args={[width, depth]} />
+      <meshBasicMaterial color={COLORS.seatRow} />
+    </mesh>
+  )
+}
+
+/**
+ * The informal "38% rule" as a faint dashed line across the room, labelled
+ * at the left wall: a reference only.
+ */
+function RuleOfThumbLine({
+  room,
+  fromFrontWall,
+  labelLayer,
+}: {
+  room: Room
+  fromFrontWall: number
+  labelLayer: LabelLayer
+}) {
+  const half = room.width / 2
+  const z = LAYER.ruleOfThumb
+  return (
+    <>
+      <Line
+        points={[
+          toScenePosition({ x: -half, y: fromFrontWall, z }),
+          toScenePosition({ x: half, y: fromFrontWall, z }),
+        ]}
+        color={COLORS.ruleOfThumb}
+        lineWidth={1}
+        dashed
+        dashSize={0.15}
+        gapSize={0.1}
+      />
+      <SceneLabel
+        at={{ x: -half, y: fromFrontWall, z }}
+        layer={labelLayer}
+        className="translate-x-1/2 -translate-y-2.5 text-[10px] text-muted-foreground"
+      >
+        38% rule
+      </SceneLabel>
+    </>
+  )
+}
+
+/** A green ring around the recommended MLP, labelled above it. */
+function RecommendedSeatMarker({
+  at,
+  labelLayer,
+}: {
+  at: RoomPoint
+  labelLayer: LabelLayer
+}) {
+  return (
+    <>
+      <mesh
+        position={toScenePosition({ ...at, z: LAYER.recommended })}
+        rotation={FLAT_ON_FLOOR}
+      >
+        <ringGeometry
+          args={[RECOMMENDED_RING.inner, RECOMMENDED_RING.outer, 48]}
+        />
+        <meshBasicMaterial color={COLORS.recommended} />
+      </mesh>
+      <SceneLabel
+        at={at}
+        layer={labelLayer}
+        className="-translate-y-6 font-medium text-violet-700"
+      >
+        Recommended
+      </SceneLabel>
+    </>
   )
 }
 

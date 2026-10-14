@@ -146,6 +146,15 @@ describe('share link codec', () => {
     })
   })
 
+  it.each([0.5, 2, 3.6576, 8])('rebuilds a %d m seat row', (seatRowWidth) => {
+    const config: Config = { ...DEFAULT_CONFIG, seatRowWidth }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config,
+      problem: null,
+    })
+  })
+
   it('rebuilds subwoofer specs exactly, down to the last digit', () => {
     // 12.3 in converted to meters: 0.31242000000000003
     const specs = {
@@ -411,6 +420,23 @@ describe('share link codec', () => {
       ],
       ['an unknown target curve', { ...DEFAULT_CONFIG, targetCurve: 'harman' }],
       [
+        'a seat row narrower than one seat',
+        { ...DEFAULT_CONFIG, seatRowWidth: 0.4 },
+      ],
+      ['a seat row wider than 8 m', { ...DEFAULT_CONFIG, seatRowWidth: 8.1 }],
+      [
+        'a seat row width that is text',
+        { ...DEFAULT_CONFIG, seatRowWidth: '2' },
+      ],
+      [
+        'no seat row width',
+        Object.fromEntries(
+          Object.entries(DEFAULT_CONFIG).filter(
+            ([key]) => key !== 'seatRowWidth',
+          ),
+        ),
+      ],
+      [
         'no manual positions field',
         {
           units: 'metric',
@@ -541,8 +567,7 @@ function longestPosition(n: number, z?: number) {
  * The largest config a share link has to carry, for the size budget: the
  * largest real config today. Grow it with the config: the compiler asks for
  * every new field, and each one should take its longest value. Planned
- * growth (issue #2): the overheads' manual positions (#8), the
- * recommended seat (#14) and seat row width.
+ * growth (issue #2): the overheads' manual positions (#8).
  */
 const WORST_CASE_CONFIG: Config = {
   units: 'imperial',
@@ -576,6 +601,8 @@ const WORST_CASE_CONFIG: Config = {
   targetCurve: 'house',
   // All 17 significant digits.
   crossoverHz: 199 - 1 / 7,
+  // All 17 significant digits, as a converted feet + inches value can have.
+  seatRowWidth: 8 - 1 / 7,
   // Every listener-level speaker, every subwoofer (at subwoofer height)
   // and the MLP (at ear height) moved by hand.
   manualPositions: {
@@ -625,31 +652,31 @@ describe('share link size', () => {
 
 /**
  * A made-up future, to prove the migration hook before a real version 2
- * exists: version 2 adds a required seat row width (in meters), version 3
- * moves it into a seat row object. Version 1 is today's real config schema.
+ * exists: version 2 adds a required screen width (in meters), version 3
+ * moves it into a screen object. Version 1 is today's real config schema.
  */
-const v2Schema = configSchema.extend({ seatRowWidth: z.number().positive() })
+const v2Schema = configSchema.extend({ screenWidth: z.number().positive() })
 const v3Schema = configSchema.extend({
-  seatRow: z.object({ width: z.number().positive() }),
+  screen: z.object({ width: z.number().positive() }),
 })
 type V3Config = z.infer<typeof v3Schema>
 
 const fromV1 = migrateFrom(configSchema, (config) => ({
   ...config,
-  seatRowWidth: 1.8,
+  screenWidth: 1.8,
 }))
-const fromV2 = migrateFrom(v2Schema, ({ seatRowWidth, ...config }) => ({
+const fromV2 = migrateFrom(v2Schema, ({ screenWidth, ...config }) => ({
   ...config,
-  seatRow: { width: seatRowWidth },
+  screen: { width: screenWidth },
 }))
 
-const V3_DEFAULT: V3Config = { ...DEFAULT_CONFIG, seatRow: { width: 1.8 } }
+const V3_DEFAULT: V3Config = { ...DEFAULT_CONFIG, screen: { width: 1.8 } }
 
 const codecV2 = createConfigCodec({
   version: 2,
   schema: v2Schema,
   migrations: { 1: fromV1 },
-  fallback: { ...DEFAULT_CONFIG, seatRowWidth: 1.8 },
+  fallback: { ...DEFAULT_CONFIG, screenWidth: 1.8 },
 })
 const codecV3 = createConfigCodec({
   version: 3,
@@ -661,22 +688,22 @@ const codecV3 = createConfigCodec({
 describe('share links from older versions', () => {
   it('migrate a version 1 link through every later version', () => {
     expect(codecV3.decode(encodeConfig(IMPERIAL_ROOM))).toEqual({
-      config: { ...IMPERIAL_ROOM, seatRow: { width: 1.8 } },
+      config: { ...IMPERIAL_ROOM, screen: { width: 1.8 } },
       problem: null,
     })
   })
 
   it('migrate a version 2 link from where it is', () => {
-    const v2Link = codecV2.encode({ ...IMPERIAL_ROOM, seatRowWidth: 2.5 })
+    const v2Link = codecV2.encode({ ...IMPERIAL_ROOM, screenWidth: 2.5 })
 
     expect(codecV3.decode(v2Link)).toEqual({
-      config: { ...IMPERIAL_ROOM, seatRow: { width: 2.5 } },
+      config: { ...IMPERIAL_ROOM, screen: { width: 2.5 } },
       problem: null,
     })
   })
 
   it('open a latest-version link without migrating', () => {
-    const config: V3Config = { ...IMPERIAL_ROOM, seatRow: { width: 3 } }
+    const config: V3Config = { ...IMPERIAL_ROOM, screen: { width: 3 } }
 
     expect(codecV3.decode(codecV3.encode(config))).toEqual({
       config,

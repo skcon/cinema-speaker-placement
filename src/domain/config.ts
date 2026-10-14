@@ -9,6 +9,7 @@ import {
   placeablesIn,
   type ManualPositions,
 } from './manual-positions'
+import { checkSeatRowWidth, DEFAULT_SEAT_ROW_WIDTH } from './seat-row'
 import {
   checkRoomDimension,
   DEFAULT_ROOM,
@@ -109,6 +110,10 @@ export const configSchema = z
     targetCurve: z.enum(TARGET_CURVE_KINDS),
     // The crossover between the Speakers and the Subwoofers, in Hz.
     crossoverHz: z.number().refine((hz) => checkCrossover(hz) === null),
+    // The Seat row's width in meters: drawn only, not analyzed.
+    seatRowWidth: z
+      .number()
+      .refine((meters) => checkSeatRowWidth(meters) === null),
     // Keyed by channel, subwoofer id or MLP; an item without one is auto.
     manualPositions: z.partialRecord(
       z.enum(PLACEABLE_IDS),
@@ -147,5 +152,6 @@ export const DEFAULT_CONFIG: Config = {
   amplifierWatts: DEFAULT_AMPLIFIER_WATTS,
   targetCurve: 'flat',
   crossoverHz: DEFAULT_CROSSOVER_HZ,
+  seatRowWidth: DEFAULT_SEAT_ROW_WIDTH,
   manualPositions: {},
 }

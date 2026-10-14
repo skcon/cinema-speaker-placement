@@ -26,6 +26,12 @@ export const UNGRADED_STYLE = {
 } as const satisfies { color: string; label: string }
 
 /**
+ * The ring around the recommended seat in the room view and its legend:
+ * a color no grade uses.
+ */
+export const RECOMMENDED_SEAT_COLOR = '#7c3aed'
+
+/**
  * The drawn size of a speaker cabinet seen from above, in meters: a
  * drawing size only, not a speaker spec.
  */

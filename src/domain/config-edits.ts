@@ -10,10 +10,12 @@ import {
   hasFixedHeight,
   keepInLayout,
   keepInRoom,
+  MLP_ID,
   placeablesIn,
   type PlaceableId,
 } from './manual-positions'
 import { positionOf } from './placements'
+import { recommendSeat } from './seat-score'
 import {
   atDistanceFromWall,
   type Room,
@@ -85,6 +87,17 @@ export function withLayout(config: Config, layout: Layout): Config {
     layout,
     manualPositions: keepInLayout(layout, config.manualPositions),
   }
+}
+
+/**
+ * The MLP made manual at the recommended seat ("Move MLP here"); the config
+ * comes back as it was when the MLP already is there.
+ */
+export function withMlpAtRecommendedSeat(config: Config): Config {
+  const { recommended, mlpIsRecommended } = recommendSeat(config)
+  if (mlpIsRecommended) return config
+  const { x, y } = recommended.position
+  return placeManually(config, MLP_ID, { x, y })
 }
 
 /** Every item back to auto: what Auto-place does. */

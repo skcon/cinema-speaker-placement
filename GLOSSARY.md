@@ -121,7 +121,7 @@ How far above the reference peak a speaker group (its weakest Speaker) or the Su
 _Avoid_: Reserve, margin (in the UI), SPL capability
 
 **Seat score**:
-How good a candidate MLP is, combining bass smoothness against the target curve with placement-range fit.
+How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The best of a grid of candidates is the recommended seat; an estimate, never a measurement.
 _Avoid_: Rating, quality
 
 **Auto-place**:

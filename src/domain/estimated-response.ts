@@ -24,9 +24,9 @@
  *    shifted so its average deviation from the target is 0 dB over the
  *    reliable rows (the model has no absolute level). `calibrateResponse`
  *    works it out at a position, like a receiver's calibration at the MLP.
- *    The chart calibrates at the MLP itself; the seat score (#14) keeps the
- *    MLP's calibration for every candidate seat, so a seat with weaker bass
- *    than the MLP shows it.
+ *    The chart calibrates at the MLP itself; the seat score (seat-score.ts)
+ *    keeps one calibration for every candidate seat, so a seat with weaker
+ *    bass than the MLP shows it.
  *
  * Rows below the lowest mode the subwoofers excite are kept but marked
  * unreliable: there the model has no room gain and only other modes'
@@ -260,9 +260,17 @@ export function calibrateResponse(
   listening: Listening,
   target: readonly TargetPoint[],
 ): ResponseCalibration {
+  return calibrateParts(prepared, responseParts(prepared, listening), target)
+}
+
+/** `calibrateResponse` from parts already heard at the position (`responseParts`). */
+export function calibrateParts(
+  prepared: PreparedRoomResponse,
+  { subwoofers, speakers }: ResponseParts,
+  target: readonly TargetPoint[],
+): ResponseCalibration {
   const { frequencies, modalFrequencyCount, model } = prepared
   const isReliable = reliability(prepared)
-  const { subwoofers, speakers } = uncalibratedParts(prepared, listening)
   const inModeBand = (i: number) => i < modalFrequencyCount
   const subwooferDb = averageOverFirst(subwoofers, [
     (f, i) => inModeBand(i) && isReliable(f) && f <= model.crossoverHz,
@@ -320,7 +328,7 @@ export function estimateResponse(
   const isReliable = reliability(prepared)
   const levels = summedLevels(
     prepared,
-    uncalibratedParts(prepared, listening),
+    responseParts(prepared, listening),
     calibration,
   )
   return {
@@ -365,11 +373,28 @@ export function responseDeviations(
   target: readonly TargetPoint[],
   calibration: ResponseCalibration,
 ): number[] {
-  return summedLevels(
+  return partsDeviations(
     prepared,
-    uncalibratedParts(prepared, listening),
+    responseParts(prepared, listening),
+    target,
     calibration,
-  ).map((level, i) => level - calibration.levelDb - targetAt(target, i))
+  )
+}
+
+/**
+ * `responseDeviations` from parts already heard at the position
+ * (`responseParts`): the cheap step, for scoring the same seats with
+ * another calibration.
+ */
+export function partsDeviations(
+  prepared: PreparedRoomResponse,
+  parts: ResponseParts,
+  target: readonly TargetPoint[],
+  calibration: ResponseCalibration,
+): number[] {
+  return summedLevels(prepared, parts, calibration).map(
+    (level, i) => level - calibration.levelDb - targetAt(target, i),
+  )
 }
 
 const NO_TARGET = { level: 0, low: 0, high: 0 } as const
@@ -385,17 +410,21 @@ function reliability({
 }
 
 /** Each part's level in dB per frequency, before calibration. */
-type Parts = {
+export type ResponseParts = {
   /** The subwoofers' modal sum; NaN above the room-mode band. */
   readonly subwoofers: readonly number[]
   /** The charted Speakers' interference, power averaged. */
   readonly speakers: readonly number[]
 }
 
-function uncalibratedParts(
+/**
+ * The two parts at a listening position, before calibration: the costly
+ * step (the modal sum), which doesn't depend on the calibration.
+ */
+export function responseParts(
   { modal, frequencies }: PreparedRoomResponse,
   { receiver, speakerLevels }: Listening,
-): Parts {
+): ResponseParts {
   const pressures = modal.pressureAt(receiver)
   return {
     subwoofers: frequencies.map((_, i) => {
@@ -421,7 +450,7 @@ function uncalibratedParts(
  */
 function summedLevels(
   { lowPass, highPass }: PreparedRoomResponse,
-  { subwoofers, speakers }: Parts,
+  { subwoofers, speakers }: ResponseParts,
   {
     subwooferDb,
     speakersDb,

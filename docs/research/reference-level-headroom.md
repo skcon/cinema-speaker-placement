@@ -18,7 +18,7 @@ SMPTE RP 200 (the cinema calibration practice FLORIAN-2000 describes) and Dolby'
 - **Full-scale peaks**: the test signal is 20 dB below digital full scale (by the definition of dBFS), so the loudest a channel is asked to play is the calibration level plus 20 dB: 99-102 dB SPL at the MLP. A full-scale sine is 3 dB below a full-scale square wave's RMS, so "plus 20 dB" is the usual round figure, not an exact crest-factor result.
 - **LFE** (ATSC-A52, via the ATSC glossary): the LFE channel "is intended to be reproduced at a level +10 dB with respect to the fbw channels". So its peaks are 10 dB above a full-range channel's.
 - **Cinema reference** (FLORIAN-2000, background): 85 dB at −20 dB pink noise per screen channel, so 105 dB peaks per channel and a 115 dB LFE peak. The article itself says a home system need not reach that.
-- **What the app encodes**: 82 dB + 20 dB = **102 dB peaks per channel** at the MLP, and 102 + 10 = **112 dB** for the Subwoofers. **Ours**: taking the top of Dolby's 79-82 dB range (the stricter check), and checking the Subwoofers against the LFE alone (bass the receiver redirects from the speakers is not added).
+- **What the app encodes**: the **reference level** is the calibration level, 82 dB SPL(C) per channel (the industry meaning: the level the system is calibrated to). The **reference peak** is 82 dB + 20 dB = **102 dB per channel** at the MLP, and 102 + 10 = **112 dB** for the Subwoofers. **Ours**: taking the top of Dolby's 79-82 dB range (the stricter check), and checking the Subwoofers against the LFE alone (bass the receiver redirects from the speakers is not added).
 
 ## 3. SPL at the MLP (textbook, plus our assumptions)
 
@@ -38,7 +38,7 @@ The specs hold no subwoofer sensitivity (user story 18 asks for driver size, RMS
 - 88 dB at 1 W / 1 m for a sealed 12 in driver,
 - plus 20·log10(diameter / 12 in), the cone area ratio in dB,
 - plus 3 dB for a ported enclosure,
-- driven at its RMS power (the peak power is not used, the conservative case),
+- driven at its RMS power on purpose: the peak power is not used yet, the conservative case (short peaks may get more from the amplifier),
 - several subwoofers added as a power sum (+3 dB per doubling). In-phase subwoofers near each other can add up to 3 dB more at the lowest frequencies, so this is the conservative case too.
 
 The UI labels this as a very rough estimate.
@@ -46,5 +46,6 @@ The UI labels this as a very rough estimate.
 ## 5. Bookshelf and tower (ours, after Dolby's ear height)
 
 - Dolby wants every listener-level speaker at the same height, typically 1.2 m, seated ear height (IG p.6). So auto-place puts both types' acoustic center (the tweeter) at 1.2 m: a bookshelf on a stand, a tower on the floor. The type does not change the graded angles.
+- **How we read "Bookshelf/tower sets default height and woofer position"** (issue #13): the *default height* is the tweeter's, and it is ear height for both types, as IG p.6 asks of every listener-level speaker. A type-dependent tweeter height (a tower's tweeter often sits nearer 1 m) would contradict Dolby's single ear height and has no cited value, so the type sets only how the speaker is mounted (stand or floor) and where its woofer is.
 - **Ours**: the woofer, which radiates in the boundary-interference range (below about 500 Hz), sits 0.15 m below the tweeter in a bookshelf and 0.8 m below it in a tower (so at 0.4 m above the floor at ear height), never lower than 0.1 m. The boundary-interference model uses the woofer's position, so a tower's floor reflection is shorter and its notch higher than a bookshelf's.
-- Default specs for every speaker group are ours: a bookshelf speaker with 87 dB sensitivity, and 100 W of amplifier power per channel, typical of home theater gear, not a measured product. Accepted ranges (70-110 dB sensitivity, 1-5,000 W) are our typo limits, not cited.
+- Default specs for every speaker group are ours: a bookshelf speaker with 88 dB sensitivity (with 100 W, the default room reads "tight": it just reaches reference peaks), and 100 W of amplifier power per channel, typical of home theater gear, not a measured product. Accepted ranges (70-110 dB sensitivity, 1-5,000 W) are our typo limits, not cited.

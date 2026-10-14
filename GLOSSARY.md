@@ -109,11 +109,15 @@ A peak or dip of the estimated response outside the target's tolerance band, or 
 _Avoid_: Problem, issue, error
 
 **Reference level**:
-The loudest peak a channel is asked to play at the MLP: Dolby's calibration level plus 20 dB, 102 dB SPL per channel and 112 dB for the Subwoofers (`docs/research/reference-level-headroom.md`).
-_Avoid_: Max volume, THX level
+The level each channel is calibrated to at the MLP: 82 dB SPL(C) with pink noise at −20 dBFS, the top of Dolby's home range (IG p.15; `docs/research/reference-level-headroom.md`).
+_Avoid_: Calibration target, THX level
+
+**Reference peak**:
+The loudest a channel is asked to play at the MLP: the reference level plus the 20 dB from the test signal to full scale, 102 dB SPL per channel, and the LFE's 10 dB more, 112 dB, for the Subwoofers.
+_Avoid_: Max volume, reference level (for the peak)
 
 **Headroom**:
-How far above reference level a speaker group (its weakest Speaker) or the Subwoofers together can play at the MLP, estimated from sensitivity, power and distance; enough, tight or short. An estimate, never a measurement.
+How far above the reference peak a speaker group (its weakest Speaker) or the Subwoofers together can play at the MLP, estimated from sensitivity, power and distance; enough, tight or short. An estimate, never a measurement.
 _Avoid_: Reserve, margin (in the UI), SPL capability
 
 **Seat score**:

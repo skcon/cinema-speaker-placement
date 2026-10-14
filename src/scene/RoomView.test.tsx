@@ -1,0 +1,67 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
+import { RoomView } from '@/scene/RoomView'
+import { HistoryButtons } from '@/ui/HistoryButtons'
+
+// jsdom has no WebGL: pretend it has, and stand in for the Three.js scene,
+// which says whether it was given a heatmap to draw.
+vi.mock('@/scene/webgl', () => ({ canUseWebGL: () => true }))
+vi.mock('@/scene/RoomCanvas', () => ({
+  RoomCanvas: ({ heatmap }: { heatmap: unknown }) => (
+    <p>{heatmap ? 'heatmap drawn' : 'no heatmap'}</p>
+  ),
+}))
+
+function renderRoomView() {
+  render(
+    <ConfigStoreProvider>
+      <HistoryButtons />
+      <RoomView />
+    </ConfigStoreProvider>,
+  )
+  return screen.getByRole('button', { name: 'Seat-score heatmap' })
+}
+
+function scene() {
+  return screen.getByRole('img', { name: /^Top-down view of the room/ })
+}
+
+describe('seat-score heatmap in the room view', () => {
+  it('is off by default, with no legend', async () => {
+    const toggle = renderRoomView()
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(await screen.findByText('no heatmap')).toBeInTheDocument()
+    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(scene()).not.toHaveAccessibleName(/heatmap/)
+  })
+
+  it('turns on with a legend from low to high, says the scores are relative estimates, and describes where the best area is', async () => {
+    const toggle = renderRoomView()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByText('heatmap drawn')).toBeInTheDocument()
+    const legend = screen.getByRole('group', { name: 'Seat score (estimate)' })
+    expect(legend).toHaveTextContent(/low.*high/)
+    expect(screen.getByText(/Relative to the current MLP/)).toHaveTextContent(
+      /simplified model/,
+    )
+    expect(scene()).toHaveAccessibleName(
+      /Seat-score heatmap shown \(a relative estimate\): highest around .* from the front wall/,
+    )
+  })
+
+  it('turns back off, and never enters the undo history', async () => {
+    const toggle = renderRoomView()
+
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
+
+    expect(await screen.findByText('no heatmap')).toBeInTheDocument()
+    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+})

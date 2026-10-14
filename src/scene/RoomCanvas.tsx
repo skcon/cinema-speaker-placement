@@ -4,13 +4,14 @@ import { cn } from 'cn'
 import {
   Fragment,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
   type RefObject,
 } from 'react'
-import { Plane, Vector3 } from 'three'
+import { Color, InstancedMesh, Object3D, Plane, Vector3 } from 'three'
 import {
   floorCorners,
   MLP_ID,
@@ -21,8 +22,10 @@ import {
   type PlacedSubwoofer,
   type Room,
   type RoomPoint,
+  type SeatHeatmap,
   type SeatRowFootprint,
 } from '@/domain'
+import { HEATMAP_OPACITY, heatmapColor } from '@/scene/heatmap'
 import {
   GRADE_STYLES,
   RECOMMENDED_SEAT_COLOR,
@@ -68,6 +71,7 @@ const LAYER = {
   grid: 0.005,
   seatRow: 0.007,
   ruleOfThumb: 0.008,
+  heatmap: 0.009,
   walls: 0.01,
   recommended: 0.012,
   grab: 0.015,
@@ -99,6 +103,7 @@ export function RoomCanvas({
   gridSpacing,
   seatRow,
   recommendedSeat,
+  heatmap,
   ruleOfThumbFromFrontWall,
   ...callbacks
 }: {
@@ -112,6 +117,8 @@ export function RoomCanvas({
   seatRow: SeatRowFootprint
   /** The recommended MLP, or null while it is worked out. */
   recommendedSeat: RoomPoint | null
+  /** The seat-score heatmap, or null when it is off or not worked out yet. */
+  heatmap: SeatHeatmap | null
   /** Where the "38% rule" puts the seat, in meters from the front wall. */
   ruleOfThumbFromFrontWall: number
 } & DragCallbacks) {
@@ -149,6 +156,11 @@ export function RoomCanvas({
         <FloorGrid room={room} spacing={gridSpacing} />
         <SeatRow footprint={seatRow} />
         <RuleOfThumbLine room={room} fromFrontWall={ruleOfThumbFromFrontWall} />
+        {heatmap && heatmap.cells.length > 0 && (
+          // Remounted when the number of cells changes: an instanced
+          // mesh's count is fixed.
+          <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
+        )}
         <Walls room={room} labelLayer={labelLayer} />
         {recommendedSeat && (
           <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
@@ -433,6 +445,48 @@ function RuleOfThumbLine({
       dashSize={0.15}
       gapSize={0.1}
     />
+  )
+}
+
+/**
+ * The seat-score heatmap: every cell in one instanced mesh (one draw
+ * call), semi-transparent, above the floor, grid and seat row and under
+ * the walls, markers and labels. It has no pointer handlers, so drags
+ * pass through it.
+ */
+function HeatmapCells({ heatmap }: { heatmap: SeatHeatmap }) {
+  const mesh = useRef<InstancedMesh>(null!)
+  const invalidate = useThree((state) => state.invalidate)
+  useLayoutEffect(() => {
+    const cell = new Object3D()
+    const color = new Color()
+    heatmap.cells.forEach(({ center, width, depth, level }, index) => {
+      cell.position.set(...toScenePosition({ ...center, z: LAYER.heatmap }))
+      cell.rotation.set(...FLAT_ON_FLOOR)
+      cell.scale.set(width, depth, 1)
+      cell.updateMatrix()
+      mesh.current.setMatrixAt(index, cell.matrix)
+      mesh.current.setColorAt(index, color.set(heatmapColor(level)))
+    })
+    mesh.current.instanceMatrix.needsUpdate = true
+    if (mesh.current.instanceColor)
+      mesh.current.instanceColor.needsUpdate = true
+    // The canvas draws on demand.
+    invalidate()
+  }, [heatmap, invalidate])
+  return (
+    <instancedMesh
+      ref={mesh}
+      args={[undefined, undefined, heatmap.cells.length]}
+      frustumCulled={false}
+    >
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial
+        transparent
+        opacity={HEATMAP_OPACITY}
+        depthWrite={false}
+      />
+    </instancedMesh>
   )
 }
 

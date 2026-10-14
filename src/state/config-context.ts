@@ -35,14 +35,38 @@ export function useRoomAnalysis(): RoomAnalysis {
 }
 
 /**
+ * The recommended seat, shared by every component under the config store
+ * (ConfigStoreProvider provides it), so the grid is scored once per change
+ * however many components read it. Undefined outside the provider.
+ */
+export const SeatRecommendationContext = createContext<
+  SeatRecommendation | null | undefined
+>(undefined)
+
+/**
  * The recommended seat for the current config, worked out off the urgent
  * render (it scores a grid of seats): null until the first one is ready,
  * and the last one while the next is worked out. During a drag it stays
  * the one from before the drag, and is worked out again once the drag
- * ends, so dragging stays smooth. Memoized here, on everything the score
- * depends on (seatScoreKey): a change of units or seat row width keeps it.
+ * ends, so dragging stays smooth. One shared memo (ADR 0004).
  */
 export function useSeatRecommendation(): SeatRecommendation | null {
+  const recommendation = useContext(SeatRecommendationContext)
+  if (recommendation === undefined) {
+    throw new Error(
+      'useSeatRecommendation must be used inside <ConfigStoreProvider>',
+    )
+  }
+  return recommendation
+}
+
+/**
+ * Works the recommended seat out, for SeatRecommendationContext only:
+ * deferred, kept through a gesture, and memoized on everything the score
+ * depends on (seatScoreKey), so a change of units or seat row width
+ * keeps it.
+ */
+export function useComputedSeatRecommendation(): SeatRecommendation | null {
   const config = useConfig((state) => state.gesture?.start ?? state.config)
   const deferred = useDeferredValue<Config | null>(config, null)
   const key = deferred && seatScoreKey(deferred)

@@ -1,5 +1,5 @@
-import { lazy, Suspense, useId, useState } from 'react'
-import { formatLength, UNIT_SYSTEMS } from '@/domain'
+import { lazy, Suspense, useId, useMemo, useState } from 'react'
+import { formatLength, seatHeatmap, UNIT_SYSTEMS } from '@/domain'
 import {
   useConfig,
   useRoomAnalysis,
@@ -14,6 +14,8 @@ import {
   UNGRADED_STYLE,
 } from '@/scene/speakers'
 import { canUseWebGL } from '@/scene/webgl'
+import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
+import { Toggle } from '@/ui/components/toggle'
 
 const RoomCanvas = lazy(() =>
   import('@/scene/RoomCanvas').then((module) => ({
@@ -34,6 +36,17 @@ export function RoomView() {
   const { layout, mlp, speakers, subwoofers, seatRow, seatRuleOfThumb } =
     useRoomAnalysis()
   const recommendation = useSeatRecommendation()
+  // View state only: not in the config, the share link or the undo history.
+  const [showHeatmap, setShowHeatmap] = useState(false)
+  // The recommendation's own candidates, so no second grid is scored; it
+  // is deferred and kept through a drag, and so is the heatmap.
+  const heatmap = useMemo(
+    () =>
+      showHeatmap && recommendation
+        ? seatHeatmap(recommendation.candidates)
+        : null,
+    [showHeatmap, recommendation],
+  )
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
 
@@ -78,6 +91,7 @@ export function RoomView() {
           speakersDescription,
           subwoofersDescription,
           seatDescription,
+          describeHeatmap(heatmap, units),
         ]
           .filter(Boolean)
           .join(' ')}
@@ -98,6 +112,7 @@ export function RoomView() {
             gridSpacing={baseUnit.meters}
             seatRow={seatRow}
             recommendedSeat={recommendation?.recommended.position ?? null}
+            heatmap={heatmap}
             ruleOfThumbFromFrontWall={seatRuleOfThumb.fromFrontWall}
             onDragStart={beginGesture}
             onDragMove={moveItem}
@@ -110,7 +125,19 @@ export function RoomView() {
           To scale, seen from above. Grid squares are 1 {baseUnit.unit}. Drag
           the speakers and the MLP to move them.
         </p>
+        <Toggle
+          variant="outline"
+          size="sm"
+          // A finger-sized target (44 px) below the desktop layout; shown
+          // pressed like the app's other chosen options.
+          className="text-foreground data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground max-lg:h-11 max-lg:px-4"
+          pressed={showHeatmap}
+          onPressedChange={setShowHeatmap}
+        >
+          Seat-score heatmap
+        </Toggle>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {showHeatmap && <HeatmapLegend />}
           <GradeLegend />
           <p className="flex items-center gap-1.5">
             <span
@@ -138,6 +165,36 @@ export function RoomView() {
           </p>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * What the heatmap colors mean, and what the scores are: relative to the
+ * current MLP's calibration, and an estimate.
+ */
+function HeatmapLegend() {
+  const headingId = useId()
+  return (
+    <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1">
+      <div
+        role="group"
+        aria-labelledby={headingId}
+        className="flex items-center gap-1.5"
+      >
+        <span id={headingId}>Seat score (estimate)</span>
+        <span>low</span>
+        <span
+          aria-hidden
+          className="h-2.5 w-16 rounded-xs"
+          style={{ background: heatmapGradient() }}
+        />
+        <span>high</span>
+      </div>
+      <p>
+        Relative to the current MLP&rsquo;s calibration: an estimate from a
+        simplified model.
+      </p>
     </div>
   )
 }

@@ -1,5 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { ConfigStoreContext } from './config-context'
+import {
+  ConfigStoreContext,
+  SeatRecommendationContext,
+  useComputedSeatRecommendation,
+} from './config-context'
 import { createConfigStore } from './config-store'
 
 /**
@@ -20,5 +24,23 @@ export function ConfigStoreProvider({
     store.getState().openEncodedConfig(initialEncodedConfig)
     return store
   })
-  return <ConfigStoreContext value={store}>{children}</ConfigStoreContext>
+  return (
+    <ConfigStoreContext value={store}>
+      <SeatRecommendationProvider>{children}</SeatRecommendationProvider>
+    </ConfigStoreContext>
+  )
+}
+
+/**
+ * Works the recommended seat out once for everything inside it. Its
+ * children are passed in, so only the components that read the
+ * recommendation re-render when it changes.
+ */
+function SeatRecommendationProvider({ children }: { children: ReactNode }) {
+  const recommendation = useComputedSeatRecommendation()
+  return (
+    <SeatRecommendationContext value={recommendation}>
+      {children}
+    </SeatRecommendationContext>
+  )
 }

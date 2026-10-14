@@ -12,7 +12,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, moves the MLP to the recommended seat, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, moves the MLP to the recommended seat, shows the seat-score heatmap, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
   page,
 }) => {
   await page.goto('./')
@@ -110,6 +110,23 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('group', { name: 'MLP position' }),
     ).toContainText('manual')
+  })
+
+  await test.step('the seat-score heatmap turns on with its legend and description', async () => {
+    const toggle = page
+      .getByRole('region', { name: 'Room view' })
+      .getByRole('button', { name: 'Seat-score heatmap' })
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+
+    await toggle.click()
+
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await expect(
+      page.getByRole('group', { name: 'Seat score (estimate)' }),
+    ).toBeVisible()
+    await expect(scene).toHaveAccessibleName(
+      /Seat-score heatmap shown \(a relative estimate\): highest around /,
+    )
   })
 
   // 24 x 15 x 9 ft in imperial, 7.1.2 with two subwoofers (7.2.2).

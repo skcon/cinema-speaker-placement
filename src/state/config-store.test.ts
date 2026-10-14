@@ -5,7 +5,11 @@ import {
   encodeConfig,
   recommendSeat,
 } from '@/domain'
-import { createConfigStore, isShowingLinkFallback } from '@/state/config-store'
+import {
+  createConfigStore,
+  isShowingLinkFallback,
+  isUneditedSinceOpened,
+} from '@/state/config-store'
 import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
 describe('config store', () => {
@@ -464,5 +468,28 @@ describe('the default room shown for a broken link', () => {
     store.getState().openEncodedConfig(undefined)
 
     expect(isShowingLinkFallback(store.getState())).toBe(false)
+  })
+})
+
+describe('unedited since opened', () => {
+  it('holds for the room a link opened until it is edited', () => {
+    const store = createConfigStore()
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
+    expect(isUneditedSinceOpened(store.getState())).toBe(true)
+
+    store.getState().setRoomDimension('length', 9)
+
+    expect(isUneditedSinceOpened(store.getState())).toBe(false)
+  })
+
+  it('holds again when another link opens, and for the default room', () => {
+    const store = createConfigStore()
+    expect(isUneditedSinceOpened(store.getState())).toBe(true)
+    store.getState().setUnits('imperial')
+    expect(isUneditedSinceOpened(store.getState())).toBe(false)
+
+    store.getState().openEncodedConfig(undefined)
+
+    expect(isUneditedSinceOpened(store.getState())).toBe(true)
   })
 })

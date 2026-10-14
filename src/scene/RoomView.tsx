@@ -1,10 +1,15 @@
 import { lazy, Suspense, useId, useState } from 'react'
 import { formatLength, UNIT_SYSTEMS } from '@/domain'
-import { useConfig, useRoomAnalysis } from '@/state/config-context'
+import {
+  useConfig,
+  useRoomAnalysis,
+  useSeatRecommendation,
+} from '@/state/config-context'
 import {
   describeSpeaker,
   describeSubwoofer,
   GRADE_STYLES,
+  RECOMMENDED_SEAT_COLOR,
   UNGRADED_STYLE,
 } from '@/scene/speakers'
 import { canUseWebGL } from '@/scene/webgl'
@@ -25,7 +30,9 @@ export function RoomView() {
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveItem = useConfig((state) => state.moveItem)
   const endGesture = useConfig((state) => state.endGesture)
-  const { layout, mlp, speakers, subwoofers } = useRoomAnalysis()
+  const { layout, mlp, speakers, subwoofers, seatRow, seatRuleOfThumb } =
+    useRoomAnalysis()
+  const recommendation = useSeatRecommendation()
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
 
@@ -33,6 +40,13 @@ export function RoomView() {
     `Top-down view of the room, ${formatLength(room.length, units)} long ` +
     `and ${formatLength(room.width, units)} wide, with the front wall at ` +
     `the top and the MLP ${formatLength(mlp.y, units)} from the front wall.`
+  const seatDescription = recommendation
+    ? recommendation.mlpIsRecommended
+      ? 'The MLP is at the recommended seat (an estimate).'
+      : `The recommended seat (an estimate) is ringed, ` +
+        `${formatLength(recommendation.recommended.position.y, units)} ` +
+        `from the front wall.`
+    : ''
   const speakersDescription =
     `${layout.name} listener-level speakers, angle from the MLP ` +
     `and Dolby placement-range grade: ` +
@@ -48,6 +62,7 @@ export function RoomView() {
         <p>{roomDescription}</p>
         <p>{speakersDescription}</p>
         <p>{subwoofersDescription}</p>
+        {seatDescription && <p>{seatDescription}</p>}
         <p>This browser can&rsquo;t draw the room view (no WebGL 2).</p>
       </div>
     )
@@ -57,7 +72,14 @@ export function RoomView() {
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div
         role="img"
-        aria-label={`${roomDescription} ${speakersDescription} ${subwoofersDescription}`}
+        aria-label={[
+          roomDescription,
+          speakersDescription,
+          subwoofersDescription,
+          seatDescription,
+        ]
+          .filter(Boolean)
+          .join(' ')}
         className="relative min-h-0 flex-1 overflow-hidden rounded-lg"
       >
         <Suspense
@@ -73,6 +95,9 @@ export function RoomView() {
             speakers={speakers}
             subwoofers={subwoofers}
             gridSpacing={baseUnit.meters}
+            seatRow={seatRow}
+            recommendedSeat={recommendation?.recommended.position ?? null}
+            ruleOfThumbFromFrontWall={seatRuleOfThumb.fromFrontWall}
             onDragStart={beginGesture}
             onDragMove={moveItem}
             onDragEnd={endGesture}
@@ -86,6 +111,14 @@ export function RoomView() {
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <GradeLegend />
+          <p className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="size-2.5 rounded-full border-2"
+              style={{ borderColor: RECOMMENDED_SEAT_COLOR }}
+            />
+            Recommended seat (estimate)
+          </p>
           <p className="flex items-center gap-1.5">
             <span
               aria-hidden

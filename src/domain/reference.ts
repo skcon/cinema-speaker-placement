@@ -387,9 +387,10 @@ export const RESPONSE_NOTES = {
 
 /**
  * The seat score (GLOSSARY.md): how good a candidate MLP is, from 0 to 1.
- * Every value here is our modelling assumption, not a cited one; the
- * score is an estimate from the simplified model, for comparing seats in
- * one room, never a measurement.
+ * Every value here is our modelling assumption, not a cited one (only the
+ * equidistance rule it follows is Dolby's); the score is an estimate from
+ * the simplified model, for comparing seats in one room, never a
+ * measurement.
  *
  * - **Grid**: candidate seats lie on a grid inside the MLP's wall
  *   clearance, at most `gridSpacing` meters apart, with at most
@@ -399,27 +400,50 @@ export const RESPONSE_NOTES = {
  *   calibration made at the current MLP (so a seat with weaker or
  *   stronger bass than the MLP counts too). A deviation of
  *   `deviationAtZeroDb` or more scores 0, none scores 1, linear between.
- * - **Placement-range fit**: the mean grade of the listener-level
- *   speakers' angles from the seat: ideal 1, acceptable 0.5, outside 0.
+ * - **Placement fit**: per listener-level speaker, its placement-range
+ *   grade from the seat (ideal 1, acceptable 0.5, outside 0), times its
+ *   equidistance: Dolby wants every listener-level speaker as far from the
+ *   listener as the front speakers, which set the reference distance (the
+ *   farthest of Left, Center and Right here), with delay compensation for
+ *   the rest (IG p.6, p.15). A speaker at least `equidistanceShare` of the
+ *   reference distance away counts in full, nearer ones in proportion (a
+ *   speaker a wall squeezes against the seat). The mean over the speakers.
  *   Auto speakers are re-placed around each seat; manual ones stay put.
  * - **Score**: the two weighted by `weights` (they add up to 1).
+ * - **Recommendation**: the best seat, if it beats the MLP by at least
+ *   `meaningfulDifference` (two points on a 100-point scale); smaller
+ *   differences are within the simplified model's precision.
  */
 export const SEAT_SCORE = {
   gridSpacing: 0.25,
   maxPerSide: 15,
   deviationAtZeroDb: 12,
   gradeValues: { ideal: 1, acceptable: 0.5, outside: 0 },
-  weights: { bassSmoothness: 0.6, placementRangeFit: 0.4 },
+  equidistanceShare: 0.5,
+  weights: { bassSmoothness: 0.6, placementFit: 0.4 },
+  meaningfulDifference: 0.02,
   note:
     'Our modelling assumptions, not cited values: the grid, the scale of ' +
-    'the bass smoothness, the grade values and the weights.',
+    'the bass smoothness, the grade values, the equidistance share, the ' +
+    'weights and the meaningful difference.',
+  citations: [
+    {
+      source: 'IG',
+      page: 6,
+      note: 'equidistance: the front speakers set the reference distance',
+    },
+    { source: 'IG', page: 15, note: 'delay compensation for the rest' },
+  ],
 } as const satisfies {
   gridSpacing: number
   maxPerSide: number
   deviationAtZeroDb: number
   gradeValues: Record<'ideal' | 'acceptable' | 'outside', number>
-  weights: { bassSmoothness: number; placementRangeFit: number }
+  equidistanceShare: number
+  weights: { bassSmoothness: number; placementFit: number }
+  meaningfulDifference: number
   note: string
+  citations: readonly Citation[]
 }
 
 /**

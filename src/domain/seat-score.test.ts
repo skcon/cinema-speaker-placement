@@ -6,6 +6,7 @@ import {
   scoreSeat,
   type Config,
 } from '@/domain'
+import { V1_LINKS } from '@/test/share-link-fixtures'
 
 /** The default room with the front speakers left by hand where auto-place puts them today. */
 function withManualFront(): Config {
@@ -38,15 +39,25 @@ describe('seat score', () => {
     const ideal = scoreSeat(config, { x: 0, y: 2.28, z: 1.2 })
     const tooClose = scoreSeat(config, { x: 0, y: 1, z: 1.2 })
 
-    expect(ideal.placementRangeFit).toBe(1)
-    expect(tooClose.placementRangeFit).toBeLessThan(1)
+    expect(ideal.placementFit).toBe(1)
+    expect(tooClose.placementFit).toBeLessThan(1)
     expect(tooClose.score).toBeLessThan(ideal.score)
   })
 
   it('re-places auto speakers around each seat, so they stay inside their ranges', () => {
-    expect(
-      scoreSeat(DEFAULT_CONFIG, { x: 0, y: 1, z: 1.2 }).placementRangeFit,
-    ).toBe(1)
+    expect(scoreSeat(DEFAULT_CONFIG, { x: 0, y: 1, z: 1.2 }).placementFit).toBe(
+      1,
+    )
+  })
+
+  it('scores a seat where a wall squeezes an auto speaker up against the listener lower on placement fit, after Dolby’s equidistance', () => {
+    // 0.45 m from the right wall's clearance line, the Right Surround at
+    // 115° can only be placed half a meter away, though the fronts are 2 m off.
+    const centered = scoreSeat(DEFAULT_CONFIG, { x: 0, y: 2.28, z: 1.2 })
+    const atWall = scoreSeat(DEFAULT_CONFIG, { x: 1.5, y: 2.28, z: 1.2 })
+
+    expect(centered.placementFit).toBe(1)
+    expect(atWall.placementFit).toBeLessThan(0.9)
   })
 
   it('counts weaker bass than at the MLP, as the calibration stays the MLP’s', () => {
@@ -89,6 +100,20 @@ describe('recommended seat', () => {
 
     expect(moved.mlpIsRecommended).toBe(true)
     expect(moved.recommended.position).toEqual(recommended.position)
+  })
+
+  it('keeps the MLP when no seat is better by more than the model’s precision', () => {
+    // The 24 x 15 ft 7.2.2 room of the share-link fixtures: the best seat
+    // of the grid is only about a point better than the 38% MLP.
+    const config = V1_LINKS.imperialRoom.config as Config
+    const { recommended, current, candidates, mlpIsRecommended } =
+      recommendSeat(config)
+    const best = Math.max(...candidates.map((seat) => seat.score))
+
+    expect(best).toBeGreaterThan(current.score)
+    expect(best).toBeLessThan(current.score + 0.02)
+    expect(recommended).toBe(current)
+    expect(mlpIsRecommended).toBe(true)
   })
 
   it('only considers seats inside the MLP’s wall clearance, at ear height', () => {

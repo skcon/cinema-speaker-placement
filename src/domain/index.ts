@@ -30,6 +30,12 @@ export {
   type ScoredSeat,
   type SeatRecommendation,
 } from './seat-score'
+export {
+  checkSeatRowWidth,
+  clampSeatRowWidth,
+  seatRowFootprint,
+  type SeatRowFootprint,
+} from './seat-row'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
   checkCrossover,

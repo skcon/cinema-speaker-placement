@@ -4,6 +4,7 @@ import {
   areValidSubwooferSpecs,
   checkCrossover,
   checkRoomDimension,
+  clampSeatRowWidth,
   decodeConfig,
   DEFAULT_CONFIG,
   placeAtWallDistance,
@@ -91,6 +92,12 @@ export type ConfigState = {
    * Out-of-range values are ignored.
    */
   setCrossover: (crossoverHz: number) => void
+  /**
+   * Set the Seat row's width, in meters, kept between one seat and the
+   * widest row (SEAT_ROW in the domain's reference data). Values that are
+   * not numbers are ignored.
+   */
+  setSeatRowWidth: (meters: number) => void
   /**
    * Move a channel, a subwoofer or the MLP on the floor plan (a drag),
    * making it manual. It stays inside the Room by the wall clearances; its
@@ -300,6 +307,15 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           setCrossover: (crossoverHz) => {
             if (checkCrossover(crossoverHz) !== null) return
             set(({ config }) => ({ config: { ...config, crossoverHz } }))
+          },
+          setSeatRowWidth: (meters) => {
+            const seatRowWidth = clampSeatRowWidth(meters)
+            if (Number.isNaN(seatRowWidth)) return
+            setConfigIfChanged((config) =>
+              config.seatRowWidth === seatRowWidth
+                ? config
+                : { ...config, seatRowWidth },
+            )
           },
           moveItem: (id, { x, y }) =>
             setConfigIfChanged((config) => placeManually(config, id, { x, y })),

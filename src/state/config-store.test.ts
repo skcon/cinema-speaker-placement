@@ -154,6 +154,38 @@ describe('crossover', () => {
   })
 })
 
+describe('seat row', () => {
+  it('starts 2 m wide and takes a new width in meters, as an undoable change', () => {
+    const store = createConfigStore()
+    expect(store.getState().config.seatRowWidth).toBe(2)
+
+    store.getState().setSeatRowWidth(3.2)
+    expect(store.getState().config).toEqual({
+      ...DEFAULT_CONFIG,
+      seatRowWidth: 3.2,
+    })
+    store.getState().undo()
+    expect(store.getState().config.seatRowWidth).toBe(2)
+  })
+
+  it('keeps the width between one seat (0.5 m) and 8 m', () => {
+    const store = createConfigStore()
+
+    store.getState().setSeatRowWidth(0.1)
+    expect(store.getState().config.seatRowWidth).toBe(0.5)
+    store.getState().setSeatRowWidth(20)
+    expect(store.getState().config.seatRowWidth).toBe(8)
+  })
+
+  it('ignores a width that is not a number', () => {
+    const store = createConfigStore()
+
+    store.getState().setSeatRowWidth(Number.NaN)
+
+    expect(store.getState().config).toBe(DEFAULT_CONFIG)
+  })
+})
+
 describe('subwoofers', () => {
   const PORTED_15 = {
     enclosure: 'ported',

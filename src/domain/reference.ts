@@ -422,6 +422,24 @@ export const SEAT_SCORE = {
   note: string
 }
 
+/**
+ * The Seat row (GLOSSARY.md): a couch or row of seats drawn centered on
+ * the MLP, a visual cue only. Its width is in the config; its depth is
+ * fixed. The default (about a three-seat couch), the limits (one seat to
+ * a long row) and the depth are product choices, not cited values.
+ */
+export const SEAT_ROW = {
+  defaultWidth: 2,
+  limits: { min: 0.5, max: 8 },
+  depth: 0.9,
+  note: 'Product choices for a visual cue, not cited values.',
+} as const satisfies {
+  defaultWidth: number
+  limits: { min: number; max: number }
+  depth: number
+  note: string
+}
+
 /** The target curve's tolerance band: ± this many dB around the target. */
 export const TARGET_TOLERANCE = {
   db: 3,

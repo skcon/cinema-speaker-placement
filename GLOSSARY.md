@@ -101,7 +101,7 @@ How good a candidate MLP is, combining bass smoothness against the target curve 
 _Avoid_: Rating, quality
 
 **Auto-place**:
-Placing every speaker and the MLP from the reference recommendations for the current room and layout. The button sets everything back to auto.
+Placing every speaker from the reference recommendations for the current room and layout, and the MLP at the recommended seat. The button sets everything back to auto, then puts the MLP at the recommended seat (manual there, unless the auto MLP, seeded by the "38% rule", already is it).
 _Avoid_: Auto-layout, optimize
 
 **Auto / manual**:

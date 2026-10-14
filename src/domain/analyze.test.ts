@@ -6,6 +6,8 @@ import {
   V1_DOLBY_LAYOUTS,
   type Config,
 } from '@/domain'
+import { prepareRoomResponse } from './estimated-response'
+import { bearingTo } from './room'
 
 function configWithRoom(room: Config['room']): Config {
   return { ...DEFAULT_CONFIG, room }
@@ -141,5 +143,97 @@ describe('the MLP before the recommended seat exists', () => {
     )
     expect(mlp.x).toBe(0)
     expect(mlp.z).toBe(1.2)
+  })
+})
+
+describe('the response follows manual positions', () => {
+  const rows = (config: Config) => analyzeRoom(config).response.estimated.rows
+  const levelsFrom = (config: Config, fromHz: number, toHz: number) =>
+    rows(config)
+      .filter((r) => r.frequency >= fromHz && r.frequency <= toHz)
+      .map((r) => r.estimated)
+  const largestChange = (a: number[], b: number[]) =>
+    Math.max(...a.map((level, i) => Math.abs(level - b[i]!)))
+
+  it('changes a dragged speaker’s reflections: the Left speaker pushed to the front wall changes the estimate above the crossover, and it still faces the MLP', () => {
+    const { speakers } = analyzeRoom(DEFAULT_CONFIG)
+    const left = speakers.find((s) => s.channel === 'L')!
+    const dragged: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { L: { ...left.position, y: 0.3 } },
+    }
+    const analysis = analyzeRoom(dragged)
+    const moved = analysis.speakers.find((s) => s.channel === 'L')!
+
+    expect(moved.placement).toBe('manual')
+    expect(moved.aim.yaw).toBeCloseTo(
+      bearingTo(moved.position, analysis.mlp),
+      9,
+    )
+    expect(
+      largestChange(
+        levelsFrom(dragged, 150, 500),
+        levelsFrom(DEFAULT_CONFIG, 150, 500),
+      ),
+    ).toBeGreaterThan(1)
+  })
+
+  it('turns every speaker toward a moved MLP and changes their reflections', () => {
+    const moved: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0.8, y: 3, z: 1.2 } },
+    }
+    const analysis = analyzeRoom(moved)
+
+    for (const speaker of analysis.speakers) {
+      expect(speaker.aim.yaw).toBeCloseTo(
+        bearingTo(speaker.position, analysis.mlp),
+        9,
+      )
+    }
+    expect(rows(moved)).not.toEqual(rows(DEFAULT_CONFIG))
+  })
+
+  it('reuses the room-mode preparation when only the MLP moves', () => {
+    const { subwoofers } = analyzeRoom(DEFAULT_CONFIG)
+    const input = {
+      room: DEFAULT_CONFIG.room,
+      subwoofers: subwoofers.map((s) => ({
+        position: s.position,
+        enclosure: s.specs.enclosure,
+      })),
+      crossoverHz: DEFAULT_CONFIG.crossoverHz,
+      frequencies: rows(DEFAULT_CONFIG).map((r) => r.frequency),
+    }
+    const prepared = prepareRoomResponse(input)
+
+    analyzeRoom({
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0.8, y: 3, z: 1.2 } },
+    })
+
+    expect(prepareRoomResponse(input)).toBe(prepared)
+  })
+
+  it('changes the room-mode sum for a manual subwoofer: Subwoofer 1 moved into the front left corner', () => {
+    const cornered: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { Sub1: { x: -1.95, y: 0.3, z: 0.3 } },
+    }
+    const analysis = analyzeRoom(cornered)
+
+    expect(analysis.subwoofers[0]!.placement).toBe('manual')
+    // In the middle of the front wall it sits on the first width mode's
+    // node; in a corner it excites that mode, so the width mode is no
+    // longer cancelled and the bass changes.
+    expect(analysis.response.notes.strengths).not.toContainEqual(
+      expect.objectContaining({ kind: 'mode-cancelled' }),
+    )
+    expect(
+      largestChange(
+        levelsFrom(cornered, 30, 80),
+        levelsFrom(DEFAULT_CONFIG, 30, 80),
+      ),
+    ).toBeGreaterThan(3)
   })
 })

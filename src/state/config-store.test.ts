@@ -135,6 +135,16 @@ describe('crossover', () => {
     expect(store.getState().config.crossoverHz).toBe(200)
   })
 
+  it('is an undoable change, like the specs', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setCrossover(60)
+    store.getState().undo()
+    expect(store.getState().config.crossoverHz).toBe(100)
+    store.getState().redo()
+    expect(store.getState().config.crossoverHz).toBe(60)
+  })
+
   it.each([39, 201, Number.NaN])('ignores %d Hz', (hz) => {
     const store = createConfigStore(IMPERIAL_ROOM)
 

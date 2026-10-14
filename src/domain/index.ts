@@ -30,6 +30,7 @@ export {
   type ScoredSeat,
   type SeatRecommendation,
 } from './seat-score'
+export { seatHeatmap, type HeatmapCell, type SeatHeatmap } from './seat-heatmap'
 export { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 export {
   checkSeatRowWidth,

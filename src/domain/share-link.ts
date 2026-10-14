@@ -136,6 +136,13 @@ export function createConfigCodec<C>({
   }
 }
 
+/**
+ * An encoded config (see GLOSSARY.md): the text a share link carries in its
+ * `config` search param, as encodeConfig writes it. Only part of a share
+ * link, never the whole address.
+ */
+export type EncodedConfig = string & { readonly __brand: 'EncodedConfig' }
+
 /** The current config schema version: the `v` that new share links get. */
 const CONFIG_VERSION = 1
 
@@ -155,11 +162,11 @@ const configCodec = createConfigCodec({
  * nearest millimeter, which keeps links short: a drag gives 17 significant
  * digits, and nobody mounts a speaker more precisely than that.
  */
-export function encodeConfig(config: Config): string {
+export function encodeConfig(config: Config): EncodedConfig {
   return configCodec.encode({
     ...config,
     manualPositions: roundToMillimeter(config.manualPositions),
-  })
+  }) as EncodedConfig
 }
 
 /**

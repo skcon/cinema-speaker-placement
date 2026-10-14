@@ -12,7 +12,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, moves the MLP to the recommended seat, opens, follows and restores a share link, and keeps a dragged speaker', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, moves the MLP to the recommended seat, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
   page,
 }) => {
   await page.goto('./')
@@ -227,5 +227,25 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('group', { name: 'Center position' }),
     ).toContainText('manual')
+  })
+
+  await test.step('Recent rooms keeps each opened room and its edits, and opens the first room', async () => {
+    const recent = page.getByRole('region', { name: 'Recent rooms' })
+    // Newest first: the dragged room (edits after the reload), the edited
+    // room, the shared 24 ft room as opened, and the first room with the
+    // MLP moved.
+    await expect(recent.getByRole('listitem')).toHaveCount(4)
+    await expect(recent.getByRole('listitem').first()).toContainText(
+      '30 ft 0 in × 15 ft 0 in × 9 ft 0 in · 7.2.2',
+    )
+    await expect(
+      recent.getByRole('link', { name: /^24 ft 0 in × 15 ft 0 in/ }),
+    ).toBeVisible()
+
+    await recent.getByRole('link', { name: /^6 m × 4\.5 m × 2\.6 m/ }).click()
+
+    await expect(dimensionInput(page, 'Length', 'm')).toHaveValue('6')
+    await page.goBack()
+    await expect(dimensionInput(page, 'Length', 'ft')).toHaveValue('30')
   })
 })

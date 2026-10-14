@@ -147,8 +147,20 @@ export {
   decodeConfig,
   encodeConfig,
   type DecodedConfig,
+  type EncodedConfig,
   type ShareLinkProblem,
 } from './share-link'
+export {
+  parseRecentRooms,
+  RECENT_ROOMS_LIMIT,
+  removeRecentRoom,
+  saveRecentRoom,
+  serializeRecentRooms,
+  summarizeRecentRooms,
+  type DescribedRecentRoom,
+  type RecentRoom,
+  type RecentRoomsSummary,
+} from './recent-rooms'
 export {
   formatLength,
   formatInches,

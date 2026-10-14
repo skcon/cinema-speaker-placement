@@ -16,4 +16,6 @@ window.ResizeObserver ??= class {
 // Vitest globals are off, so Testing Library cannot register its own cleanup.
 afterEach(() => {
   cleanup()
+  // Recent rooms are kept in localStorage; start every test without any.
+  localStorage.clear()
 })

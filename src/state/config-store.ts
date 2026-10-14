@@ -50,6 +50,11 @@ export type ConfigState = {
    * isShowingLinkFallback.
    */
   linkFallback: Config | null
+  /**
+   * The config as the last share link (or the default room) opened it; see
+   * isUneditedSinceOpened.
+   */
+  openedConfig: Config
   /** Whether undo and redo have anything to do. */
   history: { canUndo: boolean; canRedo: boolean }
   /**
@@ -187,6 +192,15 @@ export function isShowingLinkFallback(state: ConfigState): boolean {
 }
 
 /**
+ * Whether the config is still the one the last share link (or the default
+ * room) opened, unedited. Every edit makes a new config, so no action has
+ * to clear this.
+ */
+export function isUneditedSinceOpened(state: ConfigState): boolean {
+  return state.config === state.openedConfig
+}
+
+/**
  * Whether Auto-place has something to do: an item other than the MLP is
  * manual, or the MLP isn't at the recommended seat. Until the
  * recommendation is ready, whether anything is manual.
@@ -271,6 +285,7 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           config: initialConfig,
           linkProblem: null,
           linkFallback: null,
+          openedConfig: initialConfig,
           history: { canUndo: false, canRedo: false },
           gesture: null,
           setUnits: (units) =>
@@ -411,6 +426,7 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
               config,
               linkProblem: problem,
               linkFallback: problem ? config : null,
+              openedConfig: config,
             })
             store.temporal.getState().clear()
           },

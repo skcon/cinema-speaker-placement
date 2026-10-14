@@ -1,10 +1,14 @@
 import { rootRouteId, useNavigate, useSearch } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
-import { encodeConfig } from '@/domain'
+import { encodeConfig, type EncodedConfig } from '@/domain'
 import { withConfigParam } from '@/search'
 import { useConfig } from '@/state/config-context'
-import { isShowingLinkFallback } from '@/state/config-store'
+import {
+  isShowingLinkFallback,
+  isUneditedSinceOpened,
+} from '@/state/config-store'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
+import { useRecentRooms } from '@/state/recent-rooms-context'
 
 /**
  * How long the address waits after the last edit before it follows. Fewer
@@ -21,6 +25,8 @@ const ADDRESS_UPDATE_DELAY_MS = 300
  * A link that couldn't be opened stays in the address until the user edits
  * the default room shown instead, so reloading (after an app update, say)
  * can still open it.
+ * RecentRoomSaver saves the room to the recent rooms once the address has
+ * settled on it.
  *
  * Only this component reads the search params, so a new address re-renders
  * it but not `children`.
@@ -33,6 +39,7 @@ export function ShareLinkProvider({ children }: { children: ReactNode }) {
   return (
     <ConfigStoreProvider initialEncodedConfig={configParam}>
       <ShareLinkSync configParam={configParam} />
+      <RecentRoomSaver configParam={configParam} />
       {children}
     </ConfigStoreProvider>
   )
@@ -67,6 +74,50 @@ function ShareLinkSync({ configParam }: { configParam: string | undefined }) {
     }, ADDRESS_UPDATE_DELAY_MS)
     return () => clearTimeout(timer)
   }, [showingLinkFallback, storeConfigParam, configParam, navigate])
+
+  return null
+}
+
+/**
+ * Saves the room to the recent rooms whenever the address has settled on
+ * it: once the debounced address update has written an edit, or a link
+ * (or the default room) has opened. Never while the default room stands in
+ * for a link that couldn't be opened, and never twice in a row for the
+ * same encoded config, so nothing else (such as that stand-in ending)
+ * saves it again.
+ *
+ * A room as opened (from a link, back/forward, a recent room or a reload)
+ * gets its own entry and is never replaced. Its edits get one entry of
+ * their own, which later edits in this visit replace, so a room keeps one
+ * entry however much it is edited.
+ */
+function RecentRoomSaver({ configParam }: { configParam: string | undefined }) {
+  const config = useConfig((state) => state.config)
+  const showingLinkFallback = useConfig(isShowingLinkFallback)
+  const asOpened = useConfig(isUneditedSinceOpened)
+  const save = useRecentRooms((state) => state.save)
+  const roomConfig = useMemo(() => encodeConfig(config), [config])
+  const lastSavedEncoded = useRef<EncodedConfig | undefined>(undefined)
+  // The entry of this visit's edits, which the next settled edit replaces.
+  const editsEntry = useRef<EncodedConfig | undefined>(undefined)
+
+  useEffect(() => {
+    if (
+      configParam !== roomConfig ||
+      showingLinkFallback ||
+      roomConfig === lastSavedEncoded.current
+    ) {
+      return
+    }
+    lastSavedEncoded.current = roomConfig
+    if (asOpened) {
+      editsEntry.current = undefined
+      save(roomConfig)
+    } else {
+      save(roomConfig, editsEntry.current)
+      editsEntry.current = roomConfig
+    }
+  }, [configParam, roomConfig, showingLinkFallback, asOpened, save])
 
   return null
 }

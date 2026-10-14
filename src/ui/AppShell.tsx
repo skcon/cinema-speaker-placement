@@ -10,6 +10,7 @@ import { HistoryButtons } from '@/ui/HistoryButtons'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { LayoutForm } from '@/ui/LayoutForm'
 import { PositionsForm } from '@/ui/PositionsForm'
+import { RecentRooms } from '@/ui/RecentRooms'
 import { Seating } from '@/ui/Seating'
 import { RoomForm } from '@/ui/RoomForm'
 import { SidebarSection } from '@/ui/SidebarSection'
@@ -59,6 +60,9 @@ export function AppShell({
           </SidebarSection>
           <SidebarSection title="Headroom at the MLP">
             <HeadroomIndicator />
+          </SidebarSection>
+          <SidebarSection title="Recent rooms">
+            <RecentRooms />
           </SidebarSection>
         </aside>
       </div>

@@ -3,18 +3,22 @@ import { useCallback } from 'react'
 import { encodeConfig, type Config } from '@/domain'
 import { withConfigParam } from '@/search'
 import { ShareLinkProvider } from '@/ShareLinkProvider'
+import { RecentRoomsProvider } from '@/state/RecentRoomsProvider'
 import { AppShell } from '@/ui/AppShell'
 
 /**
  * The root route's component: the page layout around one config store that
- * stays in step with the share link in the address.
+ * stays in step with the share link in the address, and this browser's
+ * recent rooms.
  */
 export function App() {
   const shareLinkFor = useShareLinkFor()
   return (
-    <ShareLinkProvider>
-      <AppShell shareLinkFor={shareLinkFor} />
-    </ShareLinkProvider>
+    <RecentRoomsProvider>
+      <ShareLinkProvider>
+        <AppShell shareLinkFor={shareLinkFor} />
+      </ShareLinkProvider>
+    </RecentRoomsProvider>
   )
 }
 

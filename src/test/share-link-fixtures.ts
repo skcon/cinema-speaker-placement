@@ -7,8 +7,10 @@
 /**
  * An 8 x 5 x 3 m room in imperial (26 ft 3 in x 16 ft 4.9 in x 9 ft 10.1 in)
  * with a 7.2.4 layout, ported 15 in subwoofers, Subwoofer 2 a sealed
- * 12 in model as its own specs, the house curve, a 100 Hz crossover, a
- * 12 ft seat row, and the Right Rear Surround and Subwoofer 2 moved by hand into the
+ * 12 in model as its own specs, tower fronts and rear surrounds, our own
+ * sensitivity for every speaker group, a 150 W amplifier, the house
+ * curve, a 100 Hz crossover, a 12 ft seat row,
+ * and the Right Rear Surround and Subwoofer 2 moved by hand into the
  * back right corner:
  * nothing at its default.
  */
@@ -17,6 +19,11 @@ export const IMPERIAL_ROOM = {
   room: { length: 8, width: 5, height: 3 },
   layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
   speakerGroups: {
+    front: { specs: { type: 'tower', sensitivity: 89 } },
+    center: { specs: { type: 'bookshelf', sensitivity: 91.5 } },
+    surrounds: { specs: { type: 'bookshelf', sensitivity: 85 } },
+    rearSurrounds: { specs: { type: 'tower', sensitivity: 88 } },
+    overheads: { specs: { sensitivity: 84.5 } },
     subwoofers: {
       specs: {
         enclosure: 'ported',
@@ -34,6 +41,7 @@ export const IMPERIAL_ROOM = {
       },
     },
   },
+  amplifierWatts: 150,
   targetCurve: 'house',
   crossoverHz: 100,
   seatRowWidth: 3.6576,
@@ -46,11 +54,13 @@ export const IMPERIAL_ROOM = {
 /**
  * Version 1 share links as the app writes them (their encoded configs),
  * with the config each one holds. Version 1 is not released yet, so these
- * were regenerated when the seat row width joined it (#14), a pre-release
- * reset of the freeze (ADR 0003). Once version 1 is released, never edit
+ * were regenerated when the seat row width (#14) and the speaker group
+ * specs and amplifier power (#13) joined it, pre-release resets of the
+ * freeze (ADR 0003). Once version 1 is released, never edit
  * these: if one stops opening, links people already shared no longer open,
  * and the schema change needs a new version and a migration (ADR 0003).
- * Two sit on the edges of the room, subwoofer spec, crossover, seat row and position ranges, so
+ * Two sit on the edges of the room, speaker and subwoofer spec, amplifier
+ * power, crossover, seat row and position ranges, so
  * tightening the limits breaks a test instead of quietly rejecting old
  * links.
  */
@@ -58,17 +68,22 @@ export const V1_LINKS = {
   /**
    * 24 x 15 x 9 ft (7.3152 x 4.572 x 2.7432 m) in imperial, 7.2.2, ported
    * 13 in subwoofers with Subwoofer 2 a sealed 10 in model as its own
-   * specs, the house curve, a 120 Hz crossover and a 10 ft seat row;
-   * nothing moved by hand.
+   * specs, tower fronts, a 125 W amplifier, the house curve, a 120 Hz
+   * crossover and a 10 ft seat row; nothing moved by hand.
    */
   imperialRoom: {
     encoded:
-      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGZoAVgBM8AO4YAJiKgAWCbLGKQw2tmFEo8iWM1T5AX3gsmATyR5TkUKqQsARo4AyTi5uIJLQEvLsICR43kpcaAxkkLbwJHRMANYMAOKceNRJoNGx8Ym8abQIhSACCCxI0fS05NRI9ES0qpGqjGAMACLMlLQd9FAADNJS4-r0lCQA6kxEpFqy4-DpGUsrSQCc4+N2IEhKKADKdFW85zER7jUodQ14TeQktKyd3b0DQyMMCbhWSaDjzHarZLrTafbbLSHrI42ZHwIhMehYEYAYVefXIwhcH0iCE4JBISD69AAEgAvKDQeQbKKfIgAJVOCzUGkgUgk400AA54JQmCg8KwAAoNYgYVCFZE2IA',
+      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGZoAVgBM8AO4YAJiKgAWCbLGKQw2tmFEo8iWM1T5AX3gsmATyR5TkUKqQsARo4AyTi5uIJLQEvLsICR43kpcaAxkkLbwJHRMANYMAOKceNRJoGicKG6gabQIhSBEjnTkREhKDJEkAiTEGGDEjlAAnAAMNnaIAkQt7lF0Vby19ZAg3lwZJIYsaK3tnd21UAAcezrDqXj0eSiq1RUzk3O05EtIK2sbqVtEXT37AGzHIPS0Jj0ADKp3Ol1412qdwey1WtHWmxQHQ+O16kD2vxGSDADEMTAhkyhkPen12GNkf2isXiiUh02qAgQLCQ0QB5GoSHo41UkVUjFx9AAIsxKLRxvQoANpFIBvp6JQSAB1JhEUhaWQDeDpDIqtVJQZDeBNFDAhm8UHeCKTJkstn3BZtVi0XnwfldBgiphiiVS8KyTQcRV69XJTXawG61WhzVDYYjb3UFgYTAMENJaDyWTwIhArDigDCp1x5GELjakQQnBIJBxDAAEgAvKCZrVRQFEABKTSVag0kCkEgGmj28EoTBQeFYAAVWZ1UIV40A',
     config: {
       units: 'imperial',
       room: { length: 7.3152, width: 4.572, height: 2.7432 },
       layout: { dolbyLayout: '7.1.2', subwoofers: 2 },
       speakerGroups: {
+        front: { specs: { type: 'tower', sensitivity: 90 } },
+        center: { specs: { type: 'bookshelf', sensitivity: 88.5 } },
+        surrounds: { specs: { type: 'bookshelf', sensitivity: 86 } },
+        rearSurrounds: { specs: { type: 'bookshelf', sensitivity: 86 } },
+        overheads: { specs: { sensitivity: 85 } },
         subwoofers: {
           specs: {
             enclosure: 'ported',
@@ -86,6 +101,7 @@ export const V1_LINKS = {
           },
         },
       },
+      amplifierWatts: 125,
       targetCurve: 'house',
       crossoverHz: 120,
       seatRowWidth: 3.048,
@@ -95,17 +111,24 @@ export const V1_LINKS = {
   /**
    * The smallest room accepted, 2 x 2 x 2 m, with 2.1 and the smallest
    * subwoofer specs accepted (6 in, 10 W RMS and peak), the lowest
-   * crossover accepted (40 Hz), the narrowest seat row (0.5 m), and every item moved by hand to the
+   * sensitivity (70 dB) for every speaker group, a 1 W amplifier, the lowest
+   * crossover accepted (40 Hz), the narrowest seat row (0.5 m), and every
+   * item moved by hand to the
    * clearance lines, Left to the ceiling's and Right to the floor's.
    */
   smallestRoom: {
     encoded:
-      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAsoAJngB3DABMBw+PyrZ+RYQF94nAIYBPJHiWRQEpJwBGmgDJadekEIB00JiBJ5jo1miq0yMVU4AOVOoA1p4A4ix4ft6gzq7untH+VAiJPAicSM60VOQkgdwSjhL0YJ4AIhjq1ESeUAAM9gCsQgDMAJwdnV0dABzMFCQA6upEpFDQdfABwcOj3hO+SKIoAMoBKbjKW-BE6rRYNADCeLSl5GgaSvAILCQkSKW0ABIAXlAALJNOgUQASkuDSTSSANRrwCjqFB4dScAAKmWIGFQiTMHAAHlAALQNADs8E09VsLXgbxgthxvl+6MJeJABLJtNJDRavhWLgc+hAGJB5PxhOJICZRN8AFkzLDqZBsby6eMZaToLYhFstkA',
+      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAsoAJngB3DABMBw+PyrZ+RYQF94nAIYBPJHiWRQEpJwBGmgDJadekEIB00JiBJ5jo1miq0yMVU4AOVOoA1p4A4ix4ft6gaCwoeqAkAQjRIESaAeTGrEEkcpxojiQ8JMQYYMSaUADsAAzKvgg8RJ4cSVQpHOmZkCDZSLn5hfDFKKVE5ZU19b7OtBEoEqntnfppGVRZOXlUBUUlZRXp0w3MgbQAynjzOovLyandm739g7vDTgcTR1WQdacgJBgTxydRLNoPNpfSbHP4zEYuNxIDxeCEdVI8BCcJBzZ6fdTcCSOCT0YG0AAiGHU1BatCgtXsAFYhABmACcHM5XI5AA5mBQSAB1dREUhQaC1eABYLC0XeCW+JCiFAXSH6Bq+al+TgYTCeWVimDwIjqWhYGgAYWuwPIaA0SngCBYJBIQM8AAkAF5QAAskvxRAASkrBZJpJAGYz4BR1Cg8ASAAo4sqoVJmDgADygAFoGdV4L8GSz4N6YLZqr5A5n6eWC+LayBS0XfFdjA41lmIw3C7Zi42ayzfABZMwJ6uQXPd+v5-tloQa5RAA',
     config: {
       units: 'metric',
       room: { length: 2, width: 2, height: 2 },
       layout: { dolbyLayout: '2.1', subwoofers: 1 },
       speakerGroups: {
+        front: { specs: { type: 'bookshelf', sensitivity: 70 } },
+        center: { specs: { type: 'bookshelf', sensitivity: 70 } },
+        surrounds: { specs: { type: 'bookshelf', sensitivity: 70 } },
+        rearSurrounds: { specs: { type: 'bookshelf', sensitivity: 70 } },
+        overheads: { specs: { sensitivity: 70 } },
         subwoofers: {
           specs: {
             enclosure: 'sealed',
@@ -116,6 +139,7 @@ export const V1_LINKS = {
           ownSpecs: {},
         },
       },
+      amplifierWatts: 1,
       targetCurve: 'flat',
       crossoverHz: 40,
       seatRowWidth: 0.5,
@@ -131,18 +155,25 @@ export const V1_LINKS = {
   /**
    * The largest room accepted, 15 x 15 x 5 m, with 7.4.4 and the largest
    * subwoofer specs accepted (24 in, 10,000 W RMS, 20,000 W peak), Subwoofer
-   * 4 with them as its own, the house curve, the highest crossover
-   * accepted (200 Hz), the widest seat row (8 m), and Right (at the ceiling clearance), Subwoofer 4
+   * 4 with them as its own, towers of the highest sensitivity (110 dB) in
+   * every group, a 5,000 W amplifier, the house curve, the highest
+   * crossover accepted (200 Hz), the widest seat row (8 m), and Right (at
+   * the ceiling clearance), Subwoofer 4
    * and the MLP moved by hand into the corners.
    */
   largestRoom: {
     encoded:
-      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAso0AKzwA7hgAmAoaJD8q2fkSjCAvvE4BDAJ5I8KyKElJOAIx0AZXfsMgA7ADpojgCxMQJPGbGs0VWjJIVw1PAAcqLQBrAIBxFjwwoNAvHz8A5PCqBEyeBE4kL1oqcjCkWiIqSQ9JejAAgBEMLWpK2igABkcANg6ATmE+oeGRoeYKEgB1LSJSIQ6FjvgI6OnZoIAmRY7QpDEUAGUInI4D73cjEDyCopLIT0juavhajHraJpaaAM6e-sHRoDxlMZnMYNtlpEomswVtFmoEaEiFpaFgaABhPC0erkfj6EgleAIFgkEhId4ACQAXlA4fACTMAEp7SZSGSQAAc8AoWhQeC0nAACoViBhUJlGRwAB5QJwbeA6ISuRz2eA04Iq0JnMwXUAyyAAWjlCqVKrVvwAzKEALKWQXSqBGxzykCKyBdC3mmDOxFqIA',
+      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAso0AKzwA7hgAmAoaJD8q2fkSjCAvvE4BDAJ5I8KyKElJOAIx0AZXfsMgA7ADpojgCxMQJPGbGs0VWjJIVw1PAAcqLQBrAIBxFjwwoNA0FhRDUBIIhGSQIh0I8iIkMQCPEh4SYgwwYh0haAAGNVCEHiIyo3CqHI58wsg8krL4CpQqohq6hubQr1oElElcrJ7c-qoi4dpyyura-JmW5kjaAGU8Bf0llez1gs3B4tKd0b3Jg-qYJuOQJDAAgotMsOKtel0xhMpodvrNRt5fEh-IFQXcODwEJwkPNHiAwkhaB1JB5JPQAbQACIYLTUDo7SCNRwANkaAE5hKzOVzuZzmBQSAB1LREUhCRrixrwCLRIUioIAJglzXgJRQZzRXQuZncXQxWJx5AqWm4xPgpJqASpNJonUZLPZPMdrL5guFopgSqlkSisvdiolLV+NLCnAwmACvqCwgl8CIWloWBoAGFLgDyPx9BUPAgWCQSP8AgAJABeUH9b2FACUSgKpDJIAAOeAULQoPDGgAK2OqqFylY4AA8oE55fAvtBXI57PBS8Ep6EtTrQEPIABaEdjoST6cgWeMgDMoQAspYO4OoOvHKOQF8DzOhFfA2ogA',
     config: {
       units: 'metric',
       room: { length: 15, width: 15, height: 5 },
       layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
       speakerGroups: {
+        front: { specs: { type: 'tower', sensitivity: 110 } },
+        center: { specs: { type: 'tower', sensitivity: 110 } },
+        surrounds: { specs: { type: 'tower', sensitivity: 110 } },
+        rearSurrounds: { specs: { type: 'tower', sensitivity: 110 } },
+        overheads: { specs: { sensitivity: 110 } },
         subwoofers: {
           specs: {
             enclosure: 'ported',
@@ -160,6 +191,7 @@ export const V1_LINKS = {
           },
         },
       },
+      amplifierWatts: 5000,
       targetCurve: 'house',
       crossoverHz: 200,
       seatRowWidth: 8,

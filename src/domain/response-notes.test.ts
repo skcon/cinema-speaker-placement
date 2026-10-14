@@ -393,7 +393,10 @@ describe('notes for a room', () => {
     const direct = Math.hypot(x - mlp.x, y - mlp.y)
     const image = Math.hypot(x - mlp.x, -y - mlp.y)
 
-    expect(notch?.frequency).toBeCloseTo(343 / (2 * (image - direct)), -1)
+    // The charted dip mixes in the other reflections (the woofer's floor
+    // bounce among them), so it is matched within the 10% matching rule.
+    const expected = 343 / (2 * (image - direct))
+    expect(Math.abs(notch!.frequency / expected - 1)).toBeLessThan(0.1)
     expect(notch?.speakers).toEqual(['Left', 'Right'])
   })
 
@@ -401,8 +404,11 @@ describe('notes for a room', () => {
     const { weaknesses } = analyzeRoom(DEFAULT_CONFIG).response.notes
     const own = weaknesses.filter((w) => w.speakers.includes('Center'))
 
-    // The Center is charted: its reflections shape the chart, not a list entry of its own.
-    expect(own.filter((w) => w.speakers.length === 1)).toEqual([])
+    // The Center is charted: its reflections shape the chart, not a notch
+    // entry of its own (a chart peak it alone explains is listed as one).
+    expect(
+      own.filter((w) => w.speakers.length === 1 && w.kind === 'dip'),
+    ).toEqual([])
     expect(weaknesses.some((w) => w.speakers.includes('Left Surround'))).toBe(
       true,
     )

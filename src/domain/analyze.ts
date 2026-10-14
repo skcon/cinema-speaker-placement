@@ -9,7 +9,8 @@ import {
 import type { Aim } from './placement'
 import { placeAll } from './placements'
 import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
-import type { SubwooferSpecs } from './speaker-specs'
+import { estimateHeadroom, type HeadroomAnalysis } from './headroom'
+import { speakerGroupsIn, type SubwooferSpecs } from './speaker-specs'
 import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
 import {
   estimateResponse,
@@ -40,6 +41,11 @@ export type PlacedSpeaker = {
   readonly name: string
   /** Where the speaker is, in room coordinates (its acoustic center). */
   readonly position: RoomPoint
+  /**
+   * Where its woofer is: below the acoustic center by its speaker group's
+   * type (bookshelf or tower). Boundary interference starts from here.
+   */
+  readonly woofer: RoomPoint
   /** Auto-placed, or left by the user where it is. */
   readonly placement: Placement
   /** Which way it faces: at the MLP. */
@@ -104,11 +110,19 @@ export type RoomAnalysis = {
   subwoofers: readonly PlacedSubwoofer[]
   /** The estimated response at the MLP against the target curve. */
   response: ResponseAnalysis
+  /** Whether the Speakers and Subwoofers can reach reference level at the MLP. */
+  headroom: HeadroomAnalysis
 }
 
 /** The domain entry point: derive the room plan from a config. */
 export function analyzeRoom(config: Config): RoomAnalysis {
-  const { layout, targetCurve: targetCurveKind, crossoverHz } = config
+  const {
+    layout,
+    speakerGroups,
+    targetCurve: targetCurveKind,
+    crossoverHz,
+    amplifierWatts,
+  } = config
   // The one place positions come from: manual where the user put an item,
   // else auto-placed (placements.ts). Everything below follows from them.
   const placements = placeAll(config)
@@ -119,9 +133,9 @@ export function analyzeRoom(config: Config): RoomAnalysis {
   // aim and are worked out once, for both the estimate and the notes.
   const heardSpeakers = placements.speakers.map(
     ({ reference, position, placement }) => {
-      const { aim, reflections, levels } = hearSpeaker(
+      const { aim, woofer, reflections, levels } = hearSpeaker(
         config,
-        position,
+        { channel: reference.channel, position },
         mlp,
         frequencies,
       )
@@ -129,6 +143,7 @@ export function analyzeRoom(config: Config): RoomAnalysis {
         channel: reference.channel,
         name: CHANNELS[reference.channel].name,
         position,
+        woofer,
         placement,
         aim,
         placementRange: checkPlacementRange(
@@ -184,8 +199,17 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     ),
     enclosures: subwoofers.map(({ specs }) => specs.enclosure),
   })
+  const layoutSummary = summarizeLayout(layout)
+  const headroom = estimateHeadroom({
+    mlp,
+    speakerGroups,
+    amplifierWatts,
+    speakers: heardSpeakers.map(({ speaker }) => speaker),
+    groups: speakerGroupsIn(layout),
+    subwoofers,
+  })
   return {
-    layout: summarizeLayout(layout),
+    layout: layoutSummary,
     mlp,
     mlpPlacement: placements.mlp.placement,
     seatRow: seatRowFootprint(config.room, mlp, config.seatRowWidth),
@@ -199,5 +223,6 @@ export function analyzeRoom(config: Config): RoomAnalysis {
       tableRows: responseTable(estimated.rows),
       notes,
     },
+    headroom,
   }
 }

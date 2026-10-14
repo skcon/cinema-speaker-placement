@@ -150,9 +150,14 @@ describe('boundary interference in the estimate', () => {
     const { response, mlp, speakers } = analyzeRoom(DEFAULT_CONFIG)
     const high = response.estimated.rows.filter((r) => r.frequency >= 300)
     const front = speakers.filter((s) => ['L', 'C', 'R'].includes(s.channel))
-    const levels = front.map((speaker) =>
+    // Reflections start from each speaker's woofer.
+    const levels = front.map(({ woofer, aim }) =>
       interferenceLevels(
-        boundaryReflections(DEFAULT_CONFIG.room, speaker, mlp),
+        boundaryReflections(
+          DEFAULT_CONFIG.room,
+          { position: woofer, aim },
+          mlp,
+        ),
         high.map((r) => r.frequency),
       ),
     )
@@ -219,7 +224,10 @@ describe('the enclosure in the estimate', () => {
     const sealed = DEFAULT_CONFIG
     const ported: Config = {
       ...DEFAULT_CONFIG,
-      speakerGroups: { subwoofers: { specs: PORTED, ownSpecs: {} } },
+      speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
+        subwoofers: { specs: PORTED, ownSpecs: {} },
+      },
     }
     // Butterworth: |H|² = x^(2n) / (1 + x^(2n)).
     const db = (x: number, n: number) =>
@@ -234,6 +242,7 @@ describe('the enclosure in the estimate', () => {
     const mixed: Config = {
       ...withSubwoofers(2),
       speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
         subwoofers: {
           specs: DEFAULT_CONFIG.speakerGroups.subwoofers.specs,
           ownSpecs: { Sub2: PORTED },
@@ -267,7 +276,10 @@ describe('a room response prepared once', () => {
     }
   }
 
-  /** The front three speakers' levels at `receiver`, each facing it. */
+  /**
+   * The front three speakers' levels at `receiver`, each facing it, their
+   * reflections starting from the woofer.
+   */
   function frontSpeakerLevels(
     receiver: RoomPoint,
     frequencies: readonly number[],
@@ -275,11 +287,11 @@ describe('a room response prepared once', () => {
     const { speakers } = analyzeRoom(DEFAULT_CONFIG)
     return speakers
       .filter((s) => ['L', 'C', 'R'].includes(s.channel))
-      .map(({ position }) => {
+      .map(({ position, woofer }) => {
         const aim = { yaw: bearingTo(position, receiver) }
         const reflections = boundaryReflections(
           DEFAULT_CONFIG.room,
-          { position, aim },
+          { position: woofer, aim },
           receiver,
         )
         return interferenceLevels(reflections, frequencies)

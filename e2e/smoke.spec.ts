@@ -83,7 +83,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       panel
         .getByRole('list', { name: 'Weaknesses' })
         .getByText(
-          /^Dip at 18\d Hz .*front-wall reflection notch \(Left and Right\)/,
+          /^Dip at 1\d\d Hz .*front-wall reflection notch \(Left and Right\)/,
         ),
     ).toBeVisible()
     await expect(
@@ -119,7 +119,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     .getByRole('region', { name: 'Room view' })
     .getByRole('img', { name: /24 ft 0 in long and 15 ft 0 in wide/ })
 
-  await test.step('a share link opens its room, speakers and crossover', async () => {
+  await test.step('a share link opens its room, speakers, specs, headroom and crossover', async () => {
     await expect(
       page.getByRole('radio', { name: 'Imperial (ft + in)' }),
     ).toBeChecked()
@@ -132,6 +132,17 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('textbox', { name: 'Crossover (Hz)' }),
     ).toHaveValue('120')
+    const front = page.getByRole('group', { name: 'Front L/R' })
+    await expect(front.getByRole('radio', { name: 'Tower' })).toBeChecked()
+    await expect(
+      front.getByRole('textbox', { name: 'Sensitivity (dB)' }),
+    ).toHaveValue('90')
+    await expect(
+      page.getByRole('textbox', { name: 'Amplifier power per channel (W)' }),
+    ).toHaveValue('125')
+    await expect(
+      page.getByRole('list', { name: 'Headroom' }).getByText('Rear surrounds'),
+    ).toBeVisible()
     for (const label of ['L 26°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
     }

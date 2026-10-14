@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   checkSubwooferSpec,
   DEFAULT_SUBWOOFER_SPECS,
+  speakerGroupsIn,
   type SubwooferSpecs,
 } from '@/domain'
 
@@ -119,5 +120,18 @@ describe('checking a subwoofer spec', () => {
     expect(
       checkSubwooferSpec(specs({ rmsWatts: 300, peakWatts: 5 }), 'peakWatts'),
     ).toEqual({ problem: 'too-small', min: 10, max: 20_000 })
+  })
+})
+
+describe('speaker groups in a layout', () => {
+  it.each([
+    ['2.1', ['front']],
+    ['3.1', ['front', 'center']],
+    ['5.1', ['front', 'center', 'surrounds']],
+    ['5.1.2', ['front', 'center', 'surrounds', 'overheads']],
+    ['7.1', ['front', 'center', 'surrounds', 'rearSurrounds']],
+    ['7.1.4', ['front', 'center', 'surrounds', 'rearSurrounds', 'overheads']],
+  ] as const)('%s uses %j', (dolbyLayout, groups) => {
+    expect(speakerGroupsIn({ dolbyLayout, subwoofers: 2 })).toEqual(groups)
   })
 })

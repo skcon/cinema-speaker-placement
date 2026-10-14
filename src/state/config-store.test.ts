@@ -154,6 +154,68 @@ describe('crossover', () => {
   })
 })
 
+describe('speaker group specs', () => {
+  it('change one group at a time, one spec at a time, keeping the rest of the config', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setSpeakerSpecs('center', { type: 'tower' })
+    store.getState().setSpeakerSpecs('center', { sensitivity: 92.5 })
+    store.getState().setSpeakerSpecs('overheads', { sensitivity: 80 })
+
+    expect(store.getState().config).toEqual({
+      ...IMPERIAL_ROOM,
+      speakerGroups: {
+        ...IMPERIAL_ROOM.speakerGroups,
+        center: { specs: { type: 'tower', sensitivity: 92.5 } },
+        overheads: { specs: { sensitivity: 80 } },
+      },
+    })
+  })
+
+  it.each([69.9, 110.1, Number.NaN])('ignore a sensitivity of %d dB', (db) => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setSpeakerSpecs('front', { sensitivity: db })
+
+    expect(store.getState().config).toBe(IMPERIAL_ROOM)
+  })
+
+  it('are undoable', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setSpeakerSpecs('front', { type: 'bookshelf' })
+    store.getState().undo()
+    expect(store.getState().config.speakerGroups.front.specs.type).toBe('tower')
+    store.getState().redo()
+    expect(store.getState().config.speakerGroups.front.specs.type).toBe(
+      'bookshelf',
+    )
+  })
+})
+
+describe('amplifier power', () => {
+  it('takes any power per channel from 1 to 5,000 W, undoably', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setAmplifierWatts(1)
+    expect(store.getState().config).toEqual({
+      ...IMPERIAL_ROOM,
+      amplifierWatts: 1,
+    })
+    store.getState().setAmplifierWatts(5000)
+    store.getState().undo()
+    expect(store.getState().config.amplifierWatts).toBe(1)
+  })
+
+  it.each([0.5, 5001, Number.NaN])('ignores %d W', (watts) => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().setAmplifierWatts(watts)
+
+    expect(store.getState().config).toBe(IMPERIAL_ROOM)
+  })
+})
+
 describe('seat row', () => {
   it('starts 2 m wide and takes a new width in meters, as an undoable change', () => {
     const store = createConfigStore()
@@ -230,6 +292,7 @@ describe('subwoofers', () => {
       ...IMPERIAL_ROOM,
       layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
       speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
         subwoofers: {
           specs: PORTED_15,
           ownSpecs: { Sub3: SEALED_12, Sub4: SEALED_12 },
@@ -272,7 +335,10 @@ describe('subwoofers', () => {
   it('can each get own specs, starting from the group specs, and give them up again', () => {
     const store = createConfigStore({
       ...IMPERIAL_ROOM,
-      speakerGroups: { subwoofers: { specs: PORTED_15, ownSpecs: {} } },
+      speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
+        subwoofers: { specs: PORTED_15, ownSpecs: {} },
+      },
     })
 
     store.getState().setSubwooferHasOwnSpecs('Sub2', true)

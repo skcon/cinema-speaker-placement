@@ -1,7 +1,9 @@
 import { temporal } from 'zundo'
 import { createStore } from 'zustand/vanilla'
 import {
+  areValidSpeakerSpecs,
   areValidSubwooferSpecs,
+  checkAmplifierWatts,
   checkCrossover,
   checkRoomDimension,
   clampSeatRowWidth,
@@ -19,6 +21,8 @@ import {
   type PlaceableId,
   type RoomDimension,
   type ShareLinkProblem,
+  type SpeakerGroupId,
+  type SpeakerGroups,
   subwooferIds,
   type SubwooferCount,
   type SubwooferGroup,
@@ -74,6 +78,19 @@ export type ConfigState = {
     target: 'group' | SubwooferId,
     change: Partial<SubwooferSpecs>,
   ) => void
+  /**
+   * Change specs of one other speaker group (Front L/R ... Overheads).
+   * Ignored when a spec would be out of range.
+   */
+  setSpeakerSpecs: <G extends SpeakerGroupId>(
+    group: G,
+    change: Partial<SpeakerGroups[G]['specs']>,
+  ) => void
+  /**
+   * Set the amplifier power per channel, in watts. Out-of-range values are
+   * ignored.
+   */
+  setAmplifierWatts: (watts: number) => void
   /**
    * Give a subwoofer of the layout own specs, starting as a copy of the
    * group's, or make it use the group's again (dropping its own).
@@ -286,6 +303,21 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
                 ownSpecs: { ...group.ownSpecs, [target]: specs },
               }),
             })
+          },
+          setSpeakerSpecs: (group, change) => {
+            const { config } = get()
+            const specs = { ...config.speakerGroups[group].specs, ...change }
+            if (!areValidSpeakerSpecs(specs)) return
+            set({
+              config: {
+                ...config,
+                speakerGroups: { ...config.speakerGroups, [group]: { specs } },
+              },
+            })
+          },
+          setAmplifierWatts: (amplifierWatts) => {
+            if (checkAmplifierWatts(amplifierWatts) !== null) return
+            set(({ config }) => ({ config: { ...config, amplifierWatts } }))
           },
           setSubwooferHasOwnSpecs: (subwoofer, hasOwnSpecs) => {
             const { config } = get()

@@ -177,6 +177,7 @@ describe('auto-placed subwoofers', () => {
     const placed = analyzeRoom({
       ...config(DEFAULT_CONFIG.room, 3),
       speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
         subwoofers: { specs: groupSpecs, ownSpecs: { Sub2: ownSpecs } },
       },
     }).subwoofers

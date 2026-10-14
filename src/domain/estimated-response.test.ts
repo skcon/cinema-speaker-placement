@@ -219,7 +219,10 @@ describe('the enclosure in the estimate', () => {
     const sealed = DEFAULT_CONFIG
     const ported: Config = {
       ...DEFAULT_CONFIG,
-      speakerGroups: { subwoofers: { specs: PORTED, ownSpecs: {} } },
+      speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
+        subwoofers: { specs: PORTED, ownSpecs: {} },
+      },
     }
     // Butterworth: |H|² = x^(2n) / (1 + x^(2n)).
     const db = (x: number, n: number) =>
@@ -234,6 +237,7 @@ describe('the enclosure in the estimate', () => {
     const mixed: Config = {
       ...withSubwoofers(2),
       speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
         subwoofers: {
           specs: DEFAULT_CONFIG.speakerGroups.subwoofers.specs,
           ownSpecs: { Sub2: PORTED },

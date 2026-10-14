@@ -16,7 +16,8 @@
  * Version 1 is whatever ships in the first release with share links; until
  * then `configSchema` can change, and the frozen links in
  * src/test/share-link-fixtures.ts are regenerated (as they were when manual
- * positions joined version 1, before any release). After that, every change
+ * positions joined version 1, and again when the speaker group specs and
+ * the amplifier power did, #13, both before any release). After that, every change
  * to `configSchema` is a new version, however small (a new, removed or
  * renamed field, a new meaning, a wider or tighter range):
  *

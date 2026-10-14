@@ -1,14 +1,16 @@
 /**
  * Speaker specs, entered per speaker group (GLOSSARY.md), with optional own
- * specs per subwoofer (issue #2, user stories 13 and 17-19). Only the
- * Subwoofers group has specs so far; #13 adds the other groups with their
- * own spec type, in the same shape: a group's `specs` plus, for
- * subwoofers only, own specs by subwoofer id.
+ * specs per subwoofer (issue #2, user stories 13-19), and the one
+ * amplifier power per channel. Every group has the same shape: a group's
+ * `specs` plus, for subwoofers only, own specs by subwoofer id.
  *
- * Specs are inputs for the acoustic estimates of later tickets (#11-#13);
+ * Specs are inputs for the acoustic estimates (the response, headroom.ts);
  * nothing here does any acoustics with them.
  */
+import type { ChannelId } from './dolby-layouts'
 import { checkRange, type AcceptedRange, type RangeProblem } from './range'
+import { SPEAKER_TYPE_GEOMETRY } from './reference'
+import type { RoomPoint } from './room'
 import type { SubwooferId } from './subwoofer-arrangements'
 import { fromInches } from './units'
 
@@ -45,8 +47,149 @@ export type SubwooferGroup = {
   readonly ownSpecs: Readonly<Partial<Record<SubwooferId, SubwooferSpecs>>>
 }
 
-/** Specs per speaker group. #13 adds Front L/R, Center, Surrounds, Rear surrounds and Overheads. */
-export type SpeakerGroups = { readonly subwoofers: SubwooferGroup }
+/**
+ * Whether a listener-level speaker is a bookshelf (on a stand) or a tower
+ * (on the floor). It sets where its woofer is (SPEAKER_TYPE_GEOMETRY).
+ */
+export const SPEAKER_TYPES = ['bookshelf', 'tower'] as const
+
+export type SpeakerType = (typeof SPEAKER_TYPES)[number]
+
+/** What the app knows about a listener-level speaker model. */
+export type SpeakerSpecs = {
+  readonly type: SpeakerType
+  /** dB SPL at 1 m with 1 W (2.83 V into 8 Ω) into it. */
+  readonly sensitivity: number
+}
+
+/**
+ * What the app knows about an overhead speaker model: only its
+ * sensitivity, as overheads are mounted in or on the ceiling.
+ */
+export type OverheadSpecs = { readonly sensitivity: number }
+
+/** A speaker group of listener-level channels, which share one model. */
+export const LISTENER_GROUP_IDS = [
+  'front',
+  'center',
+  'surrounds',
+  'rearSurrounds',
+] as const
+
+export type ListenerGroupId = (typeof LISTENER_GROUP_IDS)[number]
+
+/**
+ * Every speaker group but the Subwoofers, in the order the form shows
+ * them. Overheads have their group and specs ahead of being placed (#8).
+ */
+export const SPEAKER_GROUP_IDS = [...LISTENER_GROUP_IDS, 'overheads'] as const
+
+export type SpeakerGroupId = (typeof SPEAKER_GROUP_IDS)[number]
+
+/** Specs per speaker group (GLOSSARY.md), each a group's shared `specs`. */
+export type SpeakerGroups = {
+  readonly [G in ListenerGroupId]: { readonly specs: SpeakerSpecs }
+} & {
+  readonly overheads: { readonly specs: OverheadSpecs }
+  readonly subwoofers: SubwooferGroup
+}
+
+/** The speaker group each listener-level channel belongs to. */
+export const SPEAKER_GROUP_OF = {
+  L: 'front',
+  R: 'front',
+  C: 'center',
+  Ls: 'surrounds',
+  Rs: 'surrounds',
+  Lrs: 'rearSurrounds',
+  Rrs: 'rearSurrounds',
+} as const satisfies Record<ChannelId, ListenerGroupId>
+
+/** The speaker groups' names, as the UI shows them (GLOSSARY.md). */
+export const SPEAKER_GROUP_NAMES = {
+  front: 'Front L/R',
+  center: 'Center',
+  surrounds: 'Surrounds',
+  rearSurrounds: 'Rear surrounds',
+  overheads: 'Overheads',
+} as const satisfies Record<SpeakerGroupId, string>
+
+/**
+ * The specs every listener-level speaker group starts with: a bookshelf
+ * speaker with 87 dB sensitivity. Our default, typical of home theater
+ * speakers, not a cited or measured product.
+ */
+export const DEFAULT_SPEAKER_SPECS = {
+  type: 'bookshelf',
+  sensitivity: 87,
+} as const satisfies SpeakerSpecs
+
+/** The overheads' starting specs: the same 87 dB, ours. */
+export const DEFAULT_OVERHEAD_SPECS = {
+  sensitivity: DEFAULT_SPEAKER_SPECS.sensitivity,
+} as const satisfies OverheadSpecs
+
+/**
+ * Accepted sensitivities in dB SPL (1 W, 1 m), inclusive: our product
+ * limits that catch typos, not cited values. Home speakers mostly rate
+ * from the low 80s to the mid 90s.
+ */
+const SENSITIVITY_LIMITS = {
+  min: 70,
+  max: 110,
+} as const satisfies AcceptedRange
+
+/** `null` when a sensitivity is a number inside its accepted range. */
+export function checkSensitivity(sensitivity: number): RangeProblem | null {
+  return checkRange(sensitivity, SENSITIVITY_LIMITS)
+}
+
+/** Whether a speaker type is one the app knows. */
+function isSpeakerType(value: unknown): value is SpeakerType {
+  return SPEAKER_TYPES.some((type) => type === value)
+}
+
+/** Whether every spec of a listener-level or overhead group is accepted. */
+export function areValidSpeakerSpecs(
+  specs: SpeakerSpecs | OverheadSpecs,
+): boolean {
+  if ('type' in specs && !isSpeakerType(specs.type)) return false
+  return checkSensitivity(specs.sensitivity) === null
+}
+
+/**
+ * The amplifier power per channel every Speaker starts with, in watts
+ * (user story 16): ours, typical of an AV receiver, not a cited value.
+ */
+export const DEFAULT_AMPLIFIER_WATTS = 100
+
+/**
+ * Accepted amplifier power per channel in watts, inclusive: our typo
+ * limits, from a small amplifier up to large separate power amplifiers.
+ */
+const AMPLIFIER_WATTS_LIMITS = {
+  min: 1,
+  max: 5000,
+} as const satisfies AcceptedRange
+
+/** `null` when an amplifier power is a number inside its accepted range. */
+export function checkAmplifierWatts(watts: number): RangeProblem | null {
+  return checkRange(watts, AMPLIFIER_WATTS_LIMITS)
+}
+
+/**
+ * Where a speaker's woofer is, given its position (its acoustic center,
+ * the tweeter) and type: straight below it by the type's offset, and never
+ * lower than the floor margin (SPEAKER_TYPE_GEOMETRY, ours).
+ */
+export function wooferPosition(
+  position: RoomPoint,
+  type: SpeakerType,
+): RoomPoint {
+  const { minWooferHeight } = SPEAKER_TYPE_GEOMETRY
+  const drop = SPEAKER_TYPE_GEOMETRY[type].wooferBelowTweeter
+  return { ...position, z: Math.max(position.z - drop, minWooferHeight) }
+}
 
 /** The numeric subwoofer specs, which have accepted ranges. */
 export type SubwooferSpecField = 'driverDiameter' | 'rmsWatts' | 'peakWatts'
@@ -65,6 +208,11 @@ export const DEFAULT_SUBWOOFER_SPECS = {
 
 /** First-visit speaker groups: our default specs, and no own specs for any subwoofer. */
 export const DEFAULT_SPEAKER_GROUPS = {
+  front: { specs: DEFAULT_SPEAKER_SPECS },
+  center: { specs: DEFAULT_SPEAKER_SPECS },
+  surrounds: { specs: DEFAULT_SPEAKER_SPECS },
+  rearSurrounds: { specs: DEFAULT_SPEAKER_SPECS },
+  overheads: { specs: DEFAULT_OVERHEAD_SPECS },
   subwoofers: { specs: DEFAULT_SUBWOOFER_SPECS, ownSpecs: {} },
 } as const satisfies SpeakerGroups
 

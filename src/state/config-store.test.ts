@@ -198,6 +198,7 @@ describe('subwoofers', () => {
       ...IMPERIAL_ROOM,
       layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
       speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
         subwoofers: {
           specs: PORTED_15,
           ownSpecs: { Sub3: SEALED_12, Sub4: SEALED_12 },
@@ -240,7 +241,10 @@ describe('subwoofers', () => {
   it('can each get own specs, starting from the group specs, and give them up again', () => {
     const store = createConfigStore({
       ...IMPERIAL_ROOM,
-      speakerGroups: { subwoofers: { specs: PORTED_15, ownSpecs: {} } },
+      speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
+        subwoofers: { specs: PORTED_15, ownSpecs: {} },
+      },
     })
 
     store.getState().setSubwooferHasOwnSpecs('Sub2', true)

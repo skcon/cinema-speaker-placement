@@ -44,9 +44,20 @@ function withManualPositions(manualPositions: unknown) {
   return { ...DEFAULT_CONFIG, manualPositions }
 }
 
+/** The default config with these specs for one other speaker group. */
+function withSpeakerGroup(group: string, specs: unknown) {
+  return {
+    ...DEFAULT_CONFIG,
+    speakerGroups: { ...DEFAULT_CONFIG.speakerGroups, [group]: { specs } },
+  }
+}
+
 /** The default config with this Subwoofers group: specs and own specs. */
 function withSubwooferGroup(subwoofers: unknown) {
-  return { ...DEFAULT_CONFIG, speakerGroups: { subwoofers } }
+  return {
+    ...DEFAULT_CONFIG,
+    speakerGroups: { ...DEFAULT_CONFIG.speakerGroups, subwoofers },
+  }
 }
 
 describe('share link codec', () => {
@@ -95,6 +106,7 @@ describe('share link codec', () => {
           ...IMPERIAL_ROOM,
           layout: { dolbyLayout, subwoofers },
           speakerGroups: {
+            ...DEFAULT_CONFIG.speakerGroups,
             subwoofers: {
               specs: PORTED_15,
               ownSpecs: EVEN_OWN_SPECS[subwoofers],
@@ -144,7 +156,10 @@ describe('share link codec', () => {
     } as const
     const config: Config = {
       ...DEFAULT_CONFIG,
-      speakerGroups: { subwoofers: { specs, ownSpecs: { Sub1: specs } } },
+      speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
+        subwoofers: { specs, ownSpecs: { Sub1: specs } },
+      },
     }
 
     expect(decodeConfig(encodeConfig(config))).toEqual({
@@ -328,6 +343,53 @@ describe('share link codec', () => {
       ],
       ['no own specs field', withSubwooferGroup({ specs: PORTED_15 })],
       [
+        'an unknown speaker type',
+        withSpeakerGroup('front', { type: 'floorstander', sensitivity: 88 }),
+      ],
+      [
+        'a sensitivity below the accepted range',
+        withSpeakerGroup('center', { type: 'tower', sensitivity: 69 }),
+      ],
+      [
+        'a sensitivity above the accepted range',
+        withSpeakerGroup('surrounds', { type: 'tower', sensitivity: 111 }),
+      ],
+      [
+        'a speaker group without a type',
+        withSpeakerGroup('rearSurrounds', { sensitivity: 88 }),
+      ],
+      [
+        'overheads with a type',
+        withSpeakerGroup('overheads', { type: 'bookshelf', sensitivity: 88 }),
+      ],
+      [
+        'a missing speaker group',
+        {
+          ...DEFAULT_CONFIG,
+          speakerGroups: Object.fromEntries(
+            Object.entries(DEFAULT_CONFIG.speakerGroups).filter(
+              ([group]) => group !== 'center',
+            ),
+          ),
+        },
+      ],
+      [
+        'an amplifier power below the accepted range',
+        { ...DEFAULT_CONFIG, amplifierWatts: 0.5 },
+      ],
+      [
+        'an amplifier power above the accepted range',
+        { ...DEFAULT_CONFIG, amplifierWatts: 5001 },
+      ],
+      [
+        'no amplifier power',
+        Object.fromEntries(
+          Object.entries(DEFAULT_CONFIG).filter(
+            ([key]) => key !== 'amplifierWatts',
+          ),
+        ),
+      ],
+      [
         'own specs out of range',
         withSubwooferGroup({
           specs: PORTED_15,
@@ -355,6 +417,7 @@ describe('share link codec', () => {
           room: DEFAULT_CONFIG.room,
           layout: DEFAULT_CONFIG.layout,
           speakerGroups: DEFAULT_CONFIG.speakerGroups,
+          amplifierWatts: DEFAULT_CONFIG.amplifierWatts,
           targetCurve: 'flat',
         },
       ],
@@ -411,6 +474,7 @@ describe('share link codec', () => {
           room: DEFAULT_CONFIG.room,
           layout: DEFAULT_CONFIG.layout,
           speakerGroups: DEFAULT_CONFIG.speakerGroups,
+          amplifierWatts: DEFAULT_CONFIG.amplifierWatts,
           manualPositions: {},
         },
       ],
@@ -453,6 +517,11 @@ function longestSubwooferSpecs(offset: number) {
   } as const
 }
 
+/** Listener-level speaker specs with the longest values: 17 significant digits. */
+function longestSpeakerSpecs(offset: number) {
+  return { type: 'bookshelf', sensitivity: 109 - 1 / 7 - offset / 81 } as const
+}
+
 /**
  * A manual position with the longest coordinates a share link stores:
  * negative across, two digits before the point along, every one to the
@@ -472,8 +541,8 @@ function longestPosition(n: number, z?: number) {
  * The largest config a share link has to carry, for the size budget: the
  * largest real config today. Grow it with the config: the compiler asks for
  * every new field, and each one should take its longest value. Planned
- * growth (issue #2): the overheads' manual positions (#8), specs for the
- * other speaker groups (#13), amp power, crossover and seat row width.
+ * growth (issue #2): the overheads' manual positions (#8), the
+ * recommended seat (#14) and seat row width.
  */
 const WORST_CASE_CONFIG: Config = {
   units: 'imperial',
@@ -482,8 +551,15 @@ const WORST_CASE_CONFIG: Config = {
   room: { length: 15 - 1 / 81, width: 15 - 1 / 7, height: 5 - 1 / 81 },
   // The largest v1 layout: 7.4.4.
   layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
-  // Group specs, and different own specs for every subwoofer.
+  // Every group's specs, the longer speaker type, every number with all 17
+  // significant digits and no two alike; different own specs for every
+  // subwoofer.
   speakerGroups: {
+    front: { specs: longestSpeakerSpecs(0) },
+    center: { specs: longestSpeakerSpecs(1) },
+    surrounds: { specs: longestSpeakerSpecs(2) },
+    rearSurrounds: { specs: longestSpeakerSpecs(3) },
+    overheads: { specs: { sensitivity: longestSpeakerSpecs(4).sensitivity } },
     subwoofers: {
       specs: longestSubwooferSpecs(0),
       ownSpecs: {
@@ -494,6 +570,8 @@ const WORST_CASE_CONFIG: Config = {
       },
     },
   },
+  // All 17 significant digits.
+  amplifierWatts: 4999 - 1 / 7,
   // The longer of the two names.
   targetCurve: 'house',
   // All 17 significant digits.

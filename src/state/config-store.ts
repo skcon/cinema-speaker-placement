@@ -7,6 +7,7 @@ import {
   clampSeatRowWidth,
   decodeConfig,
   DEFAULT_CONFIG,
+  MLP_ID,
   placeAtWallDistance,
   placeManually,
   withAutoPlacement,
@@ -17,7 +18,9 @@ import {
   type DolbyLayout,
   type FloorPoint,
   type PlaceableId,
+  type RoomPoint,
   type RoomDimension,
+  type SeatRecommendation,
   type ShareLinkProblem,
   subwooferIds,
   type SubwooferCount,
@@ -116,16 +119,16 @@ export type ConfigState = {
    */
   setWallDistance: (id: PlaceableId, wall: Wall, meters: number) => void
   /**
-   * Move the MLP to the recommended seat ("Move MLP here"), making it
-   * manual, as one undoable step; auto speakers follow it. With the MLP
-   * already there it changes nothing.
+   * Move the MLP to `seat`, the recommended seat on screen ("Move MLP
+   * here"), making it manual, as one undoable step; auto speakers follow
+   * it. With the MLP already there it changes nothing.
    */
-  moveMlpToRecommendedSeat: () => void
+  moveMlpToRecommendedSeat: (seat: RoomPoint) => void
   /**
    * Put every channel, subwoofer and the MLP back to auto, dropping the
-   * stored manual positions, as one undoable change. With nothing manual it
-   * changes nothing (and makes no new state, so undo won't record an empty
-   * step).
+   * stored manual positions, then the MLP at the recommended seat, as one
+   * undoable change. When that changes nothing it makes no new state, so
+   * undo won't record an empty step.
    */
   autoPlace: () => void
   /**
@@ -166,9 +169,18 @@ export function isShowingLinkFallback(state: ConfigState): boolean {
   return state.config === state.linkFallback
 }
 
-/** Whether anything is manual, so Auto-place has something to reset. */
-export function hasManualPositions(state: ConfigState): boolean {
-  return Object.keys(state.config.manualPositions).length > 0
+/**
+ * Whether Auto-place has something to do: an item other than the MLP is
+ * manual, or the MLP isn't at the recommended seat. Until the
+ * recommendation is ready, whether anything is manual.
+ */
+export function canAutoPlace(
+  config: Config,
+  recommendation: SeatRecommendation | null,
+): boolean {
+  const manual = Object.keys(config.manualPositions)
+  if (!recommendation) return manual.length > 0
+  return manual.some((id) => id !== MLP_ID) || !recommendation.mlpIsRecommended
 }
 
 /** The group's own specs, kept only for the subwoofers in `ids`. */
@@ -327,13 +339,11 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             setConfigIfChanged((config) =>
               placeAtWallDistance(config, id, wall, meters),
             ),
-          moveMlpToRecommendedSeat: () =>
-            setConfigIfChanged(withMlpAtRecommendedSeat),
-          autoPlace: () => {
-            const { config } = get()
-            if (Object.keys(config.manualPositions).length === 0) return
-            set({ config: withAutoPlacement(config) })
-          },
+          moveMlpToRecommendedSeat: (seat) =>
+            setConfigIfChanged((config) =>
+              withMlpAtRecommendedSeat(config, seat),
+            ),
+          autoPlace: () => setConfigIfChanged(withAutoPlacement),
           beginGesture: () => {
             const { gesture, config } = get()
             if (gesture) {

@@ -30,7 +30,8 @@ export function PositionsForm() {
       <p className="text-xs text-muted-foreground">
         Drag speakers and the MLP in the room view, or edit them here. Moved
         items are manual and stay where you put them; auto items follow the room
-        and the MLP. Auto-place puts everything back to auto.
+        and the MLP. Auto-place puts everything back to auto and the MLP at the
+        recommended seat.
       </p>
       <ul className="flex flex-col">
         {speakers.map(({ channel, name, position, placement }) => (

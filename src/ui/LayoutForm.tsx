@@ -8,8 +8,12 @@ import {
   V1_DOLBY_LAYOUTS,
   type SubwooferCount,
 } from '@/domain'
-import { useConfig, useRoomAnalysis } from '@/state/config-context'
-import { hasManualPositions } from '@/state/config-store'
+import {
+  useConfig,
+  useRoomAnalysis,
+  useSeatRecommendation,
+} from '@/state/config-context'
+import { canAutoPlace } from '@/state/config-store'
 import { Button } from '@/ui/components/button'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
 
@@ -19,8 +23,8 @@ const CHOSEN_OPTION =
 
 /**
  * The Layout picker, in X.Y.Z notation, the subwoofer count (the Y) and the
- * Auto-place button, which puts every manual item back to auto (and is off
- * while nothing is manual).
+ * Auto-place button, which puts every manual item back to auto and the MLP
+ * at the recommended seat (and is off while that would change nothing).
  */
 export function LayoutForm() {
   const headingId = useId()
@@ -29,7 +33,8 @@ export function LayoutForm() {
   const setLayout = useConfig((state) => state.setLayout)
   const setSubwooferCount = useConfig((state) => state.setSubwooferCount)
   const autoPlace = useConfig((state) => state.autoPlace)
-  const anythingManual = useConfig(hasManualPositions)
+  const config = useConfig((state) => state.config)
+  const recommendation = useSeatRecommendation()
   const { listenerLevel, overheads } = useRoomAnalysis().layout
 
   return (
@@ -97,7 +102,7 @@ export function LayoutForm() {
       )}
       <Button
         onClick={autoPlace}
-        disabled={!anythingManual}
+        disabled={!canAutoPlace(config, recommendation)}
         className="self-start max-lg:h-11"
       >
         Auto-place

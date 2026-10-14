@@ -10,6 +10,7 @@ import {
   describeSubwoofer,
   GRADE_STYLES,
   RECOMMENDED_SEAT_COLOR,
+  RULE_OF_THUMB_COLOR,
   UNGRADED_STYLE,
 } from '@/scene/speakers'
 import { canUseWebGL } from '@/scene/webgl'
@@ -118,6 +119,14 @@ export function RoomView() {
               style={{ borderColor: RECOMMENDED_SEAT_COLOR }}
             />
             Recommended seat (estimate)
+          </p>
+          <p className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="w-3 border-t border-dashed"
+              style={{ borderColor: RULE_OF_THUMB_COLOR }}
+            />
+            38% rule of thumb (reference only)
           </p>
           <p className="flex items-center gap-1.5">
             <span

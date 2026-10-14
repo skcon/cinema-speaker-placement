@@ -9,7 +9,7 @@ import { HistoryButtons } from '@/ui/HistoryButtons'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { LayoutForm } from '@/ui/LayoutForm'
 import { PositionsForm } from '@/ui/PositionsForm'
-import { RecommendedSeat } from '@/ui/RecommendedSeat'
+import { Seating } from '@/ui/Seating'
 import { RoomForm } from '@/ui/RoomForm'
 import { SpeakerList } from '@/ui/SpeakerList'
 import { SpeakerSpecsForm } from '@/ui/SpeakerSpecsForm'
@@ -50,7 +50,7 @@ export function AppShell({
           <LayoutForm />
           <SpeakerList />
           <PositionsForm />
-          <RecommendedSeat />
+          <Seating />
           <SpeakerSpecsForm />
           <CrossoverField />
         </aside>

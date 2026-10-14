@@ -131,14 +131,14 @@ describe('the seat row and the 38% rule', () => {
   })
 
   it('gives the 38% rule’s distance in this room and where the MLP is by it', () => {
-    const { seatRuleOfThumb } = analyzeRoom({
+    const { seatRuleOfThumb, mlpFrontWallFraction } = analyzeRoom({
       ...DEFAULT_CONFIG,
       manualPositions: { MLP: { x: 0, y: 3, z: 1.2 } },
     })
 
     expect(seatRuleOfThumb.fraction).toBe(0.38)
     expect(seatRuleOfThumb.fromFrontWall).toBeCloseTo(2.28, 9)
-    expect(seatRuleOfThumb.seatFraction).toBeCloseTo(0.5, 9)
+    expect(mlpFrontWallFraction).toBeCloseTo(0.5, 9)
   })
 })
 

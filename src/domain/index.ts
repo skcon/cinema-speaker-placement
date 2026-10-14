@@ -150,6 +150,15 @@ export {
   type ShareLinkProblem,
 } from './share-link'
 export {
+  describeRecentRoom,
+  parseRecentRooms,
+  RECENT_ROOMS_LIMIT,
+  removeRecentRoom,
+  saveRecentRoom,
+  serializeRecentRooms,
+  type RecentRoom,
+} from './recent-rooms'
+export {
   formatLength,
   formatInches,
   fromInches,

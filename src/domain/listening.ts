@@ -18,7 +18,12 @@ import {
   interferenceLevels,
   type BoundaryReflection,
 } from './boundary-interference'
-import type { SubwooferSpecs } from './speaker-specs'
+import {
+  SPEAKER_GROUP_OF,
+  wooferPosition,
+  type SpeakerChannelId,
+  type SubwooferSpecs,
+} from './speaker-specs'
 import type { SubwooferId } from './subwoofer-arrangements'
 
 /**
@@ -64,30 +69,52 @@ export function prepareConfigResponse(
   })
 }
 
+/**
+ * Where channel `channel`'s Speaker at `position` has its woofer: below it
+ * by its speaker group's type (bookshelf or tower). A group without a type
+ * (the overheads) has it at the speaker's position.
+ */
+export function wooferOf(
+  { speakerGroups }: Config,
+  channel: SpeakerChannelId,
+  position: RoomPoint,
+): RoomPoint {
+  const { specs } = speakerGroups[SPEAKER_GROUP_OF[channel]]
+  return 'type' in specs ? wooferPosition(position, specs.type) : position
+}
+
 /** A Speaker as heard at a listening position. */
 export type HeardSpeaker = {
   /** It faces the listening position. */
   readonly aim: Aim
+  /** Where its woofer is, which its reflections start from. */
+  readonly woofer: RoomPoint
   readonly reflections: readonly BoundaryReflection[]
   /** Its boundary interference in dB at each frequency. */
   readonly levels: readonly number[]
 }
 
-/** A Speaker at `position`, aimed at and heard at `listener`. */
+/**
+ * Channel `channel`'s Speaker at `position` (its acoustic center), aimed
+ * at and heard at `listener`. Below about 500 Hz the woofer is what
+ * reflects off the surfaces, so the reflections start from it.
+ */
 export function hearSpeaker(
   config: Config,
-  position: RoomPoint,
+  { channel, position }: { channel: SpeakerChannelId; position: RoomPoint },
   listener: RoomPoint,
   frequencies: readonly number[],
 ): HeardSpeaker {
   const aim = aimAtMlp(position, listener)
+  const woofer = wooferOf(config, channel, position)
   const reflections = boundaryReflections(
     config.room,
-    { position, aim },
+    { position: woofer, aim },
     listener,
   )
   return {
     aim,
+    woofer,
     reflections,
     levels: interferenceLevels(reflections, frequencies),
   }

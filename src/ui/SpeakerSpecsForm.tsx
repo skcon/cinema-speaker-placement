@@ -1,13 +1,22 @@
 import { useId, useState } from 'react'
 import {
+  checkAmplifierWatts,
+  checkSensitivity,
   checkSubwooferSpec,
+  DEFAULT_AMPLIFIER_WATTS,
+  DEFAULT_SPEAKER_SPECS,
   DEFAULT_SUBWOOFER_SPECS,
   ENCLOSURES,
   formatInches,
+  SPEAKER_GROUP_NAMES,
+  SPEAKER_TYPES,
+  speakerGroupsIn,
   SUBWOOFER_SPEC_FIELDS,
   subwooferIds,
   SUBWOOFERS,
   type Enclosure,
+  type SpeakerGroupId,
+  type SpeakerType,
   type SubwooferId,
   type SubwooferSpecField,
   type SubwooferSpecs,
@@ -16,6 +25,8 @@ import { useConfig } from '@/state/config-context'
 import { Input } from '@/ui/components/input'
 import { Label } from '@/ui/components/label'
 import { RadioGroup, RadioGroupItem } from '@/ui/components/radio-group'
+import { NumberField } from '@/ui/NumberField'
+import { rangeErrorMessage } from '@/ui/lib/range-error'
 import {
   acceptedSpecs,
   draftsFromSpecs,
@@ -32,20 +43,118 @@ const ENCLOSURE_LABELS = {
   ported: 'Ported',
 } as const satisfies Record<Enclosure, string>
 
+const SPEAKER_TYPE_LABELS = {
+  bookshelf: 'Bookshelf',
+  tower: 'Tower',
+} as const satisfies Record<SpeakerType, string>
+
 /**
- * Specs per speaker group (GLOSSARY.md). Only the Subwoofers group so far,
- * with optional specs per subwoofer; #13 adds the other groups here.
+ * Specs per speaker group (GLOSSARY.md), for the groups the layout uses,
+ * the amplifier power per channel, and the Subwoofers group with optional
+ * specs per subwoofer.
  */
 export function SpeakerSpecsForm() {
-  const headingId = useId()
+  const layout = useConfig((state) => state.config.layout)
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4">
-      <h3 id={headingId} className="text-sm font-semibold">
-        Speaker specs
-      </h3>
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-muted-foreground">{SPEAKER_GROUPS_NOTE}</p>
+      {speakerGroupsIn(layout).map((group) => (
+        <SpeakerGroupSpecs key={group} group={group} />
+      ))}
+      <AmplifierPowerField />
       <SubwooferGroupSpecs />
       <OwnSubwooferSpecs />
-    </section>
+    </div>
+  )
+}
+
+/** What the speaker group specs mean, written from the defaults themselves. */
+const SPEAKER_GROUPS_NOTE = (() => {
+  const { type, sensitivity } = DEFAULT_SPEAKER_SPECS
+  return (
+    'One speaker model per group. Sensitivity is dB SPL at 1 m with 1 W. ' +
+    'A bookshelf goes on a stand and a tower on the floor, both with the ' +
+    'tweeter at seated ear height; a tower’s woofer sits lower, which ' +
+    `changes its floor reflection. Starting values are ours: a ${sensitivity} dB ` +
+    `${SPEAKER_TYPE_LABELS[type].toLowerCase()} speaker and ` +
+    `${formatWatts(DEFAULT_AMPLIFIER_WATTS)} per channel, typical of home ` +
+    'theater gear, not a measured product.'
+  )
+})()
+
+const sensitivityError = rangeErrorMessage(
+  'sensitivity',
+  'Sensitivity',
+  (db) => `${db} dB`,
+)
+
+const amplifierWattsError = rangeErrorMessage(
+  'amplifier power',
+  'Amplifier power',
+  formatWatts,
+)
+
+/** One speaker group's specs: bookshelf or tower (not for overheads), and sensitivity. */
+function SpeakerGroupSpecs({ group }: { group: SpeakerGroupId }) {
+  const specs = useConfig((state) => state.config.speakerGroups[group].specs)
+  const setSpeakerSpecs = useConfig((state) => state.setSpeakerSpecs)
+  const typeLabelId = useId()
+  const idPrefix = useId()
+
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className="mb-1.5 text-sm font-medium">
+        {SPEAKER_GROUP_NAMES[group]}
+      </legend>
+      {'type' in specs && (
+        <div className="flex flex-col gap-2">
+          <span id={typeLabelId} className="text-sm font-medium">
+            Type
+          </span>
+          <RadioGroup
+            aria-labelledby={typeLabelId}
+            value={specs.type}
+            onValueChange={(value) => {
+              const type = SPEAKER_TYPES.find((t) => t === value)
+              if (type) setSpeakerSpecs(group, { type })
+            }}
+            className="flex flex-wrap gap-x-4 gap-y-2"
+          >
+            {SPEAKER_TYPES.map((type) => (
+              <div key={type} className="flex items-center gap-2">
+                <RadioGroupItem value={type} id={`${idPrefix}-${type}`} />
+                <Label htmlFor={`${idPrefix}-${type}`} className="font-normal">
+                  {SPEAKER_TYPE_LABELS[type]}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+      )}
+      <NumberField
+        label="Sensitivity (dB)"
+        value={specs.sensitivity}
+        check={checkSensitivity}
+        onValid={(sensitivity) => setSpeakerSpecs(group, { sensitivity })}
+        errorMessage={sensitivityError}
+      />
+    </fieldset>
+  )
+}
+
+/** The one amplifier power every Speaker gets (user story 16). */
+function AmplifierPowerField() {
+  const watts = useConfig((state) => state.config.amplifierWatts)
+  const setAmplifierWatts = useConfig((state) => state.setAmplifierWatts)
+  return (
+    <NumberField
+      label="Amplifier power per channel (W)"
+      value={watts}
+      check={checkAmplifierWatts}
+      onValid={setAmplifierWatts}
+      errorMessage={amplifierWattsError}
+      note="Your receiver's or amplifier's rated power per channel, for the headroom check."
+    />
   )
 }
 
@@ -60,7 +169,7 @@ function SubwooferGroupSpecs() {
       <SubwooferSpecsFields target="group" specs={specs} />
       <p className="text-xs text-muted-foreground">
         {DEFAULTS_NOTE} The enclosure shapes the estimated bass roll-off; driver
-        size and power aren&rsquo;t used in any estimate yet.
+        size, enclosure and RMS power give a very rough headroom check.
       </p>
     </fieldset>
   )

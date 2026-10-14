@@ -1,4 +1,3 @@
-import { useId } from 'react'
 import {
   formatLength,
   MLP_ID,
@@ -11,6 +10,7 @@ import {
 } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { LengthField } from '@/ui/LengthField'
+import { SidebarSection } from '@/ui/SidebarSection'
 
 /**
  * Where each speaker, subwoofer and the MLP is, for mounting it: height and
@@ -19,14 +19,10 @@ import { LengthField } from '@/ui/LengthField'
  * items follow the Room and the MLP until Auto-place resets them all.
  */
 export function PositionsForm() {
-  const headingId = useId()
   const { mlp, mlpPlacement, speakers, subwoofers } = useRoomAnalysis()
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2">
-      <h3 id={headingId} className="text-sm font-semibold">
-        Positions
-      </h3>
+    <SidebarSection title="Positions">
       <p className="text-xs text-muted-foreground">
         Drag speakers and the MLP in the room view, or edit them here. Moved
         items are manual and stay where you put them; auto items follow the room
@@ -65,7 +61,7 @@ export function PositionsForm() {
           height={{ fixed: 'Ear height' }}
         />
       </ul>
-    </section>
+    </SidebarSection>
   )
 }
 

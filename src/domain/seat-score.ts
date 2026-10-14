@@ -224,8 +224,13 @@ function hearRoom(config: Config) {
     const speakerLevels = speakers
       .filter(({ reference }) => isCharted(reference.channel))
       .map(
-        ({ position }) =>
-          hearSpeaker(config, position, seat, frequencies).levels,
+        ({ reference, position }) =>
+          hearSpeaker(
+            config,
+            { channel: reference.channel, position },
+            seat,
+            frequencies,
+          ).levels,
       )
     return {
       position: seat,

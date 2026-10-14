@@ -77,6 +77,7 @@ export {
   type SubwooferCount,
 } from './layout'
 export type { PlacementGrade } from './placement-range'
+export type { RangeProblem } from './range'
 export {
   checkRoomDimension,
   DEFAULT_ROOM,
@@ -93,21 +94,49 @@ export {
   type WallDistance,
   wallDistances,
 } from './room'
+export type {
+  ChannelHeadroom,
+  GroupHeadroom,
+  HeadroomAnalysis,
+  HeadroomStatus,
+  SubwooferHeadroom,
+} from './headroom'
 export {
+  areValidSpeakerSpecs,
   areValidSubwooferSpecs,
+  checkAmplifierWatts,
+  checkSensitivity,
   checkSubwooferSpec,
+  DEFAULT_AMPLIFIER_WATTS,
+  DEFAULT_SPEAKER_SPECS,
   DEFAULT_SUBWOOFER_SPECS,
   ENCLOSURES,
+  LISTENER_GROUP_IDS,
   mapSubwooferSpecFields,
+  SPEAKER_GROUP_IDS,
+  SPEAKER_GROUP_NAMES,
+  SPEAKER_GROUP_OF,
+  SPEAKER_TYPES,
+  speakerGroupsIn,
+  type SpeakerChannelId,
   SUBWOOFER_SPEC_FIELDS,
   type Enclosure,
+  type OverheadSpecs,
+  type SpeakerGroupId,
+  type SpeakerSpecs,
+  type SpeakerType,
   type SpeakerGroups,
   type SubwooferGroup,
   type SubwooferSpecField,
   type SubwooferSpecProblem,
   type SubwooferSpecs,
 } from './speaker-specs'
-export { TARGET_TOLERANCE } from './reference'
+export {
+  HEADROOM_STATUS,
+  REFERENCE_LEVEL,
+  SPEAKER_TYPE_GEOMETRY,
+  TARGET_TOLERANCE,
+} from './reference'
 export {
   TARGET_CURVE_KINDS,
   TARGET_CURVES,

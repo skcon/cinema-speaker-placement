@@ -101,7 +101,7 @@ describe('response panel', () => {
     const weaknesses = screen.getByRole('list', { name: 'Weaknesses' })
     expect(
       within(weaknesses).getByText(
-        /^Dip at 18\d Hz \(−\d+\.\d dB\): likely a front-wall reflection notch \(Left and Right\)\.$/,
+        /^Dip at 1\d\d Hz \(−\d+\.\d dB\): likely a front-wall reflection notch \(Left and Right\)\.$/,
       ),
     ).toBeVisible()
     expect(

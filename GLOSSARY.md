@@ -58,6 +58,18 @@ _Avoid_: Speaker set, pair, zone
 A speaker that reproduces the low-frequency (the `Y` in `X.Y.Z`) part of the layout. Each has an id, `Sub1` to `Sub4`, that stays with it when the subwoofer count changes.
 _Avoid_: Sub channel, LFE speaker
 
+**Speaker type**:
+Whether a listener-level speaker group's model is a bookshelf (on a stand) or a tower (on the floor). Both have the tweeter at ear height; it sets where the woofer is.
+_Avoid_: Form factor, floorstander, cabinet style
+
+**Sensitivity**:
+How loud a Speaker plays at 1 m with 1 W, in dB SPL.
+_Avoid_: Efficiency (in the UI), loudness rating
+
+**Amplifier power**:
+The one power per channel, in watts, that drives every Speaker in the headroom check.
+_Avoid_: Amp watts, receiver power
+
 **Own specs**:
 Specs a single subwoofer has instead of its speaker group's, for a mixed set of subwoofers; a subwoofer without them uses the group's specs.
 _Avoid_: Override, per-sub specs, custom specs
@@ -95,6 +107,18 @@ _Avoid_: SBIR (in the UI), comb filtering, wall bounce
 **Weakness** / **Strength**:
 A peak or dip of the estimated response outside the target's tolerance band, or something the plan gets right, each with its likely cause in the model.
 _Avoid_: Problem, issue, error
+
+**Reference level**:
+The level each channel is calibrated to at the MLP: 82 dB SPL(C) with pink noise at −20 dBFS, the top of Dolby's home range (IG p.15; `docs/research/reference-level-headroom.md`).
+_Avoid_: Calibration target, THX level
+
+**Reference peak**:
+The loudest a channel is asked to play at the MLP: the reference level plus the 20 dB from the test signal to full scale, 102 dB SPL per channel, and the LFE's 10 dB more, 112 dB, for the Subwoofers.
+_Avoid_: Max volume, reference level (for the peak)
+
+**Headroom**:
+How far above the reference peak a speaker group (its weakest Speaker) or the Subwoofers together can play at the MLP, estimated from sensitivity, power and distance; enough, tight or short. An estimate, never a measurement.
+_Avoid_: Reserve, margin (in the UI), SPL capability
 
 **Seat score**:
 How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The best of a grid of candidates is the recommended seat; an estimate, never a measurement.

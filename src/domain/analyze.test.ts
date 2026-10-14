@@ -120,7 +120,7 @@ describe('layouts', () => {
   })
 })
 
-describe('the MLP before the recommended seat exists', () => {
+describe('the auto MLP', () => {
   it('sits 38% of the room length from the front wall, centered, at ear height', () => {
     const { mlp } = analyzeRoom(DEFAULT_CONFIG)
 

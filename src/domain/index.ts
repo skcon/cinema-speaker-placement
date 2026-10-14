@@ -24,6 +24,12 @@ export type {
 } from './response-notes'
 export type { Surface } from './boundary-interference'
 export type { RoomMode, RoomModeKind } from './room-modes'
+export {
+  recommendSeat,
+  scoreSeat,
+  type ScoredSeat,
+  type SeatRecommendation,
+} from './seat-score'
 export { DEFAULT_CONFIG, type Config } from './config'
 export {
   checkCrossover,

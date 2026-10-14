@@ -155,6 +155,11 @@ export function nearestWall(room: Room, point: RoomPoint): Wall {
   )
 }
 
+/** The straight-line distance between two room points, in meters. */
+export function distanceBetween(a: RoomPoint, b: RoomPoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+}
+
 /** A point's distance to one wall, in meters. */
 export type WallDistance = { wall: Wall; meters: number }
 

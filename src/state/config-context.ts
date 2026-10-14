@@ -1,4 +1,10 @@
-import { createContext, useContext, useDeferredValue, useMemo } from 'react'
+import {
+  createContext,
+  useContext,
+  useDeferredValue,
+  useMemo,
+  useState,
+} from 'react'
 import { useStore } from 'zustand'
 import {
   analyzeRoom,
@@ -8,6 +14,7 @@ import {
   type SeatRecommendation,
 } from '@/domain'
 import type { ConfigState, ConfigStore } from './config-store'
+import { seatScoreKey } from './seat-recommendation'
 
 /** The app's config store; provided by ConfigStoreProvider. */
 export const ConfigStoreContext = createContext<ConfigStore | null>(null)
@@ -32,10 +39,26 @@ export function useRoomAnalysis(): RoomAnalysis {
  * render (it scores a grid of seats): null until the first one is ready,
  * and the last one while the next is worked out. During a drag it stays
  * the one from before the drag, and is worked out again once the drag
- * ends, so dragging stays smooth.
+ * ends, so dragging stays smooth. Memoized here, on everything the score
+ * depends on (seatScoreKey): a change of units or seat row width keeps it.
  */
 export function useSeatRecommendation(): SeatRecommendation | null {
   const config = useConfig((state) => state.gesture?.start ?? state.config)
   const deferred = useDeferredValue<Config | null>(config, null)
-  return useMemo(() => (deferred ? recommendSeat(deferred) : null), [deferred])
+  const key = deferred && seatScoreKey(deferred)
+  const [memo, setMemo] = useState<{
+    key: string | null
+    recommendation: SeatRecommendation | null
+  }>({ key: null, recommendation: null })
+  // Adjust state while rendering when the key changes (as CrossoverField
+  // does), so the grid is scored once per key.
+  if (memo.key !== key) {
+    const next = {
+      key,
+      recommendation: deferred && recommendSeat(deferred),
+    }
+    setMemo(next)
+    return next.recommendation
+  }
+  return memo.recommendation
 }

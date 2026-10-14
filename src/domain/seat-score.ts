@@ -25,9 +25,9 @@
  *
  * The subwoofers' room response is the analysis's own (the same
  * preparation, reused), so only the per-seat part (the costly modal sum
- * at the seat) is worked out per seat. The last recommendation is remembered,
- * so a config that changes only in ways the score doesn't depend on (the
- * units, the seat row) reuses it.
+ * at the seat) is worked out per seat. Nothing is remembered here: the
+ * caller memoizes (useSeatRecommendation). This is a domain entry point of
+ * its own next to `analyzeRoom`, so it can run deferred (ADR 0004).
  */
 import type { Config } from './config'
 import {
@@ -39,13 +39,18 @@ import {
   type ResponseCalibration,
   type ResponseParts,
 } from './estimated-response'
-import { hearSpeaker, isCharted, prepareConfigResponse } from './listening'
+import {
+  CHARTED_CHANNELS,
+  hearSpeaker,
+  isCharted,
+  prepareConfigResponse,
+} from './listening'
 import type { ChannelId } from './dolby-layouts'
 import { MLP_ID } from './manual-positions'
 import { checkPlacementRange, type PlacementGrade } from './placement-range'
 import { placeAll } from './placements'
 import { EAR_HEIGHT, SEAT_SCORE, SPEAKER_WALL_CLEARANCE } from './reference'
-import { azimuthFromMlp, type RoomPoint } from './room'
+import { azimuthFromMlp, distanceBetween, type RoomPoint } from './room'
 import { targetCurve, type TargetPoint } from './target-curve'
 
 /** A candidate MLP and how good it is. */
@@ -77,70 +82,29 @@ export type SeatRecommendation = {
   readonly current: ScoredSeat
   /** Whether the MLP already is (within a centimeter) at the recommended seat. */
   readonly mlpIsRecommended: boolean
-  /** Every candidate seat of the grid, with the calibration at the MLP. */
+  /**
+   * Every candidate seat of the grid with its score, for a heatmap (#16).
+   * The scores are relative: made with the calibration at the current MLP,
+   * so they change when the MLP moves, and compare seats in this config
+   * only.
+   */
   readonly candidates: readonly ScoredSeat[]
 }
 
 /** Score one seat as the MLP of `config`, with the calibration at its MLP. */
 export function scoreSeat(config: Config, seat: RoomPoint): ScoredSeat {
-  const room = hearRoom(config)
-  const mlp = room.hear(placeAll(config).mlp.position)
-  return room.score(room.hear(seat), room.calibrateAt(mlp))
+  return scoringAtMlp(config).scoreAt(seat)
 }
-
-/**
- * The last recommendation and what it was made from. A memo of a pure
- * function: the same input always gives the same result.
- */
-let lastRecommendation:
-  { key: string; recommendation: SeatRecommendation } | undefined
 
 /**
  * Score a grid of candidate seats across the Room, and recommend the best
  * (see above). Ties go to the MLP, then to the seat nearest the center
- * line, then nearest the front wall.
+ * line, then nearest the front wall. Pure and not memoized: the caller
+ * memoizes.
  */
 export function recommendSeat(config: Config): SeatRecommendation {
-  const key = scoreKey(config)
-  if (lastRecommendation?.key !== key) {
-    lastRecommendation = { key, recommendation: recommend(config) }
-  }
-  return lastRecommendation.recommendation
-}
-
-/** Everything the score depends on: not the units or the seat row. */
-function scoreKey({
-  room,
-  layout,
-  speakerGroups,
-  targetCurve,
-  crossoverHz,
-  manualPositions,
-}: Config): string {
-  return JSON.stringify({
-    room,
-    layout,
-    speakerGroups,
-    targetCurve,
-    crossoverHz,
-    manualPositions,
-  })
-}
-
-/** Scores this close count as equal. */
-const SCORE_TIE = 1e-9
-
-/** How far apart two seats may be and still be the same seat, in meters. */
-const SAME_SEAT = 0.01
-
-function recommend(config: Config): SeatRecommendation {
-  const room = hearRoom(config)
-  const mlp = room.hear(placeAll(config).mlp.position)
-  const calibration = room.calibrateAt(mlp)
-  const current = room.score(mlp, calibration)
-  const candidates = candidateSeats(config).map((seat) =>
-    room.score(room.hear(seat), calibration),
-  )
+  const { current, scoreAt } = scoringAtMlp(config)
+  const candidates = candidateSeats(config).map(scoreAt)
   const best = candidates.reduce(
     (best, candidate) =>
       candidate.score > best.score + SCORE_TIE ? candidate : best,
@@ -157,11 +121,32 @@ function recommend(config: Config): SeatRecommendation {
     current,
     mlpIsRecommended:
       recommended === current ||
-      Math.hypot(
-        recommended.position.x - current.position.x,
-        recommended.position.y - current.position.y,
-      ) < SAME_SEAT,
+      distanceBetween(recommended.position, current.position) < SAME_SEAT,
     candidates,
+  }
+}
+
+/** Scores this close count as equal. */
+const SCORE_TIE = 1e-9
+
+/** How far apart two seats may be and still be the same seat, in meters. */
+const SAME_SEAT = 0.01
+
+/**
+ * The setup both entry points share: the room heard, the calibration made
+ * at the config's MLP, the MLP scored with it, and a way to score any
+ * seat with the same calibration.
+ */
+function scoringAtMlp(config: Config): {
+  current: ScoredSeat
+  scoreAt: (seat: RoomPoint) => ScoredSeat
+} {
+  const room = hearRoom(config)
+  const mlp = room.hear(placeAll(config).mlp.position)
+  const calibration = room.calibrateAt(mlp)
+  return {
+    current: room.score(mlp, calibration),
+    scoreAt: (seat) => room.score(room.hear(seat), calibration),
   }
 }
 
@@ -182,6 +167,9 @@ function candidateSeats({ room }: Config): RoomPoint[] {
   )
 }
 
+/** Rounding error allowed when dividing lengths (a float's noise). */
+const FLOAT_EPSILON = 1e-9
+
 /**
  * Points from `low` to `high`, both included, at most SEAT_SCORE's grid
  * spacing apart, but no more than its maximum per side.
@@ -190,7 +178,8 @@ function evenlySpaced(low: number, high: number): number[] {
   const span = high - low
   const count = Math.min(
     SEAT_SCORE.maxPerSide,
-    Math.ceil(span / SEAT_SCORE.gridSpacing - SCORE_TIE) + 1,
+    // A span that is a whole number of spacings needs no extra point.
+    Math.ceil(span / SEAT_SCORE.gridSpacing - FLOAT_EPSILON) + 1,
   )
   if (count < 2) return [(low + high) / 2]
   return Array.from({ length: count }, (_, i) => low + (span * i) / (count - 1))
@@ -243,7 +232,7 @@ function hearRoom(config: Config) {
       parts: responseParts(prepared, { receiver: seat, speakerLevels }),
       placementFit: placementFit(
         seat,
-        speakers.map(({ reference, position }) => ({
+        speakers.map(({ reference, position }): GradedSpeaker => ({
           channel: reference.channel,
           position,
           grade: checkPlacementRange(reference, azimuthFromMlp(seat, position))
@@ -287,28 +276,30 @@ function hearRoom(config: Config) {
   return { hear, calibrateAt, score }
 }
 
-/** The front channels, which set Dolby's reference distance (IG p.6). */
-const FRONT_CHANNELS = ['L', 'C', 'R'] as const satisfies readonly ChannelId[]
+/** A listener-level speaker, where it is and its grade from a seat. */
+type GradedSpeaker = {
+  readonly channel: ChannelId
+  readonly position: RoomPoint
+  readonly grade: PlacementGrade
+}
 
 /**
  * The speakers' mean placement fit from `seat` (SEAT_SCORE): each one's
- * grade value times its equidistance against the farthest front speaker.
+ * grade value times its equidistance against the farthest front speaker
+ * (CHARTED_CHANNELS: Left, Center and Right set Dolby's reference
+ * distance, IG p.6).
  */
 function placementFit(
   seat: RoomPoint,
-  speakers: readonly {
-    channel: ChannelId
-    position: RoomPoint
-    grade: PlacementGrade
-  }[],
+  speakers: readonly GradedSpeaker[],
 ): number {
   if (speakers.length === 0) return 1
-  const distanceOf = ({ position }: { position: RoomPoint }) =>
-    Math.hypot(position.x - seat.x, position.y - seat.y, position.z - seat.z)
+  const distanceOf = ({ position }: GradedSpeaker) =>
+    distanceBetween(position, seat)
   const reference = Math.max(
     0,
     ...speakers
-      .filter(({ channel }) => FRONT_CHANNELS.some((c) => c === channel))
+      .filter(({ channel }) => CHARTED_CHANNELS.some((c) => c === channel))
       .map(distanceOf),
   )
   const counted = SEAT_SCORE.equidistanceShare * reference

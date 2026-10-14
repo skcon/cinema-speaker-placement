@@ -24,9 +24,14 @@ import type { SubwooferId } from './subwoofer-arrangements'
 /**
  * The channels whose Speakers make up the chart's Speakers' part: the
  * front three, which every listener-level layout but 2.1 has all of. The
- * Center usually sits nearest the front wall.
+ * Center usually sits nearest the front wall. They are also the front
+ * speakers that set Dolby's reference distance (IG p.6, seat-score.ts).
  */
-const CHARTED_CHANNELS = ['L', 'C', 'R'] as const satisfies readonly ChannelId[]
+export const CHARTED_CHANNELS = [
+  'L',
+  'C',
+  'R',
+] as const satisfies readonly ChannelId[]
 
 /** Whether a channel's Speaker is part of the chart's Speakers' part. */
 export function isCharted(channel: ChannelId): boolean {

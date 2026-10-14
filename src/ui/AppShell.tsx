@@ -5,8 +5,10 @@ import type { Config } from '@/domain'
 import { RoomView } from '@/scene/RoomView'
 import { CopyLinkButton } from '@/ui/CopyLinkButton'
 import { CrossoverField } from '@/ui/CrossoverField'
+import { HistoryButtons } from '@/ui/HistoryButtons'
 import { LinkProblemMessage } from '@/ui/LinkProblemMessage'
 import { LayoutForm } from '@/ui/LayoutForm'
+import { PositionsForm } from '@/ui/PositionsForm'
 import { RoomForm } from '@/ui/RoomForm'
 import { SpeakerList } from '@/ui/SpeakerList'
 import { SpeakerSpecsForm } from '@/ui/SpeakerSpecsForm'
@@ -32,6 +34,7 @@ export function AppShell({
               Plan your home theater for sound, not looks.
             </p>
           </div>
+          <HistoryButtons />
           <CopyLinkButton shareLinkFor={shareLinkFor} />
         </header>
         <LinkProblemMessage />
@@ -45,6 +48,7 @@ export function AppShell({
           <RoomForm />
           <LayoutForm />
           <SpeakerList />
+          <PositionsForm />
           <SpeakerSpecsForm />
           <CrossoverField />
         </aside>

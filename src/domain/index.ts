@@ -31,6 +31,19 @@ export {
   type CrossoverProblem,
 } from './crossover'
 export {
+  placeAtWallDistance,
+  placeManually,
+  withAutoPlacement,
+  withLayout,
+  withRoom,
+} from './config-edits'
+export {
+  MLP_ID,
+  type ManualPositions,
+  type PlaceableId,
+  type Placement,
+} from './manual-positions'
+export {
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,
@@ -56,12 +69,15 @@ export {
   floorCenter,
   floorCorners,
   wallBases,
+  type FloorPoint,
   type Room,
   type RoomDimension,
   type RoomDimensionProblem,
   type RoomPoint,
   type RoomSegment,
   type Wall,
+  type WallDistance,
+  wallDistances,
 } from './room'
 export {
   areValidSubwooferSpecs,

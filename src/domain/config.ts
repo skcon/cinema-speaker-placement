@@ -3,10 +3,18 @@ import { checkCrossover, DEFAULT_CROSSOVER_HZ } from './crossover'
 import { V1_DOLBY_LAYOUTS } from './dolby-layouts'
 import { DEFAULT_LAYOUT, SUBWOOFER_COUNTS, type Layout } from './layout'
 import {
+  entries,
+  mayBeAt,
+  PLACEABLE_IDS,
+  placeablesIn,
+  type ManualPositions,
+} from './manual-positions'
+import {
   checkRoomDimension,
   DEFAULT_ROOM,
   type Room,
   type RoomDimension,
+  type RoomPoint,
 } from './room'
 import {
   areValidSubwooferSpecs,
@@ -35,6 +43,13 @@ const subwooferSpecsSchema = z
     peakWatts: z.number(),
   })
   .refine(areValidSubwooferSpecs) satisfies z.ZodType<SubwooferSpecs>
+
+/** A point in room coordinates, in meters. */
+const roomPointSchema = z.strictObject({
+  x: z.number(),
+  y: z.number(),
+  z: z.number(),
+}) satisfies z.ZodType<RoomPoint>
 
 /**
  * The config's shape and rules: a config that passes it is one the store
@@ -70,6 +85,11 @@ export const configSchema = z
     targetCurve: z.enum(TARGET_CURVE_KINDS),
     // The crossover between the Speakers and the Subwoofers, in Hz.
     crossoverHz: z.number().refine((hz) => checkCrossover(hz) === null),
+    // Keyed by channel, subwoofer id or MLP; an item without one is auto.
+    manualPositions: z.partialRecord(
+      z.enum(PLACEABLE_IDS),
+      roomPointSchema,
+    ) satisfies z.ZodType<ManualPositions>,
   })
   // The subwoofer count lives in the layout: own specs only for its subwoofers.
   .refine(({ layout, speakerGroups }) => {
@@ -78,10 +98,17 @@ export const configSchema = z
       inLayout.some((layoutId) => layoutId === id),
     )
   })
+  // Manual positions only for items of the layout, each where it may go.
+  .refine(({ room, layout, manualPositions }) => {
+    const inLayout = placeablesIn(layout)
+    return entries(manualPositions).every(
+      ([id, point]) => inLayout.includes(id) && mayBeAt(room, id, point),
+    )
+  })
 
 /**
- * The single source of truth for a room plan: only inputs (and, later,
- * manual positions). Everything else is derived by `analyzeRoom`. Lengths
+ * The single source of truth for a room plan: only inputs and manual
+ * positions. Everything else is derived by `analyzeRoom`. Lengths
  * are in meters whatever `units` says; `units` only picks how the UI shows
  * and accepts them.
  */
@@ -95,4 +122,5 @@ export const DEFAULT_CONFIG: Config = {
   speakerGroups: DEFAULT_SPEAKER_GROUPS,
   targetCurve: 'flat',
   crossoverHz: DEFAULT_CROSSOVER_HZ,
+  manualPositions: {},
 }

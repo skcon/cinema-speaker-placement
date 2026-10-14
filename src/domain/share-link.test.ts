@@ -39,6 +39,11 @@ const SEALED_10 = {
   peakWatts: 150,
 } as const
 
+/** The default config (6 x 4.5 x 2.6 m, 5.1.2) with these manual positions. */
+function withManualPositions(manualPositions: unknown) {
+  return { ...DEFAULT_CONFIG, manualPositions }
+}
+
 /** The default config with this Subwoofers group: specs and own specs. */
 function withSubwooferGroup(subwoofers: unknown) {
   return { ...DEFAULT_CONFIG, speakerGroups: { subwoofers } }
@@ -84,7 +89,7 @@ describe('share link codec', () => {
 
   describe.each(V1_DOLBY_LAYOUTS)('rebuilds a %s layout', (dolbyLayout) => {
     it.each([1, 2, 3, 4] as const)(
-      'with %i subwoofer(s), every other one with its own specs',
+      'with %i subwoofer(s), every other one with its own specs, and Left, the last subwoofer and the MLP moved by hand',
       (subwoofers) => {
         const config: Config = {
           ...IMPERIAL_ROOM,
@@ -94,6 +99,12 @@ describe('share link codec', () => {
               specs: PORTED_15,
               ownSpecs: EVEN_OWN_SPECS[subwoofers],
             },
+          },
+          // In the 8 x 5 x 3 m room, on the wall and ceiling clearances.
+          manualPositions: {
+            L: { x: -2.2, y: 0.3, z: 2.7 },
+            [`Sub${subwoofers}`]: { x: 2.2, y: 7.7, z: 0.3 },
+            MLP: { x: 0.5, y: 3.25, z: 1.2 },
           },
         }
 
@@ -138,6 +149,29 @@ describe('share link codec', () => {
 
     expect(decodeConfig(encodeConfig(config))).toEqual({
       config,
+      problem: null,
+    })
+  })
+
+  it('rebuilds manual positions to the nearest millimeter, to keep links short', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: {
+        R: { x: 1.23456789, y: 0.98765, z: 1.5004999 },
+        MLP: { x: -0.0001, y: 2.5, z: 1.2 },
+        Sub1: { x: 0.0004, y: 0.3, z: 0.3 },
+      },
+    }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config: {
+        ...DEFAULT_CONFIG,
+        manualPositions: {
+          R: { x: 1.235, y: 0.988, z: 1.5 },
+          MLP: { x: 0, y: 2.5, z: 1.2 },
+          Sub1: { x: 0, y: 0.3, z: 0.3 },
+        },
+      },
       problem: null,
     })
   })
@@ -315,12 +349,69 @@ describe('share link codec', () => {
       ],
       ['an unknown target curve', { ...DEFAULT_CONFIG, targetCurve: 'harman' }],
       [
+        'no manual positions field',
+        {
+          units: 'metric',
+          room: DEFAULT_CONFIG.room,
+          layout: DEFAULT_CONFIG.layout,
+          speakerGroups: DEFAULT_CONFIG.speakerGroups,
+          targetCurve: 'flat',
+        },
+      ],
+      [
+        'a manual position for an unknown speaker',
+        withManualPositions({ Ltf: { x: -1, y: 2, z: 2.3 } }),
+      ],
+      // The default 5.1.2 has no rear surrounds and one subwoofer.
+      [
+        'a manual position for a channel not in the layout',
+        withManualPositions({ Lrs: { x: -1, y: 5, z: 1.2 } }),
+      ],
+      [
+        'a manual position for a subwoofer beyond the subwoofer count',
+        withManualPositions({ Sub2: { x: 0, y: 5.7, z: 0.3 } }),
+      ],
+      [
+        'a manual position outside the room',
+        withManualPositions({ R: { x: 3, y: 1, z: 1.2 } }),
+      ],
+      // Speakers keep 0.3 m from every wall (our wall clearance).
+      [
+        'a speaker closer to a wall than the wall clearance',
+        withManualPositions({ R: { x: 2.1, y: 1, z: 1.2 } }),
+      ],
+      [
+        'a speaker above the ceiling clearance',
+        withManualPositions({ R: { x: 1, y: 1, z: 2.4 } }),
+      ],
+      [
+        'a subwoofer off the floor',
+        withManualPositions({ Sub1: { x: 0, y: 0.3, z: 1 } }),
+      ],
+      [
+        'the MLP away from ear height',
+        withManualPositions({ MLP: { x: 0, y: 3, z: 1.5 } }),
+      ],
+      [
+        'a manual position without a height',
+        withManualPositions({ R: { x: 1, y: 1 } }),
+      ],
+      [
+        'a manual position with an unknown field',
+        withManualPositions({ R: { x: 1, y: 1, z: 1.2, yaw: 30 } }),
+      ],
+      [
+        'a manual position that is text',
+        withManualPositions({ R: { x: '1', y: 1, z: 1.2 } }),
+      ],
+      [
         'no target curve',
         {
           units: 'metric',
           room: DEFAULT_CONFIG.room,
           layout: DEFAULT_CONFIG.layout,
           speakerGroups: DEFAULT_CONFIG.speakerGroups,
+          manualPositions: {},
         },
       ],
     ])('for a version 1 config with %s', (_, config) => {
@@ -363,18 +454,31 @@ function longestSubwooferSpecs(offset: number) {
 }
 
 /**
+ * A manual position with the longest coordinates a share link stores:
+ * negative across, two digits before the point along, every one to the
+ * millimeter, and no two alike (so compression gains nothing). `n` picks
+ * the digits; heights stay below the 5 m room's ceiling clearance.
+ */
+function longestPosition(n: number, z?: number) {
+  const mm = (meters: number) => Math.round(meters * 1000) / 1000
+  return {
+    x: mm(-6.123 - n * 0.0537),
+    y: mm(14.219 - n * 0.0713),
+    z: z ?? mm(4.687 - n * 0.0919),
+  }
+}
+
+/**
  * The largest config a share link has to carry, for the size budget: the
  * largest real config today. Grow it with the config: the compiler asks for
  * every new field, and each one should take its longest value. Planned
- * growth (issue #2): every speaker (overheads and the four subwoofers
- * included) and the MLP manual with full-precision positions, specs for
- * the other speaker groups (#13), amp power, crossover, target curve and
- * seat row width.
+ * growth (issue #2): the overheads' manual positions (#8), specs for the
+ * other speaker groups (#13), amp power, crossover and seat row width.
  */
 const WORST_CASE_CONFIG: Config = {
   units: 'imperial',
   // Near the limits, with all 17 significant digits a converted
-  // feet + inches value or a drag can produce (14.987654320987655...).
+  // feet + inches value can produce (14.987654320987655...).
   room: { length: 15 - 1 / 81, width: 15 - 1 / 7, height: 5 - 1 / 81 },
   // The largest v1 layout: 7.4.4.
   layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
@@ -394,6 +498,22 @@ const WORST_CASE_CONFIG: Config = {
   targetCurve: 'house',
   // All 17 significant digits.
   crossoverHz: 199 - 1 / 7,
+  // Every listener-level speaker, every subwoofer (at subwoofer height)
+  // and the MLP (at ear height) moved by hand.
+  manualPositions: {
+    L: longestPosition(0),
+    C: longestPosition(1),
+    R: longestPosition(2),
+    Ls: longestPosition(3),
+    Rs: longestPosition(4),
+    Lrs: longestPosition(5),
+    Rrs: longestPosition(6),
+    Sub1: longestPosition(7, 0.3),
+    Sub2: longestPosition(8, 0.3),
+    Sub3: longestPosition(9, 0.3),
+    Sub4: longestPosition(10, 0.3),
+    MLP: longestPosition(11, 1.2),
+  },
 }
 
 /** Where the app is published (GitHub Pages, see pages.config.ts). */

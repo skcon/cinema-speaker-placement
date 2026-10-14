@@ -28,8 +28,14 @@ export const V1_DOLBY_LAYOUTS = [
 
 export type DolbyLayout = (typeof V1_DOLBY_LAYOUTS)[number]
 
+/**
+ * The listener-level channels, by Dolby's abbreviation (research section
+ * 2), in display order. A share link can validate a channel against it.
+ */
+export const CHANNEL_IDS = ['L', 'C', 'R', 'Ls', 'Rs', 'Lrs', 'Rrs'] as const
+
 /** A listener-level channel, by Dolby's abbreviation (research section 2). */
-export type ChannelId = 'L' | 'C' | 'R' | 'Ls' | 'Rs' | 'Lrs' | 'Rrs'
+export type ChannelId = (typeof CHANNEL_IDS)[number]
 
 /** Which side of the center-front reference a channel belongs on. */
 export type ChannelSide = 'left' | 'center' | 'right'

@@ -1,21 +1,16 @@
 import type { Config } from './config'
-import {
-  CHANNELS,
-  DOLBY_LAYOUTS,
-  type ChannelId,
-  type ChannelReference,
-} from './dolby-layouts'
+import { CHANNELS, type ChannelId } from './dolby-layouts'
 import { summarizeLayout, type LayoutSummary } from './layout'
-import { defaultMlp } from './mlp'
+import type { Placement } from './manual-positions'
 import {
   checkPlacementRange,
   type PlacementRangeCheck,
 } from './placement-range'
-import { aimAtMlp, autoPlaceSpeaker, type Aim } from './placement'
+import { aimAtMlp, type Aim } from './placement'
+import { placeAll } from './placements'
 import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
 import type { SubwooferSpecs } from './speaker-specs'
 import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
-import { autoPlaceSubwoofers } from './subwoofer-placement'
 import {
   estimateResponse,
   prepareRoomResponse,
@@ -35,13 +30,15 @@ import {
 } from './boundary-interference'
 import { responseNotes, type ResponseNotes } from './response-notes'
 
-/** A listener-level speaker of the layout, auto-placed and checked. */
+/** A listener-level speaker of the layout, placed and checked. */
 export type PlacedSpeaker = {
   readonly channel: ChannelId
   /** Dolby's name for the channel, for example "Left Surround". */
   readonly name: string
   /** Where the speaker is, in room coordinates (its acoustic center). */
   readonly position: RoomPoint
+  /** Auto-placed, or left by the user where it is. */
+  readonly placement: Placement
   /** Which way it faces: at the MLP. */
   readonly aim: Aim
   /** Its angle from the MLP, graded against Dolby's placement range. */
@@ -50,7 +47,7 @@ export type PlacedSpeaker = {
 
 /**
  * A subwoofer of the layout, auto-placed in the cited multi-subwoofer
- * arrangement. Dolby gives subwoofers no placement range, so it is not
+ * arrangement or left by the user where it is. Dolby gives subwoofers no placement range, so it is not
  * graded.
  */
 export type PlacedSubwoofer = {
@@ -60,7 +57,9 @@ export type PlacedSubwoofer = {
   readonly name: string
   /** Where it is, in room coordinates (its acoustic center). */
   readonly position: RoomPoint
-  /** The wall it stands against. */
+  /** Auto-placed, or left by the user where it is. */
+  readonly placement: Placement
+  /** The wall it stands against (for a manual one, the nearest wall). */
   readonly wall: Wall
   /**
    * The specs it is modelled with: its own specs, or the Subwoofers
@@ -90,6 +89,8 @@ export type RoomAnalysis = {
   layout: LayoutSummary
   /** The MLP in room coordinates. */
   mlp: RoomPoint
+  /** Whether the MLP is auto-placed or left by the user where it is. */
+  mlpPlacement: Placement
   /** The layout's listener-level speakers, in Dolby's channel order. */
   speakers: readonly PlacedSpeaker[]
   /** The layout's subwoofers, Subwoofer 1 first. */
@@ -105,28 +106,6 @@ export type RoomAnalysis = {
  */
 const CHARTED_CHANNELS = ['L', 'C', 'R'] as const satisfies readonly ChannelId[]
 
-/**
- * Where everything is: the MLP, each listener-level channel's position and
- * each subwoofer's. The one place positions come from, so manual
- * positions (#9) replace auto-placed ones here and everything derived
- * (aims, reflections, the estimate) follows.
- */
-function positionsOf({ room, layout }: Config): {
-  mlp: RoomPoint
-  speakers: { reference: ChannelReference; position: RoomPoint }[]
-  subwoofers: ReturnType<typeof autoPlaceSubwoofers>
-} {
-  const mlp = defaultMlp(room)
-  return {
-    mlp,
-    speakers: DOLBY_LAYOUTS[layout.dolbyLayout].channels.map((reference) => ({
-      reference,
-      position: autoPlaceSpeaker(room, mlp, reference),
-    })),
-    subwoofers: autoPlaceSubwoofers(room, layout.subwoofers),
-  }
-}
-
 /** The domain entry point: derive the room plan from a config. */
 export function analyzeRoom(config: Config): RoomAnalysis {
   const {
@@ -136,39 +115,45 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     targetCurve: targetCurveKind,
     crossoverHz,
   } = config
-  const positions = positionsOf(config)
-  const { mlp } = positions
+  // The one place positions come from: manual where the user put an item,
+  // else auto-placed (placements.ts). Everything below follows from them.
+  const placements = placeAll(config)
+  const mlp = placements.mlp.position
   const frequencies = responseFrequencies()
 
   // Each speaker faces the current MLP; its reflections follow from that
   // aim and are worked out once, for both the estimate and the notes.
-  const heardSpeakers = positions.speakers.map(({ reference, position }) => {
-    const aim = aimAtMlp(position, mlp)
-    const reflections = boundaryReflections(room, { position, aim }, mlp)
-    const speaker: PlacedSpeaker = {
-      channel: reference.channel,
-      name: CHANNELS[reference.channel].name,
-      position,
-      aim,
-      placementRange: checkPlacementRange(
-        reference,
-        azimuthFromMlp(mlp, position),
-      ),
-    }
-    return {
-      speaker,
-      charted: CHARTED_CHANNELS.some((c) => c === reference.channel),
-      reflections,
-      levels: interferenceLevels(reflections, frequencies),
-    }
-  })
+  const heardSpeakers = placements.speakers.map(
+    ({ reference, position, placement }) => {
+      const aim = aimAtMlp(position, mlp)
+      const reflections = boundaryReflections(room, { position, aim }, mlp)
+      const speaker: PlacedSpeaker = {
+        channel: reference.channel,
+        name: CHANNELS[reference.channel].name,
+        position,
+        placement,
+        aim,
+        placementRange: checkPlacementRange(
+          reference,
+          azimuthFromMlp(mlp, position),
+        ),
+      }
+      return {
+        speaker,
+        charted: CHARTED_CHANNELS.some((c) => c === reference.channel),
+        reflections,
+        levels: interferenceLevels(reflections, frequencies),
+      }
+    },
+  )
 
   const { specs: groupSpecs, ownSpecs } = speakerGroups.subwoofers
-  const subwoofers = positions.subwoofers.map(
-    ({ id, position, wall }): PlacedSubwoofer => ({
+  const subwoofers = placements.subwoofers.map(
+    ({ id, position, placement, wall }): PlacedSubwoofer => ({
       id,
       name: SUBWOOFERS[id].name,
       position,
+      placement,
       wall,
       specs: ownSpecs[id] ?? groupSpecs,
     }),
@@ -213,6 +198,7 @@ export function analyzeRoom(config: Config): RoomAnalysis {
   return {
     layout: summarizeLayout(layout),
     mlp,
+    mlpPlacement: placements.mlp.placement,
     speakers: heardSpeakers.map(({ speaker }) => speaker),
     subwoofers,
     response: {

@@ -12,7 +12,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, and opens, follows and restores a share link', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, opens, follows and restores a share link, and keeps a dragged speaker', async ({
   page,
 }) => {
   await page.goto('./')
@@ -150,5 +150,52 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
         .getByRole('region', { name: 'Room view' })
         .getByRole('img', { name: /30 ft 0 in long and 15 ft 0 in wide/ }),
     ).toBeVisible()
+  })
+
+  const editedScene = page
+    .getByRole('region', { name: 'Room view' })
+    .getByRole('img', { name: /30 ft 0 in long and 15 ft 0 in wide/ })
+  const centerLabel = editedScene.getByText(/^C \d+°$/)
+
+  await test.step('dragging a speaker moves it and reaches the address', async () => {
+    await expect(centerLabel).toHaveText('C 0°')
+    const box = await editedScene.locator('canvas').boundingBox()
+    if (!box) throw new Error('the room view has no canvas')
+    // The view fits the 30 x 15 ft room inside a 32 px margin, with the
+    // front wall at the top (src/scene/top-down.ts).
+    const room = { length: 30 * 0.3048, width: 15 * 0.3048 }
+    const zoom = Math.min(
+      (box.width - 64) / room.width,
+      (box.height - 64) / room.length,
+    )
+    const onScreen = (x: number, y: number) => ({
+      x: box.x + box.width / 2 + x * zoom,
+      y: box.y + box.height / 2 + (y - room.length / 2) * zoom,
+    })
+    // The Center is auto-placed on the center line, 0.3 m from the front
+    // wall; drag it 1 m right and 1 m back.
+    const from = onScreen(0, 0.3)
+    const to = onScreen(1, 1.3)
+    const addressBefore = page.url()
+
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(to.x, to.y, { steps: 10 })
+    await page.mouse.up()
+
+    // From the MLP, 3.47 m from the front wall, it is now about 25° right.
+    await expect(centerLabel).toHaveText(/^C 2[456]°$/)
+    await expect(page).toHaveURL((url) => url.href !== addressBefore)
+  })
+
+  await test.step('a reload restores the dragged speaker', async () => {
+    const draggedLabel = await centerLabel.textContent()
+
+    await page.reload()
+
+    await expect(centerLabel).toHaveText(draggedLabel ?? '')
+    await expect(
+      page.getByRole('group', { name: 'Center position' }),
+    ).toContainText('manual')
   })
 })

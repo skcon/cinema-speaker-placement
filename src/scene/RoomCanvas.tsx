@@ -1,0 +1,828 @@
+import {
+  Html,
+  Line,
+  OrbitControls,
+  OrthographicCamera,
+  PerspectiveCamera,
+} from '@react-three/drei'
+import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
+import { cn } from 'cn'
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react'
+import {
+  Color,
+  DoubleSide,
+  InstancedMesh,
+  Object3D,
+  Plane,
+  Vector3,
+} from 'three'
+import {
+  floorCorners,
+  MLP_ID,
+  type FloorPoint,
+  wallBases,
+  type PlaceableId,
+  type PlacedOverhead,
+  type PlacedSpeaker,
+  type PlacedSubwoofer,
+  type Room,
+  type RoomPoint,
+  type SeatHeatmap,
+  type SeatRowFootprint,
+} from '@/domain'
+import { HEATMAP_OPACITY } from '@/scene/heatmap'
+import { heatmapColor } from '@/scene/heatmap-color'
+import {
+  LABEL_BACKDROP_CSS,
+  LABEL_COLORS,
+  SCENE_COLORS,
+  type LabelTone,
+} from '@/scene/palette'
+import {
+  GRADE_STYLES,
+  OVERHEAD_MARKER_DOT,
+  OVERHEAD_MARKER_RADIUS,
+  OVERHEAD_MARKER_RING_INNER,
+  overheadMarker,
+  SPEAKER_FOOTPRINT,
+  speakerMarker,
+  SUBWOOFER_FOOTPRINT,
+  subwooferMarker,
+  type ScreenDirection,
+} from '@/scene/speakers'
+import {
+  createDragController,
+  type DragCallbacks,
+  type DragController,
+} from '@/scene/drag'
+import {
+  FLAT_ON_FLOOR,
+  floorGrid,
+  floorPlane,
+  grabRadius,
+  toFloorPoint,
+  toScenePosition,
+  topDownCamera,
+} from '@/scene/top-down'
+import {
+  orbitCamera,
+  orbitLimits,
+  roomBoxEdges,
+  type CameraView,
+} from '@/scene/orbit'
+
+/**
+ * Small heights (in meters) that stack the flat floor layers so they don't
+ * z-fight. The top-down camera is orthographic, so they don't move anything.
+ */
+const LAYER = {
+  grid: 0.005,
+  seatRow: 0.007,
+  ruleOfThumb: 0.008,
+  heatmap: 0.009,
+  walls: 0.01,
+  recommended: 0.012,
+  grab: 0.015,
+} as const
+
+/** Radius of the MLP marker, in meters. */
+const MLP_MARKER_RADIUS = 0.18
+
+/** The ring around the recommended seat, inner and outer radius in meters. */
+const RECOMMENDED_RING = { inner: 0.24, outer: 0.3 } as const
+
+/** Free space between a speaker's center and its label, in pixels. */
+const SPEAKER_LABEL_GAP_PX = 14
+
+/** The floor plane in Three.js coordinates, where pointer rays are read. */
+const FLOOR = new Plane(new Vector3(0, 1, 0), 0)
+
+/**
+ * The react-three-fiber scene: the Room drawn to scale, with the MLP marker
+ * and the speakers colored by grade. From straight above (`view`
+ * "top-down", fit to the panel) every marker can be dragged; in the 3D
+ * orbit view the room box is drawn up to the ceiling and nothing can be
+ * dragged: it is for looking only. Loaded lazily, so Three.js stays out of
+ * the main bundle.
+ */
+export function RoomCanvas({
+  room,
+  mlp,
+  speakers,
+  overheads,
+  subwoofers,
+  gridSpacing,
+  seatRow,
+  recommendedSeat,
+  heatmap,
+  ruleOfThumbFromFrontWall,
+  view,
+  ...callbacks
+}: {
+  /** Which camera looks at the room; only the top-down view drags. */
+  view: CameraView
+  room: Room
+  mlp: RoomPoint
+  speakers: readonly PlacedSpeaker[]
+  /** On the ceiling: drawn over everything else from straight above. */
+  overheads: readonly PlacedOverhead[]
+  subwoofers: readonly PlacedSubwoofer[]
+  /** Distance between floor grid lines, in meters. */
+  gridSpacing: number
+  /** The Seat row around the MLP. */
+  seatRow: SeatRowFootprint
+  /** The recommended MLP, or null while it is worked out. */
+  recommendedSeat: RoomPoint | null
+  /** The seat-score heatmap, or null when it is off or not worked out yet. */
+  heatmap: SeatHeatmap | null
+  /** Where the "38% rule" puts the seat, in meters from the front wall. */
+  ruleOfThumbFromFrontWall: number
+} & DragCallbacks) {
+  // Labels render into this layer over the canvas. Without a fixed target,
+  // drei's Html can remount once r3f connects events and lose its content.
+  const labelLayer = useRef<HTMLDivElement>(null!)
+  const [cursor, setCursor] = useState<DragCursor>('auto')
+  // One controller for every marker, so only one pointer drags at a time.
+  // The callbacks are store actions, which never change.
+  const [controller] = useState(() => createDragController(callbacks))
+  // A drag can't outlive the window's focus (alt-tab mid-drag, say).
+  useEffect(() => {
+    const endDrag = () => {
+      controller.cancel()
+      setCursor('auto')
+    }
+    window.addEventListener('blur', endDrag)
+    return () => {
+      window.removeEventListener('blur', endDrag)
+      endDrag()
+    }
+  }, [controller])
+  // Nor can it outlive the top-down view: the 3D view is for looking only.
+  useEffect(() => {
+    if (view !== 'top-down') controller.cancel()
+  }, [controller, view])
+  const dragging = view === 'top-down'
+  const markerDrag: MarkerDrag | null = dragging
+    ? { room, controller, setCursor }
+    : null
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        cursor: dragging ? cursor : 'auto',
+        // Light in either app theme, so the fixed label colors read.
+        backgroundColor: SCENE_COLORS.background,
+      }}
+    >
+      {/* No touch scrolling or zooming over the room, so a finger can drag. */}
+      <Canvas
+        frameloop="demand"
+        flat
+        dpr={[1, 2]}
+        style={{ touchAction: 'none' }}
+      >
+        {view === '3d' ? (
+          <OrbitView room={room} />
+        ) : (
+          <TopDownCamera room={room} />
+        )}
+        <Floor room={room} />
+        <FloorGrid room={room} spacing={gridSpacing} />
+        <SeatRow footprint={seatRow} />
+        <RuleOfThumbLine room={room} fromFrontWall={ruleOfThumbFromFrontWall} />
+        {heatmap && heatmap.cells.length > 0 && (
+          // Remounted when the number of cells changes: an instanced
+          // mesh's count is fixed.
+          <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
+        )}
+        <Walls room={room} labelLayer={labelLayer} />
+        {view === '3d' && <RoomBox room={room} />}
+        {recommendedSeat && (
+          <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
+        )}
+        <MlpMarker mlp={mlp} labelLayer={labelLayer} markerDrag={markerDrag} />
+        <SubwooferMarkers
+          subwoofers={subwoofers}
+          labelLayer={labelLayer}
+          markerDrag={markerDrag}
+        />
+        <SpeakerMarkers
+          speakers={speakers}
+          labelLayer={labelLayer}
+          markerDrag={markerDrag}
+        />
+        <OverheadMarkers
+          overheads={overheads}
+          labelLayer={labelLayer}
+          markerDrag={markerDrag}
+        />
+      </Canvas>
+      <div ref={labelLayer} className="pointer-events-none absolute inset-0" />
+    </div>
+  )
+}
+
+type LabelLayer = RefObject<HTMLDivElement>
+
+type DragCursor = 'auto' | 'grab' | 'grabbing'
+
+/** What a draggable marker needs: the Room, the drag controller and the cursor. */
+type MarkerDrag = {
+  room: Room
+  controller: DragController
+  setCursor: (cursor: DragCursor) => void
+}
+
+/**
+ * The pointer-capture methods of a react-three-fiber event's `target`:
+ * react-three-fiber replaces the DOM target with this object, which
+ * captures the pointer for the 3D object that handled the event.
+ */
+type PointerCaptureTarget = {
+  setPointerCapture: (pointerId: number) => void
+  releasePointerCapture: (pointerId: number) => void
+  hasPointerCapture: (pointerId: number) => boolean
+}
+
+function captureTarget(event: ThreeEvent<PointerEvent>): PointerCaptureTarget {
+  return event.target as unknown as PointerCaptureTarget
+}
+
+/**
+ * Leaves any text field the user is typing in, so its pending edit is
+ * applied (as its own undo step) before a drag pauses the undo history.
+ */
+function leaveTextField() {
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+}
+
+type DraggableProps = {
+  id: PlaceableId
+  at: RoomPoint
+  /** The marker's own radius, in meters. */
+  radius: number
+  children: ReactNode
+}
+
+/**
+ * Makes its markers draggable on the floor plan as item `id`, which is at
+ * `at`. Pressing on a marker (or within a touch target of its center, see
+ * grabRadius) picks it up; it follows the pointer, keeping where it was
+ * grabbed, until released. The store keeps it inside the Room. Without
+ * `markerDrag` (the 3D view) the markers are only drawn, with no grab area.
+ */
+function Draggable({
+  markerDrag,
+  ...props
+}: DraggableProps & { markerDrag: MarkerDrag | null }) {
+  if (!markerDrag) return props.children
+  return <DraggableGroup markerDrag={markerDrag} {...props} />
+}
+
+function DraggableGroup({
+  id,
+  at,
+  radius,
+  markerDrag: { room, controller, setCursor },
+  children,
+}: DraggableProps & { markerDrag: MarkerDrag }) {
+  const size = useThree((state) => state.size)
+  const zoom = topDownCamera(room, size).zoom
+  const hit = new Vector3()
+
+  function floorPoint(event: ThreeEvent<PointerEvent>): FloorPoint | null {
+    const point = event.ray.intersectPlane(FLOOR, hit)
+    return point && toFloorPoint(point)
+  }
+
+  // Release, cancel and lost capture all end the drag (once).
+  function release(event: ThreeEvent<PointerEvent>) {
+    if (!controller.isDragging()) return
+    const target = captureTarget(event)
+    if (target.hasPointerCapture(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId)
+    }
+    controller.release(event.pointerId)
+    if (!controller.isDragging()) setCursor('grab')
+  }
+
+  return (
+    <group
+      onPointerDown={(event) => {
+        const pointer = floorPoint(event)
+        if (!pointer || event.button !== 0) return
+        leaveTextField()
+        if (!controller.press(event.pointerId, id, at, pointer)) return
+        event.stopPropagation()
+        captureTarget(event).setPointerCapture(event.pointerId)
+        setCursor('grabbing')
+      }}
+      onPointerMove={(event) => {
+        if (!controller.isDragging()) return
+        const pointer = floorPoint(event)
+        if (!pointer) return
+        event.stopPropagation()
+        controller.move(event.pointerId, pointer)
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onLostPointerCapture={release}
+      onPointerOver={(event) => {
+        event.stopPropagation()
+        if (!controller.isDragging()) setCursor('grab')
+      }}
+      onPointerOut={() => {
+        if (!controller.isDragging()) setCursor('auto')
+      }}
+    >
+      {children}
+      {/* An invisible disc on the floor, under every marker, so a marker
+          is easy to pick up with a finger; markers drawn above it win. */}
+      <mesh
+        position={toScenePosition({ ...at, z: LAYER.grab })}
+        rotation={FLAT_ON_FLOOR}
+      >
+        <circleGeometry args={[grabRadius(radius, zoom), 32]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+    </group>
+  )
+}
+
+/**
+ * A text label pinned to a room point, drawn as HTML over the canvas, in a
+ * fixed `tone` on a light backdrop, so it reads on the light scene in either
+ * app theme and over the heatmap.
+ */
+function SceneLabel({
+  at,
+  layer,
+  tone,
+  className,
+  style,
+  children,
+}: {
+  at: RoomPoint
+  layer: LabelLayer
+  tone: LabelTone
+  className: string
+  style?: CSSProperties
+  children: ReactNode
+}) {
+  return (
+    <Html position={toScenePosition(at)} portal={layer} center>
+      <span
+        className={cn(
+          'block rounded-sm px-1 text-xs whitespace-nowrap select-none',
+          className,
+        )}
+        style={{
+          color: LABEL_COLORS[tone],
+          backgroundColor: LABEL_BACKDROP_CSS,
+          ...style,
+        }}
+      >
+        {children}
+      </span>
+    </Html>
+  )
+}
+
+function TopDownCamera({ room }: { room: Room }) {
+  const size = useThree((state) => state.size)
+  return <OrthographicCamera makeDefault {...topDownCamera(room, size)} />
+}
+
+/**
+ * A perspective camera framing the room box, with orbit controls to look
+ * around (drag to orbit, scroll or pinch to zoom). It is framed for the
+ * panel's size when the view opens or the Room changes, so resizing the
+ * panel doesn't undo the user's orbit.
+ */
+function OrbitView({ room: { length, width, height } }: { room: Room }) {
+  const get = useThree((state) => state.get)
+  const { camera, limits } = useMemo(() => {
+    const room = { length, width, height }
+    const { size } = get()
+    return { camera: orbitCamera(room, size), limits: orbitLimits(room, size) }
+  }, [length, width, height, get])
+  return (
+    <>
+      <PerspectiveCamera
+        makeDefault
+        position={camera.position}
+        fov={camera.fov}
+        near={camera.near}
+        far={camera.far}
+      />
+      <OrbitControls makeDefault target={camera.target} {...limits} />
+    </>
+  )
+}
+
+/** The room box outlined up to the ceiling, so its height reads in 3D. */
+function RoomBox({ room }: { room: Room }) {
+  return roomBoxEdges(room).map((edge, index) => (
+    <Line
+      key={index}
+      points={edge.map(toScenePosition)}
+      color={SCENE_COLORS.walls}
+      lineWidth={1.5}
+    />
+  ))
+}
+
+function Floor({ room }: { room: Room }) {
+  const { position, rotation, size } = floorPlane(room)
+  return (
+    <mesh position={position} rotation={rotation}>
+      <planeGeometry args={size} />
+      <meshBasicMaterial color={SCENE_COLORS.floor} />
+    </mesh>
+  )
+}
+
+function FloorGrid({ room, spacing }: { room: Room; spacing: number }) {
+  const { across, down } = floorGrid(room, spacing)
+  return [...across, ...down].map((segment, index) => (
+    <FloorLine
+      key={index}
+      points={segment}
+      z={LAYER.grid}
+      color={SCENE_COLORS.grid}
+      width={1}
+    />
+  ))
+}
+
+function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
+  const corners = floorCorners(room)
+  return (
+    <>
+      <FloorLine
+        points={[...corners, corners[0]]}
+        z={LAYER.walls}
+        color={SCENE_COLORS.walls}
+        width={2}
+      />
+      <FloorLine
+        points={wallBases(room).front}
+        z={LAYER.walls}
+        color={SCENE_COLORS.frontWall}
+        width={5}
+      />
+      {/* Room coordinates start at the middle of the front wall; the label
+          sits a fixed few pixels above it at any zoom. */}
+      <SceneLabel
+        at={{ x: 0, y: 0, z: 0 }}
+        layer={labelLayer}
+        tone="muted"
+        className="-translate-y-3.5"
+      >
+        Front wall
+      </SceneLabel>
+    </>
+  )
+}
+
+/** A line on the floor at layer height `z`, `width` pixels wide. */
+function FloorLine({
+  points,
+  z,
+  color,
+  width,
+}: {
+  points: readonly RoomPoint[]
+  z: number
+  color: string
+  width: number
+}) {
+  return (
+    <Line
+      points={points.map((point) => toScenePosition({ ...point, z }))}
+      color={color}
+      lineWidth={width}
+    />
+  )
+}
+
+/** The Seat row: a pale rectangle on the floor around the MLP, drawn only. */
+function SeatRow({ footprint }: { footprint: SeatRowFootprint }) {
+  const { center, width, depth } = footprint
+  return (
+    <mesh
+      position={toScenePosition({ ...center, z: LAYER.seatRow })}
+      rotation={FLAT_ON_FLOOR}
+    >
+      <planeGeometry args={[width, depth]} />
+      <meshBasicMaterial color={SCENE_COLORS.seatRow} />
+    </mesh>
+  )
+}
+
+/**
+ * The informal "38% rule" as a faint dashed line across the room: a
+ * reference only. It has no label in the scene, where one would run into
+ * the speaker labels on a narrow screen; the legend names it.
+ */
+function RuleOfThumbLine({
+  room,
+  fromFrontWall,
+}: {
+  room: Room
+  fromFrontWall: number
+}) {
+  const half = room.width / 2
+  const z = LAYER.ruleOfThumb
+  return (
+    <Line
+      points={[
+        toScenePosition({ x: -half, y: fromFrontWall, z }),
+        toScenePosition({ x: half, y: fromFrontWall, z }),
+      ]}
+      color={SCENE_COLORS.ruleOfThumb}
+      lineWidth={1}
+      dashed
+      dashSize={0.15}
+      gapSize={0.1}
+    />
+  )
+}
+
+/**
+ * The seat-score heatmap: every cell in one instanced mesh (one draw
+ * call), semi-transparent, above the floor, grid and seat row and under
+ * the walls, markers and labels. It has no pointer handlers, so drags
+ * pass through it.
+ */
+function HeatmapCells({ heatmap }: { heatmap: SeatHeatmap }) {
+  const mesh = useRef<InstancedMesh>(null!)
+  const invalidate = useThree((state) => state.invalidate)
+  useLayoutEffect(() => {
+    const cell = new Object3D()
+    const color = new Color()
+    heatmap.cells.forEach(({ center, width, depth, relativeScore }, index) => {
+      cell.position.set(...toScenePosition({ ...center, z: LAYER.heatmap }))
+      cell.rotation.set(...FLAT_ON_FLOOR)
+      cell.scale.set(width, depth, 1)
+      cell.updateMatrix()
+      mesh.current.setMatrixAt(index, cell.matrix)
+      mesh.current.setColorAt(index, color.set(heatmapColor(relativeScore)))
+    })
+    mesh.current.instanceMatrix.needsUpdate = true
+    if (mesh.current.instanceColor)
+      mesh.current.instanceColor.needsUpdate = true
+    // The canvas draws on demand.
+    invalidate()
+  }, [heatmap, invalidate])
+  return (
+    <instancedMesh
+      ref={mesh}
+      args={[undefined, undefined, heatmap.cells.length]}
+      frustumCulled={false}
+    >
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial
+        transparent
+        opacity={HEATMAP_OPACITY}
+        depthWrite={false}
+      />
+    </instancedMesh>
+  )
+}
+
+/** A violet ring around the recommended MLP, labelled above it. */
+function RecommendedSeatMarker({
+  at,
+  labelLayer,
+}: {
+  at: RoomPoint
+  labelLayer: LabelLayer
+}) {
+  return (
+    <>
+      <mesh
+        position={toScenePosition({ ...at, z: LAYER.recommended })}
+        rotation={FLAT_ON_FLOOR}
+      >
+        <ringGeometry
+          args={[RECOMMENDED_RING.inner, RECOMMENDED_RING.outer, 48]}
+        />
+        <meshBasicMaterial color={SCENE_COLORS.recommended} />
+      </mesh>
+      <SceneLabel
+        at={at}
+        layer={labelLayer}
+        tone="recommended"
+        className="-translate-y-6 font-medium"
+      >
+        Recommended
+      </SceneLabel>
+    </>
+  )
+}
+
+function MlpMarker({
+  mlp,
+  labelLayer,
+  markerDrag,
+}: {
+  mlp: RoomPoint
+  labelLayer: LabelLayer
+  markerDrag: MarkerDrag | null
+}) {
+  return (
+    <>
+      <Draggable
+        id={MLP_ID}
+        at={mlp}
+        radius={MLP_MARKER_RADIUS}
+        markerDrag={markerDrag}
+      >
+        <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
+          <circleGeometry args={[MLP_MARKER_RADIUS, 32]} />
+          <meshBasicMaterial color={SCENE_COLORS.mlp} />
+        </mesh>
+      </Draggable>
+      {/* Shifted below the marker by CSS, so it never covers it. */}
+      <SceneLabel
+        at={mlp}
+        layer={labelLayer}
+        tone="mlp"
+        className="translate-y-5 font-medium"
+      >
+        MLP
+      </SceneLabel>
+    </>
+  )
+}
+
+function SpeakerMarkers({
+  speakers,
+  labelLayer,
+  markerDrag,
+}: {
+  speakers: readonly PlacedSpeaker[]
+  labelLayer: LabelLayer
+  markerDrag: MarkerDrag | null
+}) {
+  return speakers.map((speaker) => {
+    const { position, rotation, color, label, grade, labelDirection } =
+      speakerMarker(speaker)
+    return (
+      <Fragment key={speaker.channel}>
+        <Draggable
+          id={speaker.channel}
+          at={speaker.position}
+          radius={SPEAKER_FOOTPRINT.width / 2}
+          markerDrag={markerDrag}
+        >
+          <mesh position={position} rotation={rotation}>
+            <planeGeometry
+              args={[SPEAKER_FOOTPRINT.width, SPEAKER_FOOTPRINT.depth]}
+            />
+            <meshBasicMaterial color={color} />
+          </mesh>
+        </Draggable>
+        <SceneLabel
+          at={speaker.position}
+          layer={labelLayer}
+          tone="text"
+          className="flex flex-col items-center leading-tight"
+          style={{ transform: besideMarker(labelDirection) }}
+        >
+          <span className="font-medium">{label}</span>
+          <span style={{ color: LABEL_COLORS.muted }}>
+            {GRADE_STYLES[grade].label}
+          </span>
+        </SceneLabel>
+      </Fragment>
+    )
+  })
+}
+
+/**
+ * The overhead speakers as rings with a center dot, colored by grade, on
+ * the ceiling: round, so they read apart from the rectangular
+ * listener-level cabinets. Drawn on both faces, so the 3D view sees them
+ * from below. Dragged on the floor plan like the others (top-down only);
+ * the store keeps them on the ceiling.
+ */
+function OverheadMarkers({
+  overheads,
+  labelLayer,
+  markerDrag,
+}: {
+  overheads: readonly PlacedOverhead[]
+  labelLayer: LabelLayer
+  markerDrag: MarkerDrag | null
+}) {
+  return overheads.map((overhead) => {
+    const { position, rotation, color, label, grade, labelDirection } =
+      overheadMarker(overhead)
+    return (
+      <Fragment key={overhead.channel}>
+        <Draggable
+          id={overhead.channel}
+          at={overhead.position}
+          radius={OVERHEAD_MARKER_RADIUS}
+          markerDrag={markerDrag}
+        >
+          <mesh position={position} rotation={rotation}>
+            <ringGeometry
+              args={[
+                OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_RING_INNER,
+                OVERHEAD_MARKER_RADIUS,
+                32,
+              ]}
+            />
+            <meshBasicMaterial color={color} side={DoubleSide} />
+          </mesh>
+          <mesh position={position} rotation={rotation}>
+            <circleGeometry
+              args={[OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_DOT, 24]}
+            />
+            <meshBasicMaterial color={color} side={DoubleSide} />
+          </mesh>
+        </Draggable>
+        <SceneLabel
+          at={overhead.position}
+          layer={labelLayer}
+          tone="text"
+          className="flex flex-col items-center leading-tight"
+          style={{ transform: besideMarker(labelDirection) }}
+        >
+          <span className="font-medium">{label}</span>
+          <span style={{ color: LABEL_COLORS.muted }}>
+            {GRADE_STYLES[grade].label}
+          </span>
+        </SceneLabel>
+      </Fragment>
+    )
+  })
+}
+
+/**
+ * The subwoofers as neutral squares on the floor plan. They sit lower than
+ * the listener-level speakers, so a speaker above one (the Center over
+ * Subwoofer 1) is drawn on top, with the subwoofer's outline around it.
+ */
+function SubwooferMarkers({
+  subwoofers,
+  labelLayer,
+  markerDrag,
+}: {
+  subwoofers: readonly PlacedSubwoofer[]
+  labelLayer: LabelLayer
+  markerDrag: MarkerDrag | null
+}) {
+  return subwoofers.map((subwoofer) => {
+    const { position, rotation, color, label, labelDirection } =
+      subwooferMarker(subwoofer)
+    return (
+      <Fragment key={subwoofer.id}>
+        <Draggable
+          id={subwoofer.id}
+          at={subwoofer.position}
+          radius={SUBWOOFER_FOOTPRINT / 2}
+          markerDrag={markerDrag}
+        >
+          <mesh position={position} rotation={rotation}>
+            <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
+        </Draggable>
+        <SceneLabel
+          at={subwoofer.position}
+          layer={labelLayer}
+          tone="text"
+          className="leading-tight font-medium"
+          style={{ transform: besideMarker(labelDirection) }}
+        >
+          {label}
+        </SceneLabel>
+      </Fragment>
+    )
+  })
+}
+
+/**
+ * A CSS transform that moves a centered label off its marker along
+ * `direction`, by half its own size plus a gap, so the two never overlap.
+ */
+function besideMarker({ x, y }: ScreenDirection): string {
+  const gap = `${SPEAKER_LABEL_GAP_PX}px`
+  return `translate(calc(${x} * (50% + ${gap})), calc(${y} * (50% + ${gap})))`
+}

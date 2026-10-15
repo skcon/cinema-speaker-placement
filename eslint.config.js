@@ -31,6 +31,13 @@ const domGlobals = [
   'sessionStorage',
   'navigator',
 ]
+/** State and presentation see only the domain's public interface (src/domain/index.ts). */
+const domainInternalsPattern = {
+  group: ['@/domain/*', '**/domain/*'],
+  message:
+    'Import from @/domain only: its index is the public interface (analyzeRoom and the config type).',
+}
+
 const domGlobalsMessage =
   'src/domain has no DOM or browser storage: let the state or presentation layer pass the value in.'
 
@@ -55,6 +62,24 @@ export default defineConfig([
     files: ['**/*.{ts,tsx}'],
     ignores: ['src/domain/**'],
     languageOptions: { globals: globals.browser },
+  },
+  // shadcn/ui components come unmodified from `shadcn add`; some export
+  // their cva variants next to the component.
+  {
+    files: ['src/ui/components/**/*.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  // shadcn's chart wraps Recharts' loosely typed payloads (`any`); kept as
+  // generated so a later `shadcn add chart` can replace it cleanly.
+  {
+    files: ['src/ui/components/chart.tsx'],
+    rules: {
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/restrict-template-expressions': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+    },
   },
   // Layer boundaries from CLAUDE.md: domain <- state <- presentation (ui, scene, charts).
   {
@@ -123,8 +148,18 @@ export default defineConfig([
               group: presentationImportPatterns,
               message: 'src/state must not depend on the presentation layers.',
             },
+            domainInternalsPattern,
           ],
         },
+      ],
+    },
+  },
+  {
+    files: ['src/{ui,scene,charts}/**/*.{ts,tsx}', 'src/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: [domainInternalsPattern] },
       ],
     },
   },

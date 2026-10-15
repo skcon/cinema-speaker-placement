@@ -8,6 +8,11 @@ import { PAGES_BASE_PATH } from './pages.config.ts'
 export default defineConfig(({ mode }) => ({
   base: mode === 'production' ? PAGES_BASE_PATH : '/',
   plugins: [react(), tailwindcss()],
+  build: {
+    // The room view's chunk (Three.js + react-three-fiber, ~250 kB gzip) is
+    // lazy-loaded and mostly Three.js itself, which can't be split further.
+    chunkSizeWarningLimit: 1000,
+  },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

@@ -24,6 +24,26 @@ _Avoid_: Sweet spot, best seat, primary seat
 A couch or row of seats drawn around the MLP: centered across the room on it, with the MLP (the listener's head) near the couch's back and the rest of the couch in front; a visual cue, not analyzed.
 _Avoid_: Couch zone
 
+**Room object**:
+Something in the Room besides speakers and the MLP that the user places, moves and sizes: the seat row (couch), a screen, a furniture box or an opening. Drawn and used for placement warnings, never part of the estimated response (ADR 0006).
+_Avoid_: Prop, item (for these alone), obstacle
+
+**Screen**:
+The TV or projection screen on the front wall: its width, height and bottom-edge height, and whether it is acoustically transparent.
+_Avoid_: Display, panel, TV area
+
+**Furniture box**:
+A piece of furniture as a box (width, depth, height) on the floor plan, such as a cabinet, table or shelf.
+_Avoid_: Obstacle, block
+
+**Opening**:
+A door or window on a wall: where along the wall, how wide, and for a window its sill and height.
+_Avoid_: Gap, hole, aperture
+
+**Placement warning**:
+A hint that a speaker, subwoofer or the MLP sits somewhere a room object makes worse (in front of a door or window, behind furniture), naming its source class: a standard, a manufacturer, community practice or our own assumption. Never a block.
+_Avoid_: Error, violation, alert
+
 ## Speakers
 
 **Layout**:

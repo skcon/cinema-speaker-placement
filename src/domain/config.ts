@@ -76,8 +76,8 @@ const roomPointSchema = z.strictObject({
  *
  * The `Config` type is inferred from it, so a new field is added here and
  * the compiler asks for its value in DEFAULT_CONFIG and the test fixtures.
- * Once share links are released, any change here needs a new schema
- * version and a migration (see share-link.ts).
+ * Share links are released, so a change here extends the unreleased schema
+ * version or starts a new one, with a migration (see share-link.ts).
  */
 export const configSchema = z
   .strictObject({

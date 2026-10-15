@@ -13,22 +13,36 @@
  *
  * ## Changing the config schema (ADR 0003)
  *
- * Version 1 is whatever ships in the first release with share links; until
- * then `configSchema` can change, and the frozen links in
- * src/test/share-link-fixtures.ts are regenerated (as they were when manual
- * positions joined version 1, and again when the seat row width (#14),
- * the speaker group specs and amplifier power (#13) and the overhead
- * channels (#8) did, all before any release). After that, every change
- * to `configSchema` is a new version, however small (a new, removed or
- * renamed field, a new meaning, a wider or tighter range):
+ * Only `vX.Y.Z` tags deploy, so a schema version reaches users when the
+ * release that writes it is tagged. Version 1 shipped in v1.0.0 and is
+ * frozen in config-v1.ts. Version 2 is the version of the 1.1.0 release
+ * cycle: until v1.1.0 is tagged it is unreleased, and every 1.1.0 change
+ * to the config extends it instead of adding a version.
+ *
+ * Extending the unreleased version (CONFIG_VERSION, not yet tagged):
+ *
+ * 1. Change `configSchema` (config.ts) and DEFAULT_CONFIG.
+ * 2. In the migration to it, CONFIG_MIGRATIONS[CONFIG_VERSION - 1], give
+ *    each new field the value an older link means (usually its default),
+ *    so links from the version before still open as the same room.
+ * 3. Regenerate its fixtures (V<n>_LINKS in src/test/share-link-fixtures.ts)
+ *    and grow the worst-case config of the URL budget test.
+ *
+ * Once a version is released, every change to `configSchema` is a new
+ * version, however small (a new, removed or renamed field, a new meaning,
+ * a wider or tighter range), made with the first change of the next
+ * release cycle:
  *
  * 1. Copy today's `configSchema`, with everything it uses (the room limits,
- *    the layout list), into a frozen `configSchemaV<n>`, where n is
- *    CONFIG_VERSION.
+ *    the layout list, the channel ids, the placement rules), into a frozen
+ *    config-v<n>.ts exporting `configSchemaV<n>`, where n is
+ *    CONFIG_VERSION. It imports nothing but zod (ESLint checks), so later
+ *    changes to the live code can't reach it.
  * 2. Change `configSchema` and bump CONFIG_VERSION to n + 1.
  * 3. Add `n: migrateFrom(configSchemaV<n>, (old) => ...)` to
  *    CONFIG_MIGRATIONS, returning the config in the version n + 1 shape.
- * 4. Keep the version n fixtures, and add version n + 1 ones.
+ * 4. Keep the version n fixtures, never edited again, and add version n + 1
+ *    ones.
  *
  * Decoding validates an old link against its own version's schema, runs it
  * through each migration up to the latest version, and validates the result
@@ -41,6 +55,7 @@ import {
 } from 'lz-string'
 import { z } from 'zod'
 import { configSchema, DEFAULT_CONFIG, type Config } from './config'
+import { configSchemaV1 } from './config-v1'
 import { roundToMillimeter } from './manual-positions'
 
 /**
@@ -144,10 +159,14 @@ export function createConfigCodec<C>({
 export type EncodedConfig = string & { readonly __brand: 'EncodedConfig' }
 
 /** The current config schema version: the `v` that new share links get. */
-const CONFIG_VERSION = 1
+const CONFIG_VERSION = 2
 
-/** Migrations from each earlier schema version to the next (none yet). */
-const CONFIG_MIGRATIONS: Readonly<Record<number, Migration>> = {}
+/** Migrations from each earlier schema version to the next. */
+const CONFIG_MIGRATIONS: Readonly<Record<number, Migration>> = {
+  // Version 2 has version 1's shape so far. The 1.1.0 tickets that extend
+  // version 2 give their new fields a value here.
+  1: migrateFrom(configSchemaV1, (config) => config),
+}
 
 const configCodec = createConfigCodec({
   version: CONFIG_VERSION,

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { V1_LINKS } from '../src/test/share-link-fixtures.ts'
+import { V1_LINKS, V2_LINKS } from '../src/test/share-link-fixtures.ts'
 
 /** The part of HTMLCanvasElement we use (e2e is typechecked without the DOM lib). */
 type WebGLCanvas = { getContext(contextId: 'webgl2'): object | null }
@@ -197,6 +197,15 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toBeVisible()
   })
 
+  // The same room as this version writes it: version 2.
+  const upgraded = V2_LINKS.imperialRoom.encoded
+
+  await test.step('the address takes the link this version writes for the room', async () => {
+    await expect(page).toHaveURL(
+      (url) => url.searchParams.get('config') === upgraded,
+    )
+  })
+
   await test.step('an edit reaches the address, under the base path', async () => {
     await dimensionInput(page, 'Length', 'ft').fill('30')
 
@@ -204,7 +213,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       (url) =>
         url.pathname === '/cinema-speaker-placement/' &&
         url.searchParams.has('config') &&
-        url.searchParams.get('config') !== encoded,
+        url.searchParams.get('config') !== upgraded,
     )
   })
 

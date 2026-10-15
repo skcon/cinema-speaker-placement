@@ -1,4 +1,7 @@
-import { compressToEncodedURIComponent } from 'lz-string'
+import {
+  compressToEncodedURIComponent,
+  decompressFromEncodedURIComponent,
+} from 'lz-string'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
@@ -12,8 +15,9 @@ import {
   type DolbyLayout,
   type OverheadChannelId,
 } from '@/domain'
-import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
+import { IMPERIAL_ROOM, V1_LINKS, V2_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
+import { configSchemaV1 } from './config-v1'
 import { createConfigCodec, migrateFrom } from './share-link'
 
 /**
@@ -62,7 +66,294 @@ function withSubwooferGroup(subwoofers: unknown) {
   }
 }
 
+/**
+ * Configs that break the rules of versions 1 and 2, mostly the default
+ * config with one thing wrong, so a link holding one falls back to the
+ * default config.
+ */
+const BROKEN_CONFIGS: [string, unknown][] = [
+  [
+    'a room too long',
+    { ...DEFAULT_CONFIG, room: { length: 50, width: 4.5, height: 2.6 } },
+  ],
+  [
+    'a ceiling too low',
+    { ...DEFAULT_CONFIG, room: { length: 6, width: 4.5, height: 1.2 } },
+  ],
+  [
+    'a dimension that is text',
+    { ...DEFAULT_CONFIG, room: { length: '6', width: 4.5, height: 2.6 } },
+  ],
+  [
+    'a missing dimension',
+    { ...DEFAULT_CONFIG, room: { length: 6, width: 4.5 } },
+  ],
+  ['a room that is null', { ...DEFAULT_CONFIG, room: null }],
+  ['unknown units', { ...DEFAULT_CONFIG, units: 'furlongs' }],
+  [
+    'a layout outside v1',
+    { ...DEFAULT_CONFIG, layout: { dolbyLayout: '9.1.4', subwoofers: 1 } },
+  ],
+  [
+    'no subwoofer',
+    { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 0 } },
+  ],
+  [
+    'five subwoofers',
+    { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 5 } },
+  ],
+  [
+    'a fractional subwoofer count',
+    { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 1.5 } },
+  ],
+  // A link the app wrote at this version has every field and nothing
+  // else, so anything missing or extra means it was changed by hand.
+  ['no units', { room: DEFAULT_CONFIG.room, layout: DEFAULT_CONFIG.layout }],
+  ['no layout', { units: 'metric', room: DEFAULT_CONFIG.room }],
+  ['an unknown field', { ...DEFAULT_CONFIG, theme: 'dark' }],
+  [
+    'an unknown room field',
+    { ...DEFAULT_CONFIG, room: { ...DEFAULT_CONFIG.room, depth: 3 } },
+  ],
+  [
+    'an unknown layout field',
+    {
+      ...DEFAULT_CONFIG,
+      layout: { ...DEFAULT_CONFIG.layout, overheads: 4 },
+    },
+  ],
+  [
+    'no speaker groups',
+    {
+      units: 'metric',
+      room: DEFAULT_CONFIG.room,
+      layout: DEFAULT_CONFIG.layout,
+    },
+  ],
+  [
+    'an unknown speaker group',
+    {
+      ...DEFAULT_CONFIG,
+      speakerGroups: {
+        ...DEFAULT_CONFIG.speakerGroups,
+        center: { specs: PORTED_15 },
+      },
+    },
+  ],
+  [
+    'subwoofer specs out of range',
+    withSubwooferGroup({
+      specs: { ...PORTED_15, rmsWatts: 5 },
+      ownSpecs: {},
+    }),
+  ],
+  [
+    'a peak power below the RMS power',
+    withSubwooferGroup({
+      specs: { ...PORTED_15, peakWatts: 700 },
+      ownSpecs: {},
+    }),
+  ],
+  ['a crossover below 40 Hz', { ...DEFAULT_CONFIG, crossoverHz: 39 }],
+  ['a crossover above 200 Hz', { ...DEFAULT_CONFIG, crossoverHz: 250 }],
+  ['a crossover that is text', { ...DEFAULT_CONFIG, crossoverHz: '80' }],
+  [
+    'no crossover',
+    Object.fromEntries(
+      Object.entries(DEFAULT_CONFIG).filter(([key]) => key !== 'crossoverHz'),
+    ),
+  ],
+  [
+    'an unknown enclosure',
+    withSubwooferGroup({
+      specs: { ...PORTED_15, enclosure: 'horn' },
+      ownSpecs: {},
+    }),
+  ],
+  [
+    'a missing subwoofer spec',
+    withSubwooferGroup({
+      specs: { enclosure: 'sealed', rmsWatts: 300, peakWatts: 600 },
+      ownSpecs: {},
+    }),
+  ],
+  [
+    'an unknown subwoofer spec',
+    withSubwooferGroup({
+      specs: { ...PORTED_15, sensitivity: 88 },
+      ownSpecs: {},
+    }),
+  ],
+  ['no own specs field', withSubwooferGroup({ specs: PORTED_15 })],
+  [
+    'an unknown speaker type',
+    withSpeakerGroup('front', { type: 'floorstander', sensitivity: 88 }),
+  ],
+  [
+    'a sensitivity below the accepted range',
+    withSpeakerGroup('center', { type: 'tower', sensitivity: 69 }),
+  ],
+  [
+    'a sensitivity above the accepted range',
+    withSpeakerGroup('surrounds', { type: 'tower', sensitivity: 111 }),
+  ],
+  [
+    'a speaker group without a type',
+    withSpeakerGroup('rearSurrounds', { sensitivity: 88 }),
+  ],
+  [
+    'overheads with a type',
+    withSpeakerGroup('overheads', { type: 'bookshelf', sensitivity: 88 }),
+  ],
+  [
+    'a missing speaker group',
+    {
+      ...DEFAULT_CONFIG,
+      speakerGroups: Object.fromEntries(
+        Object.entries(DEFAULT_CONFIG.speakerGroups).filter(
+          ([group]) => group !== 'center',
+        ),
+      ),
+    },
+  ],
+  [
+    'an amplifier power below the accepted range',
+    { ...DEFAULT_CONFIG, amplifierWatts: 0.5 },
+  ],
+  [
+    'an amplifier power above the accepted range',
+    { ...DEFAULT_CONFIG, amplifierWatts: 5001 },
+  ],
+  [
+    'no amplifier power',
+    Object.fromEntries(
+      Object.entries(DEFAULT_CONFIG).filter(
+        ([key]) => key !== 'amplifierWatts',
+      ),
+    ),
+  ],
+  [
+    'own specs out of range',
+    withSubwooferGroup({
+      specs: PORTED_15,
+      ownSpecs: { Sub1: { ...SEALED_10, driverDiameter: 2 } },
+    }),
+  ],
+  [
+    'own specs that are null',
+    withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub1: null } }),
+  ],
+  [
+    'own specs for an unknown subwoofer',
+    withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub5: SEALED_10 } }),
+  ],
+  // The layout has one subwoofer (Sub1), so Sub2 can't have specs.
+  [
+    'own specs for a subwoofer beyond the subwoofer count',
+    withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub2: SEALED_10 } }),
+  ],
+  ['an unknown target curve', { ...DEFAULT_CONFIG, targetCurve: 'harman' }],
+  [
+    'a seat row narrower than one seat',
+    { ...DEFAULT_CONFIG, seatRowWidth: 0.4 },
+  ],
+  ['a seat row wider than 8 m', { ...DEFAULT_CONFIG, seatRowWidth: 8.1 }],
+  ['a seat row width that is text', { ...DEFAULT_CONFIG, seatRowWidth: '2' }],
+  [
+    'no seat row width',
+    Object.fromEntries(
+      Object.entries(DEFAULT_CONFIG).filter(([key]) => key !== 'seatRowWidth'),
+    ),
+  ],
+  [
+    'no manual positions field',
+    {
+      units: 'metric',
+      room: DEFAULT_CONFIG.room,
+      layout: DEFAULT_CONFIG.layout,
+      speakerGroups: DEFAULT_CONFIG.speakerGroups,
+      amplifierWatts: DEFAULT_CONFIG.amplifierWatts,
+      targetCurve: 'flat',
+    },
+  ],
+  [
+    'a manual position for an unknown speaker',
+    withManualPositions({ Lw: { x: -1, y: 2, z: 1.2 } }),
+  ],
+  // The default 5.1.2 has top middle overheads, not top front ones.
+  [
+    'a manual position for an overhead not in the layout',
+    withManualPositions({ Ltf: { x: -1, y: 1, z: 2.6 } }),
+  ],
+  // Overheads are on the 2.6 m ceiling.
+  [
+    'an overhead below the ceiling',
+    withManualPositions({ Ltm: { x: -1, y: 2, z: 2.3 } }),
+  ],
+  // The default 5.1.2 has no rear surrounds and one subwoofer.
+  [
+    'a manual position for a channel not in the layout',
+    withManualPositions({ Lrs: { x: -1, y: 5, z: 1.2 } }),
+  ],
+  [
+    'a manual position for a subwoofer beyond the subwoofer count',
+    withManualPositions({ Sub2: { x: 0, y: 5.7, z: 0.3 } }),
+  ],
+  [
+    'a manual position outside the room',
+    withManualPositions({ R: { x: 3, y: 1, z: 1.2 } }),
+  ],
+  // Speakers keep 0.3 m from every wall (our wall clearance).
+  [
+    'a speaker closer to a wall than the wall clearance',
+    withManualPositions({ R: { x: 2.1, y: 1, z: 1.2 } }),
+  ],
+  [
+    'a speaker above the ceiling clearance',
+    withManualPositions({ R: { x: 1, y: 1, z: 2.4 } }),
+  ],
+  [
+    'a subwoofer off the floor',
+    withManualPositions({ Sub1: { x: 0, y: 0.3, z: 1 } }),
+  ],
+  [
+    'the MLP away from ear height',
+    withManualPositions({ MLP: { x: 0, y: 3, z: 1.5 } }),
+  ],
+  [
+    'a manual position without a height',
+    withManualPositions({ R: { x: 1, y: 1 } }),
+  ],
+  [
+    'a manual position with an unknown field',
+    withManualPositions({ R: { x: 1, y: 1, z: 1.2, yaw: 30 } }),
+  ],
+  [
+    'a manual position that is text',
+    withManualPositions({ R: { x: '1', y: 1, z: 1.2 } }),
+  ],
+  [
+    'no target curve',
+    {
+      units: 'metric',
+      room: DEFAULT_CONFIG.room,
+      layout: DEFAULT_CONFIG.layout,
+      speakerGroups: DEFAULT_CONFIG.speakerGroups,
+      amplifierWatts: DEFAULT_CONFIG.amplifierWatts,
+      manualPositions: {},
+    },
+  ],
+]
+
 describe('share link codec', () => {
+  it('writes new share links as version 2', () => {
+    const envelope: unknown = JSON.parse(
+      decompressFromEncodedURIComponent(encodeConfig(DEFAULT_CONFIG)),
+    )
+
+    expect(envelope).toMatchObject({ v: 2 })
+  })
+
   it('rebuilds the default config from its share link', () => {
     expect(decodeConfig(encodeConfig(DEFAULT_CONFIG))).toEqual({
       config: DEFAULT_CONFIG,
@@ -245,290 +536,17 @@ describe('share link codec', () => {
       expect(decodeConfig(encodedHolding(json))).toEqual(FALLBACK)
     })
 
-    it.each([
-      [
-        'a room too long',
-        { ...DEFAULT_CONFIG, room: { length: 50, width: 4.5, height: 2.6 } },
-      ],
-      [
-        'a ceiling too low',
-        { ...DEFAULT_CONFIG, room: { length: 6, width: 4.5, height: 1.2 } },
-      ],
-      [
-        'a dimension that is text',
-        { ...DEFAULT_CONFIG, room: { length: '6', width: 4.5, height: 2.6 } },
-      ],
-      [
-        'a missing dimension',
-        { ...DEFAULT_CONFIG, room: { length: 6, width: 4.5 } },
-      ],
-      ['a room that is null', { ...DEFAULT_CONFIG, room: null }],
-      ['unknown units', { ...DEFAULT_CONFIG, units: 'furlongs' }],
-      [
-        'a layout outside v1',
-        { ...DEFAULT_CONFIG, layout: { dolbyLayout: '9.1.4', subwoofers: 1 } },
-      ],
-      [
-        'no subwoofer',
-        { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 0 } },
-      ],
-      [
-        'five subwoofers',
-        { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 5 } },
-      ],
-      [
-        'a fractional subwoofer count',
-        { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 1.5 } },
-      ],
-      // A link the app wrote at this version has every field and nothing
-      // else, so anything missing or extra means it was changed by hand.
-      [
-        'no units',
-        { room: DEFAULT_CONFIG.room, layout: DEFAULT_CONFIG.layout },
-      ],
-      ['no layout', { units: 'metric', room: DEFAULT_CONFIG.room }],
-      ['an unknown field', { ...DEFAULT_CONFIG, theme: 'dark' }],
-      [
-        'an unknown room field',
-        { ...DEFAULT_CONFIG, room: { ...DEFAULT_CONFIG.room, depth: 3 } },
-      ],
-      [
-        'an unknown layout field',
-        {
-          ...DEFAULT_CONFIG,
-          layout: { ...DEFAULT_CONFIG.layout, overheads: 4 },
-        },
-      ],
-      [
-        'no speaker groups',
-        {
-          units: 'metric',
-          room: DEFAULT_CONFIG.room,
-          layout: DEFAULT_CONFIG.layout,
-        },
-      ],
-      [
-        'an unknown speaker group',
-        {
-          ...DEFAULT_CONFIG,
-          speakerGroups: {
-            ...DEFAULT_CONFIG.speakerGroups,
-            center: { specs: PORTED_15 },
-          },
-        },
-      ],
-      [
-        'subwoofer specs out of range',
-        withSubwooferGroup({
-          specs: { ...PORTED_15, rmsWatts: 5 },
-          ownSpecs: {},
-        }),
-      ],
-      [
-        'a peak power below the RMS power',
-        withSubwooferGroup({
-          specs: { ...PORTED_15, peakWatts: 700 },
-          ownSpecs: {},
-        }),
-      ],
-      ['a crossover below 40 Hz', { ...DEFAULT_CONFIG, crossoverHz: 39 }],
-      ['a crossover above 200 Hz', { ...DEFAULT_CONFIG, crossoverHz: 250 }],
-      ['a crossover that is text', { ...DEFAULT_CONFIG, crossoverHz: '80' }],
-      [
-        'no crossover',
-        Object.fromEntries(
-          Object.entries(DEFAULT_CONFIG).filter(
-            ([key]) => key !== 'crossoverHz',
-          ),
-        ),
-      ],
-      [
-        'an unknown enclosure',
-        withSubwooferGroup({
-          specs: { ...PORTED_15, enclosure: 'horn' },
-          ownSpecs: {},
-        }),
-      ],
-      [
-        'a missing subwoofer spec',
-        withSubwooferGroup({
-          specs: { enclosure: 'sealed', rmsWatts: 300, peakWatts: 600 },
-          ownSpecs: {},
-        }),
-      ],
-      [
-        'an unknown subwoofer spec',
-        withSubwooferGroup({
-          specs: { ...PORTED_15, sensitivity: 88 },
-          ownSpecs: {},
-        }),
-      ],
-      ['no own specs field', withSubwooferGroup({ specs: PORTED_15 })],
-      [
-        'an unknown speaker type',
-        withSpeakerGroup('front', { type: 'floorstander', sensitivity: 88 }),
-      ],
-      [
-        'a sensitivity below the accepted range',
-        withSpeakerGroup('center', { type: 'tower', sensitivity: 69 }),
-      ],
-      [
-        'a sensitivity above the accepted range',
-        withSpeakerGroup('surrounds', { type: 'tower', sensitivity: 111 }),
-      ],
-      [
-        'a speaker group without a type',
-        withSpeakerGroup('rearSurrounds', { sensitivity: 88 }),
-      ],
-      [
-        'overheads with a type',
-        withSpeakerGroup('overheads', { type: 'bookshelf', sensitivity: 88 }),
-      ],
-      [
-        'a missing speaker group',
-        {
-          ...DEFAULT_CONFIG,
-          speakerGroups: Object.fromEntries(
-            Object.entries(DEFAULT_CONFIG.speakerGroups).filter(
-              ([group]) => group !== 'center',
-            ),
-          ),
-        },
-      ],
-      [
-        'an amplifier power below the accepted range',
-        { ...DEFAULT_CONFIG, amplifierWatts: 0.5 },
-      ],
-      [
-        'an amplifier power above the accepted range',
-        { ...DEFAULT_CONFIG, amplifierWatts: 5001 },
-      ],
-      [
-        'no amplifier power',
-        Object.fromEntries(
-          Object.entries(DEFAULT_CONFIG).filter(
-            ([key]) => key !== 'amplifierWatts',
-          ),
-        ),
-      ],
-      [
-        'own specs out of range',
-        withSubwooferGroup({
-          specs: PORTED_15,
-          ownSpecs: { Sub1: { ...SEALED_10, driverDiameter: 2 } },
-        }),
-      ],
-      [
-        'own specs that are null',
-        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub1: null } }),
-      ],
-      [
-        'own specs for an unknown subwoofer',
-        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub5: SEALED_10 } }),
-      ],
-      // The layout has one subwoofer (Sub1), so Sub2 can't have specs.
-      [
-        'own specs for a subwoofer beyond the subwoofer count',
-        withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub2: SEALED_10 } }),
-      ],
-      ['an unknown target curve', { ...DEFAULT_CONFIG, targetCurve: 'harman' }],
-      [
-        'a seat row narrower than one seat',
-        { ...DEFAULT_CONFIG, seatRowWidth: 0.4 },
-      ],
-      ['a seat row wider than 8 m', { ...DEFAULT_CONFIG, seatRowWidth: 8.1 }],
-      [
-        'a seat row width that is text',
-        { ...DEFAULT_CONFIG, seatRowWidth: '2' },
-      ],
-      [
-        'no seat row width',
-        Object.fromEntries(
-          Object.entries(DEFAULT_CONFIG).filter(
-            ([key]) => key !== 'seatRowWidth',
-          ),
-        ),
-      ],
-      [
-        'no manual positions field',
-        {
-          units: 'metric',
-          room: DEFAULT_CONFIG.room,
-          layout: DEFAULT_CONFIG.layout,
-          speakerGroups: DEFAULT_CONFIG.speakerGroups,
-          amplifierWatts: DEFAULT_CONFIG.amplifierWatts,
-          targetCurve: 'flat',
-        },
-      ],
-      [
-        'a manual position for an unknown speaker',
-        withManualPositions({ Lw: { x: -1, y: 2, z: 1.2 } }),
-      ],
-      // The default 5.1.2 has top middle overheads, not top front ones.
-      [
-        'a manual position for an overhead not in the layout',
-        withManualPositions({ Ltf: { x: -1, y: 1, z: 2.6 } }),
-      ],
-      // Overheads are on the 2.6 m ceiling.
-      [
-        'an overhead below the ceiling',
-        withManualPositions({ Ltm: { x: -1, y: 2, z: 2.3 } }),
-      ],
-      // The default 5.1.2 has no rear surrounds and one subwoofer.
-      [
-        'a manual position for a channel not in the layout',
-        withManualPositions({ Lrs: { x: -1, y: 5, z: 1.2 } }),
-      ],
-      [
-        'a manual position for a subwoofer beyond the subwoofer count',
-        withManualPositions({ Sub2: { x: 0, y: 5.7, z: 0.3 } }),
-      ],
-      [
-        'a manual position outside the room',
-        withManualPositions({ R: { x: 3, y: 1, z: 1.2 } }),
-      ],
-      // Speakers keep 0.3 m from every wall (our wall clearance).
-      [
-        'a speaker closer to a wall than the wall clearance',
-        withManualPositions({ R: { x: 2.1, y: 1, z: 1.2 } }),
-      ],
-      [
-        'a speaker above the ceiling clearance',
-        withManualPositions({ R: { x: 1, y: 1, z: 2.4 } }),
-      ],
-      [
-        'a subwoofer off the floor',
-        withManualPositions({ Sub1: { x: 0, y: 0.3, z: 1 } }),
-      ],
-      [
-        'the MLP away from ear height',
-        withManualPositions({ MLP: { x: 0, y: 3, z: 1.5 } }),
-      ],
-      [
-        'a manual position without a height',
-        withManualPositions({ R: { x: 1, y: 1 } }),
-      ],
-      [
-        'a manual position with an unknown field',
-        withManualPositions({ R: { x: 1, y: 1, z: 1.2, yaw: 30 } }),
-      ],
-      [
-        'a manual position that is text',
-        withManualPositions({ R: { x: '1', y: 1, z: 1.2 } }),
-      ],
-      [
-        'no target curve',
-        {
-          units: 'metric',
-          room: DEFAULT_CONFIG.room,
-          layout: DEFAULT_CONFIG.layout,
-          speakerGroups: DEFAULT_CONFIG.speakerGroups,
-          amplifierWatts: DEFAULT_CONFIG.amplifierWatts,
-          manualPositions: {},
-        },
-      ],
-    ])('for a version 1 config with %s', (_, config) => {
-      expect(decodeConfig(encodedHolding({ v: 1, config }))).toEqual(FALLBACK)
+    // Version 2 has version 1's shape so far, so both break the same rules.
+    describe.each([1, 2])('for a version %i config', (v) => {
+      it('but opens the config these cases start from', () => {
+        expect(
+          decodeConfig(encodedHolding({ v, config: DEFAULT_CONFIG })),
+        ).toEqual({ config: DEFAULT_CONFIG, problem: null })
+      })
+
+      it.each(BROKEN_CONFIGS)('with %s', (_, config) => {
+        expect(decodeConfig(encodedHolding({ v, config }))).toEqual(FALLBACK)
+      })
     })
 
     it('and says so when the link comes from a newer version of the app', () => {
@@ -540,6 +558,34 @@ describe('share link codec', () => {
   })
 })
 
+describe('version 2 share links', () => {
+  // Typed here, so the shared fixtures stay valid configs.
+  const links: Record<string, { encoded: string; config: Config }> = V2_LINKS
+
+  it.each(Object.entries(links))('open: %s', (_, { encoded, config }) => {
+    expect(decodeConfig(encoded)).toEqual({ config, problem: null })
+  })
+
+  // Until v1.1.0 is tagged, a change to version 2 regenerates these.
+  it.each(Object.entries(links))(
+    'are what the app writes today: %s',
+    (_, { encoded, config }) => {
+      expect(encodeConfig(config)).toBe(encoded)
+    },
+  )
+})
+
+/**
+ * Version 1 as v1.0.0 read it: its frozen schema alone, without the
+ * migration to today's version.
+ */
+const codecV1 = createConfigCodec({
+  version: 1,
+  schema: configSchemaV1,
+  migrations: {},
+  fallback: DEFAULT_CONFIG,
+})
+
 describe('released share links', () => {
   // Typed here, so the shared fixtures stay valid configs.
   const links: Record<string, { encoded: string; config: Config }> = V1_LINKS
@@ -548,6 +594,21 @@ describe('released share links', () => {
     'keep opening: %s',
     (_, { encoded, config }) => {
       expect(decodeConfig(encoded)).toEqual({ config, problem: null })
+    },
+  )
+
+  it.each(Object.entries(links))(
+    'open with the frozen version 1 schema alone: %s',
+    (_, { encoded, config }) => {
+      expect(codecV1.decode(encoded)).toEqual({ config, problem: null })
+    },
+  )
+
+  // Pins what version 1 rejects, whatever later versions change.
+  it.each(BROKEN_CONFIGS)(
+    'fall back with the frozen version 1 schema alone, for a config with %s',
+    (_, config) => {
+      expect(codecV1.decode(encodedHolding({ v: 1, config }))).toEqual(FALLBACK)
     },
   )
 })
@@ -679,9 +740,9 @@ describe('share link size', () => {
 })
 
 /**
- * A made-up future, to prove the migration hook before a real version 2
- * exists: version 2 adds a required screen width (in meters), version 3
- * moves it into a screen object. Version 1 is today's real config schema.
+ * A made-up history, to prove the migration hook on its own: version 1 is
+ * today's real config schema, version 2 adds a required screen width (in
+ * meters) and version 3 moves it into a screen object.
  */
 const v2Schema = configSchema.extend({ screenWidth: z.number().positive() })
 const v3Schema = configSchema.extend({
@@ -715,7 +776,9 @@ const codecV3 = createConfigCodec({
 
 describe('share links from older versions', () => {
   it('migrate a version 1 link through every later version', () => {
-    expect(codecV3.decode(encodeConfig(IMPERIAL_ROOM))).toEqual({
+    const v1Link = encodedHolding({ v: 1, config: IMPERIAL_ROOM })
+
+    expect(codecV3.decode(v1Link)).toEqual({
       config: { ...IMPERIAL_ROOM, screen: { width: 1.8 } },
       problem: null,
     })

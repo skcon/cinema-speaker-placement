@@ -53,6 +53,16 @@ describe('positions in the sidebar', () => {
     expect(item('Center')).toHaveTextContent('auto')
   })
 
+  it('say that auto-placed speakers are at different distances, which the receiver’s distance setting evens out', () => {
+    renderPositions()
+
+    expect(
+      screen.getByText(
+        /Left, Center and Right 0\.5 m from the front wall and the other speakers at the walls/,
+      ),
+    ).toHaveTextContent(/set each speaker’s distance in your receiver/)
+  })
+
   it('move a speaker when a distance or its height is edited, which makes it manual', () => {
     renderPositions()
 

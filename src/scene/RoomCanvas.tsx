@@ -39,7 +39,9 @@ import {
   type RoomPoint,
   type SeatHeatmap,
   type SeatRowFootprint,
+  type UnitSystem,
 } from '@/domain'
+import { roomDimensions } from '@/scene/dimensions'
 import { HEATMAP_OPACITY } from '@/scene/heatmap'
 import { heatmapColor } from '@/scene/heatmap-color'
 import {
@@ -127,6 +129,7 @@ export function RoomCanvas({
   heatmap,
   ruleOfThumbFromFrontWall,
   view,
+  units,
   ...callbacks
 }: {
   /** Which camera looks at the room; only the top-down view drags. */
@@ -147,6 +150,8 @@ export function RoomCanvas({
   heatmap: SeatHeatmap | null
   /** Where the "38% rule" puts the seat, in meters from the front wall. */
   ruleOfThumbFromFrontWall: number
+  /** How the room's measurements are written. */
+  units: UnitSystem
 } & DragCallbacks) {
   // Labels render into this layer over the canvas. Without a fixed target,
   // drei's Html can remount once r3f connects events and lose its content.
@@ -206,6 +211,11 @@ export function RoomCanvas({
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
         )}
         <Walls room={room} labelLayer={labelLayer} />
+        <RoomDimensionLabels
+          room={room}
+          units={units}
+          labelLayer={labelLayer}
+        />
         {view === '3d' && <RoomBox room={room} />}
         {recommendedSeat && (
           <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
@@ -492,6 +502,43 @@ function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
         className="-translate-y-3.5"
       >
         Front wall
+      </SceneLabel>
+    </>
+  )
+}
+
+/**
+ * The Room's width and length written just outside the back and left
+ * walls, a fixed few pixels out at any zoom; the length turns to run along
+ * its wall.
+ */
+function RoomDimensionLabels({
+  room,
+  units,
+  labelLayer,
+}: {
+  room: Room
+  units: UnitSystem
+  labelLayer: LabelLayer
+}) {
+  const [width, length] = roomDimensions(room, units)
+  return (
+    <>
+      <SceneLabel
+        at={width.at}
+        layer={labelLayer}
+        tone="muted"
+        className="translate-y-3.5"
+      >
+        &larr; {width.text} &rarr;
+      </SceneLabel>
+      <SceneLabel
+        at={length.at}
+        layer={labelLayer}
+        tone="muted"
+        className="-translate-x-3.5 -rotate-90"
+      >
+        &larr; {length.text} &rarr;
       </SceneLabel>
     </>
   )

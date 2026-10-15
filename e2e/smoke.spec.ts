@@ -49,6 +49,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     // The labels are placed from the scene's camera, so they show once it renders.
     await expect(scene.getByText('Front wall')).toBeVisible()
     await expect(scene.getByText('MLP')).toBeVisible()
+    // The default room's width and length are written along its walls.
+    await expect(scene.getByText('← 4.5 m →')).toBeVisible()
+    await expect(scene.getByText('← 6 m →')).toBeVisible()
   })
 
   await test.step('the default 5.1.2 speakers show with their angle and grade', async () => {

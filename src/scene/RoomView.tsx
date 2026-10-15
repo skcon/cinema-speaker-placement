@@ -143,6 +143,7 @@ export function RoomView() {
             heatmap={heatmap}
             ruleOfThumbFromFrontWall={seatRuleOfThumb.fromFrontWall}
             view={view}
+            units={units}
             onDragStart={beginGesture}
             onDragMove={moveItem}
             onDragEnd={endGesture}

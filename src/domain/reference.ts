@@ -482,11 +482,18 @@ export const SEAT_ROW = {
   defaultWidth: 2,
   limits: { min: 0.5, max: 8 },
   depth: 0.9,
-  note: 'Product choices for a visual cue, not cited values.',
+  headOffset: 0.35,
+  note:
+    'Product choices for a visual cue, not cited values. headOffset is how ' +
+    "far the couch's back edge is behind the MLP (the listener's head): our " +
+    'estimate, UNVERIFIED, from couch back thickness (0.25–0.45 m) plus about ' +
+    '0.1 m from the back of the head to the ears; no source gives it ' +
+    '(docs/research/seating-and-mlp.md, section 2 and its table; range 0.3–0.5 m).',
 } as const satisfies {
   defaultWidth: number
   limits: { min: number; max: number }
   depth: number
+  headOffset: number
   note: string
 }
 

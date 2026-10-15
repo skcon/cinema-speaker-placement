@@ -1,6 +1,9 @@
 /**
- * The Seat row (GLOSSARY.md): a couch or row of seats drawn centered on
- * the MLP. A visual cue only: nothing is analyzed at its seats.
+ * The Seat row (GLOSSARY.md): a couch or row of seats drawn around the
+ * MLP, the listener's head: centered across the room on it, with the
+ * couch's back edge SEAT_ROW.headOffset behind it and the rest of its
+ * depth in front, as a seated head rests near the back cushion. A visual
+ * cue only: nothing is analyzed at its seats.
  */
 import { checkRange, type RangeProblem } from './range'
 import { SEAT_ROW } from './reference'
@@ -31,8 +34,11 @@ export type SeatRowFootprint = {
 }
 
 /**
- * The seat row as a rectangle centered on the MLP, `width` wide and
- * SEAT_ROW's depth deep, cut off where it would go through a wall.
+ * The seat row as a rectangle `width` wide, centered across the room on
+ * the MLP, and SEAT_ROW's depth deep, its back edge SEAT_ROW.headOffset
+ * behind the MLP. It is cut off where it would go through a wall: the MLP
+ * may sit closer to the back wall than the head offset (its wall
+ * clearance is smaller), and then the couch back stops at the wall.
  */
 export function seatRowFootprint(
   room: Room,
@@ -41,9 +47,10 @@ export function seatRowFootprint(
 ): SeatRowFootprint {
   const half = room.width / 2
   const [left, right] = clip(mlp.x - width / 2, mlp.x + width / 2, -half, half)
+  const couchBack = mlp.y + SEAT_ROW.headOffset
   const [front, back] = clip(
-    mlp.y - SEAT_ROW.depth / 2,
-    mlp.y + SEAT_ROW.depth / 2,
+    couchBack - SEAT_ROW.depth,
+    couchBack,
     0,
     room.length,
   )

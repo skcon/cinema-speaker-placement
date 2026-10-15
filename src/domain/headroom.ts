@@ -8,7 +8,6 @@
  * speakers' dispersion, so it is a hint at whether gear is underpowered,
  * never a measurement.
  */
-import { CHANNELS } from './dolby-layouts'
 import {
   HEADROOM_MODEL,
   HEADROOM_STATUS,
@@ -17,6 +16,7 @@ import {
 } from './reference'
 import { distanceBetween, type RoomPoint } from './room'
 import {
+  channelName,
   SPEAKER_GROUP_NAMES,
   SPEAKER_GROUP_OF,
   type OverheadSpecs,
@@ -56,34 +56,25 @@ export type ChannelHeadroom = SplAtMlp & {
   readonly headroomDb: number
 }
 
-/**
- * A speaker group's headroom: its weakest speaker's. A group the layout
- * uses but whose speakers aren't placed (the overheads until #8) is listed
- * without one, so placing them is all it takes to check them.
- */
+/** A speaker group's headroom: its weakest speaker's. */
 export type GroupHeadroom = {
   readonly group: SpeakerGroupId
   /** For example "Front L/R". */
   readonly name: string
   readonly specs: SpeakerSpecs | OverheadSpecs
-  /** The group's placed speakers, in the layout's channel order. */
+  /** The group's speakers, in the layout's channel order. */
   readonly channels: readonly ChannelHeadroom[]
-} & (
-  | { readonly placed: false }
-  | {
-      readonly placed: true
-      /** The speaker with the least headroom: usually the farthest. */
-      readonly weakest: ChannelHeadroom
-      /** The weakest speaker's headroom, in dB. */
-      readonly headroomDb: number
-      readonly status: HeadroomStatus
-      /**
-       * The amplifier power per channel that would give the weakest
-       * speaker enough headroom (HEADROOM_STATUS.enoughFromDb), in watts.
-       */
-      readonly wattsForEnough: number
-    }
-)
+  /** The speaker with the least headroom: usually the farthest. */
+  readonly weakest: ChannelHeadroom
+  /** The weakest speaker's headroom, in dB. */
+  readonly headroomDb: number
+  readonly status: HeadroomStatus
+  /**
+   * The amplifier power per channel that would give the weakest
+   * speaker enough headroom (HEADROOM_STATUS.enoughFromDb), in watts.
+   */
+  readonly wattsForEnough: number
+}
 
 /** The Subwoofers' rough headroom at the MLP, all of them together. */
 export type SubwooferHeadroom = {
@@ -162,14 +153,15 @@ export function estimateHeadroom({
     })
     return {
       channel,
-      name: CHANNELS[channel].name,
+      name: channelName(channel),
       distance,
       maxSpl,
       headroomDb: maxSpl - REFERENCE_PEAK_DB,
     }
   })
 
-  const groupRows = groups.map((group): GroupHeadroom => {
+  // Every group the layout uses has speakers (speakerGroupsIn).
+  const groupRows = groups.flatMap((group): GroupHeadroom[] => {
     const inGroup = channels.filter(
       ({ channel }) => SPEAKER_GROUP_OF[channel] === group,
     )
@@ -180,23 +172,24 @@ export function estimateHeadroom({
       channels: inGroup,
     }
     const [first, ...rest] = inGroup
-    if (!first) return { ...row, placed: false }
+    if (!first) return []
     const weakest = rest.reduce(
       (low, c) => (c.headroomDb < low.headroomDb ? c : low),
       first,
     )
-    return {
-      ...row,
-      placed: true,
-      weakest,
-      headroomDb: weakest.headroomDb,
-      status: headroomStatus(weakest.headroomDb),
-      wattsForEnough: wattsForHeadroom({
-        watts: amplifierWatts,
+    return [
+      {
+        ...row,
+        weakest,
         headroomDb: weakest.headroomDb,
-        wantedDb: HEADROOM_STATUS.enoughFromDb,
-      }),
-    }
+        status: headroomStatus(weakest.headroomDb),
+        wattsForEnough: wattsForHeadroom({
+          watts: amplifierWatts,
+          headroomDb: weakest.headroomDb,
+          wantedDb: HEADROOM_STATUS.enoughFromDb,
+        }),
+      },
+    ]
   })
 
   // RMS power on purpose: the conservative choice; peak power isn't used.

@@ -4,6 +4,7 @@
  */
 export {
   analyzeRoom,
+  type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
   type ResponseAnalysis,
@@ -59,9 +60,11 @@ export {
   type Placement,
 } from './manual-positions'
 export {
+  OVERHEAD_CHANNEL_IDS,
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,
+  type OverheadChannelId,
 } from './dolby-layouts'
 export {
   evenerSubwooferCounts,
@@ -77,7 +80,12 @@ export {
   type Layout,
   type SubwooferCount,
 } from './layout'
-export type { PlacementGrade } from './placement-range'
+export type {
+  AngleCheck,
+  OverheadPlacementRangeCheck,
+  PlacementGrade,
+  UngradedAngle,
+} from './placement-range'
 export type { RangeProblem } from './range'
 export {
   checkRoomDimension,

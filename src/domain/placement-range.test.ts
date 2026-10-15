@@ -3,8 +3,12 @@ import {
   DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,
+  type OverheadChannelId,
 } from '@/domain/dolby-layouts'
-import { checkPlacementRange } from '@/domain/placement-range'
+import {
+  checkOverheadPlacementRange,
+  checkPlacementRange,
+} from '@/domain/placement-range'
 
 const FIVE_ONE = '5.1'
 const SEVEN_ONE_FOUR = '7.1.4'
@@ -146,6 +150,89 @@ describe('placement-range sources', () => {
     expect(acceptable).toEqual({
       range: null,
       note: 'Dolby gives no wider range',
+    })
+  })
+})
+
+/** Check an overhead's azimuth and elevation in a Dolby layout. */
+function checkOverhead(
+  dolbyLayout: DolbyLayout,
+  channel: OverheadChannelId,
+  azimuth: number,
+  elevation: number,
+) {
+  const reference = DOLBY_LAYOUTS[dolbyLayout].overheadChannels.find(
+    (entry) => entry.channel === channel,
+  )
+  if (!reference) throw new Error(`${dolbyLayout} has no ${channel} channel`)
+  return checkOverheadPlacementRange(reference, azimuth, elevation)
+}
+
+describe('placement-range grade of overhead elevation', () => {
+  // Top front 30°–55°, top rear 125°–150° (Dolby's side-view convention)
+  it.each([
+    ['Ltf', -45, 30, 'ideal'],
+    ['Ltf', -45, 55, 'ideal'],
+    ['Ltf', -45, 29, 'outside'],
+    ['Ltf', -45, 56, 'outside'],
+    ['Rtr', 135, 125, 'ideal'],
+    ['Rtr', 135, 150, 'ideal'],
+    ['Rtr', 135, 124, 'outside'],
+    ['Rtr', 135, 151, 'outside'],
+  ] as const)(
+    'grades %s in 7.1.4 at %f° azimuth and %f° elevation as %s',
+    (channel, azimuth, elevation, grade) => {
+      const check = checkOverhead(SEVEN_ONE_FOUR, channel, azimuth, elevation)
+      expect(check.elevation.grade).toBe(grade)
+      expect(check.grade).toBe(grade)
+    },
+  )
+
+  // Top middle 65°–100°
+  it.each([
+    [65, 'ideal'],
+    [100, 'ideal'],
+    [64, 'outside'],
+    [101, 'outside'],
+  ] as const)('grades Ltm in 5.1.2 at %f° as %s', (elevation, grade) => {
+    expect(checkOverhead('5.1.2', 'Ltm', -20, elevation).grade).toBe(grade)
+  })
+
+  it('grades the elevation to the nearest whole degree, as it is shown', () => {
+    expect(
+      checkOverhead(SEVEN_ONE_FOUR, 'Ltf', -45, 55.4).elevation,
+    ).toMatchObject({ degrees: 55.4, shown: 55, grade: 'ideal' })
+    expect(
+      checkOverhead(SEVEN_ONE_FOUR, 'Ltf', -45, 29.6).elevation,
+    ).toMatchObject({ shown: 30, grade: 'ideal' })
+  })
+
+  it('gives the worst grade of the azimuth and the elevation', () => {
+    // Azimuth 30°–60° on the channel's side; elevation 30°–55°.
+    expect(checkOverhead(SEVEN_ONE_FOUR, 'Rtf', 45, 45).grade).toBe('ideal')
+    expect(checkOverhead(SEVEN_ONE_FOUR, 'Rtf', 20, 45)).toMatchObject({
+      grade: 'outside',
+      azimuth: { grade: 'outside' },
+      elevation: { grade: 'ideal' },
+    })
+    expect(checkOverhead(SEVEN_ONE_FOUR, 'Rtf', 45, 70)).toMatchObject({
+      grade: 'outside',
+      azimuth: { grade: 'ideal' },
+      elevation: { grade: 'outside' },
+    })
+    // Left Top Front on the right side of the room.
+    expect(checkOverhead(SEVEN_ONE_FOUR, 'Ltf', 45, 45).grade).toBe('outside')
+  })
+
+  it('leaves the top middle azimuth ungraded, as Dolby gives none, and grades the elevation only', () => {
+    const check = checkOverhead('7.1.2', 'Rtm', 170, 80)
+
+    expect(check.grade).toBe('ideal')
+    expect(check.azimuth).toMatchObject({
+      ideal: null,
+      degrees: 170,
+      shown: 170,
+      grade: null,
     })
   })
 })

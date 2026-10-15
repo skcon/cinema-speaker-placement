@@ -34,7 +34,7 @@ export function HeadroomIndicator() {
           <HeadroomItem
             key={group.group}
             name={group.name}
-            status={group.placed ? group.status : null}
+            status={group.status}
             text={groupSentence(group, headroom, units)}
           />
         ))}
@@ -54,26 +54,22 @@ function HeadroomItem({
   text,
 }: {
   name: string
-  status: HeadroomStatus | null
+  status: HeadroomStatus
   text: string
 }) {
-  const style = status && HEADROOM_STATUS_TEXT[status]
+  const style = HEADROOM_STATUS_TEXT[status]
   return (
     <li className="flex flex-col gap-0.5 border-t pt-2">
       <span className="flex items-center justify-between gap-2">
         <span className="font-medium">{name}</span>
-        {style ? (
-          <span className="flex items-center gap-1.5 text-xs">
-            <span
-              aria-hidden
-              className="size-2.5 shrink-0 rounded-xs"
-              style={{ backgroundColor: style.color }}
-            />
-            {style.label}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Not checked</span>
-        )}
+        <span className="flex items-center gap-1.5 text-xs">
+          <span
+            aria-hidden
+            className="size-2.5 shrink-0 rounded-xs"
+            style={{ backgroundColor: style.color }}
+          />
+          {style.label}
+        </span>
       </span>
       <span className="text-xs text-muted-foreground">{text}</span>
     </li>

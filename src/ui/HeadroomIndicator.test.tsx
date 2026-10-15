@@ -48,10 +48,11 @@ describe('headroom indicator', () => {
     expect(item(/^Subwoofers/)).toHaveTextContent(/RMS power on purpose/)
   })
 
-  it('says overheads are not checked until they are placed', () => {
+  it('checks the overheads like the other groups', () => {
     renderIndicator()
 
-    expect(item(/^Overheads/)).toHaveTextContent(/not placed yet/i)
+    expect(item(/^Overheads/)).toHaveTextContent(/Tight/)
+    expect(item(/^Overheads/)).toHaveTextContent(/The weakest, /)
   })
 
   it('updates when the amplifier power changes', () => {

@@ -1,12 +1,16 @@
 /**
- * Dolby's listener-level placement ranges for every v1 Layout, as typed data
- * with citations. Values and citation keys come from
+ * Dolby's placement ranges for every v1 Layout, as typed data with
+ * citations. Values and citation keys come from
  * docs/research/dolby-speaker-placement.md: channel names from section 2,
- * azimuths from section 3, conflicts from section 7. Overhead channels (#8)
- * and subwoofers (#10) are not in this map yet.
+ * listener-level azimuths from section 3, overhead elevations, azimuths and
+ * spacing from section 4, conflicts from section 7. Subwoofers have no
+ * Dolby placement range (subwoofer-arrangements.ts).
  *
  * Azimuths are degrees from Dolby's center-front reference, on the channel's
  * own side of the room (see src/domain/room.ts for the sign convention).
+ * Elevations use Dolby's side-view convention (research section 1, and
+ * `sideViewElevation` in room.ts): 0° straight ahead at ear level, 90°
+ * overhead, 180° straight behind.
  */
 import type { Citation } from './reference'
 
@@ -37,6 +41,23 @@ export const CHANNEL_IDS = ['L', 'C', 'R', 'Ls', 'Rs', 'Lrs', 'Rrs'] as const
 /** A listener-level channel, by Dolby's abbreviation (research section 2). */
 export type ChannelId = (typeof CHANNEL_IDS)[number]
 
+/**
+ * The overhead channels, by Dolby's abbreviation (research section 2), in
+ * display order. Ltm/Rtm is our abbreviation: Dolby only spells "top
+ * middle" out (IG p.51).
+ */
+export const OVERHEAD_CHANNEL_IDS = [
+  'Ltf',
+  'Rtf',
+  'Ltm',
+  'Rtm',
+  'Ltr',
+  'Rtr',
+] as const
+
+/** An overhead channel, by Dolby's abbreviation (research section 2). */
+export type OverheadChannelId = (typeof OVERHEAD_CHANNEL_IDS)[number]
+
 /** Which side of the center-front reference a channel belongs on. */
 export type ChannelSide = 'left' | 'center' | 'right'
 
@@ -53,6 +74,22 @@ export const CHANNELS = {
   Lrs: { name: 'Left Rear Surround', side: 'left' },
   Rrs: { name: 'Right Rear Surround', side: 'right' },
 } as const satisfies Record<ChannelId, { name: string; side: ChannelSide }>
+
+/**
+ * Dolby's spelled-out overhead channel names (IG p.8 fig.2, IG p.51;
+ * research section 2), title-cased like CHANNELS.
+ */
+export const OVERHEAD_CHANNELS = {
+  Ltf: { name: 'Left Top Front', side: 'left' },
+  Rtf: { name: 'Right Top Front', side: 'right' },
+  Ltm: { name: 'Left Top Middle', side: 'left' },
+  Rtm: { name: 'Right Top Middle', side: 'right' },
+  Ltr: { name: 'Left Top Rear', side: 'left' },
+  Rtr: { name: 'Right Top Rear', side: 'right' },
+} as const satisfies Record<
+  OverheadChannelId,
+  { name: string; side: ChannelSide }
+>
 
 /**
  * A signed azimuth (src/domain/room.ts) as an angle on the channel's own
@@ -98,9 +135,12 @@ export type AngleReference = {
   readonly acceptable: CitedAngleRange | NoWiderRange
 }
 
+/** Recorded where Dolby gives no range at all for an angle, so it is not graded. */
+export type NoAngleRange = { readonly ideal: null; readonly note: string }
+
 /**
  * A channel's placement range, one part per angle Dolby gives. Listener-level
- * channels have an azimuth only; overheads (#8) add an elevation.
+ * channels have an azimuth only; overheads add an elevation.
  */
 export type PlacementRangeReference = {
   /** On the channel's own side of the center-front reference. */
@@ -109,6 +149,18 @@ export type PlacementRangeReference = {
 
 export type ChannelReference = PlacementRangeReference & {
   readonly channel: ChannelId
+}
+
+/** An overhead channel's placement range: an elevation and, mostly, an azimuth. */
+export type OverheadChannelReference = {
+  readonly channel: OverheadChannelId
+  /** In Dolby's side-view convention (see above). */
+  readonly elevation: AngleReference & {
+    /** The elevation Dolby draws as the one to aim for, or null when it states none. */
+    readonly nominal: number | null
+  }
+  /** On the channel's own side, or none where Dolby gives none. */
+  readonly azimuth: AngleReference | NoAngleRange
 }
 
 export type DolbyLayoutReference = {
@@ -120,6 +172,8 @@ export type DolbyLayoutReference = {
   readonly citations: readonly Citation[]
   /** The listener-level channels, in display order. */
   readonly channels: readonly ChannelReference[]
+  /** The overhead channels, in display order: as many as `overheads`. */
+  readonly overheadChannels: readonly OverheadChannelReference[]
 }
 
 /**
@@ -262,54 +316,188 @@ function bed7<const Citations extends readonly Citation[]>(
   ] as const
 }
 
-/** The listener-level placement ranges of every v1 Dolby layout. */
+/**
+ * How far apart each overhead pair is, as a share of the overall layout
+ * width: about the L/R spacing at ±30° (IG p.7; IG p.8 fig.3; research
+ * section 4). Our interpretation, not Dolby's: the "layout width" is the
+ * lateral distance between the outermost listener-level speakers as placed.
+ */
+export const OVERHEAD_SPACING = {
+  range: { min: 0.5, max: 0.7 },
+  citations: [
+    { source: 'IG', page: 7 },
+    { source: 'IG', page: 8, figure: 'fig.3' },
+  ],
+  note:
+    'Our interpretation: the layout width is the lateral distance between ' +
+    'the outermost listener-level speakers as placed.',
+} as const satisfies {
+  range: { min: number; max: number }
+  citations: readonly Citation[]
+  note: string
+}
+
+/** The overhead elevation ranges (research section 4, side-view convention). */
+const ELEVATION = {
+  topFront: {
+    ideal: {
+      range: { min: 30, max: 55 },
+      citations: [
+        {
+          source: 'IG',
+          page: 7,
+          note: 'should be 45° in the 7.1.4 reference, adjustable 30°–55°',
+        },
+        { source: 'IG', page: 8, figure: 'fig.2' },
+        { source: 'S-514-OH' },
+        { source: 'S-714-OH' },
+      ],
+    },
+    acceptable: NO_WIDER_RANGE,
+    nominal: 45,
+  },
+  topRear: {
+    ideal: {
+      range: { min: 125, max: 150 },
+      citations: [
+        { source: 'IG', page: 8, figure: 'fig.2' },
+        { source: 'S-514-OH' },
+        { source: 'S-714-OH' },
+      ],
+    },
+    acceptable: NO_WIDER_RANGE,
+    nominal: 135,
+  },
+  topMiddle: {
+    ideal: {
+      range: { min: 65, max: 100 },
+      citations: [{ source: 'S-512-OH' }, { source: 'S-712-OH' }],
+      note: 'Dolby states no ideal angle inside the range.',
+    },
+    acceptable: NO_WIDER_RANGE,
+    nominal: null,
+  },
+} as const satisfies Record<string, OverheadChannelReference['elevation']>
+
+/** The overhead azimuth ranges, top view (IG p.9 fig.4; research section 4). */
+const OVERHEAD_AZIMUTH = {
+  front: {
+    ideal: {
+      range: { min: 30, max: 60 },
+      citations: [{ source: 'IG', page: 9, figure: 'fig.4' }],
+    },
+    acceptable: NO_WIDER_RANGE,
+  },
+  rear: {
+    ideal: {
+      range: { min: 120, max: 150 },
+      citations: [{ source: 'IG', page: 9, figure: 'fig.4' }],
+    },
+    acceptable: NO_WIDER_RANGE,
+  },
+  middle: {
+    ideal: null,
+    note:
+      'Dolby gives no azimuth for top middle speakers in x.1.2 layouts ' +
+      '(S-512-OH, S-712-OH draw them ahead of the seat, in line with L/R), ' +
+      'so only their elevation is graded.',
+  },
+} as const satisfies Record<string, AngleReference | NoAngleRange>
+
+/** Ltm/Rtm, as in 5.1.2 and 7.1.2 (S-512-OH, S-712-OH). */
+const TOP_MIDDLE = [
+  {
+    channel: 'Ltm',
+    elevation: ELEVATION.topMiddle,
+    azimuth: OVERHEAD_AZIMUTH.middle,
+  },
+  {
+    channel: 'Rtm',
+    elevation: ELEVATION.topMiddle,
+    azimuth: OVERHEAD_AZIMUTH.middle,
+  },
+] as const satisfies readonly OverheadChannelReference[]
+
+/** Ltf/Rtf and Ltr/Rtr, as in 5.1.4 and 7.1.4 (S-514-OH, S-714-OH; IG p.8 fig.2). */
+const TOP_FRONT_AND_REAR = [
+  {
+    channel: 'Ltf',
+    elevation: ELEVATION.topFront,
+    azimuth: OVERHEAD_AZIMUTH.front,
+  },
+  {
+    channel: 'Rtf',
+    elevation: ELEVATION.topFront,
+    azimuth: OVERHEAD_AZIMUTH.front,
+  },
+  {
+    channel: 'Ltr',
+    elevation: ELEVATION.topRear,
+    azimuth: OVERHEAD_AZIMUTH.rear,
+  },
+  {
+    channel: 'Rtr',
+    elevation: ELEVATION.topRear,
+    azimuth: OVERHEAD_AZIMUTH.rear,
+  },
+] as const satisfies readonly OverheadChannelReference[]
+
+/** The placement ranges of every v1 Dolby layout. */
 export const DOLBY_LAYOUTS = {
   '2.1': {
     listenerLevel: 2,
     overheads: 0,
     citations: LAYOUT_CITATIONS['2.1'],
     channels: leftRight(LAYOUT_CITATIONS['2.1']),
+    overheadChannels: [],
   },
   '3.1': {
     listenerLevel: 3,
     overheads: 0,
     citations: LAYOUT_CITATIONS['3.1'],
     channels: leftCenterRight(LAYOUT_CITATIONS['3.1']),
+    overheadChannels: [],
   },
   '5.1': {
     listenerLevel: 5,
     overheads: 0,
     citations: LAYOUT_CITATIONS['5.1'],
     channels: bed5(LAYOUT_CITATIONS['5.1']),
+    overheadChannels: [],
   },
   '7.1': {
     listenerLevel: 7,
     overheads: 0,
     citations: LAYOUT_CITATIONS['7.1'],
     channels: bed7(LAYOUT_CITATIONS['7.1']),
+    overheadChannels: [],
   },
   '5.1.2': {
     listenerLevel: 5,
     overheads: 2,
     citations: LAYOUT_CITATIONS['5.1.2'],
     channels: bed5(LAYOUT_CITATIONS['5.1.2']),
+    overheadChannels: TOP_MIDDLE,
   },
   '5.1.4': {
     listenerLevel: 5,
     overheads: 4,
     citations: LAYOUT_CITATIONS['5.1.4'],
     channels: bed5(LAYOUT_CITATIONS['5.1.4']),
+    overheadChannels: TOP_FRONT_AND_REAR,
   },
   '7.1.2': {
     listenerLevel: 7,
     overheads: 2,
     citations: LAYOUT_CITATIONS['7.1.2'],
     channels: bed7(LAYOUT_CITATIONS['7.1.2']),
+    overheadChannels: TOP_MIDDLE,
   },
   '7.1.4': {
     listenerLevel: 7,
     overheads: 4,
     citations: LAYOUT_CITATIONS['7.1.4'],
     channels: bed7(LAYOUT_CITATIONS['7.1.4']),
+    overheadChannels: TOP_FRONT_AND_REAR,
   },
 } as const satisfies Record<DolbyLayout, DolbyLayoutReference>

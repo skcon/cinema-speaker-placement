@@ -24,7 +24,7 @@ function roundWatts(watts: number): string {
   return formatWatts(Math.ceil(watts / step) * step)
 }
 
-/** What a placed group's sentence is written from. */
+/** What a group's sentence is written from. */
 type GroupFacts = {
   headroom: string
   at: string
@@ -105,7 +105,6 @@ export function groupSentence(
   { amplifierWatts, enoughFromDb }: HeadroomAnalysis,
   units: UnitSystem,
 ): string {
-  if (!row.placed) return 'Not placed yet, so not checked.'
   const { weakest, channels, status, headroomDb, wattsForEnough } = row
   const distance = formatLength(weakest.distance, units)
   return HEADROOM_STATUS_TEXT[status].group({

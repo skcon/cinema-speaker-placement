@@ -4,9 +4,14 @@
  * it is, manual or auto.
  */
 import type { Config } from './config'
-import { DOLBY_LAYOUTS, type ChannelReference } from './dolby-layouts'
+import {
+  DOLBY_LAYOUTS,
+  type ChannelReference,
+  type OverheadChannelReference,
+} from './dolby-layouts'
 import { MLP_ID, type PlaceableId, type Placement } from './manual-positions'
 import { defaultMlp } from './mlp'
+import { autoPlaceOverhead, layoutWidth } from './overhead-placement'
 import { autoPlaceSpeaker } from './placement'
 import { nearestWall, type RoomPoint, type Wall } from './room'
 import type { SubwooferId } from './subwoofer-arrangements'
@@ -23,6 +28,13 @@ export type Placements = {
   /** The listener-level channels, in Dolby's channel order. */
   readonly speakers: readonly (Placed & {
     readonly reference: ChannelReference
+  })[]
+  /**
+   * The overhead channels, in Dolby's channel order. Auto ones are placed
+   * around the MLP and spaced by the listener-level speakers as placed.
+   */
+  readonly overheads: readonly (Placed & {
+    readonly reference: OverheadChannelReference
   })[]
   /** The subwoofers, Subwoofer 1 first, with the wall each stands against. */
   readonly subwoofers: readonly (Placed & {
@@ -51,6 +63,14 @@ export function placeAll({
       ),
     }),
   )
+  const { overheadChannels } = DOLBY_LAYOUTS[layout.dolbyLayout]
+  const width = layoutWidth(speakers.map(({ position }) => position))
+  const overheads = overheadChannels.map((reference) => ({
+    reference,
+    ...placed(reference.channel, () =>
+      autoPlaceOverhead(room, mlp.position, reference, width),
+    ),
+  }))
   const subwoofers = autoPlaceSubwoofers(room, layout.subwoofers).map(
     ({ id, position, wall }) => {
       const where = placed(id, () => position)
@@ -65,15 +85,16 @@ export function placeAll({
       }
     },
   )
-  return { mlp, speakers, subwoofers }
+  return { mlp, speakers, overheads, subwoofers }
 }
 
 /** Where item `id` is now, or null when the layout has no such item. */
 export function positionOf(config: Config, id: PlaceableId): RoomPoint | null {
-  const { mlp, speakers, subwoofers } = placeAll(config)
+  const { mlp, speakers, overheads, subwoofers } = placeAll(config)
   if (id === MLP_ID) return mlp.position
   const item =
     speakers.find(({ reference }) => reference.channel === id) ??
+    overheads.find(({ reference }) => reference.channel === id) ??
     subwoofers.find((subwoofer) => subwoofer.id === id)
   return item?.position ?? null
 }

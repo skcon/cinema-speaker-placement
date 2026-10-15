@@ -29,7 +29,7 @@ SMPTE RP 200 (the cinema calibration practice FLORIAN-2000 describes) and Dolby'
   - Free field: no room gain (which makes a real room louder, mostly in the bass) and no power compression (which makes loud speakers quieter than the formula).
   - Distances under 0.5 m count as 0.5 m (the near field, where the 1 m sensitivity does not scale).
   - Status: **enough** from 3 dB headroom (a doubling of power to spare), **tight** from 0 dB, **short** below.
-  - Overhead speakers are not placed yet (#8), so they get no headroom.
+  - Overhead speakers are checked like the listener-level groups, by their distance from the MLP on the ceiling (#8).
 
 ## 4. Subwoofer headroom (ours)
 

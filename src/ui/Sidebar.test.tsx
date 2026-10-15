@@ -23,13 +23,20 @@ afterEach(() => {
 })
 
 describe('sidebar sections', () => {
-  it('groups the sidebar into Room, Layout, Speakers, Seating and Results, in that order', async () => {
+  it('groups the sidebar into Room, Layout, Speakers, Seating and Results, in that order, under the Selected item', async () => {
     renderApp()
 
     const sidebar = await findSidebar()
 
     const headings = within(sidebar).getAllByRole('heading', { level: 2 })
-    const names = ['Room', 'Layout', 'Speakers', 'Seating', 'Results']
+    const names = [
+      'Selected item',
+      'Room',
+      'Layout',
+      'Speakers',
+      'Seating',
+      'Results',
+    ]
     expect(headings).toHaveLength(names.length)
     names.forEach((name, i) => expect(headings[i]).toHaveAccessibleName(name))
     expect(

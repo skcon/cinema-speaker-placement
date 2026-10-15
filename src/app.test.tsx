@@ -220,6 +220,24 @@ describe('share links', () => {
     expect(history.length).toBe(1)
   })
 
+  it('never writes the Selected item to the address', async () => {
+    const path = shareLinkPath(DEFAULT_CONFIG)
+    const history = renderApp(path)
+    const left = await screen.findByRole('group', { name: 'Left position' })
+
+    fireEvent.click(within(left).getByText('Left'))
+
+    const panel = screen.getByRole('region', { name: 'Selected item' })
+    expect(
+      await within(panel).findByRole('heading', { name: 'Left' }),
+    ).toBeInTheDocument()
+    // Longer than the address update's 300 ms pause.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(configParamInAddress(history)).toBe(encodeConfig(DEFAULT_CONFIG))
+    expect(history.length).toBe(1)
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
   it('follows the address back and forward between share links', async () => {
     const history = renderApp(shareLinkPath(IMPERIAL_ROOM))
     expect(await findInput('Length', 'ft')).toHaveValue('26')

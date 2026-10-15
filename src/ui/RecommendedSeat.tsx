@@ -55,9 +55,9 @@ export function RecommendedSeat() {
       <p className="text-xs text-muted-foreground">
         An estimate from a simplified model, never a measurement: a grid of
         seats scored on bass smoothness (the estimated response against the
-        target) and on the speakers&rsquo; Dolby placement ranges, with the
-        receiver calibrated at the MLP. Moving the MLP makes it manual; undo
-        takes it back. Auto-place also puts the MLP here.
+        target) and on the listener-level speakers&rsquo; Dolby placement
+        ranges, with the receiver calibrated at the MLP. Moving the MLP makes it
+        manual; undo takes it back. Auto-place also puts the MLP here.
       </p>
     </div>
   )

@@ -18,13 +18,21 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
-import { Color, InstancedMesh, Object3D, Plane, Vector3 } from 'three'
+import {
+  Color,
+  DoubleSide,
+  InstancedMesh,
+  Object3D,
+  Plane,
+  Vector3,
+} from 'three'
 import {
   floorCorners,
   MLP_ID,
   type FloorPoint,
   wallBases,
   type PlaceableId,
+  type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
   type Room,
@@ -35,6 +43,8 @@ import {
 import { HEATMAP_OPACITY, heatmapColor } from '@/scene/heatmap'
 import {
   GRADE_STYLES,
+  OVERHEAD_MARKER_RADIUS,
+  overheadMarker,
   RECOMMENDED_SEAT_COLOR,
   RULE_OF_THUMB_COLOR,
   SPEAKER_FOOTPRINT,
@@ -114,6 +124,7 @@ export function RoomCanvas({
   room,
   mlp,
   speakers,
+  overheads,
   subwoofers,
   gridSpacing,
   seatRow,
@@ -128,6 +139,8 @@ export function RoomCanvas({
   room: Room
   mlp: RoomPoint
   speakers: readonly PlacedSpeaker[]
+  /** On the ceiling: drawn over everything else from straight above. */
+  overheads: readonly PlacedOverhead[]
   subwoofers: readonly PlacedSubwoofer[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
@@ -206,6 +219,11 @@ export function RoomCanvas({
         />
         <SpeakerMarkers
           speakers={speakers}
+          labelLayer={labelLayer}
+          markerDrag={markerDrag}
+        />
+        <OverheadMarkers
+          overheads={overheads}
           labelLayer={labelLayer}
           markerDrag={markerDrag}
         />
@@ -665,6 +683,60 @@ function SpeakerMarkers({
         </Draggable>
         <SceneLabel
           at={speaker.position}
+          layer={labelLayer}
+          className="flex flex-col items-center leading-tight"
+          style={{ transform: besideMarker(labelDirection) }}
+        >
+          <span className="font-medium">{label}</span>
+          <span className="text-muted-foreground">
+            {GRADE_STYLES[grade].label}
+          </span>
+        </SceneLabel>
+      </Fragment>
+    )
+  })
+}
+
+/**
+ * The overhead speakers as rings with a center dot, colored by grade, on
+ * the ceiling: round, so they read apart from the rectangular
+ * listener-level cabinets. Drawn on both faces, so the 3D view sees them
+ * from below. Dragged on the floor plan like the others (top-down only);
+ * the store keeps them on the ceiling.
+ */
+function OverheadMarkers({
+  overheads,
+  labelLayer,
+  markerDrag,
+}: {
+  overheads: readonly PlacedOverhead[]
+  labelLayer: LabelLayer
+  markerDrag: MarkerDrag | null
+}) {
+  return overheads.map((overhead) => {
+    const { position, rotation, color, label, grade, labelDirection } =
+      overheadMarker(overhead)
+    return (
+      <Fragment key={overhead.channel}>
+        <Draggable
+          id={overhead.channel}
+          at={overhead.position}
+          radius={OVERHEAD_MARKER_RADIUS}
+          markerDrag={markerDrag}
+        >
+          <mesh position={position} rotation={rotation}>
+            <ringGeometry
+              args={[OVERHEAD_MARKER_RADIUS * 0.6, OVERHEAD_MARKER_RADIUS, 32]}
+            />
+            <meshBasicMaterial color={color} side={DoubleSide} />
+          </mesh>
+          <mesh position={position} rotation={rotation}>
+            <circleGeometry args={[OVERHEAD_MARKER_RADIUS * 0.3, 24]} />
+            <meshBasicMaterial color={color} side={DoubleSide} />
+          </mesh>
+        </Draggable>
+        <SceneLabel
+          at={overhead.position}
           layer={labelLayer}
           className="flex flex-col items-center leading-tight"
           style={{ transform: besideMarker(labelDirection) }}

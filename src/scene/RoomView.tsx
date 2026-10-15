@@ -6,6 +6,7 @@ import {
   useSeatRecommendation,
 } from '@/state/config-context'
 import {
+  describeOverhead,
   describeSpeaker,
   describeSubwoofer,
   GRADE_STYLES,
@@ -42,8 +43,15 @@ export function RoomView() {
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveItem = useConfig((state) => state.moveItem)
   const endGesture = useConfig((state) => state.endGesture)
-  const { layout, mlp, speakers, subwoofers, seatRow, seatRuleOfThumb } =
-    useRoomAnalysis()
+  const {
+    layout,
+    mlp,
+    speakers,
+    overheads,
+    subwoofers,
+    seatRow,
+    seatRuleOfThumb,
+  } = useRoomAnalysis()
   const recommendation = useSeatRecommendation()
   // View state only: not in the config, the share link or the undo history.
   const [showHeatmap, setShowHeatmap] = useState(false)
@@ -81,6 +89,12 @@ export function RoomView() {
     `${layout.name} listener-level speakers, angle from the MLP ` +
     `and Dolby placement-range grade: ` +
     `${speakers.map(describeSpeaker).join(', ')}.`
+  const overheadsDescription =
+    overheads.length > 0
+      ? `${overheads.length} overhead speakers on the ceiling, angle and ` +
+        `elevation from the MLP and Dolby placement-range grade: ` +
+        `${overheads.map(describeOverhead).join(', ')}.`
+      : ''
   const subwoofersDescription =
     `${subwoofers.length} ${subwoofers.length === 1 ? 'subwoofer' : 'subwoofers'}, ` +
     `not graded as Dolby gives subwoofers no placement range: ` +
@@ -91,6 +105,7 @@ export function RoomView() {
       <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
         <p>{roomDescription}</p>
         <p>{speakersDescription}</p>
+        {overheadsDescription && <p>{overheadsDescription}</p>}
         <p>{subwoofersDescription}</p>
         {seatDescription && <p>{seatDescription}</p>}
         <p>This browser can&rsquo;t draw the room view (no WebGL 2).</p>
@@ -105,6 +120,7 @@ export function RoomView() {
         aria-label={[
           roomDescription,
           speakersDescription,
+          overheadsDescription,
           subwoofersDescription,
           seatDescription,
           describeHeatmap(heatmap, units),
@@ -124,6 +140,7 @@ export function RoomView() {
             room={room}
             mlp={mlp}
             speakers={speakers}
+            overheads={overheads}
             subwoofers={subwoofers}
             gridSpacing={baseUnit.meters}
             seatRow={seatRow}
@@ -186,6 +203,15 @@ export function RoomView() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {showHeatmap && <HeatmapLegend />}
           <GradeLegend />
+          {overheads.length > 0 && (
+            <p className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="size-2.5 rounded-full border-2 border-current"
+              />
+              Overhead speaker (ring)
+            </p>
+          )}
           <p className="flex items-center gap-1.5">
             <span
               aria-hidden

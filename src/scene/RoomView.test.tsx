@@ -111,3 +111,17 @@ describe('camera toggle in the room view', () => {
     expect(scene()).toBeInTheDocument()
   })
 })
+
+describe('overhead speakers in the room view', () => {
+  it('are described for screen readers with their elevation and grade, and named in the legend', () => {
+    renderRoomView()
+
+    // The default 5.1.2: two top middle overheads, graded on elevation.
+    expect(scene().getAttribute('aria-label')).toContain(
+      '2 overhead speakers on the ceiling, angle and elevation from the ' +
+        'MLP and Dolby placement-range grade: Left Top Middle elevation ' +
+        '83° (ideal), Right Top Middle elevation 83° (ideal).',
+    )
+    expect(screen.getByText('Overhead speaker (ring)')).toBeInTheDocument()
+  })
+})

@@ -149,7 +149,7 @@ The recommended seat's candidate grid drawn as colors on the floor plan, so good
 _Avoid_: Heat map, score map
 
 **Auto-place**:
-Placing every speaker from the reference recommendations for the current room and layout, and the MLP at the recommended seat. The button sets everything back to auto, then puts the MLP at the recommended seat (manual there, unless the auto MLP, seeded by the "38% rule", already is it).
+Placing every speaker from the reference recommendations for the current room and layout, and the MLP at the recommended seat. Listener-level speakers keep Dolby's angles: Left, Center and Right sit 0.5 m from the front wall, the others at the walls (ADR 0005). The button sets everything back to auto, then puts the MLP at the recommended seat (manual there, unless the auto MLP, seeded by the "38% rule", already is it).
 _Avoid_: Auto-layout, optimize
 
 **Auto / manual**:

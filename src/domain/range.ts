@@ -18,3 +18,8 @@ export function checkRange(
   if (value > max) return { problem: 'too-large', min, max }
   return null
 }
+
+/** `value` held inside [low, high]. */
+export function clamp(value: number, low: number, high: number): number {
+  return Math.min(Math.max(value, low), high)
+}

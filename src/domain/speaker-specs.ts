@@ -8,9 +8,7 @@
  * nothing here does any acoustics with them.
  */
 import {
-  CHANNELS,
   DOLBY_LAYOUTS,
-  OVERHEAD_CHANNELS,
   type ChannelId,
   type OverheadChannelId,
 } from './dolby-layouts'
@@ -105,15 +103,6 @@ export type SpeakerGroups = {
 
 /** A channel a Speaker of some speaker group plays: listener-level or overhead. */
 export type SpeakerChannelId = ChannelId | OverheadChannelId
-
-/** Dolby's name for a listener-level or overhead channel, for example "Left Top Front". */
-export function channelName(channel: SpeakerChannelId): string {
-  const names: Record<SpeakerChannelId, { name: string }> = {
-    ...CHANNELS,
-    ...OVERHEAD_CHANNELS,
-  }
-  return names[channel].name
-}
 
 /** The speaker group each channel's Speaker belongs to. */
 export const SPEAKER_GROUP_OF: Readonly<

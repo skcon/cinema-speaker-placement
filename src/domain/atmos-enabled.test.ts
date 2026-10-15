@@ -18,30 +18,30 @@ function roomWithHeight(height: number): Config['room'] {
 }
 
 describe('suggesting Atmos-enabled speakers for a low ceiling', () => {
-  it('cites Dolby’s 8 ft ceiling as the threshold', () => {
-    // 8 ft = 8 x 0.3048 m (WP p.7, IG p.12)
-    expect(LOW_CEILING_FOR_OVERHEADS.meters).toBeCloseTo(2.4384, 10)
+  it('uses the spec’s 2.4 m ceiling as the threshold, citing Dolby’s 8 ft', () => {
+    // Dolby: 8 ft, about 2.44 m (WP p.7, IG p.12); spec #2 story 24: 2.4 m
+    expect(LOW_CEILING_FOR_OVERHEADS.meters).toBe(2.4)
     expect(LOW_CEILING_FOR_OVERHEADS.citations).toEqual([
       expect.objectContaining({ source: 'WP', page: 7 }),
       expect.objectContaining({ source: 'IG', page: 12 }),
     ])
   })
 
-  it('suggests them when the ceiling is exactly 8 ft and the layout has overheads', () => {
+  it('suggests them when the ceiling is exactly 2.4 m and the layout has overheads', () => {
     expect(
-      suggestsAtmosEnabledSpeakers(roomWithHeight(2.4384), WITH_OVERHEADS),
+      suggestsAtmosEnabledSpeakers(roomWithHeight(2.4), WITH_OVERHEADS),
     ).toBe(true)
   })
 
-  it('suggests them for a ceiling below 8 ft', () => {
+  it('suggests them for a ceiling below 2.4 m', () => {
     expect(
       suggestsAtmosEnabledSpeakers(roomWithHeight(2.2), WITH_OVERHEADS),
     ).toBe(true)
   })
 
-  it('does not suggest them for a ceiling just above 8 ft', () => {
+  it('does not suggest them for a ceiling just above 2.4 m', () => {
     expect(
-      suggestsAtmosEnabledSpeakers(roomWithHeight(2.45), WITH_OVERHEADS),
+      suggestsAtmosEnabledSpeakers(roomWithHeight(2.41), WITH_OVERHEADS),
     ).toBe(false)
   })
 

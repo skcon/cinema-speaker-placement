@@ -35,21 +35,19 @@ export type UngradedAngle = NoAngleRange & {
   readonly grade: null
 }
 
-/** A speaker's placement-range check, one part per angle, with the ranges and their sources. */
-export type PlacementRangeCheck<
-  Azimuth extends AngleCheck | UngradedAngle = AngleCheck,
-> = {
-  /** The worst grade of the graded parts. */
+/** A speaker's placement-range check, with the range and its sources. */
+export type PlacementRangeCheck = {
   readonly grade: PlacementGrade
-  readonly azimuth: Azimuth
-  /** Overheads only. */
-  readonly elevation?: AngleCheck
+  readonly azimuth: AngleCheck
 }
 
 /** An overhead's check: an elevation, and an azimuth unless Dolby gives none. */
-export type OverheadPlacementRangeCheck = PlacementRangeCheck<
-  AngleCheck | UngradedAngle
-> & { readonly elevation: AngleCheck }
+export type OverheadPlacementRangeCheck = {
+  /** The worst grade of the graded parts. */
+  readonly grade: PlacementGrade
+  readonly azimuth: AngleCheck | UngradedAngle
+  readonly elevation: AngleCheck
+}
 
 /**
  * Grade a channel's azimuth from the MLP against its Dolby placement range:
@@ -128,21 +126,24 @@ function ungraded(
   return { ...reference, degrees, shown, grade: null }
 }
 
-/** Grade `angle` (what Dolby's ranges measure) to the nearest whole degree. */
+/**
+ * Grade `graded` (the angle as Dolby's ranges measure it) to the nearest
+ * whole degree; `measured` is the angle as measured, kept as `degrees`.
+ */
 function checkAngle(
   { ideal, acceptable }: AngleReference,
-  angle: number,
-  degrees: number,
+  graded: number,
+  measured: number,
 ): AngleCheck {
-  const shown = Math.round(Math.abs(angle))
+  const shown = Math.round(Math.abs(graded))
   // Negative stays negative, so the wrong side never falls in a range.
-  const rounded = angle < 0 ? -shown : shown
+  const rounded = graded < 0 ? -shown : shown
   const grade: PlacementGrade = isWithin(rounded, ideal.range)
     ? 'ideal'
     : acceptable.range && isWithin(rounded, acceptable.range)
       ? 'acceptable'
       : 'outside'
-  return { ideal, acceptable, degrees, shown, grade }
+  return { ideal, acceptable, degrees: measured, shown, grade }
 }
 
 function isWithin(angle: number, { min, max }: AngleRange): boolean {

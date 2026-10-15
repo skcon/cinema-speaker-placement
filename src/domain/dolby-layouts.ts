@@ -106,6 +106,21 @@ export function azimuthFromSide(side: ChannelSide, angle: number): number {
   return side === 'left' ? -angle : angle
 }
 
+/** -1 for a left overhead channel, +1 for a right one (room x grows to the right). */
+export function overheadSideSign(channel: OverheadChannelId): -1 | 1 {
+  return OVERHEAD_CHANNELS[channel].side === 'left' ? -1 : 1
+}
+
+const CHANNEL_NAMES: Record<ChannelId | OverheadChannelId, { name: string }> = {
+  ...CHANNELS,
+  ...OVERHEAD_CHANNELS,
+}
+
+/** Dolby's name for a listener-level or overhead channel, for example "Left Top Front". */
+export function channelName(channel: ChannelId | OverheadChannelId): string {
+  return CHANNEL_NAMES[channel].name
+}
+
 /** Where the channel names come from. */
 export const CHANNEL_NAME_CITATIONS = [
   { source: 'IG', page: 8 },

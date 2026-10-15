@@ -62,6 +62,7 @@ export {
 export {
   OVERHEAD_CHANNEL_IDS,
   OVERHEAD_CHANNELS,
+  overheadSideSign,
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,
@@ -101,6 +102,7 @@ export {
   type RoomDimensionProblem,
   type RoomPoint,
   type RoomSegment,
+  toRadians,
   type Wall,
   type WallDistance,
   wallDistances,

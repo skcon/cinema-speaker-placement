@@ -34,6 +34,7 @@ import {
   OVERHEAD_CHANNEL_IDS,
 } from './dolby-layouts'
 import type { Layout } from './layout'
+import { clamp } from './range'
 import {
   EAR_HEIGHT,
   SPEAKER_WALL_CLEARANCE,
@@ -238,8 +239,4 @@ function mapPositions(
   return Object.fromEntries(
     entries(positions).map(([id, point]) => [id, map(id, point)]),
   )
-}
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(Math.max(value, low), high)
 }

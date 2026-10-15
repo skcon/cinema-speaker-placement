@@ -100,12 +100,12 @@ export const EAR_HEIGHT = {
 
 /**
  * The ceiling height at or below which Dolby says overhead speakers end up
- * too close to the listeners and suggests Atmos-enabled speakers instead:
- * 8 ft, exactly 8 x 0.3048 m (about 2.44 m). The v1 spec (issue #2, user
- * story 24) rounds it to 2.4 m; we keep Dolby's 8 ft.
+ * too close to the listeners and suggests Atmos-enabled speakers instead.
+ * Dolby states 8 ft (about 2.44 m); the project spec (issue #2, user story
+ * 24, and the CLAUDE.md v1 scope) uses 2.4 m, which is what we apply.
  */
 export const LOW_CEILING_FOR_OVERHEADS = {
-  meters: 8 * 0.3048,
+  meters: 2.4,
   citations: [
     {
       source: 'WP',

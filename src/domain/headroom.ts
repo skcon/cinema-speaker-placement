@@ -8,6 +8,7 @@
  * speakers' dispersion, so it is a hint at whether gear is underpowered,
  * never a measurement.
  */
+import { channelName } from './dolby-layouts'
 import {
   HEADROOM_MODEL,
   HEADROOM_STATUS,
@@ -16,7 +17,6 @@ import {
 } from './reference'
 import { distanceBetween, type RoomPoint } from './room'
 import {
-  channelName,
   SPEAKER_GROUP_NAMES,
   SPEAKER_GROUP_OF,
   type OverheadSpecs,

@@ -43,7 +43,9 @@ import {
 import { HEATMAP_OPACITY, heatmapColor } from '@/scene/heatmap'
 import {
   GRADE_STYLES,
+  OVERHEAD_MARKER_DOT,
   OVERHEAD_MARKER_RADIUS,
+  OVERHEAD_MARKER_RING_INNER,
   overheadMarker,
   RECOMMENDED_SEAT_COLOR,
   RULE_OF_THUMB_COLOR,
@@ -726,12 +728,18 @@ function OverheadMarkers({
         >
           <mesh position={position} rotation={rotation}>
             <ringGeometry
-              args={[OVERHEAD_MARKER_RADIUS * 0.6, OVERHEAD_MARKER_RADIUS, 32]}
+              args={[
+                OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_RING_INNER,
+                OVERHEAD_MARKER_RADIUS,
+                32,
+              ]}
             />
             <meshBasicMaterial color={color} side={DoubleSide} />
           </mesh>
           <mesh position={position} rotation={rotation}>
-            <circleGeometry args={[OVERHEAD_MARKER_RADIUS * 0.3, 24]} />
+            <circleGeometry
+              args={[OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_DOT, 24]}
+            />
             <meshBasicMaterial color={color} side={DoubleSide} />
           </mesh>
         </Draggable>

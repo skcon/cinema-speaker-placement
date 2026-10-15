@@ -25,13 +25,13 @@
  *    they are.
  */
 import {
-  OVERHEAD_CHANNELS,
   OVERHEAD_SPACING,
-  type OverheadChannelId,
+  overheadSideSign,
   type OverheadChannelReference,
 } from './dolby-layouts'
+import { clamp } from './range'
 import { SPEAKER_WALL_CLEARANCE } from './reference'
-import type { Room, RoomPoint } from './room'
+import { toRadians, type Room, type RoomPoint } from './room'
 
 /**
  * The layout width (rule 2): the lateral distance between the outermost
@@ -60,8 +60,8 @@ export function autoPlaceOverhead(
   const clearance = SPEAKER_WALL_CLEARANCE.meters
   const { min, max } = OVERHEAD_SPACING.range
   const half = (((min + max) / 2) * width) / 2
-  const side = sideSign(reference.channel)
-  const radians = (elevationTarget(reference) * Math.PI) / 180
+  const side = overheadSideSign(reference.channel)
+  const radians = toRadians(elevationTarget(reference))
   const ahead = ((room.height - mlp.z) * Math.cos(radians)) / Math.sin(radians)
   const xLimit = room.width / 2 - clearance
   return {
@@ -69,13 +69,4 @@ export function autoPlaceOverhead(
     y: clamp(mlp.y - ahead, clearance, room.length - clearance),
     z: room.height,
   }
-}
-
-/** -1 for a left channel, +1 for a right one (room x grows to the right). */
-function sideSign(channel: OverheadChannelId): number {
-  return OVERHEAD_CHANNELS[channel].side === 'left' ? -1 : 1
-}
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(Math.max(value, low), high)
 }

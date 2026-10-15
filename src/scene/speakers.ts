@@ -1,5 +1,5 @@
 import {
-  OVERHEAD_CHANNELS,
+  overheadSideSign,
   type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
@@ -162,10 +162,17 @@ export function describeSpeaker({
 
 /**
  * The drawn radius of an overhead speaker seen from above, in meters: a
- * round marker (a ceiling speaker's grille), so it reads apart from the
- * rectangular listener-level cabinets. A drawing size only.
+ * round marker (the grille of an overhead speaker in the ceiling), so it
+ * reads apart from the rectangular listener-level cabinets. A drawing size
+ * only.
  */
 export const OVERHEAD_MARKER_RADIUS = 0.17
+
+/** The marker's ring starts this far out, as a share of its radius. */
+export const OVERHEAD_MARKER_RING_INNER = 0.6
+
+/** The marker's center dot, as a share of its radius. */
+export const OVERHEAD_MARKER_DOT = 0.3
 
 /** What the top-down scene draws for one overhead speaker. */
 export type OverheadMarker = {
@@ -193,7 +200,7 @@ export function overheadMarker({
     label: `${channel} ${elevation.shown}°`,
     grade,
     labelDirection: {
-      x: OVERHEAD_CHANNELS[channel].side === 'left' ? -1 : 1,
+      x: overheadSideSign(channel),
       y: 0,
     },
   }

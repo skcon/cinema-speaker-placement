@@ -198,6 +198,11 @@ export function atDistanceFromWall(
 
 const DEGREES_PER_RADIAN = 180 / Math.PI
 
+/** An angle in degrees, in radians. */
+export function toRadians(degrees: number): number {
+  return degrees / DEGREES_PER_RADIAN
+}
+
 /**
  * The bearing of a horizontal direction, in degrees clockwise from -y
  * (straight at the front wall), seen from above.
@@ -254,7 +259,7 @@ export function directionAtAzimuth(
   mlp: RoomPoint,
   azimuth: number,
 ): { dx: number; dy: number } {
-  const radians = (centerFrontBearing(mlp) + azimuth) / DEGREES_PER_RADIAN
+  const radians = toRadians(centerFrontBearing(mlp) + azimuth)
   return { dx: Math.sin(radians), dy: -Math.cos(radians) }
 }
 

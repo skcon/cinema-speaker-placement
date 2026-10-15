@@ -87,7 +87,7 @@ describe('layout form', () => {
     )
   })
 
-  it('suggests Atmos-enabled speakers when the ceiling is 8 ft or lower and the layout has overheads', () => {
+  it('suggests Atmos-enabled speakers when the ceiling is 2.4 m or lower and the layout has overheads', () => {
     renderLayoutForm()
     const hint = /Dolby suggests Atmos-enabled speakers/i
     // The default room's 2.6 m ceiling is high enough.
@@ -97,7 +97,7 @@ describe('layout form', () => {
 
     expect(
       screen.getByText(
-        'With a ceiling of 2.44 m or lower, overhead speakers end up too close to the listeners. Dolby suggests Atmos-enabled speakers instead: they fire upward and reflect sound off the ceiling.',
+        'With a ceiling of 2.4 m or lower, overhead speakers end up too close to the listeners. Dolby suggests Atmos-enabled speakers instead: they fire upward and reflect sound off the ceiling.',
       ),
     ).toBeInTheDocument()
 
@@ -112,7 +112,7 @@ describe('layout form', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Imperial' }))
 
     expect(
-      screen.getByText(/With a ceiling of 8 ft 0 in or lower/),
+      screen.getByText(/With a ceiling of 7 ft 10.5 in or lower/),
     ).toBeInTheDocument()
   })
 

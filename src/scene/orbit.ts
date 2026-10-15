@@ -3,6 +3,7 @@ import {
   type Room,
   type RoomPoint,
   type RoomSegment,
+  toRadians,
   wallBases,
 } from '@/domain'
 import { toScenePosition, type Vec3, type ViewportSize } from '@/scene/top-down'
@@ -25,11 +26,9 @@ const MIN_DISTANCE_SHARE = 0.5
 /** The farthest the camera zooms out, as a multiple of the starting distance. */
 const MAX_DISTANCE_FACTOR = 2.5
 /** The lowest the camera orbits: just above level with the room's middle, never under the floor. */
-const MAX_POLAR_ANGLE = (85 * Math.PI) / 180
+const MAX_POLAR_ANGLE = toRadians(85)
 /** The near clipping plane, in meters: close enough to zoom in past the walls. */
 const NEAR = 0.05
-
-const toRadians = (degrees: number) => (degrees * Math.PI) / 180
 
 /** The middle of the room box, which the camera orbits around. */
 function roomMiddle({ length, height }: Room): Vec3 {

@@ -27,6 +27,7 @@
  * not one seat. They have no Dolby placement range, so nothing grades them.
  */
 import type { SubwooferCount } from './layout'
+import { clamp } from './range'
 import { SUBWOOFER_HEIGHT, SUBWOOFER_WALL_CLEARANCE } from './reference'
 import type { Room, RoomPoint, Wall } from './room'
 import {
@@ -73,8 +74,4 @@ function insideClearance(
     x: clamp(x, -xLimit, xLimit),
     y: clamp(y, clearance, length - clearance),
   }
-}
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(Math.max(value, low), high)
 }

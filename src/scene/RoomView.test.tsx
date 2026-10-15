@@ -5,11 +5,14 @@ import { RoomView } from '@/scene/RoomView'
 import { HistoryButtons } from '@/ui/HistoryButtons'
 
 // jsdom has no WebGL: pretend it has, and stand in for the Three.js scene,
-// which says whether it was given a heatmap to draw.
+// which says whether it was given a heatmap to draw, and from which view.
 vi.mock('@/scene/webgl', () => ({ canUseWebGL: () => true }))
 vi.mock('@/scene/RoomCanvas', () => ({
-  RoomCanvas: ({ heatmap }: { heatmap: unknown }) => (
-    <p>{heatmap ? 'heatmap drawn' : 'no heatmap'}</p>
+  RoomCanvas: ({ heatmap, view }: { heatmap: unknown; view: string }) => (
+    <>
+      <p>{heatmap ? 'heatmap drawn' : 'no heatmap'}</p>
+      <p>{`${view} camera`}</p>
+    </>
   ),
 }))
 
@@ -63,5 +66,48 @@ describe('seat-score heatmap in the room view', () => {
     expect(await screen.findByText('no heatmap')).toBeInTheDocument()
     expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+})
+
+describe('camera toggle in the room view', () => {
+  it('starts in the top-down view, where items can be dragged', async () => {
+    renderRoomView()
+
+    const topDown = screen.getByRole('radio', { name: 'Top-down' })
+    expect(topDown).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: '3D' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+    expect(await screen.findByText('top-down camera')).toBeInTheDocument()
+    expect(screen.getByText(/Drag the speakers and the MLP/)).toBeVisible()
+  })
+
+  it('switches to a 3D view to look around in, without dragging, and never enters the undo history', async () => {
+    renderRoomView()
+
+    fireEvent.click(screen.getByRole('radio', { name: '3D' }))
+
+    expect(screen.getByRole('radio', { name: '3D' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(await screen.findByText('3d camera')).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: /^3D view of the room/ }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Drag the speakers/)).toBeNull()
+    expect(screen.getByText(/view only/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
+  it('switches back to the top-down view', async () => {
+    renderRoomView()
+
+    fireEvent.click(screen.getByRole('radio', { name: '3D' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Top-down' }))
+
+    expect(await screen.findByText('top-down camera')).toBeInTheDocument()
+    expect(scene()).toBeInTheDocument()
   })
 })

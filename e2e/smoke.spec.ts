@@ -274,10 +274,10 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       x: box.x + box.width / 2 + x * zoom,
       y: box.y + box.height / 2 + (y - room.length / 2) * zoom,
     })
-    // The Center is auto-placed on the center line, 0.3 m from the front
+    // The Center is auto-placed on the center line, 0.5 m from the front
     // wall; drag it 1 m right and 1 m back.
-    const from = onScreen(0, 0.3)
-    const to = onScreen(1, 1.3)
+    const from = onScreen(0, 0.5)
+    const to = onScreen(1, 1.5)
     const addressBefore = page.url()
 
     await page.mouse.move(from.x, from.y)
@@ -285,8 +285,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await page.mouse.move(to.x, to.y, { steps: 10 })
     await page.mouse.up()
 
-    // From the MLP, 3.47 m from the front wall, it is now about 25° right.
-    await expect(centerLabel).toHaveText(/^C 2[456]°$/)
+    // From the MLP, 3.47 m from the front wall, it is now about
+    // atan(1 / 1.97) = 27° right.
+    await expect(centerLabel).toHaveText(/^C 2[678]°$/)
     await expect(page).toHaveURL((url) => url.href !== addressBefore)
   })
 

@@ -1,8 +1,10 @@
-import type {
-  PlacedSpeaker,
-  PlacedSubwoofer,
-  PlacementGrade,
-  Wall,
+import {
+  OVERHEAD_CHANNELS,
+  type PlacedOverhead,
+  type PlacedSpeaker,
+  type PlacedSubwoofer,
+  type PlacementGrade,
+  type Wall,
 } from '@/domain'
 import { FLAT_ON_FLOOR, toScenePosition, type Vec3 } from '@/scene/top-down'
 
@@ -156,4 +158,63 @@ export function describeSpeaker({
   },
 }: PlacedSpeaker): string {
   return `${name} ${shown}° (${GRADE_STYLES[grade].label})`
+}
+
+/**
+ * The drawn radius of an overhead speaker seen from above, in meters: a
+ * round marker (a ceiling speaker's grille), so it reads apart from the
+ * rectangular listener-level cabinets. A drawing size only.
+ */
+export const OVERHEAD_MARKER_RADIUS = 0.17
+
+/** What the top-down scene draws for one overhead speaker. */
+export type OverheadMarker = {
+  /** On the ceiling. */
+  position: Vec3
+  /** Lays the round marker flat, facing up and down. */
+  rotation: Vec3
+  color: string
+  /** Channel and elevation from the MLP, for example "Ltf 45°". */
+  label: string
+  grade: PlacementGrade
+  /** Out toward its own side wall, clear of the listener-level labels. */
+  labelDirection: ScreenDirection
+}
+
+export function overheadMarker({
+  channel,
+  position,
+  placementRange: { grade, elevation },
+}: PlacedOverhead): OverheadMarker {
+  return {
+    position: toScenePosition(position),
+    rotation: FLAT_ON_FLOOR,
+    color: GRADE_STYLES[grade].color,
+    label: `${channel} ${elevation.shown}°`,
+    grade,
+    labelDirection: {
+      x: OVERHEAD_CHANNELS[channel].side === 'left' ? -1 : 1,
+      y: 0,
+    },
+  }
+}
+
+/**
+ * An overhead's angles from the MLP in short: its angle where Dolby grades
+ * one, then its elevation, for example "38° · elev. 45°".
+ */
+export function overheadAngles({
+  placementRange: { azimuth, elevation },
+}: PlacedOverhead): string {
+  const elev = `elev. ${elevation.shown}°`
+  return azimuth.grade === null ? elev : `${azimuth.shown}° · ${elev}`
+}
+
+/** One overhead in words, for example "Left Top Rear 142°, elevation 135° (ideal)". */
+export function describeOverhead({
+  name,
+  placementRange: { azimuth, elevation, grade },
+}: PlacedOverhead): string {
+  const angle = azimuth.grade === null ? '' : ` ${azimuth.shown}°,`
+  return `${name}${angle} elevation ${elevation.shown}° (${GRADE_STYLES[grade].label})`
 }

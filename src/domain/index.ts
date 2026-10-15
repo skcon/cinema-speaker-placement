@@ -61,6 +61,7 @@ export {
 } from './manual-positions'
 export {
   OVERHEAD_CHANNEL_IDS,
+  OVERHEAD_CHANNELS,
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,

@@ -132,8 +132,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('group', { name: 'Seat score (estimate)' }),
     ).toBeVisible()
+    // The MLP was just moved to the recommended seat, so it stays recommended.
     await expect(scene).toHaveAccessibleName(
-      /Seat-score heatmap shown \(a relative estimate\): highest around /,
+      /Seat-score heatmap shown \(a relative estimate\): no seat scores meaningfully better than the MLP, so it stays the recommended seat\./,
     )
   })
 

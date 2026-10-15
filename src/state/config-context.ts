@@ -9,8 +9,10 @@ import { useStore } from 'zustand'
 import {
   analyzeRoom,
   recommendSeat,
+  seatHeatmap,
   type Config,
   type RoomAnalysis,
+  type SeatHeatmap,
   type SeatRecommendation,
 } from '@/domain'
 import type { ConfigState, ConfigStore } from './config-store'
@@ -58,6 +60,20 @@ export function useSeatRecommendation(): SeatRecommendation | null {
     )
   }
   return recommendation
+}
+
+/**
+ * The seat-score heatmap of the shared recommendation (useSeatRecommendation),
+ * so its best seat is the recommended one and no second grid is scored:
+ * null while `enabled` is false or the recommendation is not worked out
+ * yet, and kept until the recommendation changes.
+ */
+export function useSeatHeatmap(enabled: boolean): SeatHeatmap | null {
+  const recommendation = useSeatRecommendation()
+  return useMemo(
+    () => (enabled && recommendation ? seatHeatmap(recommendation) : null),
+    [enabled, recommendation],
+  )
 }
 
 /**

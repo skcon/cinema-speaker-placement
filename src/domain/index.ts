@@ -63,6 +63,7 @@ export {
   OVERHEAD_CHANNEL_IDS,
   OVERHEAD_CHANNELS,
   overheadSideSign,
+  SUBWOOFER_NO_RANGE,
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,
@@ -83,11 +84,14 @@ export {
   type SubwooferCount,
 } from './layout'
 export { suggestsAtmosEnabledSpeakers } from './atmos-enabled'
-export type {
-  AngleCheck,
-  OverheadPlacementRangeCheck,
-  PlacementGrade,
-  UngradedAngle,
+export {
+  ANGLE_GRADING,
+  type AngleCheck,
+  type OverheadPlacementRangeCheck,
+  type PlacementGrade,
+  type PlacementGrading,
+  type PlacementRangeCheck,
+  type UngradedAngle,
 } from './placement-range'
 export type { RangeProblem } from './range'
 export {
@@ -149,8 +153,11 @@ export {
   LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,
   SEAT_SCORE,
+  sourceOf,
   SPEAKER_TYPE_GEOMETRY,
   TARGET_TOLERANCE,
+  type Citation,
+  type Source,
 } from './reference'
 export {
   TARGET_CURVE_KINDS,

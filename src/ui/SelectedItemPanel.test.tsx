@@ -177,6 +177,106 @@ describe('the Selected item', () => {
     expect(panel()).toHaveTextContent(/Nothing selected/)
   })
 
+  it('explains Left’s grade: its angle, both ranges with the conflict note, what the grades mean, and the sources with links', async () => {
+    renderApp()
+
+    openPositionRow('Left')
+
+    const grade = await within(panel()).findByRole('region', {
+      name: 'Grade',
+    })
+    expect(grade).toHaveTextContent(/Angle\s*26°, ideal/)
+    expect(grade).toHaveTextContent(/Ideal range\s*22–30°/)
+    expect(grade).toHaveTextContent(/Acceptable range\s*22–40°/)
+    expect(grade).toHaveTextContent(
+      /Conflict in the Dolby data: every per-layout sheet shows L\/R at 22°–30°, while IG fig\.3 shows 30° nominal with a 22°–40° range/,
+    )
+    expect(grade).toHaveTextContent(
+      /Our modelling assumption, not Dolby's: the sheets set the ideal range/,
+    )
+    expect(grade).toHaveTextContent(
+      /Ideal: inside the range Dolby recommends for this speaker\./,
+    )
+    expect(grade).toHaveTextContent(/Acceptable: /)
+    expect(grade).toHaveTextContent(/Outside: /)
+
+    const sheet = within(grade).getByRole('link', {
+      name: 'Home Theater Speaker Guide: 5.1.2 Overhead Speakers',
+    })
+    expect(sheet).toHaveAttribute(
+      'href',
+      'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.2-overhead-speaker-placement/5_1_2_overhead_speakers_setup.pdf',
+    )
+    expect(sheet).toHaveAttribute('target', '_blank')
+    expect(sheet).toHaveAttribute('rel', 'noreferrer')
+    const guide = within(grade).getAllByRole('link', {
+      name: 'Dolby Atmos Home Theater Installation Guidelines (60 pp.)',
+    })
+    expect(guide.map((link) => link.getAttribute('href'))).toEqual([
+      'https://www.dolby.com/siteassets/technologies/dolby-atmos/atmos-installation-guidelines-121318_r3.1.pdf',
+      'https://www.dolby.com/siteassets/technologies/dolby-atmos/atmos-installation-guidelines-121318_r3.1.pdf',
+    ])
+    expect(grade).toHaveTextContent(
+      /p\.8: fig\.3, the 7\.1\.4 reference: 30° nominal, range 22°–40°/,
+    )
+  })
+
+  it('explains a top middle speaker’s elevation range, and says its angle has no Dolby range', async () => {
+    renderApp()
+
+    openPositionRow('Left Top Middle')
+
+    const grade = await within(panel()).findByRole('region', {
+      name: 'Grade',
+    })
+    expect(grade).toHaveTextContent(/Angle\s*\d+°, not graded/)
+    expect(grade).toHaveTextContent(
+      /Dolby gives top middle speakers \(x\.1\.2 layouts\) no angle range from straight ahead/,
+    )
+    expect(grade).toHaveTextContent(/Elevation\s*\d+°, ideal/)
+    expect(grade).toHaveTextContent(/Ideal range\s*65–100°/)
+    expect(
+      within(grade).getByRole('link', {
+        name: 'Home Theater Speaker Guide: 7.1.2 Overhead Speakers',
+      }),
+    ).toHaveAttribute(
+      'href',
+      'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.2-overhead-speaker-placement/7_1_2_overhead_speaker_setup.pdf',
+    )
+  })
+
+  it('says a subwoofer is not graded, and why', async () => {
+    renderApp()
+
+    openPositionRow('Subwoofer 1')
+
+    const grade = await within(panel()).findByRole('region', {
+      name: 'Grade',
+    })
+    expect(grade).toHaveTextContent(
+      /Not graded\. Dolby gives subwoofers no position or angle/,
+    )
+    expect(
+      within(grade).getByRole('link', {
+        name: 'Dolby Atmos Speaker Setup 101 (web page)',
+      }),
+    ).toHaveAttribute(
+      'href',
+      'https://www.dolby.com/about/support/guide/dolby-atmos-speaker-setup/',
+    )
+  })
+
+  it('has no grade for the MLP', async () => {
+    renderApp()
+
+    openPositionRow('MLP')
+
+    expect(
+      await within(panel()).findByRole('heading', { name: 'MLP' }),
+    ).toBeVisible()
+    expect(within(panel()).queryByRole('region', { name: 'Grade' })).toBeNull()
+  })
+
   it('never enters the undo history', async () => {
     renderApp()
 

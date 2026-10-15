@@ -4,11 +4,13 @@ import { useConfig } from '@/state/config-context'
 import { useSelectedItem, useSelection } from '@/state/selection-context'
 import { dimensionTargetName } from '@/scene/dimensions'
 import { Button } from '@/ui/components/button'
+import { GradeExplanation } from '@/ui/GradeExplanation'
 
 /**
  * The Selected item's details in the sidebar: its name, where it is (from
- * its two nearest walls), its height, its distance to the MLP and whether
- * it is auto or manual, with a button to clear the selection. Without a
+ * its two nearest walls), its height, its distance to the MLP, whether
+ * it is auto or manual, and its placement-range grade explained, with a
+ * button to clear the selection. Without a
  * selection it says how to make one. Shown from the desktop layout up;
  * on narrower screens the room view reads the selection out instead.
  */
@@ -74,6 +76,7 @@ export function SelectedItemPanel() {
           >
             Clear selection
           </Button>
+          {item.grading && <GradeExplanation grading={item.grading} />}
         </>
       )}
     </section>

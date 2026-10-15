@@ -4,7 +4,11 @@ import {
   MLP_ID,
   type ItemDistances,
   type PlaceableId,
+  type PlacedOverhead,
+  type PlacedSpeaker,
+  type PlacedSubwoofer,
   type Placement,
+  type PlacementGrading,
   type RoomPoint,
 } from '@/domain'
 import { useConfig, useRoomAnalysis } from './config-context'
@@ -43,6 +47,8 @@ export type SelectedItem = {
   readonly placement: Placement
   /** To its two nearest walls and (unless it is the MLP) the MLP. */
   readonly distances: ItemDistances
+  /** Its placement-range check, or null for the MLP. */
+  readonly grading: PlacementGrading | null
 }
 
 /**
@@ -64,11 +70,10 @@ export function useSelectedItem(): SelectedItem | null {
         position: mlp,
         placement: mlpPlacement,
         distances: itemDistances(room, mlp, null),
+        grading: null,
       }
     }
-    const item =
-      [...speakers, ...overheads].find(({ channel }) => channel === selected) ??
-      subwoofers.find(({ id }) => id === selected)
+    const item = gradedItem(selected, speakers, overheads, subwoofers)
     if (!item) return null
     return {
       id: selected,
@@ -76,6 +81,38 @@ export function useSelectedItem(): SelectedItem | null {
       position: item.position,
       placement: item.placement,
       distances: itemDistances(room, item.position, mlp),
+      grading: item.grading,
     }
   }, [selected, room, mlp, mlpPlacement, speakers, overheads, subwoofers])
+}
+
+/** A placed speaker, overhead or subwoofer by id, with its placement-range check. */
+function gradedItem(
+  id: PlaceableId,
+  speakers: readonly PlacedSpeaker[],
+  overheads: readonly PlacedOverhead[],
+  subwoofers: readonly PlacedSubwoofer[],
+) {
+  const speaker = speakers.find(({ channel }) => channel === id)
+  if (speaker) {
+    const grading: PlacementGrading = {
+      kind: 'speaker',
+      check: speaker.placementRange,
+    }
+    return { ...speaker, grading }
+  }
+  const overhead = overheads.find(({ channel }) => channel === id)
+  if (overhead) {
+    const grading: PlacementGrading = {
+      kind: 'overhead',
+      check: overhead.placementRange,
+    }
+    return { ...overhead, grading }
+  }
+  const subwoofer = subwoofers.find((sub) => sub.id === id)
+  if (subwoofer) {
+    const grading: PlacementGrading = { kind: 'subwoofer' }
+    return { ...subwoofer, grading }
+  }
+  return null
 }

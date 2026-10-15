@@ -133,7 +133,10 @@ export type AngleRange = { readonly min: number; readonly max: number }
 export type CitedAngleRange = {
   readonly range: AngleRange
   readonly citations: readonly Citation[]
+  /** What the sources say about it, for example where they disagree. */
   readonly note?: string
+  /** Where the range is our own modelling assumption rather than Dolby's. */
+  readonly assumption?: string
 }
 
 /** Recorded where Dolby gives a single range, so nothing grades acceptable. */
@@ -258,8 +261,10 @@ const LEFT_RIGHT_ACCEPTABLE = {
   note:
     'Conflict in the Dolby data: every per-layout sheet shows L/R at ' +
     '22°–30°, while IG fig.3 shows 30° nominal with a 22°–40° range (and ' +
-    'IG p.7 uses ±30° as the L/R reference). The sheets set the ideal ' +
-    'range; IG fig.3 widens it to acceptable for every layout.',
+    'IG p.7 uses ±30° as the L/R reference).',
+  assumption:
+    "Our modelling assumption, not Dolby's: the sheets set the ideal " +
+    'range, and IG fig.3 widens it to acceptable for every layout.',
 } as const satisfies CitedAngleRange
 
 const NO_WIDER_RANGE = {
@@ -413,11 +418,25 @@ const OVERHEAD_AZIMUTH = {
   middle: {
     ideal: null,
     note:
-      'Dolby gives no azimuth for top middle speakers in x.1.2 layouts ' +
-      '(S-512-OH, S-712-OH draw them ahead of the seat, in line with L/R), ' +
-      'so only their elevation is graded.',
+      'Dolby gives top middle speakers (x.1.2 layouts) no angle range from ' +
+      'straight ahead: S-512-OH and S-712-OH draw them ahead of the seat, ' +
+      'in line with L/R. So only their elevation is graded.',
   },
 } as const satisfies Record<string, AngleReference | NoAngleRange>
+
+/**
+ * Why a subwoofer has no placement range, and where auto-place puts it
+ * instead (docs/research/dolby-speaker-placement.md section 6;
+ * docs/research/multi-subwoofer-placement.md).
+ */
+export const SUBWOOFER_NO_RANGE = {
+  note:
+    'Dolby gives subwoofers no position or angle: bass is hard to place by ' +
+    'ear, so a subwoofer can go almost anywhere. Auto-place puts the ' +
+    'subwoofers where a Harman study of one test room found the bass most ' +
+    'even across the seats, scaled to your room.',
+  citations: [{ source: 'WEB101' }, { source: 'HW-SUBS' }],
+} as const satisfies { note: string; citations: readonly Citation[] }
 
 /** Ltm/Rtm, as in 5.1.2 and 7.1.2 (S-512-OH, S-712-OH). */
 const TOP_MIDDLE = [

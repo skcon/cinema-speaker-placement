@@ -45,6 +45,7 @@ import {
 import { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 import { seatRowFootprint, type SeatRowFootprint } from './seat-row'
 import { responseNotes, type ResponseNotes } from './response-notes'
+import { suggestsAtmosEnabledSpeakers } from './atmos-enabled'
 
 /** A listener-level speaker of the layout, placed and checked. */
 export type PlacedSpeaker = {
@@ -147,6 +148,11 @@ export type RoomAnalysis = {
   response: ResponseAnalysis
   /** Whether the Speakers and Subwoofers can reach reference level at the MLP. */
   headroom: HeadroomAnalysis
+  /**
+   * Whether the ceiling is low enough (8 ft or less) that Dolby suggests
+   * Atmos-enabled speakers instead of the layout's overheads.
+   */
+  suggestsAtmosEnabledSpeakers: boolean
 }
 
 /** The domain entry point: derive the room plan from a config. */
@@ -275,5 +281,9 @@ export function analyzeRoom(config: Config): RoomAnalysis {
       notes,
     },
     headroom,
+    suggestsAtmosEnabledSpeakers: suggestsAtmosEnabledSpeakers(
+      config.room,
+      layout,
+    ),
   }
 }

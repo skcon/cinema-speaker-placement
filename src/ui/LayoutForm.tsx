@@ -2,6 +2,8 @@ import { useId } from 'react'
 import {
   evenerSubwooferCounts,
   formatLayout,
+  formatLength,
+  LOW_CEILING_FOR_OVERHEADS,
   SUBWOOFER_ARRANGEMENT_SOURCE,
   SUBWOOFER_ARRANGEMENTS,
   SUBWOOFER_COUNTS,
@@ -25,6 +27,8 @@ const CHOSEN_OPTION =
  * The Layout picker, in X.Y.Z notation, the subwoofer count (the Y) and the
  * Auto-place button, which puts every manual item back to auto and the MLP
  * at the recommended seat (and is off while that would change nothing).
+ * Under a ceiling of 8 ft or less it suggests Atmos-enabled speakers
+ * instead of the layout's overhead speakers.
  */
 export function LayoutForm() {
   const headingId = useId()
@@ -35,7 +39,7 @@ export function LayoutForm() {
   const autoPlace = useConfig((state) => state.autoPlace)
   const config = useConfig((state) => state.config)
   const recommendation = useSeatRecommendation()
-  const { listenerLevel, overheads } = useRoomAnalysis().layout
+  const suggestsAtmosEnabled = useRoomAnalysis().suggestsAtmosEnabledSpeakers
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
@@ -94,10 +98,13 @@ export function LayoutForm() {
         </ToggleGroup>
       </div>
       <EvenerCountNote count={layout.subwoofers} />
-      {overheads > 0 && (
+      {suggestsAtmosEnabled && (
         <p className="text-xs text-muted-foreground">
-          Overhead speakers aren&rsquo;t placed yet: the room view shows the{' '}
-          {listenerLevel} listener-level speakers and the subwoofers.
+          With a ceiling of{' '}
+          {formatLength(LOW_CEILING_FOR_OVERHEADS.meters, config.units)} or
+          lower, overhead speakers end up too close to the listeners. Dolby
+          suggests Atmos-enabled speakers instead: they fire upward and reflect
+          sound off the ceiling.
         </p>
       )}
       <Button

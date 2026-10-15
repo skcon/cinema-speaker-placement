@@ -41,7 +41,7 @@ import {
   type SeatRowFootprint,
   type UnitSystem,
 } from '@/domain'
-import { roomDimensions } from '@/scene/dimensions'
+import { roomDimensions, type SelectionDimensions } from '@/scene/dimensions'
 import { HEATMAP_OPACITY } from '@/scene/heatmap'
 import { heatmapColor } from '@/scene/heatmap-color'
 import {
@@ -97,6 +97,12 @@ const LAYER = {
   grab: 0.015,
 } as const
 
+/** The ring around the Selected item, inner and outer radius in meters. */
+const SELECTION_RING = { inner: 0.33, outer: 0.38 } as const
+
+/** How far the ring and Dimension lines sit above the item, so they draw over it. */
+const SELECTION_LIFT = 0.02
+
 /** Radius of the MLP marker, in meters. */
 const MLP_MARKER_RADIUS = 0.18
 
@@ -105,6 +111,12 @@ const RECOMMENDED_RING = { inner: 0.24, outer: 0.3 } as const
 
 /** Free space between a speaker's center and its label, in pixels. */
 const SPEAKER_LABEL_GAP_PX = 14
+
+/**
+ * The CSS z-index of a raised label: above drei's default range for the
+ * other labels (which tops out at 16777271).
+ */
+const RAISED_LABEL_Z_INDEX = [16777272, 16777272]
 
 /** The floor plane in Three.js coordinates, where pointer rays are read. */
 const FLOOR = new Plane(new Vector3(0, 1, 0), 0)
@@ -130,6 +142,9 @@ export function RoomCanvas({
   ruleOfThumbFromFrontWall,
   view,
   units,
+  selection,
+  onSelect,
+  onDeselect,
   ...callbacks
 }: {
   /** Which camera looks at the room; only the top-down view drags. */
@@ -152,6 +167,12 @@ export function RoomCanvas({
   ruleOfThumbFromFrontWall: number
   /** How the room's measurements are written. */
   units: UnitSystem
+  /** The Selected item, highlighted with its Dimension lines, or null. */
+  selection: SelectionDimensions | null
+  /** Select an item: pressing it in the top-down view does. */
+  onSelect: (id: PlaceableId) => void
+  /** Clear the selection: a click on the empty floor in the top-down view does. */
+  onDeselect: () => void
 } & DragCallbacks) {
   // Labels render into this layer over the canvas. Without a fixed target,
   // drei's Html can remount once r3f connects events and lose its content.
@@ -178,7 +199,7 @@ export function RoomCanvas({
   }, [controller, view])
   const dragging = view === 'top-down'
   const markerDrag: MarkerDrag | null = dragging
-    ? { room, controller, setCursor }
+    ? { room, controller, setCursor, onSelect }
     : null
   return (
     <div
@@ -195,6 +216,11 @@ export function RoomCanvas({
         flat
         dpr={[1, 2]}
         style={{ touchAction: 'none' }}
+        // A click that hits no marker (and doesn't move) clears the
+        // selection; only from above, where markers can be pressed.
+        onPointerMissed={() => {
+          if (dragging) onDeselect()
+        }}
       >
         {view === '3d' ? (
           <OrbitView room={room} />
@@ -236,6 +262,9 @@ export function RoomCanvas({
           labelLayer={labelLayer}
           markerDrag={markerDrag}
         />
+        {selection && (
+          <SelectionMarks selection={selection} labelLayer={labelLayer} />
+        )}
       </Canvas>
       <div ref={labelLayer} className="pointer-events-none absolute inset-0" />
     </div>
@@ -246,11 +275,15 @@ type LabelLayer = RefObject<HTMLDivElement>
 
 type DragCursor = 'auto' | 'grab' | 'grabbing'
 
-/** What a draggable marker needs: the Room, the drag controller and the cursor. */
+/**
+ * What a draggable marker needs: the Room, the drag controller, the
+ * cursor, and the selection, which pressing a marker sets.
+ */
 type MarkerDrag = {
   room: Room
   controller: DragController
   setCursor: (cursor: DragCursor) => void
+  onSelect: (id: PlaceableId) => void
 }
 
 /**
@@ -289,8 +322,8 @@ type DraggableProps = {
 /**
  * Makes its markers draggable on the floor plan as item `id`, which is at
  * `at`. Pressing on a marker (or within a touch target of its center, see
- * grabRadius) picks it up; it follows the pointer, keeping where it was
- * grabbed, until released. The store keeps it inside the Room. Without
+ * grabRadius) selects it and picks it up; it follows the pointer, keeping
+ * where it was grabbed, until released. The store keeps it inside the Room. Without
  * `markerDrag` (the 3D view) the markers are only drawn, with no grab area.
  */
 function Draggable({
@@ -305,7 +338,7 @@ function DraggableGroup({
   id,
   at,
   radius,
-  markerDrag: { room, controller, setCursor },
+  markerDrag: { room, controller, setCursor, onSelect },
   children,
 }: DraggableProps & { markerDrag: MarkerDrag }) {
   const size = useThree((state) => state.size)
@@ -335,6 +368,8 @@ function DraggableGroup({
         if (!pointer || event.button !== 0) return
         leaveTextField()
         if (!controller.press(event.pointerId, id, at, pointer)) return
+        // A press selects the item, whether it then moves (a drag) or not.
+        onSelect(id)
         event.stopPropagation()
         captureTarget(event).setPointerCapture(event.pointerId)
         setCursor('grabbing')
@@ -382,6 +417,7 @@ function SceneLabel({
   tone,
   className,
   style,
+  raised = false,
   children,
 }: {
   at: RoomPoint
@@ -389,10 +425,17 @@ function SceneLabel({
   tone: LabelTone
   className: string
   style?: CSSProperties
+  /** Drawn over every other label (the Selected item's distances). */
+  raised?: boolean
   children: ReactNode
 }) {
   return (
-    <Html position={toScenePosition(at)} portal={layer} center>
+    <Html
+      position={toScenePosition(at)}
+      portal={layer}
+      center
+      zIndexRange={raised ? RAISED_LABEL_Z_INDEX : undefined}
+    >
       <span
         className={cn(
           'block rounded-sm px-1 text-xs whitespace-nowrap select-none',
@@ -872,4 +915,53 @@ function SubwooferMarkers({
 function besideMarker({ x, y }: ScreenDirection): string {
   const gap = `${SPEAKER_LABEL_GAP_PX}px`
   return `translate(calc(${x} * (50% + ${gap})), calc(${y} * (50% + ${gap})))`
+}
+
+/**
+ * The Selected item, ringed, with its Dimension lines to its two nearest
+ * walls and the MLP, each labelled with its length (see
+ * selectionDimensions) over every other label. Drawn just above the item,
+ * so they read over the floor and its marker.
+ */
+function SelectionMarks({
+  selection: { at, lines },
+  labelLayer,
+}: {
+  selection: SelectionDimensions
+  labelLayer: LabelLayer
+}) {
+  const lift = (point: RoomPoint) => ({ ...point, z: point.z + SELECTION_LIFT })
+  return (
+    <>
+      <mesh position={toScenePosition(lift(at))} rotation={FLAT_ON_FLOOR}>
+        <ringGeometry args={[SELECTION_RING.inner, SELECTION_RING.outer, 48]} />
+        <meshBasicMaterial color={SCENE_COLORS.selection} side={DoubleSide} />
+      </mesh>
+      {lines.map(({ target, from, to, labelAt, text }) => (
+        <Fragment key={target}>
+          <Line
+            points={[toScenePosition(lift(from)), toScenePosition(lift(to))]}
+            color={SCENE_COLORS.selection}
+            lineWidth={1.5}
+            dashed
+            dashSize={0.08}
+            gapSize={0.05}
+          />
+          <SceneLabel
+            at={labelAt}
+            layer={labelLayer}
+            tone="selection"
+            raised
+            className="border font-medium tabular-nums"
+            style={{
+              backgroundColor: SCENE_COLORS.background,
+              borderColor: SCENE_COLORS.selection,
+            }}
+          >
+            {text}
+          </SceneLabel>
+        </Fragment>
+      ))}
+    </>
+  )
 }

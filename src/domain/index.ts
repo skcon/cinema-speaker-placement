@@ -189,3 +189,9 @@ export {
   type UnitSystem,
   type UnitSystemSpec,
 } from './units'
+export {
+  itemDistances,
+  type DimensionLine,
+  type ItemDistances,
+  type WallDimensionLine,
+} from './item-distances'

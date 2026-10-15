@@ -136,6 +136,16 @@ _Avoid_: Auto-layout, optimize
 Whether a channel's speaker, a subwoofer or the MLP is placed by Auto-place (auto, follows Room and MLP changes) or was dragged or edited by the user (manual, stays where it was left; its **manual position** is stored in the config).
 _Avoid_: Locked, pinned, custom position
 
+## Room view
+
+**Selected item**:
+The one speaker, subwoofer or MLP picked in the room view (or by opening its row under Positions): highlighted, with its Dimension lines and its details in the sidebar. View state only: never in the config, the share link or the undo history.
+_Avoid_: Active item, focused speaker, current selection
+
+**Dimension line**:
+A line drawn from the Selected item to one of its two nearest walls, or to the MLP, labelled with its length in the user's units. Wall distances are measured in plan; the distance to the MLP is straight, in 3D.
+_Avoid_: Measure line, distance line, ruler
+
 ## Sharing
 
 **Share link**:

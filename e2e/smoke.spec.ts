@@ -12,7 +12,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, moves the MLP to the recommended seat, shows the seat-score heatmap, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
   page,
 }) => {
   await page.goto('./')
@@ -73,6 +73,28 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('table', { name: 'Speakers' }).getByText('Left Surround'),
     ).toBeVisible()
+  })
+
+  await test.step('clicking Left selects it and shows its distances, without an undo step; Escape clears it', async () => {
+    const box = await scene.locator('canvas').boundingBox()
+    if (!box) throw new Error('the room view has no canvas')
+    // The view fits the 6 x 4.5 m room inside a 32 px margin, with the
+    // front wall at the top (src/scene/top-down.ts). Left is auto-placed
+    // at (-0.868, 0.500) m (src/domain/item-distances.test.ts).
+    const zoom = Math.min((box.width - 64) / 4.5, (box.height - 64) / 6)
+    await page.mouse.click(
+      box.x + box.width / 2 - 0.868 * zoom,
+      box.y + box.height / 2 + (0.5 - 3) * zoom,
+    )
+
+    const panel = page.getByRole('region', { name: 'Selected item' })
+    await expect(panel.getByRole('heading', { name: 'Left' })).toBeVisible()
+    await expect(panel).toContainText('To the MLP1.98 m')
+    await expect(scene.getByText('1.98 m', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled()
+
+    await page.keyboard.press('Escape')
+    await expect(panel).toContainText('Nothing selected')
   })
 
   await test.step('the estimated response is charted, with its summary, weaknesses and the estimate note', async () => {

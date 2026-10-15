@@ -12,6 +12,7 @@ import { LayoutForm } from '@/ui/LayoutForm'
 import { PositionsForm } from '@/ui/PositionsForm'
 import { RecentRooms } from '@/ui/RecentRooms'
 import { Seating } from '@/ui/Seating'
+import { SelectedItemPanel } from '@/ui/SelectedItemPanel'
 import { RoomForm } from '@/ui/RoomForm'
 import { SidebarSection, SidebarSubsection } from '@/ui/SidebarSection'
 import { SpeakerList } from '@/ui/SpeakerList'
@@ -43,6 +44,8 @@ export function AppShell({
         </header>
         <LinkProblemMessage />
         <aside aria-label="Room plan" className="flex flex-col gap-4">
+          {/* First, so it stays in view above the collapsible sections. */}
+          <SelectedItemPanel />
           <RoomForm />
           <LayoutForm />
           <SidebarSection

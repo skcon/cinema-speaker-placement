@@ -24,6 +24,8 @@ export const SCENE_COLORS = {
   seatRow: '#dbeafe',
   ruleOfThumb: RULE_OF_THUMB_COLOR,
   recommended: RECOMMENDED_SEAT_COLOR,
+  /** The Selected item's ring and Dimension lines. */
+  selection: '#0f766e',
 } as const
 
 /**
@@ -42,6 +44,8 @@ export const LABEL_COLORS = {
   mlp: '#1d4ed8',
   /** The "Recommended" label, a darker shade of its ring. */
   recommended: '#6d28d9',
+  /** The Selected item's distances, the color of its Dimension lines. */
+  selection: '#0f766e',
 } as const
 
 export type LabelTone = keyof typeof LABEL_COLORS

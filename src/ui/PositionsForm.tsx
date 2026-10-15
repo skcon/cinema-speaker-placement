@@ -10,6 +10,7 @@ import {
 } from '@/domain'
 import { GRADE_STYLES } from '@/scene/speakers'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
+import { useSelection } from '@/state/selection-context'
 import { LengthField } from '@/ui/LengthField'
 import { SidebarSubsection } from '@/ui/SidebarSection'
 
@@ -27,9 +28,10 @@ export function PositionsForm() {
   return (
     <SidebarSubsection title="Positions">
       <p className="text-xs text-muted-foreground">
-        Drag speakers and the MLP in the room view, or edit them here. Moved
-        items are manual and stay where you put them; auto items follow the room
-        and the MLP. Auto-place puts everything back to auto and the MLP at the
+        Drag speakers and the MLP in the room view, or edit them here. Opening a
+        row selects its item in the room view, with its distances. Moved items
+        are manual and stay where you put them; auto items follow the room and
+        the MLP. Auto-place puts everything back to auto and the MLP at the
         recommended seat.
       </p>
       <ul className="flex flex-col">
@@ -108,11 +110,19 @@ function PositionItem({
   const units = useConfig((state) => state.config.units)
   const setItemHeight = useConfig((state) => state.setItemHeight)
   const setWallDistance = useConfig((state) => state.setWallDistance)
+  const { select } = useSelection()
   const { across, along } = wallDistances(room, position)
 
   return (
     <li role="group" aria-label={`${name} position`} className="border-t">
-      <details className="group">
+      {/* Opening an item's row selects it in the room view: the keyboard
+          way to select an item. */}
+      <details
+        className="group"
+        onToggle={(event) => {
+          if (event.currentTarget.open) select(id)
+        }}
+      >
         <summary className="flex min-h-9 cursor-pointer items-center gap-1 py-1 text-sm max-lg:min-h-11">
           <span className="w-9 shrink-0 font-medium">{abbreviation}</span>
           <span>{name}</span>

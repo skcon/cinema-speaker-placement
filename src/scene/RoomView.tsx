@@ -1,4 +1,4 @@
-import { lazy, Suspense, useId, useState } from 'react'
+import { lazy, Suspense, useEffect, useId, useState } from 'react'
 import { formatLength, UNIT_SYSTEMS } from '@/domain'
 import {
   useConfig,
@@ -6,6 +6,12 @@ import {
   useSeatHeatmap,
   useSeatRecommendation,
 } from '@/state/config-context'
+import { useSelectedItem, useSelection } from '@/state/selection-context'
+import {
+  dimensionTargetName,
+  selectionDimensions,
+  type SelectionDimensions,
+} from '@/scene/dimensions'
 import {
   describeOverhead,
   describeSpeaker,
@@ -17,6 +23,7 @@ import { RECOMMENDED_SEAT_COLOR, RULE_OF_THUMB_COLOR } from '@/scene/palette'
 import { canUseWebGL } from '@/scene/webgl'
 import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
+import { Button } from '@/ui/components/button'
 import { Toggle } from '@/ui/components/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
 
@@ -53,6 +60,10 @@ export function RoomView() {
     seatRuleOfThumb,
   } = useRoomAnalysis()
   const recommendation = useSeatRecommendation()
+  const { select, clear } = useSelection()
+  const selectedItem = useSelectedItem()
+  const selection = selectedItem && selectionDimensions(selectedItem, units)
+  useClearSelectionOnEscape(selectedItem !== null, clear)
   // View state only: not in the config, the share link or the undo history.
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [view, setView] = useState<CameraView>('top-down')
@@ -147,9 +158,19 @@ export function RoomView() {
             onDragStart={beginGesture}
             onDragMove={moveItem}
             onDragEnd={endGesture}
+            selection={selection}
+            onSelect={select}
+            onDeselect={clear}
           />
         </Suspense>
       </div>
+      {selectedItem && selection && (
+        <SelectionReadout
+          name={selectedItem.name}
+          selection={selection}
+          onClear={clear}
+        />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {view === '3d' ? (
           <p>
@@ -159,7 +180,8 @@ export function RoomView() {
         ) : (
           <p>
             To scale, seen from above. Grid squares are 1 {baseUnit.unit}. Drag
-            the speakers and the MLP to move them.
+            the speakers and the MLP to move them; click or tap one to see its
+            distances.
           </p>
         )}
         <div className="flex items-center gap-2">
@@ -236,6 +258,58 @@ export function RoomView() {
           </p>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Clears the selection when Escape is pressed anywhere on the page while
+ * something is selected (unless something else already handled the key).
+ */
+function useClearSelectionOnEscape(selected: boolean, clear: () => void) {
+  useEffect(() => {
+    if (!selected) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !event.defaultPrevented) clear()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selected, clear])
+}
+
+/**
+ * The Selected item's distances in one line under the scene, with a
+ * finger-sized Clear button, on screens narrower than the desktop layout,
+ * where the sidebar's details panel is far away (or hidden).
+ */
+function SelectionReadout({
+  name,
+  selection,
+  onClear,
+}: {
+  name: string
+  selection: SelectionDimensions
+  onClear: () => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm lg:hidden">
+      <p role="status" aria-label="Selected in the room view">
+        <span className="font-medium">{name}</span>:{' '}
+        {selection.lines
+          .map(
+            ({ target, text }) => `${text} to ${dimensionTargetName(target)}`,
+          )
+          .join(', ')}
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0 max-lg:h-11 max-lg:px-4"
+        aria-label="Clear selection"
+        onClick={onClear}
+      >
+        Clear
+      </Button>
     </div>
   )
 }

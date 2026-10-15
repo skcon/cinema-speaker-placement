@@ -49,6 +49,8 @@
  * value d of 90° or less is elevation d in front of the listener
  * (|azimuth| ≤ 90°); above 90° it is elevation 180° - d behind them
  * (|azimuth| > 90°). For example, top rear at 135° is 45° elevation, behind.
+ * `sideViewElevation` measures overheads this way, in the side view only
+ * (the y–z plane), as Dolby draws them.
  */
 
 import { checkRange, type AcceptedRange, type RangeProblem } from './range'
@@ -196,6 +198,11 @@ export function atDistanceFromWall(
 
 const DEGREES_PER_RADIAN = 180 / Math.PI
 
+/** An angle in degrees, in radians. */
+export function toRadians(degrees: number): number {
+  return degrees / DEGREES_PER_RADIAN
+}
+
 /**
  * The bearing of a horizontal direction, in degrees clockwise from -y
  * (straight at the front wall), seen from above.
@@ -233,6 +240,18 @@ export function azimuthFromMlp(mlp: RoomPoint, point: RoomPoint): number {
 }
 
 /**
+ * The elevation of `point` seen from the MLP in Dolby's side-view
+ * convention (see "Angles seen from the MLP" above): the angle in the side
+ * view, the vertical plane through the MLP along the room length, from
+ * straight ahead at ear level (0°) over the listener (90°) to straight
+ * behind (180°). Below ear height it is negative.
+ */
+export function sideViewElevation(mlp: RoomPoint, point: RoomPoint): number {
+  // Ahead is toward the front wall, -y.
+  return Math.atan2(point.z - mlp.z, mlp.y - point.y) * DEGREES_PER_RADIAN
+}
+
+/**
  * The horizontal unit direction (dx, dy) at `azimuth` degrees seen from the
  * MLP: the inverse of `azimuthFromMlp`.
  */
@@ -240,7 +259,7 @@ export function directionAtAzimuth(
   mlp: RoomPoint,
   azimuth: number,
 ): { dx: number; dy: number } {
-  const radians = (centerFrontBearing(mlp) + azimuth) / DEGREES_PER_RADIAN
+  const radians = toRadians(centerFrontBearing(mlp) + azimuth)
   return { dx: Math.sin(radians), dy: -Math.cos(radians) }
 }
 

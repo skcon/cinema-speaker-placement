@@ -1,23 +1,38 @@
-import { Html, Line, OrthographicCamera } from '@react-three/drei'
+import {
+  Html,
+  Line,
+  OrbitControls,
+  OrthographicCamera,
+  PerspectiveCamera,
+} from '@react-three/drei'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { cn } from 'cn'
 import {
   Fragment,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
   type RefObject,
 } from 'react'
-import { Color, InstancedMesh, Object3D, Plane, Vector3 } from 'three'
+import {
+  Color,
+  DoubleSide,
+  InstancedMesh,
+  Object3D,
+  Plane,
+  Vector3,
+} from 'three'
 import {
   floorCorners,
   MLP_ID,
   type FloorPoint,
   wallBases,
   type PlaceableId,
+  type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
   type Room,
@@ -28,6 +43,10 @@ import {
 import { HEATMAP_OPACITY, heatmapColor } from '@/scene/heatmap'
 import {
   GRADE_STYLES,
+  OVERHEAD_MARKER_DOT,
+  OVERHEAD_MARKER_RADIUS,
+  OVERHEAD_MARKER_RING_INNER,
+  overheadMarker,
   RECOMMENDED_SEAT_COLOR,
   RULE_OF_THUMB_COLOR,
   SPEAKER_FOOTPRINT,
@@ -50,6 +69,12 @@ import {
   toScenePosition,
   topDownCamera,
 } from '@/scene/top-down'
+import {
+  orbitCamera,
+  orbitLimits,
+  roomBoxEdges,
+  type CameraView,
+} from '@/scene/orbit'
 
 /** Neutral palette matching the light theme; the MLP gets the one accent. */
 const COLORS = {
@@ -90,26 +115,34 @@ const SPEAKER_LABEL_GAP_PX = 14
 const FLOOR = new Plane(new Vector3(0, 1, 0), 0)
 
 /**
- * The react-three-fiber scene: the Room drawn to scale from straight above,
- * fit to the panel, with the MLP marker and the speakers colored by grade,
- * all of which can be dragged. Loaded lazily, so Three.js stays out of the
- * main bundle.
+ * The react-three-fiber scene: the Room drawn to scale, with the MLP marker
+ * and the speakers colored by grade. From straight above (`view`
+ * "top-down", fit to the panel) every marker can be dragged; in the 3D
+ * orbit view the room box is drawn up to the ceiling and nothing can be
+ * dragged: it is for looking only. Loaded lazily, so Three.js stays out of
+ * the main bundle.
  */
 export function RoomCanvas({
   room,
   mlp,
   speakers,
+  overheads,
   subwoofers,
   gridSpacing,
   seatRow,
   recommendedSeat,
   heatmap,
   ruleOfThumbFromFrontWall,
+  view,
   ...callbacks
 }: {
+  /** Which camera looks at the room; only the top-down view drags. */
+  view: CameraView
   room: Room
   mlp: RoomPoint
   speakers: readonly PlacedSpeaker[]
+  /** On the ceiling: drawn over everything else from straight above. */
+  overheads: readonly PlacedOverhead[]
   subwoofers: readonly PlacedSubwoofer[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
@@ -141,9 +174,19 @@ export function RoomCanvas({
       endDrag()
     }
   }, [controller])
-  const markerDrag: MarkerDrag = { room, controller, setCursor }
+  // Nor can it outlive the top-down view: the 3D view is for looking only.
+  useEffect(() => {
+    if (view !== 'top-down') controller.cancel()
+  }, [controller, view])
+  const dragging = view === 'top-down'
+  const markerDrag: MarkerDrag | null = dragging
+    ? { room, controller, setCursor }
+    : null
   return (
-    <div className="absolute inset-0" style={{ cursor }}>
+    <div
+      className="absolute inset-0"
+      style={{ cursor: dragging ? cursor : 'auto' }}
+    >
       {/* No touch scrolling or zooming over the room, so a finger can drag. */}
       <Canvas
         frameloop="demand"
@@ -151,7 +194,11 @@ export function RoomCanvas({
         dpr={[1, 2]}
         style={{ touchAction: 'none' }}
       >
-        <TopDownCamera room={room} />
+        {view === '3d' ? (
+          <OrbitView room={room} />
+        ) : (
+          <TopDownCamera room={room} />
+        )}
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
         <SeatRow footprint={seatRow} />
@@ -162,6 +209,7 @@ export function RoomCanvas({
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
         )}
         <Walls room={room} labelLayer={labelLayer} />
+        {view === '3d' && <RoomBox room={room} />}
         {recommendedSeat && (
           <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
         )}
@@ -173,6 +221,11 @@ export function RoomCanvas({
         />
         <SpeakerMarkers
           speakers={speakers}
+          labelLayer={labelLayer}
+          markerDrag={markerDrag}
+        />
+        <OverheadMarkers
+          overheads={overheads}
           labelLayer={labelLayer}
           markerDrag={markerDrag}
         />
@@ -218,26 +271,36 @@ function leaveTextField() {
   }
 }
 
+type DraggableProps = {
+  id: PlaceableId
+  at: RoomPoint
+  /** The marker's own radius, in meters. */
+  radius: number
+  children: ReactNode
+}
+
 /**
  * Makes its markers draggable on the floor plan as item `id`, which is at
  * `at`. Pressing on a marker (or within a touch target of its center, see
  * grabRadius) picks it up; it follows the pointer, keeping where it was
- * grabbed, until released. The store keeps it inside the Room.
+ * grabbed, until released. The store keeps it inside the Room. Without
+ * `markerDrag` (the 3D view) the markers are only drawn, with no grab area.
  */
 function Draggable({
+  markerDrag,
+  ...props
+}: DraggableProps & { markerDrag: MarkerDrag | null }) {
+  if (!markerDrag) return props.children
+  return <DraggableGroup markerDrag={markerDrag} {...props} />
+}
+
+function DraggableGroup({
   id,
   at,
   radius,
   markerDrag: { room, controller, setCursor },
   children,
-}: {
-  id: PlaceableId
-  at: RoomPoint
-  /** The marker's own radius, in meters. */
-  radius: number
-  markerDrag: MarkerDrag
-  children: ReactNode
-}) {
+}: DraggableProps & { markerDrag: MarkerDrag }) {
   const size = useThree((state) => state.size)
   const zoom = topDownCamera(room, size).zoom
   const hit = new Vector3()
@@ -330,6 +393,45 @@ function SceneLabel({
 function TopDownCamera({ room }: { room: Room }) {
   const size = useThree((state) => state.size)
   return <OrthographicCamera makeDefault {...topDownCamera(room, size)} />
+}
+
+/**
+ * A perspective camera framing the room box, with orbit controls to look
+ * around (drag to orbit, scroll or pinch to zoom). It is framed for the
+ * panel's size when the view opens or the Room changes, so resizing the
+ * panel doesn't undo the user's orbit.
+ */
+function OrbitView({ room: { length, width, height } }: { room: Room }) {
+  const get = useThree((state) => state.get)
+  const { camera, limits } = useMemo(() => {
+    const room = { length, width, height }
+    const { size } = get()
+    return { camera: orbitCamera(room, size), limits: orbitLimits(room, size) }
+  }, [length, width, height, get])
+  return (
+    <>
+      <PerspectiveCamera
+        makeDefault
+        position={camera.position}
+        fov={camera.fov}
+        near={camera.near}
+        far={camera.far}
+      />
+      <OrbitControls makeDefault target={camera.target} {...limits} />
+    </>
+  )
+}
+
+/** The room box outlined up to the ceiling, so its height reads in 3D. */
+function RoomBox({ room }: { room: Room }) {
+  return roomBoxEdges(room).map((edge, index) => (
+    <Line
+      key={index}
+      points={edge.map(toScenePosition)}
+      color={COLORS.walls}
+      lineWidth={1.5}
+    />
+  ))
 }
 
 function Floor({ room }: { room: Room }) {
@@ -527,7 +629,7 @@ function MlpMarker({
 }: {
   mlp: RoomPoint
   labelLayer: LabelLayer
-  markerDrag: MarkerDrag
+  markerDrag: MarkerDrag | null
 }) {
   return (
     <>
@@ -561,7 +663,7 @@ function SpeakerMarkers({
 }: {
   speakers: readonly PlacedSpeaker[]
   labelLayer: LabelLayer
-  markerDrag: MarkerDrag
+  markerDrag: MarkerDrag | null
 }) {
   return speakers.map((speaker) => {
     const { position, rotation, color, label, grade, labelDirection } =
@@ -598,6 +700,66 @@ function SpeakerMarkers({
 }
 
 /**
+ * The overhead speakers as rings with a center dot, colored by grade, on
+ * the ceiling: round, so they read apart from the rectangular
+ * listener-level cabinets. Drawn on both faces, so the 3D view sees them
+ * from below. Dragged on the floor plan like the others (top-down only);
+ * the store keeps them on the ceiling.
+ */
+function OverheadMarkers({
+  overheads,
+  labelLayer,
+  markerDrag,
+}: {
+  overheads: readonly PlacedOverhead[]
+  labelLayer: LabelLayer
+  markerDrag: MarkerDrag | null
+}) {
+  return overheads.map((overhead) => {
+    const { position, rotation, color, label, grade, labelDirection } =
+      overheadMarker(overhead)
+    return (
+      <Fragment key={overhead.channel}>
+        <Draggable
+          id={overhead.channel}
+          at={overhead.position}
+          radius={OVERHEAD_MARKER_RADIUS}
+          markerDrag={markerDrag}
+        >
+          <mesh position={position} rotation={rotation}>
+            <ringGeometry
+              args={[
+                OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_RING_INNER,
+                OVERHEAD_MARKER_RADIUS,
+                32,
+              ]}
+            />
+            <meshBasicMaterial color={color} side={DoubleSide} />
+          </mesh>
+          <mesh position={position} rotation={rotation}>
+            <circleGeometry
+              args={[OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_DOT, 24]}
+            />
+            <meshBasicMaterial color={color} side={DoubleSide} />
+          </mesh>
+        </Draggable>
+        <SceneLabel
+          at={overhead.position}
+          layer={labelLayer}
+          className="flex flex-col items-center leading-tight"
+          style={{ transform: besideMarker(labelDirection) }}
+        >
+          <span className="font-medium">{label}</span>
+          <span className="text-muted-foreground">
+            {GRADE_STYLES[grade].label}
+          </span>
+        </SceneLabel>
+      </Fragment>
+    )
+  })
+}
+
+/**
  * The subwoofers as neutral squares on the floor plan. They sit lower than
  * the listener-level speakers, so a speaker above one (the Center over
  * Subwoofer 1) is drawn on top, with the subwoofer's outline around it.
@@ -609,7 +771,7 @@ function SubwooferMarkers({
 }: {
   subwoofers: readonly PlacedSubwoofer[]
   labelLayer: LabelLayer
-  markerDrag: MarkerDrag
+  markerDrag: MarkerDrag | null
 }) {
   return subwoofers.map((subwoofer) => {
     const { position, rotation, color, label, labelDirection } =

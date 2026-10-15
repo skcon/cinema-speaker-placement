@@ -1,10 +1,13 @@
 import {
   angleOnSide,
   CHANNELS,
+  OVERHEAD_CHANNELS,
   type AngleRange,
   type AngleReference,
   type ChannelReference,
   type ChannelSide,
+  type NoAngleRange,
+  type OverheadChannelReference,
 } from './dolby-layouts'
 
 /** How a speaker's angle from the MLP compares with its placement range. */
@@ -12,21 +15,38 @@ export type PlacementGrade = 'ideal' | 'acceptable' | 'outside'
 
 /** One angle of a speaker, graded against Dolby's ranges for it. */
 export type AngleCheck = AngleReference & {
-  /** The measured angle in degrees; an azimuth is signed (src/domain/room.ts). */
+  /**
+   * The measured angle in degrees: an azimuth is signed (src/domain/room.ts),
+   * an elevation in Dolby's side-view convention (0° to 180°).
+   */
   readonly degrees: number
   /**
-   * The angle that was graded and is shown: on the channel's own side,
-   * unsigned, to the nearest whole degree.
+   * The angle that was graded and is shown, to the nearest whole degree: an
+   * azimuth on the channel's own side and unsigned.
    */
   readonly shown: number
   readonly grade: PlacementGrade
 }
 
-/** A speaker's placement-range check, one part per angle, with the ranges and their sources. */
+/** An angle Dolby gives no range for: measured and shown, not graded. */
+export type UngradedAngle = NoAngleRange & {
+  readonly degrees: number
+  readonly shown: number
+  readonly grade: null
+}
+
+/** A speaker's placement-range check, with the range and its sources. */
 export type PlacementRangeCheck = {
-  /** The worst grade of the parts. Only the azimuth is graded until overheads (#8) add elevation. */
   readonly grade: PlacementGrade
   readonly azimuth: AngleCheck
+}
+
+/** An overhead's check: an elevation, and an azimuth unless Dolby gives none. */
+export type OverheadPlacementRangeCheck = {
+  /** The worst grade of the graded parts. */
+  readonly grade: PlacementGrade
+  readonly azimuth: AngleCheck | UngradedAngle
+  readonly elevation: AngleCheck
 }
 
 /**
@@ -44,25 +64,86 @@ export function checkPlacementRange(
   { channel, azimuth: reference }: ChannelReference,
   azimuth: number,
 ): PlacementRangeCheck {
-  const azimuthCheck = checkAngle(CHANNELS[channel].side, reference, azimuth)
+  const azimuthCheck = checkAzimuth(CHANNELS[channel].side, reference, azimuth)
   return { grade: azimuthCheck.grade, azimuth: azimuthCheck }
 }
 
-function checkAngle(
+/**
+ * Grade an overhead channel's azimuth and its elevation (Dolby's side-view
+ * convention, src/domain/room.ts) against its Dolby placement range, each
+ * as checkPlacementRange grades an azimuth; the overall grade is the worse
+ * of the two. Where Dolby gives no azimuth (top middle), only the
+ * elevation is graded.
+ */
+export function checkOverheadPlacementRange(
+  {
+    channel,
+    azimuth: azimuthReference,
+    elevation: reference,
+  }: OverheadChannelReference,
+  azimuth: number,
+  elevation: number,
+): OverheadPlacementRangeCheck {
+  const side = OVERHEAD_CHANNELS[channel].side
+  const azimuthCheck =
+    azimuthReference.ideal === null
+      ? ungraded(azimuthReference, side, azimuth)
+      : checkAzimuth(side, azimuthReference, azimuth)
+  const elevationCheck = checkAngle(reference, elevation, elevation)
+  return {
+    grade: worst([azimuthCheck.grade, elevationCheck.grade]),
+    azimuth: azimuthCheck,
+    elevation: elevationCheck,
+  }
+}
+
+const GRADE_ORDER = ['ideal', 'acceptable', 'outside'] as const
+
+/** The worst of the grades given; ungraded parts (null) don't count. */
+function worst(grades: readonly (PlacementGrade | null)[]): PlacementGrade {
+  return GRADE_ORDER.reduce<PlacementGrade>(
+    (found, grade) => (grades.includes(grade) ? grade : found),
+    'ideal',
+  )
+}
+
+/** An azimuth graded on the channel's own side. */
+function checkAzimuth(
   side: ChannelSide,
-  { ideal, acceptable }: AngleReference,
+  reference: AngleReference,
   degrees: number,
 ): AngleCheck {
-  const sideAngle = angleOnSide(side, degrees)
-  const shown = Math.round(Math.abs(sideAngle))
+  return checkAngle(reference, angleOnSide(side, degrees), degrees)
+}
+
+/** An azimuth Dolby gives no range for, shown on the channel's own side. */
+function ungraded(
+  reference: NoAngleRange,
+  side: ChannelSide,
+  degrees: number,
+): UngradedAngle {
+  const shown = Math.round(Math.abs(angleOnSide(side, degrees)))
+  return { ...reference, degrees, shown, grade: null }
+}
+
+/**
+ * Grade `graded` (the angle as Dolby's ranges measure it) to the nearest
+ * whole degree; `measured` is the angle as measured, kept as `degrees`.
+ */
+function checkAngle(
+  { ideal, acceptable }: AngleReference,
+  graded: number,
+  measured: number,
+): AngleCheck {
+  const shown = Math.round(Math.abs(graded))
   // Negative stays negative, so the wrong side never falls in a range.
-  const roundedSideAngle = sideAngle < 0 ? -shown : shown
-  const grade: PlacementGrade = isWithin(roundedSideAngle, ideal.range)
+  const rounded = graded < 0 ? -shown : shown
+  const grade: PlacementGrade = isWithin(rounded, ideal.range)
     ? 'ideal'
-    : acceptable.range && isWithin(roundedSideAngle, acceptable.range)
+    : acceptable.range && isWithin(rounded, acceptable.range)
       ? 'acceptable'
       : 'outside'
-  return { ideal, acceptable, degrees, shown, grade }
+  return { ideal, acceptable, degrees: measured, shown, grade }
 }
 
 function isWithin(angle: number, { min, max }: AngleRange): boolean {

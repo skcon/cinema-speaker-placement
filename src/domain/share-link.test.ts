@@ -9,6 +9,8 @@ import {
   UNIT_SYSTEM_NAMES,
   V1_DOLBY_LAYOUTS,
   type Config,
+  type DolbyLayout,
+  type OverheadChannelId,
 } from '@/domain'
 import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
@@ -98,9 +100,18 @@ describe('share link codec', () => {
     4: { Sub2: SEALED_10, Sub4: SEALED_10 },
   } as const
 
+  /** The first overhead channel of each layout that has overheads. */
+  const FIRST_OVERHEAD: Partial<Record<DolbyLayout, OverheadChannelId>> = {
+    '5.1.2': 'Ltm',
+    '7.1.2': 'Ltm',
+    '5.1.4': 'Ltf',
+    '7.1.4': 'Ltf',
+  }
+
   describe.each(V1_DOLBY_LAYOUTS)('rebuilds a %s layout', (dolbyLayout) => {
+    const overhead = FIRST_OVERHEAD[dolbyLayout]
     it.each([1, 2, 3, 4] as const)(
-      'with %i subwoofer(s), every other one with its own specs, and Left, the last subwoofer and the MLP moved by hand',
+      'with %i subwoofer(s), every other one with its own specs, and Left, its first overhead, the last subwoofer and the MLP moved by hand',
       (subwoofers) => {
         const config: Config = {
           ...IMPERIAL_ROOM,
@@ -115,6 +126,8 @@ describe('share link codec', () => {
           // In the 8 x 5 x 3 m room, on the wall and ceiling clearances.
           manualPositions: {
             L: { x: -2.2, y: 0.3, z: 2.7 },
+            // On the 3 m ceiling.
+            ...(overhead && { [overhead]: { x: -2.2, y: 7.7, z: 3 } }),
             [`Sub${subwoofers}`]: { x: 2.2, y: 7.7, z: 0.3 },
             MLP: { x: 0.5, y: 3.25, z: 1.2 },
           },
@@ -449,7 +462,17 @@ describe('share link codec', () => {
       ],
       [
         'a manual position for an unknown speaker',
-        withManualPositions({ Ltf: { x: -1, y: 2, z: 2.3 } }),
+        withManualPositions({ Lw: { x: -1, y: 2, z: 1.2 } }),
+      ],
+      // The default 5.1.2 has top middle overheads, not top front ones.
+      [
+        'a manual position for an overhead not in the layout',
+        withManualPositions({ Ltf: { x: -1, y: 1, z: 2.6 } }),
+      ],
+      // Overheads are on the 2.6 m ceiling.
+      [
+        'an overhead below the ceiling',
+        withManualPositions({ Ltm: { x: -1, y: 2, z: 2.3 } }),
       ],
       // The default 5.1.2 has no rear surrounds and one subwoofer.
       [
@@ -566,8 +589,7 @@ function longestPosition(n: number, z?: number) {
 /**
  * The largest config a share link has to carry, for the size budget: the
  * largest real config today. Grow it with the config: the compiler asks for
- * every new field, and each one should take its longest value. Planned
- * growth (issue #2): the overheads' manual positions (#8).
+ * every new field, and each one should take its longest value.
  */
 const WORST_CASE_CONFIG: Config = {
   units: 'imperial',
@@ -603,8 +625,10 @@ const WORST_CASE_CONFIG: Config = {
   crossoverHz: 199 - 1 / 7,
   // All 17 significant digits, as a converted feet + inches value can have.
   seatRowWidth: 8 - 1 / 7,
-  // Every listener-level speaker, every subwoofer (at subwoofer height)
-  // and the MLP (at ear height) moved by hand.
+  // Every listener-level speaker, every overhead (on the ceiling, stored to
+  // the millimeter as the link writes it), every
+  // subwoofer (at subwoofer height) and the MLP (at ear height) moved by
+  // hand.
   manualPositions: {
     L: longestPosition(0),
     C: longestPosition(1),
@@ -613,6 +637,10 @@ const WORST_CASE_CONFIG: Config = {
     Rs: longestPosition(4),
     Lrs: longestPosition(5),
     Rrs: longestPosition(6),
+    Ltf: longestPosition(12, 4.988),
+    Rtf: longestPosition(13, 4.988),
+    Ltr: longestPosition(14, 4.988),
+    Rtr: longestPosition(15, 4.988),
     Sub1: longestPosition(7, 0.3),
     Sub2: longestPosition(8, 0.3),
     Sub3: longestPosition(9, 0.3),

@@ -55,10 +55,18 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('radio', { name: '5.1.2', checked: true }),
     ).toBeVisible()
-    for (const label of ['L 26°', 'C 0°', 'R 26°', 'Ls 115°', 'Rs 115°']) {
+    for (const label of [
+      'L 26°',
+      'C 0°',
+      'R 26°',
+      'Ls 115°',
+      'Rs 115°',
+      'Ltm 83°',
+      'Rtm 83°',
+    ]) {
       await expect(scene.getByText(label, { exact: true })).toBeVisible()
     }
-    await expect(scene.getByText('ideal', { exact: true })).toHaveCount(5)
+    await expect(scene.getByText('ideal', { exact: true })).toHaveCount(7)
     await expect(
       page.getByRole('table', { name: 'Speakers' }).getByText('Left Surround'),
     ).toBeVisible()
@@ -163,7 +171,8 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     for (const label of ['L 26°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
     }
-    await expect(sharedScene.getByText('ideal', { exact: true })).toHaveCount(7)
+    // Seven listener-level speakers and two overheads.
+    await expect(sharedScene.getByText('ideal', { exact: true })).toHaveCount(9)
     // Two subwoofers, at the middle of the front and back walls.
     for (const label of ['Sub1', 'Sub2']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()

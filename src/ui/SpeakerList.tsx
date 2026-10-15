@@ -1,17 +1,18 @@
 import { useId, type ReactNode } from 'react'
 import { useRoomAnalysis } from '@/state/config-context'
-import { GRADE_STYLES, UNGRADED_STYLE } from '@/scene/speakers'
+import { GRADE_STYLES, overheadAngles, UNGRADED_STYLE } from '@/scene/speakers'
 
 /**
  * The layout's speakers by Dolby's spelled-out names, with the abbreviation
  * the room view labels them by, their angle from the MLP and their
  * placement-range grade (in words, with the room view's color), then the
- * subwoofers, which are not graded.
+ * overheads, also graded on their elevation, then the subwoofers, which
+ * are not graded.
  */
 export function SpeakerList() {
   const headingId = useId()
   const noteId = useId()
-  const { speakers, subwoofers } = useRoomAnalysis()
+  const { speakers, overheads, subwoofers } = useRoomAnalysis()
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
@@ -46,6 +47,15 @@ export function SpeakerList() {
               grade={GRADE_STYLES[placementRange.grade]}
             />
           ))}
+          {overheads.map((overhead) => (
+            <SpeakerRow
+              key={overhead.channel}
+              abbreviation={overhead.channel}
+              name={overhead.name}
+              angle={overheadAngles(overhead)}
+              grade={GRADE_STYLES[overhead.placementRange.grade]}
+            />
+          ))}
           {subwoofers.map(({ id, name }) => (
             <SpeakerRow
               key={id}
@@ -64,10 +74,14 @@ export function SpeakerList() {
       </table>
       <p id={noteId} className="text-xs text-muted-foreground">
         Angles are measured from the MLP, from straight ahead at the screen, and
-        graded against Dolby&rsquo;s placement range for each speaker.
-        Subwoofers have no Dolby placement range, so they aren&rsquo;t graded:
-        they follow the layouts that evened out the bass across the seats in a
-        Harman study of one test room, scaled to your room.
+        graded against Dolby&rsquo;s placement range for each speaker. Overhead
+        speakers are also graded on their elevation (elev.), measured as Dolby
+        draws it from the side: 0° straight ahead, 90° overhead, 180° straight
+        behind. Dolby gives top middle speakers no angle range from straight
+        ahead, so they are graded on their elevation only. Subwoofers have no
+        Dolby placement range, so they aren&rsquo;t graded: they follow the
+        layouts that evened out the bass across the seats in a Harman study of
+        one test room, scaled to your room.
       </p>
     </section>
   )

@@ -34,6 +34,8 @@ describe('speaker list', () => {
       ['RRight', '26°', 'ideal'],
       ['LsLeft Surround', '115°', 'ideal'],
       ['RsRight Surround', '115°', 'ideal'],
+      ['LtmLeft Top Middle', 'elev. 83°', 'ideal'],
+      ['RtmRight Top Middle', 'elev. 83°', 'ideal'],
       ['Sub1Subwoofer 1', '—none', 'ungraded'],
     ])
     expect(
@@ -51,6 +53,23 @@ describe('speaker list', () => {
       '143°',
       'ideal',
     ])
+  })
+
+  it('lists the overheads with their angle from the MLP and their elevation, graded on both', () => {
+    renderSpeakerList()
+
+    fireEvent.click(screen.getByRole('radio', { name: '7.1.4' }))
+
+    // Default room: 1.17 m out and 1.4 m ahead of the MLP, 1.4 m up.
+    expect(speakerRows()).toEqual(
+      expect.arrayContaining([
+        ['LtfLeft Top Front', '40° · elev. 45°', 'ideal'],
+        ['RtrRight Top Rear', '140° · elev. 135°', 'ideal'],
+      ]),
+    )
+    expect(
+      screen.getByText(/overhead speakers are also graded on their elevation/i),
+    ).toBeInTheDocument()
   })
 
   it('lists every subwoofer, ungraded, as Dolby gives subwoofers no placement range', () => {

@@ -4,7 +4,7 @@
  *
  * ## Auto and manual
  *
- * Every listener-level channel, every subwoofer and the MLP is either
+ * Every listener-level and overhead channel, every subwoofer and the MLP is either
  * **auto** (its position is derived by auto-place from the Room, the Layout
  * and, for speakers, the MLP) or **manual** (its position is stored in the
  * config). Only manual positions are stored, keyed by channel, subwoofer id
@@ -17,6 +17,9 @@
  *
  * - a listener-level speaker keeps SPEAKER_WALL_CLEARANCE from every wall,
  *   and the same distance from the floor and the ceiling;
+ * - an overhead speaker keeps SPEAKER_WALL_CLEARANCE from every wall and
+ *   stays on the ceiling (its height is not edited, and follows the room
+ *   height);
  * - a subwoofer keeps SUBWOOFER_WALL_CLEARANCE from every wall and stays at
  *   SUBWOOFER_HEIGHT (its height is not edited: it is a floor-standing box);
  * - the MLP keeps SPEAKER_WALL_CLEARANCE from every wall and stays at seated
@@ -25,8 +28,13 @@
  * When the Room shrinks past a manual item, the item moves in with the
  * wall; otherwise it stays where it was left.
  */
-import { CHANNEL_IDS, DOLBY_LAYOUTS } from './dolby-layouts'
+import {
+  CHANNEL_IDS,
+  DOLBY_LAYOUTS,
+  OVERHEAD_CHANNEL_IDS,
+} from './dolby-layouts'
 import type { Layout } from './layout'
+import { clamp } from './range'
 import {
   EAR_HEIGHT,
   SPEAKER_WALL_CLEARANCE,
@@ -41,11 +49,12 @@ export const MLP_ID = 'MLP'
 
 /**
  * Everything that can be placed by hand, by kind. Each kind has its own
- * rules (PLACEMENT_RULES) and its own ids; overhead speakers (#8) join as
- * one more kind here, and everything below follows.
+ * rules (PLACEMENT_RULES) and its own ids; a new kind joins here, and
+ * everything below follows.
  */
 const PLACEABLES = {
   listenerLevel: CHANNEL_IDS,
+  overhead: OVERHEAD_CHANNEL_IDS,
   subwoofer: SUBWOOFER_IDS,
   mlp: [MLP_ID],
 } as const satisfies Record<string, readonly string[]>
@@ -56,6 +65,7 @@ export type PlaceableKind = keyof typeof PLACEABLES
 /** Every placeable id: what the share link's schema accepts as a key. */
 export const PLACEABLE_IDS = [
   ...PLACEABLES.listenerLevel,
+  ...PLACEABLES.overhead,
   ...PLACEABLES.subwoofer,
   ...PLACEABLES.mlp,
 ] as const
@@ -68,7 +78,7 @@ true satisfies Exclude<
   ? true
   : never
 
-/** A listener-level channel, a subwoofer or the MLP. */
+/** A listener-level or overhead channel, a subwoofer or the MLP. */
 export type PlaceableId = (typeof PLACEABLES)[PlaceableKind][number]
 
 /** Whether an item's position is derived (auto) or stored (manual). */
@@ -79,19 +89,25 @@ export type ManualPositions = Partial<Record<PlaceableId, RoomPoint>>
 
 /**
  * Where each kind of item may go (see above): how far it keeps from the
- * walls, and its height, either fixed or kept this far from the floor and
- * the ceiling. All our modelling assumptions (reference.ts).
+ * walls, and its height, either fixed (at a height, or on the ceiling) or
+ * kept this far from the floor and the ceiling. All our modelling
+ * assumptions (reference.ts).
  */
 const PLACEMENT_RULES: Record<
   PlaceableKind,
   {
     wallClearance: number
-    height: { fixed: number } | { surfaceClearance: number }
+    height:
+      { fixed: number } | { fixed: 'ceiling' } | { surfaceClearance: number }
   }
 > = {
   listenerLevel: {
     wallClearance: SPEAKER_WALL_CLEARANCE.meters,
     height: { surfaceClearance: SPEAKER_WALL_CLEARANCE.meters },
+  },
+  overhead: {
+    wallClearance: SPEAKER_WALL_CLEARANCE.meters,
+    height: { fixed: 'ceiling' },
   },
   subwoofer: {
     wallClearance: SUBWOOFER_WALL_CLEARANCE.meters,
@@ -120,8 +136,10 @@ export function hasFixedHeight(id: PlaceableId): boolean {
 
 /** The items a layout has: its channels, its subwoofers and the MLP. */
 export function placeablesIn(layout: Layout): readonly PlaceableId[] {
+  const { channels, overheadChannels } = DOLBY_LAYOUTS[layout.dolbyLayout]
   return [
-    ...DOLBY_LAYOUTS[layout.dolbyLayout].channels.map(({ channel }) => channel),
+    ...channels.map(({ channel }) => channel),
+    ...overheadChannels.map(({ channel }) => channel),
     ...subwooferIds(layout.subwoofers),
     MLP_ID,
   ]
@@ -140,7 +158,9 @@ export function clampToRoom(
     y: clamp(y, wallClearance, room.length - wallClearance),
     z:
       'fixed' in height
-        ? height.fixed
+        ? height.fixed === 'ceiling'
+          ? room.height
+          : height.fixed
         : clamp(
             z,
             height.surfaceClearance,
@@ -219,8 +239,4 @@ function mapPositions(
   return Object.fromEntries(
     entries(positions).map(([id, point]) => [id, map(id, point)]),
   )
-}
-
-function clamp(value: number, low: number, high: number): number {
-  return Math.min(Math.max(value, low), high)
 }

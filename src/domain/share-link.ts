@@ -16,9 +16,9 @@
  * Version 1 is whatever ships in the first release with share links; until
  * then `configSchema` can change, and the frozen links in
  * src/test/share-link-fixtures.ts are regenerated (as they were when manual
- * positions joined version 1, and again when the seat row width (#14) and
- * the speaker group specs and amplifier power (#13) did, all before any
- * release). After that, every change
+ * positions joined version 1, and again when the seat row width (#14),
+ * the speaker group specs and amplifier power (#13) and the overhead
+ * channels (#8) did, all before any release). After that, every change
  * to `configSchema` is a new version, however small (a new, removed or
  * renamed field, a new meaning, a wider or tighter range):
  *

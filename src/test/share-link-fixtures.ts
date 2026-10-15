@@ -54,9 +54,9 @@ export const IMPERIAL_ROOM = {
 /**
  * Version 1 share links as the app writes them (their encoded configs),
  * with the config each one holds. Version 1 is not released yet, so these
- * were regenerated when the seat row width (#14) and the speaker group
- * specs and amplifier power (#13) joined it, pre-release resets of the
- * freeze (ADR 0003). Once version 1 is released, never edit
+ * were regenerated when the seat row width (#14), the speaker group specs
+ * and amplifier power (#13) and the overhead channels (#8) joined it,
+ * pre-release resets of the freeze (ADR 0003). Once version 1 is released, never edit
  * these: if one stops opening, links people already shared no longer open,
  * and the schema change needs a new version and a migration (ADR 0003).
  * Two sit on the edges of the room, speaker and subwoofer spec, amplifier
@@ -158,12 +158,12 @@ export const V1_LINKS = {
    * 4 with them as its own, towers of the highest sensitivity (110 dB) in
    * every group, a 5,000 W amplifier, the house curve, the highest
    * crossover accepted (200 Hz), the widest seat row (8 m), and Right (at
-   * the ceiling clearance), Subwoofer 4
+   * the ceiling clearance), Right Top Rear (on the ceiling), Subwoofer 4
    * and the MLP moved by hand into the corners.
    */
   largestRoom: {
     encoded:
-      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAso0AKzwA7hgAmAoaJD8q2fkSjCAvvE4BDAJ5I8KyKElJOAIx0AZXfsMgA7ADpojgCxMQJPGbGs0VWjJIVw1PAAcqLQBrAIBxFjwwoNA0FhRDUBIIhGSQIh0I8iIkMQCPEh4SYgwwYh0haAAGNVCEHiIyo3CqHI58wsg8krL4CpQqohq6hubQr1oElElcrJ7c-qoi4dpyyura-JmW5kjaAGU8Bf0llez1gs3B4tKd0b3Jg-qYJuOQJDAAgotMsOKtel0xhMpodvrNRt5fEh-IFQXcODwEJwkPNHiAwkhaB1JB5JPQAbQACIYLTUDo7SCNRwANkaAE5hKzOVzuZzmBQSAB1LREUhCRrixrwCLRIUioIAJglzXgJRQZzRXQuZncXQxWJx5AqWm4xPgpJqASpNJonUZLPZPMdrL5guFopgSqlkSisvdiolLV+NLCnAwmACvqCwgl8CIWloWBoAGFLgDyPx9BUPAgWCQSP8AgAJABeUH9b2FACUSgKpDJIAAOeAULQoPDGgAK2OqqFylY4AA8oE55fAvtBXI57PBS8Ep6EtTrQEPIABaEdjoST6cgWeMgDMoQAspYO4OoOvHKOQF8DzOhFfA2ogA',
+      'N4IgbiBcCMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAso0AKzwA7hgAmAoaJD8q2fkSjCAvvE4BDAJ5I8KyKElJOAIx0AZXfsMgA7ADpojgCxMQJPGbGs0VWjJIVw1PAAcqLQBrAIBxFjwwoNA0FhRDUBIIhGSQIh0I8iIkMQCPEh4SYgwwYh0haAAGNVCEHiIyo3CqHI58wsg8krL4CpQqohq6hubQr1oElElcrJ7c-qoi4dpyyura-JmW5kjaAGU8Bf0llez1gs3B4tKd0b3Jg-qYJuOQJDAAgotMsOKtel0xhMpodvrNRt5fEh-IFQXcODwEJwkPNHiAwkhaB1JB5JPQAbQACIYLTUDo7SCNRwANkaAE5hKzOVzuZzmBQSAB1LREUhCRrixrwCLRIUioIAJglzXgJRQZzRXQuZncXQxWJx5AqWm4xPgpJqASpNJonUZLPZPMdrL5guFopgSqlkSisvdiolLV+NLCnAwmACvqCwgl8CIWloWBoAGFLgDyPx9BUPAgWCQSP8AgAJABeUH9b2FACUSgKpDJIAAOeAULQoPDGgAK2OqqFylY4AA8oE55fAvtBXI57PBS8Ep6FK3RB8PHKOQOPJ9OQLP1PAtTrQEPIABaEdjoSbmdQRkAZlCAFlLB3lyez+vr44b1eYKvA2ogA',
     config: {
       units: 'metric',
       room: { length: 15, width: 15, height: 5 },
@@ -195,9 +195,11 @@ export const V1_LINKS = {
       targetCurve: 'house',
       crossoverHz: 200,
       seatRowWidth: 8,
-      // Right, Subwoofer 4 and the MLP moved by hand to the clearance lines.
+      // Right, Right Top Rear, Subwoofer 4 and the MLP moved by hand to the
+      // clearance lines.
       manualPositions: {
         R: { x: 7.2, y: 14.7, z: 4.7 },
+        Rtr: { x: 7.2, y: 14.7, z: 5 },
         Sub4: { x: -7.2, y: 14.7, z: 0.3 },
         MLP: { x: -7.2, y: 0.3, z: 1.2 },
       },

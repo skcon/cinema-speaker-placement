@@ -7,7 +7,11 @@
  * Specs are inputs for the acoustic estimates (the response, headroom.ts);
  * nothing here does any acoustics with them.
  */
-import { DOLBY_LAYOUTS, type ChannelId } from './dolby-layouts'
+import {
+  DOLBY_LAYOUTS,
+  type ChannelId,
+  type OverheadChannelId,
+} from './dolby-layouts'
 import type { Layout } from './layout'
 import { checkRange, type AcceptedRange, type RangeProblem } from './range'
 import { SPEAKER_TYPE_GEOMETRY } from './reference'
@@ -84,10 +88,7 @@ export const LISTENER_GROUP_IDS = [
 
 export type ListenerGroupId = (typeof LISTENER_GROUP_IDS)[number]
 
-/**
- * Every speaker group but the Subwoofers, in the order the form shows
- * them. Overheads have their group and specs ahead of being placed (#8).
- */
+/** Every speaker group but the Subwoofers, in the order the form shows them. */
 export const SPEAKER_GROUP_IDS = [...LISTENER_GROUP_IDS, 'overheads'] as const
 
 export type SpeakerGroupId = (typeof SPEAKER_GROUP_IDS)[number]
@@ -100,12 +101,8 @@ export type SpeakerGroups = {
   readonly subwoofers: SubwooferGroup
 }
 
-/**
- * A channel a Speaker of some speaker group plays. Only the listener-level
- * channels so far; #8 widens it with the overhead channels, and adds them
- * to SPEAKER_GROUP_OF as 'overheads'.
- */
-export type SpeakerChannelId = ChannelId
+/** A channel a Speaker of some speaker group plays: listener-level or overhead. */
+export type SpeakerChannelId = ChannelId | OverheadChannelId
 
 /** The speaker group each channel's Speaker belongs to. */
 export const SPEAKER_GROUP_OF: Readonly<
@@ -118,22 +115,26 @@ export const SPEAKER_GROUP_OF: Readonly<
   Rs: 'surrounds',
   Lrs: 'rearSurrounds',
   Rrs: 'rearSurrounds',
+  Ltf: 'overheads',
+  Rtf: 'overheads',
+  Ltm: 'overheads',
+  Rtm: 'overheads',
+  Ltr: 'overheads',
+  Rtr: 'overheads',
 }
 
 /**
  * The speaker groups (other than the Subwoofers) a layout has speakers in,
- * in form order. The overheads count from the layout's overhead count,
- * as the reference map has no overhead channels until #8.
+ * in form order.
  */
 export function speakerGroupsIn({
   dolbyLayout,
 }: Layout): readonly SpeakerGroupId[] {
-  const { channels, overheads } = DOLBY_LAYOUTS[dolbyLayout]
-  return SPEAKER_GROUP_IDS.filter((group) =>
-    group === 'overheads'
-      ? overheads > 0
-      : channels.some(({ channel }) => SPEAKER_GROUP_OF[channel] === group),
+  const { channels, overheadChannels } = DOLBY_LAYOUTS[dolbyLayout]
+  const inLayout = [...channels, ...overheadChannels].map(
+    ({ channel }) => SPEAKER_GROUP_OF[channel],
   )
+  return SPEAKER_GROUP_IDS.filter((group) => inLayout.includes(group))
 }
 
 /** The speaker groups' names, as the UI shows them (GLOSSARY.md). */

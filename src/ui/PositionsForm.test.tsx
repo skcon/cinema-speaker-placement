@@ -95,6 +95,27 @@ describe('positions in the sidebar', () => {
     expect(item('MLP')).toHaveTextContent('manual')
   })
 
+  it('show overheads on the ceiling, height not editable, with their elevation and its grade', () => {
+    renderPositions()
+
+    expect(
+      within(item('Left Top Middle')).queryByRole('group', {
+        name: /^Height/,
+      }),
+    ).toBeNull()
+    expect(item('Left Top Middle')).toHaveTextContent(/ceiling 2\.6 m/i)
+    expect(item('Left Top Middle')).toHaveTextContent(
+      /elevation 83° \(ideal\)/i,
+    )
+
+    // 0.3 m from the front wall: atan(1.4 / 1.98) = 35°, outside 65°–100°.
+    enter(field('Left Top Middle', /^From the front wall/), '0.3')
+    expect(item('Left Top Middle')).toHaveTextContent('manual')
+    expect(item('Left Top Middle')).toHaveTextContent(
+      /elevation 35° \(outside\)/i,
+    )
+  })
+
   it('are in the chosen units', () => {
     renderPositions()
 

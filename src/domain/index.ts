@@ -4,6 +4,7 @@
  */
 export {
   analyzeRoom,
+  type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
   type ResponseAnalysis,
@@ -59,9 +60,13 @@ export {
   type Placement,
 } from './manual-positions'
 export {
+  OVERHEAD_CHANNEL_IDS,
+  OVERHEAD_CHANNELS,
+  overheadSideSign,
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,
+  type OverheadChannelId,
 } from './dolby-layouts'
 export {
   evenerSubwooferCounts,
@@ -77,7 +82,13 @@ export {
   type Layout,
   type SubwooferCount,
 } from './layout'
-export type { PlacementGrade } from './placement-range'
+export { suggestsAtmosEnabledSpeakers } from './atmos-enabled'
+export type {
+  AngleCheck,
+  OverheadPlacementRangeCheck,
+  PlacementGrade,
+  UngradedAngle,
+} from './placement-range'
 export type { RangeProblem } from './range'
 export {
   checkRoomDimension,
@@ -91,6 +102,7 @@ export {
   type RoomDimensionProblem,
   type RoomPoint,
   type RoomSegment,
+  toRadians,
   type Wall,
   type WallDistance,
   wallDistances,
@@ -134,6 +146,7 @@ export {
 } from './speaker-specs'
 export {
   HEADROOM_STATUS,
+  LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,
   SPEAKER_TYPE_GEOMETRY,
   TARGET_TOLERANCE,

@@ -99,6 +99,24 @@ export const EAR_HEIGHT = {
 } as const satisfies { meters: number; citations: readonly Citation[] }
 
 /**
+ * The ceiling height at or below which Dolby says overhead speakers end up
+ * too close to the listeners and suggests Atmos-enabled speakers instead.
+ * Dolby states 8 ft (about 2.44 m); the project spec (issue #2, user story
+ * 24, and the CLAUDE.md v1 scope) uses 2.4 m, which is what we apply.
+ */
+export const LOW_CEILING_FOR_OVERHEADS = {
+  meters: 2.4,
+  citations: [
+    {
+      source: 'WP',
+      page: 7,
+      note: 'ceilings of 8 ft or lower put overheads too close; use enabled speakers',
+    },
+    { source: 'IG', page: 12 },
+  ],
+} as const satisfies { meters: number; citations: readonly Citation[] }
+
+/**
  * The informal "38% rule": seat the listener about 38% of the room length
  * from the front wall, off the 50% length null. A heuristic and soft
  * default, not a published standard and not a Dolby recommendation (Dolby

@@ -3,13 +3,17 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeRoom,
   DEFAULT_CONFIG,
+  type Config,
   type PlacedSpeaker,
   type PlacementGrade,
 } from '@/domain'
 import {
+  describeOverhead,
   describeSpeaker,
   describeSubwoofer,
   GRADE_STYLES,
+  overheadAngles,
+  overheadMarker,
   speakerMarker,
   subwooferMarker,
   UNGRADED_STYLE,
@@ -158,6 +162,60 @@ describe('speakers in words', () => {
     expect(describeSpeaker(placed('Ls'))).toBe('Left Surround 115° (ideal)')
     expect(describeSpeaker(graded(placed('R'), 'acceptable'))).toBe(
       'Right 26° (acceptable)',
+    )
+  })
+})
+
+describe('overhead speakers in the top-down scene', () => {
+  const fourOverheads = analyzeRoom({
+    ...DEFAULT_CONFIG,
+    layout: { dolbyLayout: '5.1.4', subwoofers: 1 },
+  } satisfies Config).overheads
+  const twoOverheads = analyzeRoom(DEFAULT_CONFIG).overheads
+
+  it('are drawn at their place on the ceiling, colored by grade, labelled by channel and elevation', () => {
+    const [ltf] = fourOverheads
+    if (!ltf) throw new Error('no Ltf')
+
+    expect(overheadMarker(ltf)).toMatchObject({
+      // Room (x, y, z) -> Three.js (x, z, y), on the 2.6 m ceiling.
+      position: [ltf.position.x, 2.6, ltf.position.y],
+      color: GRADE_STYLES.ideal.color,
+      label: 'Ltf 45°',
+      grade: 'ideal',
+      labelDirection: { x: -1, y: 0 },
+    })
+    expect(overheadMarker(fourOverheads[3]!)).toMatchObject({
+      label: 'Rtr 135°',
+      labelDirection: { x: 1, y: 0 },
+    })
+  })
+
+  it('take the color of their overall grade', () => {
+    const [ltf] = fourOverheads
+    if (!ltf) throw new Error('no Ltf')
+
+    expect(
+      overheadMarker({
+        ...ltf,
+        placementRange: { ...ltf.placementRange, grade: 'outside' },
+      }).color,
+    ).toBe(GRADE_STYLES.outside.color)
+  })
+
+  it('show the angle from the MLP where Dolby grades it, and the elevation', () => {
+    // 5.1.4 in the default room: top front at 38°, 45° up (side view).
+    expect(overheadAngles(fourOverheads[0]!)).toBe('38° · elev. 45°')
+    // Top middle has no Dolby azimuth range, so only its elevation is shown.
+    expect(overheadAngles(twoOverheads[0]!)).toBe('elev. 83°')
+  })
+
+  it('are described in words with their angles and grade', () => {
+    expect(describeOverhead(fourOverheads[2]!)).toBe(
+      'Left Top Rear 142°, elevation 135° (ideal)',
+    )
+    expect(describeOverhead(twoOverheads[1]!)).toBe(
+      'Right Top Middle elevation 83° (ideal)',
     )
   })
 })

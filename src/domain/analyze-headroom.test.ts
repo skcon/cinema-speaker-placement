@@ -9,7 +9,9 @@ import {
 /**
  * The default 5.1.2 room with every item moved by hand to round distances
  * from the MLP at (0, 3, 1.2): Left and Right 2 m away, the Center 1 m,
- * the surrounds 3 m, and Subwoofer 1 1.5 m (1.2 m along, 0.9 m down).
+ * the surrounds 3 m, Subwoofer 1 1.5 m (1.2 m along, 0.9 m down), and
+ * on the 2.6 m ceiling Left Top Middle 1.4 m (straight above) and Right
+ * Top Middle 1.75 m (1.05 m across, 1.4 m up).
  * Front and surrounds 87 dB, the Center 90 dB.
  */
 const MEASURED: Config = {
@@ -28,13 +30,15 @@ const MEASURED: Config = {
     Ls: { x: -1.8, y: 5.4, z: 1.2 },
     Rs: { x: 1.8, y: 5.4, z: 1.2 },
     Sub1: { x: 0, y: 1.8, z: 0.3 },
+    Ltm: { x: 0, y: 3, z: 2.6 },
+    Rtm: { x: 1.05, y: 3, z: 2.6 },
   },
 }
 
 /** A speaker group's headroom row, which must have placed speakers. */
 function placedGroup(config: Config, group: SpeakerGroupId) {
   const row = analyzeRoom(config).headroom.groups.find((g) => g.group === group)
-  if (!row?.placed) throw new Error(`${group} has no placed speakers`)
+  if (!row) throw new Error(`${group} has no speakers`)
   return row
 }
 
@@ -210,24 +214,28 @@ describe('headroom at the MLP', () => {
     expect(subwoofers.status).toBe('enough')
   })
 
-  it('lists a group without placed speakers (the overheads, until they are placed) as not placed, with its specs', () => {
-    const overheads = analyzeRoom(MEASURED).headroom.groups.find(
-      (g) => g.group === 'overheads',
-    )
+  it('checks the overheads by distance like the other groups', () => {
+    // 88 dB + 20 dB (100 W) − 20·log10(1.75) = 103.139 dB: 1.139 dB over 102.
+    const overheads = placedGroup(MEASURED, 'overheads')
 
-    expect(overheads).toEqual({
-      group: 'overheads',
-      name: 'Overheads',
-      specs: { sensitivity: 88 },
-      channels: [],
-      placed: false,
+    expect(overheads.channels.map(({ name }) => name)).toEqual([
+      'Left Top Middle',
+      'Right Top Middle',
+    ])
+    expect(overheads.weakest).toMatchObject({
+      channel: 'Rtm',
+      name: 'Right Top Middle',
     })
+    expect(overheads.weakest.distance).toBeCloseTo(1.75, 9)
+    expect(overheads.headroomDb).toBeCloseTo(1.139, 3)
+    expect(overheads.status).toBe('tight')
   })
 
   it('reads tight, not short, for the first-visit room', () => {
     const { groups } = analyzeRoom(DEFAULT_CONFIG).headroom
 
-    expect(groups.flatMap((g) => (g.placed ? [g.status] : []))).toEqual([
+    expect(groups.map((g) => g.status)).toEqual([
+      'tight',
       'tight',
       'tight',
       'tight',

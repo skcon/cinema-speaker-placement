@@ -8,18 +8,21 @@ import {
   type UnitSystem,
   type WallDistance,
 } from '@/domain'
+import { GRADE_STYLES } from '@/scene/speakers'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { LengthField } from '@/ui/LengthField'
 import { SidebarSection } from '@/ui/SidebarSection'
 
 /**
  * Where each speaker, subwoofer and the MLP is, for mounting it: height and
- * distances to the nearest walls, each editable. Editing an item (or
+ * distances to the nearest walls, each editable (an overhead's height is the
+ * ceiling's, shown with its elevation and grade). Editing an item (or
  * dragging it in the room view) makes it manual, so it stays put; auto
  * items follow the Room and the MLP until Auto-place resets them all.
  */
 export function PositionsForm() {
-  const { mlp, mlpPlacement, speakers, subwoofers } = useRoomAnalysis()
+  const { mlp, mlpPlacement, speakers, overheads, subwoofers } =
+    useRoomAnalysis()
 
   return (
     <SidebarSection title="Positions">
@@ -41,6 +44,23 @@ export function PositionsForm() {
             height="editable"
           />
         ))}
+        {overheads.map(
+          ({ channel, name, position, placement, placementRange }) => (
+            <PositionItem
+              key={channel}
+              id={channel}
+              abbreviation={channel}
+              name={name}
+              position={position}
+              placement={placement}
+              height={{ fixed: 'Ceiling' }}
+              note={
+                `Elevation ${placementRange.elevation.shown}° ` +
+                `(${GRADE_STYLES[placementRange.elevation.grade].label})`
+              }
+            />
+          ),
+        )}
         {subwoofers.map(({ id, name, position, placement }) => (
           <PositionItem
             key={id}
@@ -72,6 +92,7 @@ function PositionItem({
   position,
   placement,
   height,
+  note,
 }: {
   id: PlaceableId
   abbreviation: string
@@ -80,6 +101,8 @@ function PositionItem({
   placement: Placement
   /** Editable, or fixed and shown as text with this label. */
   height: 'editable' | { fixed: string }
+  /** A line shown under the height, if any. */
+  note?: string
 }) {
   const room = useConfig((state) => state.config.room)
   const units = useConfig((state) => state.config.units)
@@ -123,6 +146,7 @@ function PositionItem({
               {height.fixed} {formatLength(position.z, units)} (fixed)
             </p>
           )}
+          {note && <p className="text-xs text-muted-foreground">{note}</p>}
           {[along, across].map((distance) => (
             <WallDistanceField
               key={distance.wall}

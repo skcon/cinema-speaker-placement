@@ -6,6 +6,7 @@ import {
   recommendSeat,
   type ChannelId,
   type Config,
+  type OverheadChannelId,
 } from '@/domain'
 import { createConfigStore, type ConfigStore } from '@/state/config-store'
 import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
@@ -22,6 +23,12 @@ function analysis(store: ConfigStore) {
 function speaker(store: ConfigStore, channel: ChannelId) {
   const found = analysis(store).speakers.find((s) => s.channel === channel)
   if (!found) throw new Error(`no ${channel} speaker`)
+  return found
+}
+
+function overhead(store: ConfigStore, channel: OverheadChannelId) {
+  const found = analysis(store).overheads.find((o) => o.channel === channel)
+  if (!found) throw new Error(`no ${channel} overhead`)
   return found
 }
 
@@ -200,6 +207,64 @@ describe('moving the MLP to the recommended seat', () => {
     expect(store.getState().config).toBe(moved)
     store.getState().undo()
     expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+  })
+})
+
+describe('overhead speakers', () => {
+  it('become manual on the ceiling when dragged, and are graded from where they are', () => {
+    // Default 5.1.2: MLP at (0, 2.28) at 1.2 m, ceiling at 2.6 m.
+    const store = createConfigStore()
+
+    store.getState().moveItem('Ltm', { x: -1, y: 2.28 })
+    expect(overhead(store, 'Ltm')).toMatchObject({
+      position: { x: -1, y: 2.28, z: 2.6 },
+      placement: 'manual',
+      placementRange: { elevation: { shown: 90 }, grade: 'ideal' },
+    })
+    expect(overhead(store, 'Rtm').placement).toBe('auto')
+
+    // 1.72 m behind: 180° − atan(1.4 / 1.72) = 140.9°, past 65°–100°.
+    store.getState().moveItem('Ltm', { x: -1, y: 4 })
+    expect(overhead(store, 'Ltm').placementRange).toMatchObject({
+      elevation: { shown: 141, grade: 'outside' },
+      grade: 'outside',
+    })
+  })
+
+  it('keep their height on the ceiling: a height edit changes nothing', () => {
+    const store = createConfigStore()
+
+    store.getState().setItemHeight('Rtm', 2)
+
+    expect(manual(store)).toEqual({})
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('stay 0.3 m from the walls when dragged past one, and follow the ceiling when the room height changes', () => {
+    const store = createConfigStore()
+    store.getState().moveItem('Rtm', { x: 5, y: -2 })
+    expect(manual(store).Rtm).toEqual({ x: 1.95, y: 0.3, z: 2.6 })
+
+    store.getState().setRoomDimension('height', 3.1)
+
+    expect(manual(store).Rtm).toEqual({ x: 1.95, y: 0.3, z: 3.1 })
+    expect(overhead(store, 'Ltm').position.z).toBe(3.1)
+  })
+
+  it('are kept or dropped with the layout like other channels, and Auto-place puts them back to auto', () => {
+    const store = createConfigStore(inLayout('5.1.4'))
+    store.getState().moveItem('Ltf', { x: -1, y: 1 })
+
+    store.getState().setLayout('7.1.4')
+    expect(manual(store)).toEqual({ Ltf: { x: -1, y: 1, z: 2.6 } })
+
+    store.getState().setLayout('7.1.2')
+    expect(manual(store)).toEqual({})
+    expect(overhead(store, 'Ltm').placement).toBe('auto')
+
+    store.getState().undo()
+    store.getState().autoPlace()
+    expect(overhead(store, 'Ltf').placement).toBe('auto')
   })
 })
 

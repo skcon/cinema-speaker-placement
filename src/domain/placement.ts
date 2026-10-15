@@ -9,17 +9,22 @@
  *    leaves the most margin to both edges, and whole degrees match Dolby's
  *    resolution. Choosing the middle is our rule; Dolby gives only the
  *    range.
- * 2. **Reference distance**: Dolby wants every listener-level speaker the
- *    same distance from the MLP, with the front speakers setting that
- *    distance (IG p.6). Here the front wall sets it: the reference distance
- *    is how far the MLP is from the front wall's clearance line along the
- *    center-front reference, which is where the Center goes, at the screen.
- * 3. **Walls**: a speaker goes at the reference distance along its angle,
- *    or nearer along the same angle where that would come closer to a wall
- *    than the wall clearance (SPEAKER_WALL_CLEARANCE, 0.3 m, our modelling
- *    assumption, not Dolby's). The angle (which is graded) always holds;
- *    only the distance gives way, and Dolby's answer to unequal distances is
- *    delay compensation (IG p.6, p.15).
+ * 2. **Front stage near the front wall**: Left, Center and Right go along
+ *    their angle to where it meets a line FRONT_STAGE_WALL_DISTANCE (0.5 m,
+ *    our choice after the manufacturers' advice) from the front wall
+ *    (ADR 0005). Where a side wall's clearance comes first (a narrow room),
+ *    or the MLP is itself nearer the front wall than that line, they stop
+ *    at the walls' clearance instead.
+ * 3. **Everything else at the walls**: surrounds and rear surrounds go
+ *    along their angle to where it first meets a wall's clearance line
+ *    (SPEAKER_WALL_CLEARANCE, 0.3 m, our modelling assumption, not
+ *    Dolby's): the side wall, or the back wall if the angle reaches it
+ *    first. The angle (which is graded) always holds; only the distance
+ *    follows the room. The speakers are not equidistant from the MLP, and
+ *    Dolby's answer to that is the receiver's distance (delay) setting
+ *    (IG p.6, p.15; ADR 0005). Real-room practice puts surrounds at the
+ *    walls, not on a circle around the seat
+ *    (docs/research/real-room-placement.md section 3.1).
  * 4. **Height**: every listener-level speaker is at seated ear height
  *    (EAR_HEIGHT, IG p.6).
  * 5. **Aim**: every speaker faces the MLP, as Dolby asks: aim the speakers
@@ -29,13 +34,20 @@
  * The MLP is always inside the clearance box (rooms are at least 2 m in
  * each direction), so every valid room fits every v1 layout inside its
  * ideal ranges, though in small rooms the speakers end up close to the MLP.
+ * A manual MLP right against a wall can put a speaker on the MLP itself;
+ * the analysis grades it like any other.
  */
 import {
   azimuthFromSide,
   CHANNELS,
+  type ChannelId,
   type ChannelReference,
 } from './dolby-layouts'
-import { EAR_HEIGHT, SPEAKER_WALL_CLEARANCE } from './reference'
+import {
+  EAR_HEIGHT,
+  FRONT_STAGE_WALL_DISTANCE,
+  SPEAKER_WALL_CLEARANCE,
+} from './reference'
 import {
   bearingTo,
   directionAtAzimuth,
@@ -61,11 +73,10 @@ export function autoPlaceSpeaker(
   // The middle of the ideal range in whole degrees, on the channel's side.
   const middle = Math.round((ideal.range.min + ideal.range.max) / 2)
   const azimuth = azimuthFromSide(CHANNELS[channel].side, middle)
-  const referenceDistance = distanceToClearance(room, mlp, 0)
-  const distance = Math.min(
-    referenceDistance,
-    distanceToClearance(room, mlp, azimuth),
-  )
+  const frontLine = FRONT_STAGE_CHANNELS.has(channel)
+    ? FRONT_STAGE_WALL_DISTANCE.meters
+    : SPEAKER_WALL_CLEARANCE.meters
+  const distance = distanceToWalls(room, mlp, azimuth, frontLine)
   const { dx, dy } = directionAtAzimuth(mlp, azimuth)
   return {
     x: mlp.x + distance * dx,
@@ -74,6 +85,9 @@ export function autoPlaceSpeaker(
   }
 }
 
+/** The channels auto-place puts near the front wall (rule 2 above). */
+const FRONT_STAGE_CHANNELS: ReadonlySet<ChannelId> = new Set(['L', 'C', 'R'])
+
 /** Turn a speaker at `position` to face the MLP (rule 5 above). */
 export function aimAtMlp(position: RoomPoint, mlp: RoomPoint): Aim {
   return { yaw: bearingTo(position, mlp) }
@@ -81,21 +95,24 @@ export function aimAtMlp(position: RoomPoint, mlp: RoomPoint): Aim {
 
 /**
  * How far the MLP can look along `azimuth` before it comes within the wall
- * clearance of a wall.
+ * clearance of a side or back wall, or within `frontLine` of the front
+ * wall. A front line behind the MLP falls back to the wall clearance.
  */
-function distanceToClearance(
+function distanceToWalls(
   room: Room,
   mlp: RoomPoint,
   azimuth: number,
+  frontLine: number,
 ): number {
   const { dx, dy } = directionAtAzimuth(mlp, azimuth)
   const clearance = SPEAKER_WALL_CLEARANCE.meters
+  const front = mlp.y > frontLine ? frontLine : clearance
   const xLimit = room.width / 2 - clearance
   const limits = [
     distanceAlong(mlp.x, dx, -xLimit, xLimit),
-    distanceAlong(mlp.y, dy, clearance, room.length - clearance),
+    distanceAlong(mlp.y, dy, front, room.length - clearance),
   ]
-  return Math.min(...limits)
+  return Math.max(0, Math.min(...limits))
 }
 
 /** Distance along one axis from `start` moving at `step` per meter until leaving [low, high]. */

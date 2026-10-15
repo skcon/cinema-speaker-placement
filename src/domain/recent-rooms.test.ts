@@ -153,6 +153,18 @@ describe('reading stored recent rooms', () => {
     expect(parseRecentRooms(stored)).toEqual([A])
   })
 
+  it('reads a room saved by an older version as the app writes it today, so opening it again keeps one entry', () => {
+    const { encoded, config } = V1_LINKS.imperialRoom
+    const today = encodeConfig(config)
+    // Opened again from a link: saved once more, as today's version writes it.
+    const stored = serializeRecentRooms([
+      { encoded: today, savedAt: 2 },
+      { encoded: encoded as EncodedConfig, savedAt: 1 },
+    ])
+
+    expect(parseRecentRooms(stored)).toEqual([{ encoded: today, savedAt: 2 }])
+  })
+
   it('keeps the first entry of a repeated encoded config, 10 openable rooms and 5 newer ones', () => {
     const stored = JSON.stringify([
       B,

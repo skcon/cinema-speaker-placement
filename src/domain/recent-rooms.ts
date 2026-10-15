@@ -13,7 +13,7 @@
 import { z } from 'zod'
 import type { Config } from './config'
 import { formatLayout } from './layout'
-import { decodeConfig, type EncodedConfig } from './share-link'
+import { decodeConfig, encodeConfig, type EncodedConfig } from './share-link'
 import { formatLength } from './units'
 
 /** A room worked on in this browser: its encoded config and when it was saved. */
@@ -67,7 +67,8 @@ const recentRoomSchema = z.object({
 /**
  * The recent rooms in stored text, or none for nothing stored. Never
  * throws: the text may be damaged, hand-edited or from another version of
- * the app, so anything that isn't a recent room is skipped, and repeats and
+ * the app, so anything that isn't a recent room is skipped, rooms saved by
+ * an older version are upgraded to today's encoding, and repeats and
  * entries past the limits are dropped.
  */
 export function parseRecentRooms(stored: string | null): RecentRoom[] {
@@ -83,7 +84,12 @@ export function parseRecentRooms(stored: string | null): RecentRoom[] {
     const result = recentRoomSchema.safeParse(entry)
     // Branded here; withinLimits drops what doesn't decode.
     return result.success
-      ? [{ ...result.data, encoded: result.data.encoded as EncodedConfig }]
+      ? [
+          {
+            ...result.data,
+            encoded: asWrittenToday(result.data.encoded as EncodedConfig),
+          },
+        ]
       : []
   })
   return withinLimits(
@@ -92,6 +98,17 @@ export function parseRecentRooms(stored: string | null): RecentRoom[] {
         rooms.findIndex(({ encoded }) => encoded === room.encoded) === index,
     ),
   )
+}
+
+/**
+ * The encoded config as this version writes it. A room saved by an older
+ * version opens under today's encoding (the address is rewritten to it),
+ * so its entry is upgraded too, or opening it again would list it twice.
+ * Rooms this version can't open are kept as they are.
+ */
+function asWrittenToday(encoded: EncodedConfig): EncodedConfig {
+  const { config, problem } = decodeConfig(encoded)
+  return problem ? encoded : encodeConfig(config)
 }
 
 /** A recent room this version can open, with a short name for the list. */

@@ -13,3 +13,11 @@ A share link's `config` search param holds the encoded config: lz-string's URL-s
 - `src/domain/share-link.ts` describes the steps for a new version: freeze the old schema, bump `CONFIG_VERSION` and add a migration that validates against the frozen schema. The codec refuses a migrations table with a gap.
 - Frozen version 1 links in `src/test/share-link-fixtures.ts`, two of them on the edges of the room ranges, fail a test if a change (such as tightening the room limits) would stop old links from opening.
 - A share link has to stay within the URL budget in the codec tests (2,000 characters for the whole production URL), using a worst-case config that grows with the schema.
+
+## Amendment (1.1.0): one schema version per release cycle
+
+"Released" means tagged: only `vX.Y.Z` tags deploy, so no user ever gets a link from a version that was never tagged. Version 1 shipped in v1.0.0 and is frozen in `src/domain/config-v1.ts`. The first config change of the 1.1.0 cycle added version 2 with the v1 → v2 migration, and **all 1.1.0 config changes extend schema version 2 until v1.1.0 is tagged**: a later 1.1.0 change adds its fields to version 2, gives them their value in the v1 → v2 migration and regenerates the version 2 fixtures, instead of bumping the version again. Each release cycle that changes the config works the same way, with one new version per release.
+
+- Every version, including one that is never released, still has to keep the versions released before it opening. The frozen version 1 fixtures stay as v1.0.0 wrote them.
+- A frozen schema imports nothing but zod (an ESLint rule checks this). It holds copies of the room limits, layout list, channel ids and placement rules as they were at its release, so later changes to the live code can't change which old links it accepts.
+- A development build between releases can write a version 2 link that a later development build no longer opens. Only tagged releases make that promise, so this is accepted.

@@ -40,7 +40,8 @@ import {
   type SeatHeatmap,
   type SeatRowFootprint,
 } from '@/domain'
-import { HEATMAP_OPACITY, heatmapColor } from '@/scene/heatmap'
+import { HEATMAP_OPACITY } from '@/scene/heatmap'
+import { heatmapColor } from '@/scene/heatmap-color'
 import { LABEL_COLORS, SCENE_COLORS, type LabelTone } from '@/scene/palette'
 import {
   GRADE_STYLES,
@@ -559,13 +560,13 @@ function HeatmapCells({ heatmap }: { heatmap: SeatHeatmap }) {
   useLayoutEffect(() => {
     const cell = new Object3D()
     const color = new Color()
-    heatmap.cells.forEach(({ center, width, depth, level }, index) => {
+    heatmap.cells.forEach(({ center, width, depth, relativeScore }, index) => {
       cell.position.set(...toScenePosition({ ...center, z: LAYER.heatmap }))
       cell.rotation.set(...FLAT_ON_FLOOR)
       cell.scale.set(width, depth, 1)
       cell.updateMatrix()
       mesh.current.setMatrixAt(index, cell.matrix)
-      mesh.current.setColorAt(index, color.set(heatmapColor(level)))
+      mesh.current.setColorAt(index, color.set(heatmapColor(relativeScore)))
     })
     mesh.current.instanceMatrix.needsUpdate = true
     if (mesh.current.instanceColor)

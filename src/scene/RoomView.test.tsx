@@ -1,5 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  DEFAULT_CONFIG,
+  recommendSeat,
+  type SeatRecommendation,
+} from '@/domain'
+import { SeatRecommendationContext } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { RoomView } from '@/scene/RoomView'
 import { HistoryButtons } from '@/ui/HistoryButtons'
@@ -21,6 +28,23 @@ function renderRoomView() {
     <ConfigStoreProvider>
       <HistoryButtons />
       <RoomView />
+    </ConfigStoreProvider>,
+  )
+  return screen.getByRole('button', { name: 'Seat-score heatmap' })
+}
+
+/** The room view with `recommendation` in place of the worked-out one. */
+function renderRoomViewWith(recommendation: SeatRecommendation | null) {
+  const Override = ({ children }: { children: ReactNode }) => (
+    <SeatRecommendationContext value={recommendation}>
+      {children}
+    </SeatRecommendationContext>
+  )
+  render(
+    <ConfigStoreProvider>
+      <Override>
+        <RoomView />
+      </Override>
     </ConfigStoreProvider>,
   )
   return screen.getByRole('button', { name: 'Seat-score heatmap' })
@@ -55,6 +79,37 @@ describe('seat-score heatmap in the room view', () => {
     expect(scene()).toHaveAccessibleName(
       /Seat-score heatmap shown \(a relative estimate\): highest around .* from the front wall/,
     )
+  })
+
+  it('shows no legend while the recommendation is still worked out', () => {
+    fireEvent.click(renderRoomViewWith(null))
+
+    expect(screen.getByText('no heatmap')).toBeInTheDocument()
+    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(scene()).not.toHaveAccessibleName(/heatmap/)
+  })
+
+  it('notes in the legend when the seats score about the same', () => {
+    const recommendation = recommendSeat(DEFAULT_CONFIG)
+    const even = {
+      ...recommendation,
+      candidates: recommendation.candidates.map((seat) => ({
+        ...seat,
+        score: 0.5,
+      })),
+    }
+
+    fireEvent.click(renderRoomViewWith(even))
+
+    expect(screen.getByText('heatmap drawn')).toBeInTheDocument()
+    expect(screen.getByText('Seats score about the same.')).toBeInTheDocument()
+  })
+
+  it('has no such note when the seats score meaningfully apart', async () => {
+    fireEvent.click(renderRoomView())
+
+    expect(await screen.findByText('heatmap drawn')).toBeInTheDocument()
+    expect(screen.queryByText('Seats score about the same.')).toBeNull()
   })
 
   it('turns back off, and never enters the undo history', async () => {

@@ -127,7 +127,9 @@ export function RoomView() {
         ]
           .filter(Boolean)
           .join(' ')}
-        className="relative min-h-0 flex-1 overflow-hidden rounded-lg"
+        // Below lg the panel stacks over the others: the drawing keeps a
+        // usable height of its own, whatever the legend below it takes.
+        className="relative min-h-0 flex-1 overflow-hidden rounded-lg max-lg:min-h-96"
       >
         <Suspense
           fallback={

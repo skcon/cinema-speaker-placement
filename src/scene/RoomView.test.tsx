@@ -125,3 +125,13 @@ describe('overhead speakers in the room view', () => {
     expect(screen.getByText('Overhead speaker (ring)')).toBeInTheDocument()
   })
 })
+
+describe('room view size on phones', () => {
+  it('gives the drawing itself a usable minimum height below the lg breakpoint, so the legend and controls cannot squeeze it', () => {
+    renderRoomView()
+
+    expect(scene()).toHaveClass('max-lg:min-h-96')
+    // From lg up the panel's flex layout sizes it, as before.
+    expect(scene()).toHaveClass('min-h-0', 'flex-1')
+  })
+})

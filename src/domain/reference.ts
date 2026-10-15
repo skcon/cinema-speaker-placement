@@ -89,6 +89,98 @@ export type Citation =
       readonly note?: string
     }
 
+/** A source document's title and where to read it. */
+export type Source = { readonly title: string; readonly url: string }
+
+/**
+ * The titles and URLs of the sources the app shows with its grades,
+ * copied from the sources tables in section 1 of
+ * docs/research/dolby-speaker-placement.md and
+ * docs/research/multi-subwoofer-placement.md. The Dolby table writes the
+ * per-layout sheets' shared title prefix as "..."; it is spelled out here.
+ * Only keys that the placement ranges or the subwoofers' "not graded"
+ * reason cite are listed.
+ */
+export const SOURCES = {
+  IG: {
+    title: 'Dolby Atmos Home Theater Installation Guidelines (60 pp.)',
+    url: 'https://www.dolby.com/siteassets/technologies/dolby-atmos/atmos-installation-guidelines-121318_r3.1.pdf',
+  },
+  WEB101: {
+    title: 'Dolby Atmos Speaker Setup 101 (web page)',
+    url: 'https://www.dolby.com/about/support/guide/dolby-atmos-speaker-setup/',
+  },
+  'S-21': {
+    title: 'Home Theater Speaker Guide: 2.1 Virtual Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/2.1-virtual-speakers/2_1_virtual_speakers.pdf',
+  },
+  'S-31': {
+    title: 'Home Theater Speaker Guide: 3.1 Virtual Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/3.1-virtual-speakers-setup/3_1_virtual_speaker_setup.pdf',
+  },
+  'S-51': {
+    title: 'Home Theater Speaker Guide: 5.1 Virtual Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1-virtual-speakers-setup/5_1_virtual_speaker_setup.pdf',
+  },
+  'S-71': {
+    title: 'Home Theater Speaker Guide: 7.1 Virtual Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1-virtual-speakers-setup/7_1_virtual_speaker_setup.pdf',
+  },
+  'S-512-OH': {
+    title: 'Home Theater Speaker Guide: 5.1.2 Overhead Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.2-overhead-speaker-placement/5_1_2_overhead_speakers_setup.pdf',
+  },
+  'S-512-EN': {
+    title: 'Home Theater Speaker Guide: 5.1.2 Dolby Atmos Enabled Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.2-dolby-atmos-enabled-speaker-placement/5_1_2_atmos_enabled_speaker_setup.pdf',
+  },
+  'S-514-OH': {
+    title: 'Home Theater Speaker Guide: 5.1.4 Overhead Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.4-overhead-speaker-placement/sell-sheet-5.1.4-mounted.pdf',
+  },
+  'S-514-EN': {
+    title: 'Home Theater Speaker Guide: 5.1.4 Dolby Atmos Enabled Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.4-dolby-atmos-enabled-speaker-placement/5_1_4_atmos_enabled_speaker_setup.pdf',
+  },
+  'S-514-HY': {
+    title:
+      'Home Theater Speaker Guide: 5.1.4 Hybrid (front enabled / rear overhead)',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.4-hybrid-dolby-atmos-enabled--overhead-speaker-placement/5_1_4_hybrid_overhead.pdf',
+  },
+  'S-712-OH': {
+    title: 'Home Theater Speaker Guide: 7.1.2 Overhead Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.2-overhead-speaker-placement/7_1_2_overhead_speaker_setup.pdf',
+  },
+  'S-712-EN': {
+    title: 'Home Theater Speaker Guide: 7.1.2 Dolby Atmos Enabled Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.2-dolby-atmos-enabled-speaker-placement/7_1_2_atmos_enabled_speaker_setup.pdf',
+  },
+  'S-714-OH': {
+    title: 'Home Theater Speaker Guide: 7.1.4 Overhead Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.4-overhead-speaker-placement/7_1_4_overhead_speaker_setup.pdf',
+  },
+  'S-714-EN': {
+    title: 'Home Theater Speaker Guide: 7.1.4 Dolby Atmos Enabled Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.4-dolby-atmos-enabled-speaker-placement/7_1_4_atmos_enabled_speaker_setup.pdf',
+  },
+  'S-714-HY': {
+    title:
+      'Home Theater Speaker Guide: 7.1.4 Hybrid (front enabled / rear overhead)',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.4-hybrid-dolby-atmos-enabled--overhead-speaker-placement/7_1_4_hybrid_dolby_atmos_enabled_overhead_speaker_placement.pdf',
+  },
+  'HW-SUBS': {
+    title:
+      'T. Welti (Harman International), "Subwoofers: Optimum Number and Locations", Harman white paper (slides with notes, 80 slides on 30 pages)',
+    url: 'https://www.harman.com/Documents/multsubs.pdf',
+  },
+} as const satisfies Partial<Record<SourceKey, Source>>
+
+/** A source's title and URL, or null when SOURCES does not list it. */
+export function sourceOf(key: SourceKey): Source | null {
+  const sources: Partial<Record<SourceKey, Source>> = SOURCES
+  return sources[key] ?? null
+}
+
 /** Seated ear height: listener-level speakers and the MLP sit here. */
 export const EAR_HEIGHT = {
   meters: 1.2,

@@ -10,11 +10,26 @@ function StoredLayout() {
   return <output>{`${dolbyLayout} with ${subwoofers} subwoofer`}</output>
 }
 
+/** Sets the room height and the units, as the room form would. */
+function RoomControls() {
+  const setRoomDimension = useConfig((state) => state.setRoomDimension)
+  const setUnits = useConfig((state) => state.setUnits)
+  return (
+    <>
+      <button onClick={() => setRoomDimension('height', 2.4)}>
+        Ceiling 2.4 m
+      </button>
+      <button onClick={() => setUnits('imperial')}>Imperial</button>
+    </>
+  )
+}
+
 function renderLayoutForm() {
   render(
     <ConfigStoreProvider>
       <LayoutForm />
       <StoredLayout />
+      <RoomControls />
     </ConfigStoreProvider>,
   )
 }
@@ -72,18 +87,33 @@ describe('layout form', () => {
     )
   })
 
-  it('says only the listener-level speakers are placed for a layout with overheads', () => {
+  it('suggests Atmos-enabled speakers when the ceiling is 8 ft or lower and the layout has overheads', () => {
     renderLayoutForm()
+    const hint = /Dolby suggests Atmos-enabled speakers/i
+    // The default room's 2.6 m ceiling is high enough.
+    expect(screen.queryByText(hint)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ceiling 2.4 m' }))
 
     expect(
-      screen.getByText(/overhead speakers aren.t placed yet/i),
+      screen.getByText(
+        'With a ceiling of 2.44 m or lower, overhead speakers end up too close to the listeners. Dolby suggests Atmos-enabled speakers instead: they fire upward and reflect sound off the ceiling.',
+      ),
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('radio', { name: '7.1' }))
+    expect(screen.queryByText(hint)).not.toBeInTheDocument()
+  })
+
+  it('writes the ceiling threshold in the chosen units', () => {
+    renderLayoutForm()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ceiling 2.4 m' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Imperial' }))
 
     expect(
-      screen.queryByText(/overhead speakers aren.t placed yet/i),
-    ).not.toBeInTheDocument()
+      screen.getByText(/With a ceiling of 8 ft 0 in or lower/),
+    ).toBeInTheDocument()
   })
 
   it('offers 1 to 4 subwoofers, with 1 chosen', () => {

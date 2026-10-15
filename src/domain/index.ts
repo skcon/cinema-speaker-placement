@@ -77,6 +77,7 @@ export {
   type Layout,
   type SubwooferCount,
 } from './layout'
+export { suggestsAtmosEnabledSpeakers } from './atmos-enabled'
 export type { PlacementGrade } from './placement-range'
 export type { RangeProblem } from './range'
 export {
@@ -134,6 +135,7 @@ export {
 } from './speaker-specs'
 export {
   HEADROOM_STATUS,
+  LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,
   SPEAKER_TYPE_GEOMETRY,
   TARGET_TOLERANCE,

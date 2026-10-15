@@ -37,7 +37,7 @@ function configParamInAddress(history: ReturnType<typeof renderApp>) {
 }
 
 describe('app shell', () => {
-  it('shows the room and layout sidebar, the room view and the estimated response', async () => {
+  it('shows the room plan sidebar, the room view and the estimated response', async () => {
     renderApp()
 
     expect(
@@ -47,7 +47,7 @@ describe('app shell', () => {
       }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('complementary', { name: 'Room and layout' }),
+      screen.getByRole('complementary', { name: 'Room plan' }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('region', { name: 'Room view' }),
@@ -61,7 +61,7 @@ describe('app shell', () => {
     renderApp()
 
     const sidebar = await screen.findByRole('complementary', {
-      name: 'Room and layout',
+      name: 'Room plan',
     })
     const length = within(sidebar).getByRole('group', { name: 'Length' })
     expect(within(length).getByRole('textbox', { name: 'm' })).toHaveValue('6')
@@ -71,7 +71,7 @@ describe('app shell', () => {
     renderApp()
 
     const sidebar = await screen.findByRole('complementary', {
-      name: 'Room and layout',
+      name: 'Room plan',
     })
     const speakers = within(sidebar).getByRole('table', { name: 'Speakers' })
     expect(within(speakers).getByText('Left Surround')).toBeInTheDocument()
@@ -113,7 +113,7 @@ describe('app shell', () => {
   it('shows the speakers of the layout picked in the sidebar', async () => {
     renderApp()
     const sidebar = await screen.findByRole('complementary', {
-      name: 'Room and layout',
+      name: 'Room plan',
     })
 
     fireEvent.click(within(sidebar).getByRole('radio', { name: '7.1' }))

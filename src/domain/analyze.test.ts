@@ -129,11 +129,13 @@ describe('layouts', () => {
 })
 
 describe('the seat row and the 38% rule', () => {
-  it('draws the seat row centered on the MLP, as wide as the config says', () => {
+  it('draws the seat row with the MLP near its back, centered across and as wide as the config says', () => {
     const { seatRow, mlp } = analyzeRoom({ ...DEFAULT_CONFIG, seatRowWidth: 3 })
 
+    // The couch back is 0.35 m behind the MLP (2.28 m), 0.9 m deep.
     expect(seatRow.center.x).toBeCloseTo(mlp.x, 9)
-    expect(seatRow.center.y).toBeCloseTo(mlp.y, 9)
+    expect(seatRow.center.y + seatRow.depth / 2).toBeCloseTo(2.63, 9)
+    expect(seatRow.center.y - seatRow.depth / 2).toBeCloseTo(1.73, 9)
     expect(seatRow.width).toBeCloseTo(3, 9)
   })
 

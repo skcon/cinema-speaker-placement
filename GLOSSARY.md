@@ -21,7 +21,7 @@ The one listening position that the layout is aimed at and that is analyzed and 
 _Avoid_: Sweet spot, best seat, primary seat
 
 **Seat row**:
-A couch or row of seats drawn centered on the MLP; a visual cue, not analyzed.
+A couch or row of seats drawn around the MLP: centered across the room on it, with the MLP (the listener's head) near the couch's back and the rest of the couch in front; a visual cue, not analyzed.
 _Avoid_: Couch zone
 
 ## Speakers

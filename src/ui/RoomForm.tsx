@@ -4,6 +4,7 @@ import { useConfig } from '@/state/config-context'
 import { Label } from '@/ui/components/label'
 import { RadioGroup, RadioGroupItem } from '@/ui/components/radio-group'
 import { RoomDimensionField } from '@/ui/RoomDimensionField'
+import { SidebarSection } from '@/ui/SidebarSection'
 
 const UNIT_OPTIONS = [
   { value: 'metric', label: 'Metric (m)' },
@@ -18,18 +19,17 @@ const DIMENSIONS = [
 
 /** The Room's size and the units it is entered in. */
 export function RoomForm() {
-  const headingId = useId()
-
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-4">
-      <h3 id={headingId} className="text-sm font-semibold">
-        Room
-      </h3>
+    <SidebarSection
+      id="room"
+      title="Room"
+      description="The size of your room and the units you measure it in."
+    >
       <UnitsToggle />
       {DIMENSIONS.map((dimension) => (
         <RoomDimensionField key={dimension} dimension={dimension} />
       ))}
-    </section>
+    </SidebarSection>
   )
 }
 

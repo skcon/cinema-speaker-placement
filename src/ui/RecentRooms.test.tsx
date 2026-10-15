@@ -148,7 +148,7 @@ describe('recent rooms', () => {
     renderApp()
 
     const sidebar = await screen.findByRole('complementary', {
-      name: 'Room and layout',
+      name: 'Room plan',
     })
     expect(
       within(sidebar).getByRole('region', { name: 'Recent rooms' }),

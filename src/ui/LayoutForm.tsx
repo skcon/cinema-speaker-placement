@@ -18,6 +18,7 @@ import {
 import { canAutoPlace } from '@/state/config-store'
 import { Button } from '@/ui/components/button'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
+import { SidebarSection } from '@/ui/SidebarSection'
 
 /** The look of a chosen option in the layout form's pickers. */
 const CHOSEN_OPTION =
@@ -31,7 +32,6 @@ const CHOSEN_OPTION =
  * instead of the layout's overhead speakers.
  */
 export function LayoutForm() {
-  const headingId = useId()
   const subwoofersLabelId = useId()
   const layout = useConfig((state) => state.config.layout)
   const setLayout = useConfig((state) => state.setLayout)
@@ -42,79 +42,82 @@ export function LayoutForm() {
   const suggestsAtmosEnabled = useRoomAnalysis().suggestsAtmosEnabledSpeakers
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-3">
-      <h3 id={headingId} className="text-sm font-semibold">
-        Layout
-      </h3>
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        aria-labelledby={headingId}
-        value={layout.dolbyLayout}
-        onValueChange={(value) => {
-          // Clicking the chosen option again sends '' (nothing chosen): ignore it.
-          const dolbyLayout = V1_DOLBY_LAYOUTS.find((name) => name === value)
-          if (dolbyLayout) setLayout(dolbyLayout)
-        }}
-        className="grid w-full grid-cols-4"
-      >
-        {V1_DOLBY_LAYOUTS.map((dolbyLayout) => (
-          <ToggleGroupItem
-            key={dolbyLayout}
-            value={dolbyLayout}
-            className={CHOSEN_OPTION}
-          >
-            {formatLayout({ dolbyLayout, subwoofers: layout.subwoofers })}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-      <div className="flex flex-col gap-2">
-        <span id={subwoofersLabelId} className="text-sm font-medium">
-          Subwoofers
-        </span>
+    <SidebarSection
+      id="layout"
+      title="Layout"
+      description="Which speakers you have, as X.Y.Z: X listener-level speakers, Y subwoofers and Z height speakers."
+    >
+      <div className="flex flex-col gap-3">
         <ToggleGroup
           type="single"
           variant="outline"
           size="sm"
-          aria-labelledby={subwoofersLabelId}
-          value={String(layout.subwoofers)}
+          aria-label="Layout"
+          value={layout.dolbyLayout}
           onValueChange={(value) => {
-            // As above, '' means the chosen count was clicked again.
-            const count = SUBWOOFER_COUNTS.find((n) => String(n) === value)
-            if (count) setSubwooferCount(count)
+            // Clicking the chosen option again sends '' (nothing chosen): ignore it.
+            const dolbyLayout = V1_DOLBY_LAYOUTS.find((name) => name === value)
+            if (dolbyLayout) setLayout(dolbyLayout)
           }}
           className="grid w-full grid-cols-4"
         >
-          {SUBWOOFER_COUNTS.map((count) => (
+          {V1_DOLBY_LAYOUTS.map((dolbyLayout) => (
             <ToggleGroupItem
-              key={count}
-              value={String(count)}
+              key={dolbyLayout}
+              value={dolbyLayout}
               className={CHOSEN_OPTION}
             >
-              {count}
+              {formatLayout({ dolbyLayout, subwoofers: layout.subwoofers })}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        <div className="flex flex-col gap-2">
+          <span id={subwoofersLabelId} className="text-sm font-medium">
+            Subwoofers
+          </span>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            aria-labelledby={subwoofersLabelId}
+            value={String(layout.subwoofers)}
+            onValueChange={(value) => {
+              // As above, '' means the chosen count was clicked again.
+              const count = SUBWOOFER_COUNTS.find((n) => String(n) === value)
+              if (count) setSubwooferCount(count)
+            }}
+            className="grid w-full grid-cols-4"
+          >
+            {SUBWOOFER_COUNTS.map((count) => (
+              <ToggleGroupItem
+                key={count}
+                value={String(count)}
+                className={CHOSEN_OPTION}
+              >
+                {count}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+        <EvenerCountNote count={layout.subwoofers} />
+        {suggestsAtmosEnabled && (
+          <p className="text-xs text-muted-foreground">
+            With a ceiling of{' '}
+            {formatLength(LOW_CEILING_FOR_OVERHEADS.meters, config.units)} or
+            lower, overhead speakers end up too close to the listeners. Dolby
+            suggests Atmos-enabled speakers instead: they fire upward and
+            reflect sound off the ceiling.
+          </p>
+        )}
+        <Button
+          onClick={autoPlace}
+          disabled={!canAutoPlace(config, recommendation)}
+          className="self-start max-lg:h-11"
+        >
+          Auto-place
+        </Button>
       </div>
-      <EvenerCountNote count={layout.subwoofers} />
-      {suggestsAtmosEnabled && (
-        <p className="text-xs text-muted-foreground">
-          With a ceiling of{' '}
-          {formatLength(LOW_CEILING_FOR_OVERHEADS.meters, config.units)} or
-          lower, overhead speakers end up too close to the listeners. Dolby
-          suggests Atmos-enabled speakers instead: they fire upward and reflect
-          sound off the ceiling.
-        </p>
-      )}
-      <Button
-        onClick={autoPlace}
-        disabled={!canAutoPlace(config, recommendation)}
-        className="self-start max-lg:h-11"
-      >
-        Auto-place
-      </Button>
-    </section>
+    </SidebarSection>
   )
 }
 

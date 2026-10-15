@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from 'react'
 import { useRoomAnalysis } from '@/state/config-context'
 import { GRADE_STYLES, overheadAngles, UNGRADED_STYLE } from '@/scene/speakers'
+import { SidebarSubsection } from '@/ui/SidebarSection'
 
 /**
  * The layout's speakers by Dolby's spelled-out names, with the abbreviation
@@ -10,17 +11,13 @@ import { GRADE_STYLES, overheadAngles, UNGRADED_STYLE } from '@/scene/speakers'
  * are not graded.
  */
 export function SpeakerList() {
-  const headingId = useId()
   const noteId = useId()
   const { speakers, overheads, subwoofers } = useRoomAnalysis()
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2">
-      <h3 id={headingId} className="text-sm font-semibold">
-        Speakers
-      </h3>
+    <SidebarSubsection title="Angles and grades">
       <table
-        aria-labelledby={headingId}
+        aria-label="Speakers"
         aria-describedby={noteId}
         className="w-full text-sm"
       >
@@ -83,7 +80,7 @@ export function SpeakerList() {
         layouts that evened out the bass across the seats in a Harman study of
         one test room, scaled to your room.
       </p>
-    </section>
+    </SidebarSubsection>
   )
 }
 

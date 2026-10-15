@@ -7,7 +7,7 @@ type WebGLCanvas = { getContext(contextId: 'webgl2'): object | null }
 /** The sidebar text box for one part (`m`, `ft`, `in`) of a room dimension. */
 function dimensionInput(page: Page, dimension: string, unit: string) {
   return page
-    .getByRole('complementary', { name: 'Room and layout' })
+    .getByRole('complementary', { name: 'Room plan' })
     .getByRole('group', { name: dimension, exact: true })
     .getByRole('textbox', { name: unit })
 }

@@ -45,10 +45,10 @@ describe('positions in the sidebar', () => {
   it("show each speaker's height and distances to its nearest walls, all auto at first", () => {
     renderPositions()
 
-    // The default Center: on the center line, 0.3 m from the front wall,
+    // The default Center: on the center line, 0.5 m from the front wall,
     // at ear height, in the 4.5 m wide room.
     expect(field('Center', /^Height/)).toHaveValue('1.2')
-    expect(field('Center', /^From the front wall/)).toHaveValue('0.3')
+    expect(field('Center', /^From the front wall/)).toHaveValue('0.5')
     expect(field('Center', /^From the left wall/)).toHaveValue('2.25')
     expect(item('Center')).toHaveTextContent('auto')
   })

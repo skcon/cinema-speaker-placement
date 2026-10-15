@@ -58,20 +58,20 @@ describe('auto-placed overhead speakers', () => {
   })
 
   it('space each pair 0.6 × the layout width, the outermost listener-level speakers apart', () => {
-    // 5.1 bed: Ls/Rs at ±115°, 1.98 m from the MLP, are the outermost:
-    // 2 x 1.98 sin 115° = 3.589 m wide, so the pair is ±1.077 m.
+    // 5.1 bed: Ls/Rs at ±115° on the side walls' clearance lines, ±1.95 m,
+    // are the outermost: 3.9 m wide, so the pair is ±0.6 × 1.95 = ±1.17 m.
     const analysis = analyzeRoom(config('5.1.4'))
 
-    expect(overhead(analysis, 'Ltf').position.x).toBeCloseTo(-1.077, 3)
-    expect(overhead(analysis, 'Rtf').position.x).toBeCloseTo(1.077, 3)
-    expect(overhead(analysis, 'Ltr').position.x).toBeCloseTo(-1.077, 3)
-    // atan(1.077 / 1.4) = 37.6°: inside 30°–60°
+    expect(overhead(analysis, 'Ltf').position.x).toBeCloseTo(-1.17, 3)
+    expect(overhead(analysis, 'Rtf').position.x).toBeCloseTo(1.17, 3)
+    expect(overhead(analysis, 'Ltr').position.x).toBeCloseTo(-1.17, 3)
+    // atan(1.17 / 1.4) = 39.9°: inside 30°–60°
     expect(overhead(analysis, 'Rtf').placementRange.azimuth).toMatchObject({
-      shown: 38,
+      shown: 40,
       grade: 'ideal',
     })
     expect(overhead(analysis, 'Rtr').placementRange.azimuth).toMatchObject({
-      shown: 142,
+      shown: 140,
       grade: 'ideal',
     })
   })

@@ -381,11 +381,12 @@ describe('notes for a room', () => {
     layout: { ...DEFAULT_CONFIG.layout, subwoofers: 2 },
   }
 
-  it('finds the default Left and Right speakers’ front-wall reflection notch near c/(2Δ) ≈ 184 Hz', () => {
+  it('finds the default front stage’s front-wall reflection notch near c/(2Δ) ≈ 184 Hz, shared by Left, Center and Right', () => {
     const { response, speakers, mlp } = analyzeRoom(DEFAULT_CONFIG)
     const notch = response.notes.weaknesses.find(
       (w) =>
         w.cause.kind === 'reflection' &&
+        w.cause.effect === 'notch' &&
         w.cause.surfaces.includes('front wall'),
     )
     // The Left speaker and its image behind the front wall, seen from the MLP.
@@ -397,7 +398,8 @@ describe('notes for a room', () => {
     // bounce among them), so it is matched within the 10% matching rule.
     const expected = 343 / (2 * (image - direct))
     expect(Math.abs(notch!.frequency / expected - 1)).toBeLessThan(0.1)
-    expect(notch?.speakers).toEqual(['Left', 'Right'])
+    // All three sit 0.5 m from the front wall, so their notches coincide.
+    expect(notch?.speakers).toEqual(['Left', 'Center', 'Right'])
   })
 
   it('lists the charted speakers’ notches only through the chart, and the others’ own', () => {

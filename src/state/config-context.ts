@@ -64,7 +64,7 @@ export function useSeatRecommendation(): SeatRecommendation | null {
 
 /**
  * The seat-score heatmap of the shared recommendation (useSeatRecommendation),
- * so its best seat is the recommended one and no second grid is scored:
+ * so its recommended seat is the shared one and no second grid is scored:
  * null while `enabled` is false or the recommendation is not worked out
  * yet, and kept until the recommendation changes.
  */

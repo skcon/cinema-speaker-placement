@@ -2,8 +2,8 @@
  * The seat-score heatmap (issue #16): the recommended seat's candidate
  * grid (recommendSeat) as cells on the floor plan, so good and bad
  * seating areas show. Nothing is scored or picked twice here: the cells
- * come from the candidates the recommendation already has, and the best
- * seat is the one it recommends, so the heatmap and the ring agree (#34).
+ * come from the candidates the recommendation already has, and its top
+ * seat is the recommended seat, so the heatmap and the ring agree (#34).
  */
 import type { FloorPoint, RoomPoint } from './room'
 import { SEAT_SCORE } from './reference'

@@ -42,7 +42,12 @@ import {
 } from '@/domain'
 import { HEATMAP_OPACITY } from '@/scene/heatmap'
 import { heatmapColor } from '@/scene/heatmap-color'
-import { LABEL_COLORS, SCENE_COLORS, type LabelTone } from '@/scene/palette'
+import {
+  LABEL_BACKDROP_CSS,
+  LABEL_COLORS,
+  SCENE_COLORS,
+  type LabelTone,
+} from '@/scene/palette'
 import {
   GRADE_STYLES,
   OVERHEAD_MARKER_DOT,
@@ -358,7 +363,8 @@ function DraggableGroup({
 
 /**
  * A text label pinned to a room point, drawn as HTML over the canvas, in a
- * fixed `tone` that reads on the light scene in either app theme.
+ * fixed `tone` on a light backdrop, so it reads on the light scene in either
+ * app theme and over the heatmap.
  */
 function SceneLabel({
   at,
@@ -378,8 +384,15 @@ function SceneLabel({
   return (
     <Html position={toScenePosition(at)} portal={layer} center>
       <span
-        className={cn('block text-xs whitespace-nowrap select-none', className)}
-        style={{ color: LABEL_COLORS[tone], ...style }}
+        className={cn(
+          'block rounded-sm px-1 text-xs whitespace-nowrap select-none',
+          className,
+        )}
+        style={{
+          color: LABEL_COLORS[tone],
+          backgroundColor: LABEL_BACKDROP_CSS,
+          ...style,
+        }}
       >
         {children}
       </span>

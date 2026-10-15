@@ -1,4 +1,9 @@
-import { formatLength, type SeatHeatmap, type UnitSystem } from '@/domain'
+import {
+  formatLength,
+  type RoomPoint,
+  type SeatHeatmap,
+  type UnitSystem,
+} from '@/domain'
 
 /**
  * The seat-score heatmap's color scale, lowest score first: cividis
@@ -41,17 +46,19 @@ export function describeHeatmap(
 ): string {
   if (!heatmap) return ''
   const shown = 'Seat-score heatmap shown (a relative estimate): '
-  const best = heatmap.mlpIsRecommended
+  const recommendedClause = heatmap.mlpIsRecommended
     ? 'no seat scores meaningfully better than the MLP, so it stays the ' +
       'recommended seat.'
     : `highest around ${whereIs(heatmap.recommended, units)} ` +
       `(the recommended seat).`
-  const even = heatmap.scoresAboutTheSame ? ' Seats score about the same.' : ''
-  return shown + best + even
+  const aboutTheSameNote = heatmap.scoresAboutTheSame
+    ? ' Seats score about the same.'
+    : ''
+  return shown + recommendedClause + aboutTheSameNote
 }
 
 /** Where a seat is, from the front wall and the center line. */
-function whereIs({ x, y }: SeatHeatmap['recommended'], units: UnitSystem) {
+function whereIs({ x, y }: RoomPoint, units: UnitSystem) {
   const side =
     Math.abs(x) < ON_CENTER_LINE
       ? 'on the center line'

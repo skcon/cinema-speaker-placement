@@ -11,10 +11,9 @@ import {
   describeSpeaker,
   describeSubwoofer,
   GRADE_STYLES,
-  RECOMMENDED_SEAT_COLOR,
-  RULE_OF_THUMB_COLOR,
   UNGRADED_STYLE,
 } from '@/scene/speakers'
+import { RECOMMENDED_SEAT_COLOR, RULE_OF_THUMB_COLOR } from '@/scene/palette'
 import { canUseWebGL } from '@/scene/webgl'
 import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'

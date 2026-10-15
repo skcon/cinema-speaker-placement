@@ -138,6 +138,17 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     )
   })
 
+  await test.step('at phone width the room drawing keeps a usable height with the heatmap on', async () => {
+    const desktop = page.viewportSize()
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    await expect
+      .poll(async () => (await scene.boundingBox())?.height ?? 0)
+      .toBeGreaterThanOrEqual(300)
+
+    if (desktop) await page.setViewportSize(desktop)
+  })
+
   // 24 x 15 x 9 ft in imperial, 7.1.2 with two subwoofers (7.2.2).
   const { encoded } = V1_LINKS.imperialRoom
   await page.goto(`./?config=${encoded}`)

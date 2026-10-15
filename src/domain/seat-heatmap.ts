@@ -1,12 +1,13 @@
 /**
  * The seat-score heatmap (issue #16): the recommended seat's candidate
  * grid (recommendSeat) as cells on the floor plan, so good and bad
- * seating areas show. No second grid is scored here: the cells come from
- * the candidates the recommendation already has.
+ * seating areas show. Nothing is scored or picked twice here: the cells
+ * come from the candidates the recommendation already has, and its top
+ * seat is the recommended seat, so the heatmap and the ring agree (#34).
  */
 import type { FloorPoint, RoomPoint } from './room'
 import { SEAT_SCORE } from './reference'
-import type { ScoredSeat } from './seat-score'
+import type { SeatRecommendation } from './seat-score'
 
 /** One candidate seat's area on the floor plan. */
 export type HeatmapCell = {
@@ -16,37 +17,52 @@ export type HeatmapCell = {
   readonly width: number
   /** Down the room (y), in meters. */
   readonly depth: number
-  /** The candidate's seat score, 0 to 1. */
-  readonly score: number
-  /** The score levelled across the grid: 0 the lowest, 1 the highest. */
-  readonly level: number
+  /**
+   * The candidate's seat score on the heatmap's scale, 0 to 1: the lowest
+   * in the grid at 0 and the highest at 1, or nearer the middle when the
+   * grid's scores are less than a meaningful difference apart.
+   */
+  readonly relativeScore: number
 }
 
 export type SeatHeatmap = {
   readonly cells: readonly HeatmapCell[]
-  /** The best-scoring candidate (the first of equals), or null without any. */
-  readonly best: RoomPoint | null
-  /** The lowest and highest seat scores in the grid. */
-  readonly lowest: number
-  readonly highest: number
+  /** The recommended seat (recommendSeat's), the one the view rings. */
+  readonly recommended: RoomPoint
+  /** Whether the MLP stays the recommended seat: no seat beats it meaningfully. */
+  readonly mlpIsRecommended: boolean
+  /**
+   * Whether the grid's scores are less than SEAT_SCORE's meaningful
+   * difference apart: within the model's precision, the seats score
+   * about the same.
+   */
+  readonly scoresAboutTheSame: boolean
 }
 
 /**
  * The heatmap of a recommendation's candidates. Each cell reaches halfway
  * to the neighbouring candidates and no further than the outermost ones,
  * so the cells tile the candidate area exactly and the wall clearance
- * around it (where no seat is scored) stays blank. The scores are relative
- * (made with the calibration at the current MLP), so they are levelled
- * across this grid only; a grid of equal scores is all at the top level.
+ * around it (where no seat is scored) stays blank.
+ *
+ * The scores are relative (made with the calibration at the current MLP),
+ * so they are spread across this grid only, over at least SEAT_SCORE's
+ * meaningful difference: a grid that far apart or more uses the whole
+ * scale, and a closer one sits around its middle, so differences within
+ * the model's precision don't show as strong contrast.
  */
-export function seatHeatmap(candidates: readonly ScoredSeat[]): SeatHeatmap {
-  if (candidates.length === 0) {
-    return { cells: [], best: null, lowest: 0, highest: 0 }
-  }
+export function seatHeatmap({
+  candidates,
+  recommended,
+  mlpIsRecommended,
+}: SeatRecommendation): SeatHeatmap {
   const scores = candidates.map(({ score }) => score)
   const lowest = Math.min(...scores)
   const highest = Math.max(...scores)
-  const range = highest - lowest
+  const spread = candidates.length > 0 ? highest - lowest : 0
+  const scale = Math.max(spread, SEAT_SCORE.meaningfulDifference)
+  // Where the lowest score sits: 0, or above it to center a narrow spread.
+  const bottom = (1 - spread / scale) / 2
   const spanX = cellSpans(candidates.map(({ position }) => position.x))
   const spanY = cellSpans(candidates.map(({ position }) => position.y))
   const cells = candidates.map(({ position, score }): HeatmapCell => {
@@ -56,18 +72,16 @@ export function seatHeatmap(candidates: readonly ScoredSeat[]): SeatHeatmap {
       center: { x: (left + right) / 2, y: (front + back) / 2 },
       width: right - left,
       depth: back - front,
-      score,
-      level: range > SCORE_EPSILON ? (score - lowest) / range : 1,
+      relativeScore: bottom + (score - lowest) / scale,
     }
   })
-  const best = candidates.reduce((best, candidate) =>
-    candidate.score > best.score ? candidate : best,
-  )
-  return { cells, best: best.position, lowest, highest }
+  return {
+    cells,
+    recommended: recommended.position,
+    mlpIsRecommended,
+    scoresAboutTheSame: spread < SEAT_SCORE.meaningfulDifference,
+  }
 }
-
-/** Scores this close count as equal. */
-const SCORE_EPSILON = 1e-9
 
 /**
  * For each distinct grid coordinate, the span its cells cover: halfway to

@@ -1,8 +1,9 @@
-import { lazy, Suspense, useId, useMemo, useState } from 'react'
-import { formatLength, seatHeatmap, UNIT_SYSTEMS } from '@/domain'
+import { lazy, Suspense, useId, useState } from 'react'
+import { formatLength, UNIT_SYSTEMS } from '@/domain'
 import {
   useConfig,
   useRoomAnalysis,
+  useSeatHeatmap,
   useSeatRecommendation,
 } from '@/state/config-context'
 import {
@@ -10,10 +11,9 @@ import {
   describeSpeaker,
   describeSubwoofer,
   GRADE_STYLES,
-  RECOMMENDED_SEAT_COLOR,
-  RULE_OF_THUMB_COLOR,
   UNGRADED_STYLE,
 } from '@/scene/speakers'
+import { RECOMMENDED_SEAT_COLOR, RULE_OF_THUMB_COLOR } from '@/scene/palette'
 import { canUseWebGL } from '@/scene/webgl'
 import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
@@ -57,15 +57,8 @@ export function RoomView() {
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [view, setView] = useState<CameraView>('top-down')
   const viewPickerId = useId()
-  // The recommendation's own candidates, so no second grid is scored; it
-  // is deferred and kept through a drag, and so is the heatmap.
-  const heatmap = useMemo(
-    () =>
-      showHeatmap && recommendation
-        ? seatHeatmap(recommendation.candidates)
-        : null,
-    [showHeatmap, recommendation],
-  )
+  // From the shared recommendation: deferred and kept through a drag.
+  const heatmap = useSeatHeatmap(showHeatmap)
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
 
@@ -127,7 +120,9 @@ export function RoomView() {
         ]
           .filter(Boolean)
           .join(' ')}
-        className="relative min-h-0 flex-1 overflow-hidden rounded-lg"
+        // Below lg the panel stacks over the others: the drawing keeps a
+        // usable height of its own, whatever the legend below it takes.
+        className="relative min-h-0 flex-1 overflow-hidden rounded-lg max-lg:min-h-96"
       >
         <Suspense
           fallback={
@@ -201,7 +196,9 @@ export function RoomView() {
           Seat-score heatmap
         </Toggle>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          {showHeatmap && <HeatmapLegend />}
+          {heatmap && (
+            <HeatmapLegend scoresAboutTheSame={heatmap.scoresAboutTheSame} />
+          )}
           <GradeLegend />
           {overheads.length > 0 && (
             <p className="flex items-center gap-1.5">
@@ -244,9 +241,14 @@ export function RoomView() {
 
 /**
  * What the heatmap colors mean, and what the scores are: relative to the
- * current MLP's calibration, and an estimate.
+ * current MLP's calibration, and an estimate. When the seats score about
+ * the same, the colors sit near the middle of the scale and a note says so.
  */
-function HeatmapLegend() {
+function HeatmapLegend({
+  scoresAboutTheSame,
+}: {
+  scoresAboutTheSame: boolean
+}) {
   const headingId = useId()
   return (
     <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1">
@@ -264,6 +266,7 @@ function HeatmapLegend() {
         />
         <span>high</span>
       </div>
+      {scoresAboutTheSame && <p>Seats score about the same.</p>}
       <p>
         Relative to the current MLP&rsquo;s calibration: an estimate from a
         simplified model.

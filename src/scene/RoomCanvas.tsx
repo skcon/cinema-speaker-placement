@@ -40,15 +40,20 @@ import {
   type SeatHeatmap,
   type SeatRowFootprint,
 } from '@/domain'
-import { HEATMAP_OPACITY, heatmapColor } from '@/scene/heatmap'
+import { HEATMAP_OPACITY } from '@/scene/heatmap'
+import { heatmapColor } from '@/scene/heatmap-color'
+import {
+  LABEL_BACKDROP_CSS,
+  LABEL_COLORS,
+  SCENE_COLORS,
+  type LabelTone,
+} from '@/scene/palette'
 import {
   GRADE_STYLES,
   OVERHEAD_MARKER_DOT,
   OVERHEAD_MARKER_RADIUS,
   OVERHEAD_MARKER_RING_INNER,
   overheadMarker,
-  RECOMMENDED_SEAT_COLOR,
-  RULE_OF_THUMB_COLOR,
   SPEAKER_FOOTPRINT,
   speakerMarker,
   SUBWOOFER_FOOTPRINT,
@@ -75,18 +80,6 @@ import {
   roomBoxEdges,
   type CameraView,
 } from '@/scene/orbit'
-
-/** Neutral palette matching the light theme; the MLP gets the one accent. */
-const COLORS = {
-  floor: '#f5f5f5',
-  grid: '#e5e5e5',
-  walls: '#737373',
-  frontWall: '#171717',
-  mlp: '#2563eb',
-  seatRow: '#dbeafe',
-  ruleOfThumb: RULE_OF_THUMB_COLOR,
-  recommended: RECOMMENDED_SEAT_COLOR,
-} as const
 
 /**
  * Small heights (in meters) that stack the flat floor layers so they don't
@@ -185,7 +178,11 @@ export function RoomCanvas({
   return (
     <div
       className="absolute inset-0"
-      style={{ cursor: dragging ? cursor : 'auto' }}
+      style={{
+        cursor: dragging ? cursor : 'auto',
+        // Light in either app theme, so the fixed label colors read.
+        backgroundColor: SCENE_COLORS.background,
+      }}
     >
       {/* No touch scrolling or zooming over the room, so a finger can drag. */}
       <Canvas
@@ -364,16 +361,22 @@ function DraggableGroup({
   )
 }
 
-/** A text label pinned to a room point, drawn as HTML over the canvas. */
+/**
+ * A text label pinned to a room point, drawn as HTML over the canvas, in a
+ * fixed `tone` on a light backdrop, so it reads on the light scene in either
+ * app theme and over the heatmap.
+ */
 function SceneLabel({
   at,
   layer,
+  tone,
   className,
   style,
   children,
 }: {
   at: RoomPoint
   layer: LabelLayer
+  tone: LabelTone
   className: string
   style?: CSSProperties
   children: ReactNode
@@ -381,8 +384,15 @@ function SceneLabel({
   return (
     <Html position={toScenePosition(at)} portal={layer} center>
       <span
-        className={cn('block text-xs whitespace-nowrap select-none', className)}
-        style={style}
+        className={cn(
+          'block rounded-sm px-1 text-xs whitespace-nowrap select-none',
+          className,
+        )}
+        style={{
+          color: LABEL_COLORS[tone],
+          backgroundColor: LABEL_BACKDROP_CSS,
+          ...style,
+        }}
       >
         {children}
       </span>
@@ -428,7 +438,7 @@ function RoomBox({ room }: { room: Room }) {
     <Line
       key={index}
       points={edge.map(toScenePosition)}
-      color={COLORS.walls}
+      color={SCENE_COLORS.walls}
       lineWidth={1.5}
     />
   ))
@@ -439,7 +449,7 @@ function Floor({ room }: { room: Room }) {
   return (
     <mesh position={position} rotation={rotation}>
       <planeGeometry args={size} />
-      <meshBasicMaterial color={COLORS.floor} />
+      <meshBasicMaterial color={SCENE_COLORS.floor} />
     </mesh>
   )
 }
@@ -451,7 +461,7 @@ function FloorGrid({ room, spacing }: { room: Room; spacing: number }) {
       key={index}
       points={segment}
       z={LAYER.grid}
-      color={COLORS.grid}
+      color={SCENE_COLORS.grid}
       width={1}
     />
   ))
@@ -464,13 +474,13 @@ function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
       <FloorLine
         points={[...corners, corners[0]]}
         z={LAYER.walls}
-        color={COLORS.walls}
+        color={SCENE_COLORS.walls}
         width={2}
       />
       <FloorLine
         points={wallBases(room).front}
         z={LAYER.walls}
-        color={COLORS.frontWall}
+        color={SCENE_COLORS.frontWall}
         width={5}
       />
       {/* Room coordinates start at the middle of the front wall; the label
@@ -478,7 +488,8 @@ function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
       <SceneLabel
         at={{ x: 0, y: 0, z: 0 }}
         layer={labelLayer}
-        className="-translate-y-3.5 text-muted-foreground"
+        tone="muted"
+        className="-translate-y-3.5"
       >
         Front wall
       </SceneLabel>
@@ -516,7 +527,7 @@ function SeatRow({ footprint }: { footprint: SeatRowFootprint }) {
       rotation={FLAT_ON_FLOOR}
     >
       <planeGeometry args={[width, depth]} />
-      <meshBasicMaterial color={COLORS.seatRow} />
+      <meshBasicMaterial color={SCENE_COLORS.seatRow} />
     </mesh>
   )
 }
@@ -541,7 +552,7 @@ function RuleOfThumbLine({
         toScenePosition({ x: -half, y: fromFrontWall, z }),
         toScenePosition({ x: half, y: fromFrontWall, z }),
       ]}
-      color={COLORS.ruleOfThumb}
+      color={SCENE_COLORS.ruleOfThumb}
       lineWidth={1}
       dashed
       dashSize={0.15}
@@ -562,13 +573,13 @@ function HeatmapCells({ heatmap }: { heatmap: SeatHeatmap }) {
   useLayoutEffect(() => {
     const cell = new Object3D()
     const color = new Color()
-    heatmap.cells.forEach(({ center, width, depth, level }, index) => {
+    heatmap.cells.forEach(({ center, width, depth, relativeScore }, index) => {
       cell.position.set(...toScenePosition({ ...center, z: LAYER.heatmap }))
       cell.rotation.set(...FLAT_ON_FLOOR)
       cell.scale.set(width, depth, 1)
       cell.updateMatrix()
       mesh.current.setMatrixAt(index, cell.matrix)
-      mesh.current.setColorAt(index, color.set(heatmapColor(level)))
+      mesh.current.setColorAt(index, color.set(heatmapColor(relativeScore)))
     })
     mesh.current.instanceMatrix.needsUpdate = true
     if (mesh.current.instanceColor)
@@ -609,12 +620,13 @@ function RecommendedSeatMarker({
         <ringGeometry
           args={[RECOMMENDED_RING.inner, RECOMMENDED_RING.outer, 48]}
         />
-        <meshBasicMaterial color={COLORS.recommended} />
+        <meshBasicMaterial color={SCENE_COLORS.recommended} />
       </mesh>
       <SceneLabel
         at={at}
         layer={labelLayer}
-        className="-translate-y-6 font-medium text-violet-700"
+        tone="recommended"
+        className="-translate-y-6 font-medium"
       >
         Recommended
       </SceneLabel>
@@ -641,14 +653,15 @@ function MlpMarker({
       >
         <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
           <circleGeometry args={[MLP_MARKER_RADIUS, 32]} />
-          <meshBasicMaterial color={COLORS.mlp} />
+          <meshBasicMaterial color={SCENE_COLORS.mlp} />
         </mesh>
       </Draggable>
       {/* Shifted below the marker by CSS, so it never covers it. */}
       <SceneLabel
         at={mlp}
         layer={labelLayer}
-        className="translate-y-5 font-medium text-blue-600"
+        tone="mlp"
+        className="translate-y-5 font-medium"
       >
         MLP
       </SceneLabel>
@@ -686,11 +699,12 @@ function SpeakerMarkers({
         <SceneLabel
           at={speaker.position}
           layer={labelLayer}
+          tone="text"
           className="flex flex-col items-center leading-tight"
           style={{ transform: besideMarker(labelDirection) }}
         >
           <span className="font-medium">{label}</span>
-          <span className="text-muted-foreground">
+          <span style={{ color: LABEL_COLORS.muted }}>
             {GRADE_STYLES[grade].label}
           </span>
         </SceneLabel>
@@ -746,11 +760,12 @@ function OverheadMarkers({
         <SceneLabel
           at={overhead.position}
           layer={labelLayer}
+          tone="text"
           className="flex flex-col items-center leading-tight"
           style={{ transform: besideMarker(labelDirection) }}
         >
           <span className="font-medium">{label}</span>
-          <span className="text-muted-foreground">
+          <span style={{ color: LABEL_COLORS.muted }}>
             {GRADE_STYLES[grade].label}
           </span>
         </SceneLabel>
@@ -792,6 +807,7 @@ function SubwooferMarkers({
         <SceneLabel
           at={subwoofer.position}
           layer={labelLayer}
+          tone="text"
           className="leading-tight font-medium"
           style={{ transform: besideMarker(labelDirection) }}
         >

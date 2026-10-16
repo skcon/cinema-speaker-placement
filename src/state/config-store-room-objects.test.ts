@@ -119,8 +119,8 @@ describe('the seat row', () => {
     const before = analysis(store)
 
     store.getState().beginGesture()
-    store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0.2, y: 2.8 })
-    store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0.4, y: 3.1 })
+    store.getState().moveDragTarget(SEAT_ROW_ID, { x: 0.2, y: 2.8 })
+    store.getState().moveDragTarget(SEAT_ROW_ID, { x: 0.4, y: 3.1 })
     store.getState().endGesture()
 
     const after = analysis(store)
@@ -147,7 +147,7 @@ describe('the seat row', () => {
 
   it('goes back with the MLP on Auto-place, and undo restores both', () => {
     const store = createConfigStore()
-    store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0.4, y: 3.1 })
+    store.getState().moveDragTarget(SEAT_ROW_ID, { x: 0.4, y: 3.1 })
     const dragged = store.getState().config
     const { recommended } = recommendSeat(DEFAULT_CONFIG)
 
@@ -205,7 +205,7 @@ describe('the seat row', () => {
 
   it('round-trips through the share link, moved and resized', () => {
     const store = createConfigStore()
-    store.getState().moveRoomObject(SEAT_ROW_ID, { x: -0.31234, y: 3.45678 })
+    store.getState().moveDragTarget(SEAT_ROW_ID, { x: -0.31234, y: 3.45678 })
     setSeatRowDimension(store, 'depth', 1.3)
     const config: Config = store.getState().config
 
@@ -284,7 +284,7 @@ describe('the screen', () => {
 
     setScreenDimension(store, 'width', 2)
     makeAcousticallyTransparentProjection(store)
-    store.getState().moveRoomObject(SCREEN_ID, { x: 1, y: 0 })
+    store.getState().moveDragTarget(SCREEN_ID, { x: 1, y: 0 })
     store.getState().removeRoomObject(SCREEN_ID)
 
     expect(store.getState().config).toBe(DEFAULT_CONFIG)
@@ -295,8 +295,8 @@ describe('the screen', () => {
     const store = storeWithTv()
 
     store.getState().beginGesture()
-    store.getState().moveRoomObject(SCREEN_ID, { x: 1, y: 2 })
-    store.getState().moveRoomObject(SCREEN_ID, { x: 5, y: 3 })
+    store.getState().moveDragTarget(SCREEN_ID, { x: 1, y: 2 })
+    store.getState().moveDragTarget(SCREEN_ID, { x: 5, y: 3 })
     store.getState().endGesture()
 
     expect(screen(store)?.x).toBeCloseTo(1.53, 9)
@@ -319,7 +319,7 @@ describe('the screen', () => {
   it('round-trips through the share link', () => {
     const store = storeWithTv()
     makeAcousticallyTransparentProjection(store)
-    store.getState().moveRoomObject(SCREEN_ID, { x: -0.4567, y: 0 })
+    store.getState().moveDragTarget(SCREEN_ID, { x: -0.4567, y: 0 })
     const config: Config = store.getState().config
 
     const reopened = createConfigStore()
@@ -421,8 +421,8 @@ describe('furniture boxes', () => {
     const store = storeWithCabinet()
 
     store.getState().beginGesture()
-    store.getState().moveRoomObject('furniture-1', { x: 1, y: 2 })
-    store.getState().moveRoomObject('furniture-1', { x: 9, y: 3 })
+    store.getState().moveDragTarget('furniture-1', { x: 1, y: 2 })
+    store.getState().moveDragTarget('furniture-1', { x: 9, y: 3 })
     store.getState().endGesture()
 
     expect(furniture(store)[0]).toMatchObject({ x: 1.45, y: 3 })
@@ -450,7 +450,7 @@ describe('furniture boxes', () => {
 
     store.getState().removeRoomObject('furniture-2')
     store.getState().editRoomObject('furniture-3', furnitureTurned)
-    store.getState().moveRoomObject('furniture-2', { x: 1, y: 1 })
+    store.getState().moveDragTarget('furniture-2', { x: 1, y: 1 })
 
     expect(store.getState().config).toBe(before)
     store.getState().undo()
@@ -488,7 +488,7 @@ describe('furniture boxes', () => {
         withFurnitureName(box, 'Hylla för CD'),
       )
     store.getState().editRoomObject('furniture-1', furnitureTurned)
-    store.getState().moveRoomObject('furniture-1', { x: -1.23456, y: 3.21 })
+    store.getState().moveDragTarget('furniture-1', { x: -1.23456, y: 3.21 })
     const config: Config = store.getState().config
 
     const reopened = createConfigStore()
@@ -572,8 +572,8 @@ describe('doors and windows', () => {
     const store = storeWithDoor()
 
     store.getState().beginGesture()
-    store.getState().moveRoomObject('opening-1', { x: 1, y: 3 })
-    store.getState().moveRoomObject('opening-1', { x: 9, y: 3 })
+    store.getState().moveDragTarget('opening-1', { x: 1, y: 3 })
+    store.getState().moveDragTarget('opening-1', { x: 9, y: 3 })
     store.getState().endGesture()
 
     expect(openings(store)).toEqual([{ ...DOOR, position: 4.05 }])
@@ -611,10 +611,10 @@ describe('doors and windows', () => {
         .map(({ items }) => items)
     expect(doorWarnings()).toEqual([])
 
-    store.getState().moveItem('Ls', { x: 0.2, y: 5.6 })
+    store.getState().moveDragTarget('Ls', { x: 0.2, y: 5.6 })
     expect(doorWarnings()).toEqual([['Ls', 'opening-1']])
 
-    store.getState().moveItem('Ls', { x: -1.5, y: 5.6 })
+    store.getState().moveDragTarget('Ls', { x: -1.5, y: 5.6 })
     expect(doorWarnings()).toEqual([])
   })
 
@@ -631,7 +631,7 @@ describe('doors and windows', () => {
     const store = storeWithDoor()
     store.getState().addRoomObject({ kind: 'opening', preset: 'window' })
     setOpeningDimension(store, 'opening-2', 'width', 36 * 0.0254)
-    store.getState().moveRoomObject('opening-1', { x: -1.23456, y: 6 })
+    store.getState().moveDragTarget('opening-1', { x: -1.23456, y: 6 })
     const config: Config = store.getState().config
 
     const reopened = createConfigStore()

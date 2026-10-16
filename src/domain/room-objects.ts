@@ -175,7 +175,7 @@ const KIND_RULES: { [K in RoomObjectKind]: KindRules<RoomObjectKinds[K]> } = {
   // Every Room has exactly one seat row. It keeps its size in a smaller
   // Room (it is drawn cut off at the walls) and stores no position: it is
   // where the MLP is, so a drag of it moves the MLP instead (see
-  // withRoomObjectDragged in config-edits.ts).
+  // withDragged in drag-targets.ts).
   seatRow: {
     count: { min: 1, max: 1 },
     isValid: (_, seatRow) => isValidSeatRow(seatRow),
@@ -455,8 +455,8 @@ export function withRoomObjectEdited<
  * middle to `to` (stopped at the walls). The Screen only moves along the
  * front wall, so only `to.x` counts, and an opening only along its own
  * wall. The Seat row stores no position (it is where the MLP is), so it
- * stays as it is here: dragging it moves the MLP (withRoomObjectDragged in
- * config-edits.ts). Comes back as it was when there is no such object or
+ * stays as it is here: dragging it moves the MLP (withDragged in
+ * drag-targets.ts). Comes back as it was when there is no such object or
  * it doesn't move.
  */
 export function withRoomObjectMoved<C extends RoomWithObjects>(

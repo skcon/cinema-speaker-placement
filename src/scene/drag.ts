@@ -1,8 +1,5 @@
-import type { FloorPoint, PlaceableId, RoomObjectId } from '@/domain'
+import type { DragTarget, FloorPoint } from '@/domain'
 import { draggedTo, grabOffset } from '@/scene/top-down'
-
-/** What can be dragged in the room view: a placeable item or a room object. */
-export type DragTarget = PlaceableId | RoomObjectId
 
 /** What a drag tells the store: start, moves, end (one undo step). */
 export type DragCallbacks = {
@@ -29,8 +26,9 @@ export function createDragController(callbacks: DragCallbacks) {
     /** Whether a pointer is dragging. */
     isDragging: () => active !== null,
     /**
-     * A pointer pressed on item `id`, which is at `at`. Starts a drag and
-     * returns true, or returns false while another pointer is dragging.
+     * A pointer pressed on drag target `id`, whose anchor is at `at` (see
+     * dragAnchors). Starts a drag and returns true, or returns false while
+     * another pointer is dragging.
      */
     press(
       pointerId: number,

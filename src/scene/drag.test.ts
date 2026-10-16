@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { FloorPoint } from '@/domain'
-import { createDragController, type DragTarget } from '@/scene/drag'
+import type { DragTarget, FloorPoint } from '@/domain'
+import { createDragController } from '@/scene/drag'
 
 /** A controller that records what it tells the store. */
 function recordedDrag() {

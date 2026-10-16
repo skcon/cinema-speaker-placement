@@ -11,14 +11,15 @@
  *   calibration is a fixed one, made at the MLP (like a receiver
  *   calibrated there), so a seat where the bass is weaker or stronger
  *   than at the MLP counts, not only its shape.
- * - **Placement fit**: auto speakers are placed as auto-place would for
- *   an MLP at the seat's projection onto the center line (same distance
- *   from the front wall): installed symmetric to the room, as in a real
- *   install, while the listener moves along the couch (ADR 0005,
- *   amendment). Manual speakers stay where they are. Every
- *   speaker's angle is graded from the seat against its placement range,
- *   and a speaker much nearer than the front speakers (a wall squeezes it
- *   against the seat) counts less, after Dolby's equidistance rule.
+ * - **Placement fit**: the listener-level speakers installed for the
+ *   seat's projection onto the center line and heard at the seat
+ *   (placeSpeakers with centerLineProjection, placements.ts): installed
+ *   symmetric to the room, as in a real install, while the listener moves
+ *   along the couch (ADR 0005, amendment). Manual speakers stay where they
+ *   are. Every speaker's angle is graded from the seat against its
+ *   placement range, and a speaker much nearer than the front speakers (a
+ *   wall squeezes it against the seat) counts less, after Dolby's
+ *   equidistance rule.
  *
  * The best seat on the room's center line is preferred (ADR 0005:
  * published practice puts the reference seat there and fixes the bass
@@ -50,18 +51,16 @@ import {
   type ResponseCalibration,
   type ResponseParts,
 } from './estimated-response'
+import { hearSpeaker, isCharted, prepareConfigResponse } from './listening'
 import {
-  CHARTED_CHANNELS,
-  hearSpeaker,
-  isCharted,
-  prepareConfigResponse,
-} from './listening'
-import type { ChannelId } from './dolby-layouts'
-import { MLP_ID } from './manual-positions'
-import { checkPlacementRange, type PlacementGrade } from './placement-range'
-import { placeAll } from './placements'
+  centerLineProjection,
+  placeAll,
+  placeSpeakers,
+  type InstalledSpeaker,
+  type Placements,
+} from './placements'
 import { EAR_HEIGHT, SEAT_SCORE, SPEAKER_WALL_CLEARANCE } from './reference'
-import { azimuthFromMlp, distanceBetween, type RoomPoint } from './room'
+import { distanceBetween, type RoomPoint } from './room'
 import type { RoomMode } from './room-modes'
 import { targetCurve, type TargetPoint } from './target-curve'
 
@@ -213,11 +212,6 @@ function bestSeat<T extends ScoredSeat | undefined>(
   )
 }
 
-/** The seat moved straight across onto the room's center line (x = 0). */
-function onCenterLine(seat: RoomPoint): RoomPoint {
-  return { ...seat, x: 0 }
-}
-
 /** Whether a seat is on the room's center line (x = 0), within SAME_SEAT. */
 function isOnCenterLine({ x }: RoomPoint): boolean {
   return Math.abs(x) < SAME_SEAT
@@ -237,8 +231,9 @@ function scoringAtMlp(config: Config): {
     offCenter: ScoredSeat,
   ) => CenterLineWidthMode | undefined
 } {
-  const room = hearRoom(config)
-  const mlp = room.hear(placeAll(config).mlp.position)
+  const placements = placeAll(config)
+  const room = hearRoom(config, placements)
+  const mlp = room.hear(placements.mlp.position)
   const calibration = room.calibrateAt(mlp)
   return {
     current: room.score(mlp, calibration),
@@ -315,14 +310,14 @@ type HeardSeat = {
 }
 
 /**
- * The config's room response, ready to hear seats in, calibrate at one
- * and score them.
+ * The config's room response, with its subwoofers where `placements` has
+ * them, ready to hear seats in, calibrate at one and score them.
  */
-function hearRoom(config: Config) {
+function hearRoom(config: Config, placements: Pick<Placements, 'subwoofers'>) {
   const frequencies = responseFrequencies()
   const prepared: PreparedRoomResponse = prepareConfigResponse(
     config,
-    placeAll(config),
+    placements,
     frequencies,
   )
   const target: readonly TargetPoint[] = targetCurve(
@@ -334,19 +329,17 @@ function hearRoom(config: Config) {
   )
 
   /**
-   * The seat as the MLP: auto speakers placed around it, manual ones
-   * where they are, each graded from the seat.
+   * The seat as the MLP: the listener-level speakers installed for it,
+   * auto ones placed and manual ones where they are, each graded from the
+   * seat.
    */
   function hear(seat: RoomPoint): HeardSeat {
     // Auto speakers are installed symmetric to the room: around the seat's
     // projection onto the center line, not around the seat (ADR 0005,
     // amendment), so an off-center seat hears them at its skewed angles.
-    const { speakers } = placeAll({
-      ...config,
-      manualPositions: {
-        ...config.manualPositions,
-        [MLP_ID]: onCenterLine(seat),
-      },
+    const speakers = placeSpeakers(config, {
+      installedFor: centerLineProjection(seat),
+      heardAt: seat,
     })
     const speakerLevels = speakers
       .filter(({ reference }) => isCharted(reference.channel))
@@ -362,15 +355,7 @@ function hearRoom(config: Config) {
     return {
       position: seat,
       parts: responseParts(prepared, { receiver: seat, speakerLevels }),
-      placementFit: placementFit(
-        seat,
-        speakers.map(({ reference, position }): GradedSpeaker => ({
-          channel: reference.channel,
-          position,
-          grade: checkPlacementRange(reference, azimuthFromMlp(seat, position))
-            .grade,
-        })),
-      ),
+      placementFit: placementFit(seat, speakers),
     }
   }
 
@@ -476,30 +461,23 @@ function nearestRow(
   )
 }
 
-/** A listener-level speaker, where it is and its grade from a seat. */
-type GradedSpeaker = {
-  readonly channel: ChannelId
-  readonly position: RoomPoint
-  readonly grade: PlacementGrade
-}
-
 /**
- * The speakers' mean placement fit from `seat` (SEAT_SCORE): each one's
- * grade value times its equidistance against the farthest front speaker
- * (CHARTED_CHANNELS: Left, Center and Right set Dolby's reference
- * distance, IG p.6).
+ * The speakers' mean placement fit from `seat`, where they are heard
+ * (SEAT_SCORE): each one's grade value times its equidistance against the
+ * farthest front speaker (CHARTED_CHANNELS: Left, Center and Right set
+ * Dolby's reference distance, IG p.6).
  */
 function placementFit(
   seat: RoomPoint,
-  speakers: readonly GradedSpeaker[],
+  speakers: readonly InstalledSpeaker[],
 ): number {
   if (speakers.length === 0) return 1
-  const distanceOf = ({ position }: GradedSpeaker) =>
+  const distanceOf = ({ position }: InstalledSpeaker) =>
     distanceBetween(position, seat)
   const reference = Math.max(
     0,
     ...speakers
-      .filter(({ channel }) => CHARTED_CHANNELS.some((c) => c === channel))
+      .filter(({ reference }) => isCharted(reference.channel))
       .map(distanceOf),
   )
   const counted = SEAT_SCORE.equidistanceShare * reference
@@ -507,7 +485,10 @@ function placementFit(
     speakers.reduce((sum, speaker) => {
       const equidistance =
         counted > 0 ? Math.min(1, distanceOf(speaker) / counted) : 1
-      return sum + SEAT_SCORE.gradeValues[speaker.grade] * equidistance
+      return (
+        sum +
+        SEAT_SCORE.gradeValues[speaker.placementRange.grade] * equidistance
+      )
     }, 0) / speakers.length
   )
 }

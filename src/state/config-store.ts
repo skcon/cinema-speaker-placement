@@ -16,6 +16,12 @@ import {
   withLayout,
   withMlpAtRecommendedSeat,
   withAcousticTransparency,
+  furnitureTurned,
+  withFurnitureAdded,
+  withFurnitureDimension,
+  withFurnitureEdit,
+  withFurnitureName,
+  withFurnitureRemoved,
   withRoom,
   withRoomObjectMoved,
   withRoomObjects,
@@ -26,6 +32,9 @@ import {
   type Config,
   type DolbyLayout,
   type FloorPoint,
+  type FurnitureDimension,
+  type FurnitureId,
+  type FurniturePreset,
   type PlaceableId,
   type RoomPoint,
   type RoomDimension,
@@ -173,7 +182,37 @@ export type ConfigState = {
    */
   setScreenDimension: (dimension: ScreenDimension, meters: number) => void
   /**
-   * Move a room object on the floor plan (a drag); the Screen slides
+   * Add a furniture box from `preset` (a cabinet, table or shelf, see
+   * FURNITURE in the domain's reference data), its back against the middle
+   * of the front wall. Ignored when the Room has MAX_FURNITURE boxes.
+   */
+  addFurniture: (preset: FurniturePreset) => void
+  /** Take furniture box `id` away; the boxes after it move up a place. */
+  removeFurniture: (id: FurnitureId) => void
+  /**
+   * Rename furniture box `id`, trimmed. A name that is empty, too long or
+   * has characters a name can't have is ignored (see checkFurnitureName).
+   */
+  setFurnitureName: (id: FurnitureId, name: string) => void
+  /**
+   * Set one of furniture box `id`'s lengths, or where it is from the left
+   * or front wall, in meters. Values outside its range in this Room are
+   * ignored; a box that grows past a wall moves in from it.
+   */
+  setFurnitureDimension: (
+    id: FurnitureId,
+    dimension: FurnitureDimension,
+    meters: number,
+  ) => void
+  /**
+   * Turn furniture box `id` a quarter turn clockwise (seen from above),
+   * moving it in from a wall it would cross. Ignored when it would not fit
+   * the Room turned.
+   */
+  turnFurniture: (id: FurnitureId) => void
+  /**
+   * Move a room object on the floor plan (a drag); a furniture box goes
+   * with its middle to `to`, stopping at the walls, and the Screen slides
    * along the front wall, stopping at the side walls. The Seat row is
    * dragged by the MLP on it: `to` is where the MLP goes, made manual, and
    * the seat row comes with it.
@@ -451,6 +490,26 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
               withScreenEdit(config, (room, screen) =>
                 withScreenDimension(room, screen, dimension, meters),
               ),
+            ),
+          addFurniture: (preset) =>
+            setConfigIfChanged((config) => withFurnitureAdded(config, preset)),
+          removeFurniture: (id) =>
+            setConfigIfChanged((config) => withFurnitureRemoved(config, id)),
+          setFurnitureName: (id, name) =>
+            setConfigIfChanged((config) =>
+              withFurnitureEdit(config, id, (_, box) =>
+                withFurnitureName(box, name),
+              ),
+            ),
+          setFurnitureDimension: (id, dimension, meters) =>
+            setConfigIfChanged((config) =>
+              withFurnitureEdit(config, id, (room, box) =>
+                withFurnitureDimension(room, box, dimension, meters),
+              ),
+            ),
+          turnFurniture: (id) =>
+            setConfigIfChanged((config) =>
+              withFurnitureEdit(config, id, furnitureTurned),
             ),
           moveRoomObject: (id, to) =>
             setConfigIfChanged((config) => withRoomObjectMoved(config, id, to)),

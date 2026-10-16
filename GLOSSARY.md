@@ -162,6 +162,10 @@ _Avoid_: Locked, pinned, custom position
 The one speaker, subwoofer or MLP picked in the room view (or by opening its row under Positions): highlighted, with its Dimension lines and its details in the sidebar. View state only: never in the config, the share link or the undo history.
 _Avoid_: Active item, focused speaker, current selection
 
+**Drag target**:
+Anything the room view drags on the floor plan: a speaker, a subwoofer, the MLP, the seat row, the screen, a furniture box or an opening. Each has an **anchor**, the floor point a drag moves (the seat row's is the MLP), and the grab area drawn over its marker picks it up (see `src/domain/drag-targets.ts`).
+_Avoid_: Draggable, handle
+
 **Dimension line**:
 A line drawn from the Selected item to one of its two nearest walls, or to the MLP, labelled with its length in the user's units. Wall distances are measured in plan; the distance to the MLP is straight, in 3D.
 _Avoid_: Measure line, distance line, ruler

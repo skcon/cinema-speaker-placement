@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, type Config } from './config'
-import { withRoomObjectDragged } from './config-edits'
 import {
   FURNITURE_LENGTHS,
   furnitureTurned,
@@ -375,30 +374,6 @@ describe('moving a room object', () => {
     expect(withRoomObjectMoved(WITH_TV, SEAT_ROW_ID, { x: 1, y: 3 })).toBe(
       WITH_TV,
     )
-  })
-
-  it('moves the MLP when the seat row is dragged, making it manual inside its wall clearances', () => {
-    const dragged = withRoomObjectDragged(DEFAULT_CONFIG, SEAT_ROW_ID, {
-      x: 0.4,
-      y: 3.1,
-    })
-    const intoWall = withRoomObjectDragged(DEFAULT_CONFIG, SEAT_ROW_ID, {
-      x: 0,
-      y: 9,
-    })
-
-    expect(dragged.manualPositions).toEqual({ MLP: { x: 0.4, y: 3.1, z: 1.2 } })
-    expect(dragged.roomObjects).toBe(DEFAULT_CONFIG.roomObjects)
-    expect(intoWall.manualPositions.MLP?.y).toBeLessThan(6)
-    expect(
-      withRoomObjectDragged(dragged, SEAT_ROW_ID, { x: 0.4, y: 3.1 }),
-    ).toBe(dragged)
-  })
-
-  it('drags any other room object as it moves', () => {
-    expect(
-      withRoomObjectDragged(FURNISHED, 'furniture-2', { x: 3, y: 3 }),
-    ).toEqual(withRoomObjectMoved(FURNISHED, 'furniture-2', { x: 3, y: 3 }))
   })
 })
 

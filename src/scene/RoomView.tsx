@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useId, useState } from 'react'
+import { lazy, Suspense, useEffect, useId, useMemo, useState } from 'react'
 import {
+  dragAnchors,
   formatLength,
-  isRoomObjectId,
+  pressSelects,
   UNIT_SYSTEMS,
-  type FloorPoint,
+  type DragTarget,
 } from '@/domain'
 import {
   useConfig,
@@ -34,7 +35,6 @@ import {
   SCREEN_COLOR,
   WINDOW_COLOR,
 } from '@/scene/palette'
-import type { DragTarget } from '@/scene/drag'
 import {
   describeFurniture,
   describeOpenings,
@@ -67,14 +67,14 @@ const RoomCanvas = lazy(() =>
  */
 export function RoomView() {
   const [webGL] = useState(canUseWebGL)
-  const { room, units } = useConfig((state) => state.config)
+  const config = useConfig((state) => state.config)
+  const { room, units } = config
   const screen = useConfig((state) => state.config.roomObjects.screen)
   const furniture = useConfig((state) => state.config.roomObjects.furniture)
   const openings = useConfig((state) => state.config.roomObjects.openings)
   const seatRowSize = useConfig((state) => state.config.roomObjects.seatRow)
   const beginGesture = useConfig((state) => state.beginGesture)
-  const moveItem = useConfig((state) => state.moveItem)
-  const moveRoomObject = useConfig((state) => state.moveRoomObject)
+  const moveDragTarget = useConfig((state) => state.moveDragTarget)
   const endGesture = useConfig((state) => state.endGesture)
   const {
     layout,
@@ -87,12 +87,14 @@ export function RoomView() {
   } = useRoomAnalysis()
   const recommendation = useSeatRecommendation()
   const { select, clear } = useSelection()
-  // A drag moves an item or a room object; pressing an item selects it,
-  // and pressing a room object (not a Selected item) clears the selection.
-  const dragMove = (target: DragTarget, to: FloorPoint) =>
-    isRoomObjectId(target) ? moveRoomObject(target, to) : moveItem(target, to)
-  const press = (target: DragTarget) =>
-    isRoomObjectId(target) ? clear() : select(target)
+  // Where each drag target is grabbed from, and what a press on it selects
+  // (a room object is never the Selected item: pressing one clears it).
+  const anchors = useMemo(() => dragAnchors(config), [config])
+  const press = (target: DragTarget) => {
+    const item = pressSelects(target)
+    if (item) select(item)
+    else clear()
+  }
   const selectedItem = useSelectedItem()
   const selection = selectedItem && selectionDimensions(selectedItem, units)
   useClearSelectionOnEscape(selectedItem !== null, clear)
@@ -201,8 +203,9 @@ export function RoomView() {
             ruleOfThumbFromFrontWall={seatRuleOfThumb.fromFrontWall}
             view={view}
             units={units}
+            dragAnchors={anchors}
             onDragStart={beginGesture}
-            onDragMove={dragMove}
+            onDragMove={moveDragTarget}
             onDragEnd={endGesture}
             selection={selection}
             onSelect={press}

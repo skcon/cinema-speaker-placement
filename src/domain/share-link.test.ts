@@ -19,15 +19,44 @@ import {
 import { IMPERIAL_ROOM, V1_LINKS, V2_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
 import { configSchemaV1, type ConfigV1 } from './config-v1'
-import { createConfigCodec, migrateFrom } from './share-link'
+import {
+  createConfigCodec,
+  migrateFrom,
+  SHORT_FIELD_NAMES,
+  shortenFieldNames,
+} from './share-link'
 
 /**
  * An encoded config holding any JSON, written the way configs are encoded
- * (JSON, then lz-string's URL-safe compression), to test what decoding does
- * with links the app would never write.
+ * (JSON, then lz-string's URL-safe compression, with the config's field
+ * names short from version 2 on), to test what decoding does with links
+ * the app would never write.
  */
 function encodedHolding(json: unknown): string {
-  return compressToEncodedURIComponent(JSON.stringify(json))
+  const envelope = json as { v?: unknown; config?: unknown } | null
+  const short =
+    typeof envelope?.v === 'number' && envelope.v >= 2 && 'config' in envelope
+      ? { ...envelope, config: shortenFieldNames(envelope.config) }
+      : json
+  return compressToEncodedURIComponent(JSON.stringify(short))
+}
+
+/** What an encoded config holds: its version and config as written. */
+function envelopeOf(encoded: string): { v: number; config: unknown } {
+  return JSON.parse(decompressFromEncodedURIComponent(encoded)) as {
+    v: number
+    config: unknown
+  }
+}
+
+/** Every object key in `value`, through nested objects and arrays. */
+function keysIn(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(keysIn)
+  if (typeof value !== 'object' || value === null) return []
+  return Object.entries(value).flatMap(([key, field]) => [
+    key,
+    ...keysIn(field),
+  ])
 }
 
 const FALLBACK = { config: DEFAULT_CONFIG, problem: 'unreadable' }
@@ -460,11 +489,33 @@ const BROKEN_ROOM_OBJECTS: [string, unknown][] = [
 
 describe('share link codec', () => {
   it('writes new share links as version 2', () => {
-    const envelope: unknown = JSON.parse(
-      decompressFromEncodedURIComponent(encodeConfig(DEFAULT_CONFIG)),
-    )
+    expect(envelopeOf(encodeConfig(DEFAULT_CONFIG))).toMatchObject({ v: 2 })
+  })
 
-    expect(envelope).toMatchObject({ v: 2 })
+  it('spells the field names short in version 2 links, keeping every value', () => {
+    const { config } = envelopeOf(encodeConfig(IMPERIAL_ROOM))
+
+    expect(config).toMatchObject({
+      u: 'imperial',
+      r: { l: 8, w: 5, h: 3 },
+      ly: { dl: '7.1.4', s: 2 },
+      m: { Rrs: { x: 2.2, y: 7.2, z: 1.5 }, Sub2: { x: 2.2, y: 7.7, z: 0.3 } },
+      ro: { st: { w: 3.6576, d: 0.9144 } },
+    })
+    expect(keysIn(config).filter((key) => key in SHORT_FIELD_NAMES)).toEqual([])
+  })
+
+  it('falls back for a version 2 link that spells a field name out', () => {
+    const { v, config } = envelopeOf(encodeConfig(DEFAULT_CONFIG))
+    const spelledOut = { ...(config as object), u: undefined, units: 'metric' }
+
+    expect(
+      decodeConfig(
+        compressToEncodedURIComponent(
+          JSON.stringify({ v, config: spelledOut }),
+        ),
+      ),
+    ).toEqual(FALLBACK)
   })
 
   it('rebuilds the default config from its share link', () => {
@@ -953,6 +1004,41 @@ const PRODUCTION_PAGE = 'https://skcon.github.io/cinema-speaker-placement/'
  * such as GitHub Pages accept.
  */
 const URL_BUDGET = 2000
+
+describe('short field names', () => {
+  it('cover every field of the worst-case config', () => {
+    // Record keys (channel and subwoofer ids, MLP) are not field names.
+    const recordKeys = new Set([
+      ...Object.keys(WORST_CASE_CONFIG.manualPositions),
+      ...Object.keys(WORST_CASE_CONFIG.speakerGroups.subwoofers.ownSpecs),
+    ])
+    const short = new Set(['x', 'y', 'z'])
+    const unnamed = keysIn(WORST_CASE_CONFIG).filter(
+      (key) => !recordKeys.has(key) && !short.has(key),
+    )
+
+    expect(unnamed.filter((key) => !(key in SHORT_FIELD_NAMES))).toEqual([])
+  })
+
+  it('are not record keys, so a link can always be spelled out again', () => {
+    const shortNames: string[] = Object.values(SHORT_FIELD_NAMES)
+    const recordKeys = keysIn(WORST_CASE_CONFIG.manualPositions)
+
+    expect(shortNames.filter((name) => recordKeys.includes(name))).toEqual([])
+  })
+
+  it('must be unique', () => {
+    expect(() =>
+      createConfigCodec({
+        version: 1,
+        schema: configSchema,
+        migrations: {},
+        fallback: DEFAULT_CONFIG,
+        shortFieldNames: { since: 1, names: { width: 'w', weight: 'w' } },
+      }),
+    ).toThrow('Short field names must be unique and not field names')
+  })
+})
 
 describe('share link size', () => {
   it('is measured with a worst-case config the app accepts', () => {

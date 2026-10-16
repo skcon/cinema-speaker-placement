@@ -38,7 +38,6 @@ export {
   DEFAULT_SEAT_ROW,
   SEAT_ROW_HEAD_OFFSET,
   seatRowFootprint,
-  withSeatRowDimension,
   type SeatRow,
   type SeatRowDimension,
   type SeatRowFootprint,

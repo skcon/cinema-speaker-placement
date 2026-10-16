@@ -91,6 +91,7 @@ describe('room object ids', () => {
   })
 
   it('are not the ids of speakers, subwoofers, the MLP or anything else', () => {
+    expect(roomObjectKind('MLP')).toBeNull()
     for (const id of [
       'MLP',
       'L',

@@ -64,11 +64,12 @@ export function RecommendedSeat() {
       <p className="text-xs text-muted-foreground">
         An estimate from a simplified model, never a measurement: a grid of
         seats scored on bass smoothness (the estimated response against the
-        target) and on the listener-level speakers&rsquo; Dolby placement
-        ranges, with the receiver calibrated at the MLP. The best seat on the
-        center line is preferred, as in published practice, unless a seat off it
-        scores meaningfully better. Moving the MLP makes it manual; undo takes
-        it back. Auto-place also puts the MLP here.
+        target) and on the listener-level speakers&rsquo; Dolby placement ranges
+        (auto speakers installed symmetric to the room), with the receiver
+        calibrated at the MLP. The best seat on the center line is preferred, as
+        in published practice, unless a seat off it scores meaningfully better.
+        Moving the MLP makes it manual; undo takes it back. Auto-place also puts
+        the MLP here.
       </p>
     </div>
   )

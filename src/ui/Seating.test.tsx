@@ -1,12 +1,20 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_CONFIG, encodeConfig, type Config } from '@/domain'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
+import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
 import { PositionsForm } from '@/ui/PositionsForm'
 import { Seating } from '@/ui/Seating'
 
-function renderSeating() {
+function renderSeating(config?: Config) {
   render(
-    <ConfigStoreProvider>
+    <ConfigStoreProvider initialEncodedConfig={config && encodeConfig(config)}>
       <Seating />
       <PositionsForm />
     </ConfigStoreProvider>,
@@ -16,11 +24,10 @@ function renderSeating() {
 
 describe('seating in the sidebar', () => {
   it('recommends a seat, says it is an estimate, and moves the MLP there on request', async () => {
-    const seating = renderSeating()
+    const seating = renderSeating(ROOM_WITH_A_BETTER_SEAT)
 
-    const move = await within(seating).findByRole('button', {
-      name: 'Move MLP here',
-    })
+    const move = within(seating).getByRole('button', { name: 'Move MLP here' })
+    await waitFor(() => expect(move).toBeEnabled())
     expect(seating).toHaveTextContent(/estimate from a simplified model/)
     expect(
       screen.getByRole('group', { name: 'MLP position' }),
@@ -39,14 +46,31 @@ describe('seating in the sidebar', () => {
     ).toBeDisabled()
   })
 
-  it('says why the recommended seat is off the center line', async () => {
+  it('recommends the MLP itself in the default room, on the center line', async () => {
     const seating = renderSeating()
 
-    // The default room's best seat beats the center line by about 2 points.
+    expect(
+      await within(seating).findByText(/Your MLP is at the recommended seat/),
+    ).toBeInTheDocument()
+    expect(seating).toHaveTextContent(
+      /Recommended seat: 2\.28 m from the front wall/,
+    )
+    expect(seating).not.toHaveTextContent(/It is off the center line/)
+  })
+
+  it('says why the recommended seat is off the center line', async () => {
+    // A 2.1 room 5 m wide: the best seat beats the center line by about 4
+    // points, on the bass.
+    const seating = renderSeating({
+      ...DEFAULT_CONFIG,
+      room: { length: 6, width: 5, height: 2.6 },
+      layout: { dolbyLayout: '2.1', subwoofers: 1 },
+    })
+
     expect(
       await within(seating).findByText(/off the center line/),
     ).toHaveTextContent(
-      /scores 2\.3 points more than the best seat on the center line \(4\.54 m from the front wall, 83\/100\), more than the 2 points.*second width mode \(76\.2 Hz\) is strongest on the center line/,
+      /scores 4\.3 points more than the best seat on the center line \(2\.28 m from the front wall, 81\/100\), more than the 2 points.*second width mode \(68\.6 Hz\) is strongest on the center line/,
     )
   })
 

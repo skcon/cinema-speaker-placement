@@ -64,7 +64,7 @@ describe('seat-score heatmap in the room view', () => {
     expect(scene()).not.toHaveAccessibleName(/heatmap/)
   })
 
-  it('turns on with a legend from low to high, says the scores are relative estimates, and describes where the best area is', async () => {
+  it('turns on with a legend from low to high, says the scores are relative estimates, and says the MLP stays the recommended seat in the default room', async () => {
     const toggle = renderRoomView()
 
     fireEvent.click(toggle)
@@ -77,7 +77,7 @@ describe('seat-score heatmap in the room view', () => {
       /simplified model/,
     )
     expect(scene()).toHaveAccessibleName(
-      /Seat-score heatmap shown \(a relative estimate\): highest around .* from the front wall/,
+      /Seat-score heatmap shown \(a relative estimate\): no seat scores meaningfully better than the MLP, so it stays the recommended seat\./,
     )
   })
 

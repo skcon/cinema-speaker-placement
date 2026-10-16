@@ -11,8 +11,11 @@
  *   calibration is a fixed one, made at the MLP (like a receiver
  *   calibrated there), so a seat where the bass is weaker or stronger
  *   than at the MLP counts, not only its shape.
- * - **Placement fit**: auto speakers are placed around the seat as
- *   auto-place would; manual speakers stay where they are. Every
+ * - **Placement fit**: auto speakers are placed as auto-place would for
+ *   an MLP at the seat's projection onto the center line (same distance
+ *   from the front wall): installed symmetric to the room, as in a real
+ *   install, while the listener moves along the couch (ADR 0005,
+ *   amendment). Manual speakers stay where they are. Every
  *   speaker's angle is graded from the seat against its placement range,
  *   and a speaker much nearer than the front speakers (a wall squeezes it
  *   against the seat) counts less, after Dolby's equidistance rule.
@@ -210,6 +213,11 @@ function bestSeat<T extends ScoredSeat | undefined>(
   )
 }
 
+/** The seat moved straight across onto the room's center line (x = 0). */
+function onCenterLine(seat: RoomPoint): RoomPoint {
+  return { ...seat, x: 0 }
+}
+
 /** Whether a seat is on the room's center line (x = 0), within SAME_SEAT. */
 function isOnCenterLine({ x }: RoomPoint): boolean {
   return Math.abs(x) < SAME_SEAT
@@ -330,9 +338,15 @@ function hearRoom(config: Config) {
    * where they are, each graded from the seat.
    */
   function hear(seat: RoomPoint): HeardSeat {
+    // Auto speakers are installed symmetric to the room: around the seat's
+    // projection onto the center line, not around the seat (ADR 0005,
+    // amendment), so an off-center seat hears them at its skewed angles.
     const { speakers } = placeAll({
       ...config,
-      manualPositions: { ...config.manualPositions, [MLP_ID]: seat },
+      manualPositions: {
+        ...config.manualPositions,
+        [MLP_ID]: onCenterLine(seat),
+      },
     })
     const speakerLevels = speakers
       .filter(({ reference }) => isCharted(reference.channel))

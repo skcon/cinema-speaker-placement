@@ -28,6 +28,8 @@ export type { RoomMode, RoomModeKind } from './room-modes'
 export {
   recommendSeat,
   scoreSeat,
+  type CenterLineWidthMode,
+  type OffCenterLine,
   type ScoredSeat,
   type SeatRecommendation,
 } from './seat-score'

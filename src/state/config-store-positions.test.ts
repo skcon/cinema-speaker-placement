@@ -9,6 +9,7 @@ import {
   type OverheadChannelId,
 } from '@/domain'
 import { createConfigStore, type ConfigStore } from '@/state/config-store'
+import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
 import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
 
 /** The default room (6 x 4.5 x 2.6 m, 5.1.2) with this layout. */
@@ -120,12 +121,12 @@ describe('auto and manual items', () => {
   })
 
   it('all go back to auto on Auto-place, and the MLP goes to the recommended seat, in one undoable step', () => {
-    const store = createConfigStore()
+    const store = createConfigStore(ROOM_WITH_A_BETTER_SEAT)
     store.getState().moveItem('L', { x: -1, y: 1 })
     store.getState().moveItem('Sub1', { x: 1, y: 5 })
     store.getState().moveItem('MLP', { x: 0, y: 3 })
     const beforeAutoPlace = store.getState().config
-    const { recommended } = recommendSeat(DEFAULT_CONFIG)
+    const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
 
     store.getState().autoPlace()
 
@@ -166,23 +167,25 @@ describe('auto and manual items', () => {
 
 describe('moving the MLP to the recommended seat', () => {
   it('moves the MLP to the seat on screen, manual, in one undoable step, and auto speakers follow it', () => {
-    const store = createConfigStore()
-    const { recommended } = recommendSeat(DEFAULT_CONFIG)
+    const store = createConfigStore(ROOM_WITH_A_BETTER_SEAT)
+    const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
 
     store.getState().moveMlpToRecommendedSeat(recommended.position)
 
     expect(analysis(store).mlp).toEqual(recommended.position)
     expect(analysis(store).mlpPlacement).toBe('manual')
     expect(recommendSeat(store.getState().config).mlpIsRecommended).toBe(true)
-    // The Center is auto, so it moves with the MLP.
-    expect(speaker(store, 'C').placement).toBe('auto')
-    expect(speaker(store, 'C').position).not.toEqual(
-      analyzeRoom(DEFAULT_CONFIG).speakers[1]!.position,
+    // The Left Surround is auto, so it moves with the MLP.
+    expect(speaker(store, 'Ls').placement).toBe('auto')
+    expect(speaker(store, 'Ls').position).not.toEqual(
+      analyzeRoom(ROOM_WITH_A_BETTER_SEAT).speakers.find(
+        ({ channel }) => channel === 'Ls',
+      )!.position,
     )
 
     store.getState().undo()
 
-    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().config).toEqual(ROOM_WITH_A_BETTER_SEAT)
     expect(store.getState().history.canUndo).toBe(false)
   })
 

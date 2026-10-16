@@ -15,11 +15,11 @@
  */
 import { linkSlack } from './link-precision'
 import {
-  checkRange,
-  clamp,
-  type AcceptedRange,
-  type RangeProblem,
-} from './range'
+  hasValidLengths,
+  type LengthTolerance,
+  type ObjectLengths,
+} from './object-lengths'
+import { clamp, type AcceptedRange } from './range'
 import { OPENINGS } from './reference'
 import {
   distanceToWall,
@@ -60,9 +60,9 @@ export type WindowOpening = {
 export type Opening = Door | WindowOpening
 
 /**
- * An opening's lengths as they are edited: its width, where it is as
- * `fromCorner` (from the wall's start to its nearest edge), and for a
- * window its sill and height.
+ * An opening's lengths as they are edited (see OPENING_LENGTHS): its
+ * width, where it is as `fromCorner` (from the wall's start to its nearest
+ * edge), and for a window its sill and height.
  */
 export type OpeningDimension = 'width' | 'fromCorner' | 'sill' | 'height'
 
@@ -208,86 +208,87 @@ export function wallReflectionPoint(
 }
 
 /**
+ * How far a stored opening may reach past its wall's ends or the ceiling,
+ * in meters: a share link writes its lengths to the millimeter
+ * (link-precision.ts), which can move an edge half a millimeter for
+ * each.
+ */
+const FIT_SLACK = linkSlack('openings')
+
+/**
  * The accepted range of each of the opening's lengths in `room`, given
  * its others: OPENINGS' limits, on its wall and under the ceiling. A
- * wider opening moves in from a corner instead (see withOpeningDimension),
+ * wider opening moves in from a corner instead (see OPENING_LENGTHS.set),
  * so its width is only limited by the wall. A door has no sill or height
- * to set: theirs are its own, fixed.
+ * to set: theirs are its own, fixed. Stored, an opening may reach
+ * FIT_SLACK past its limits, its wall's ends and the ceiling.
  */
-export function openingLimits(
+function openingLimits(
   room: Room,
   opening: Opening,
+  tolerance: LengthTolerance,
 ): Record<OpeningDimension, AcceptedRange> {
   const { width, sill, height } = OPENINGS.limits
+  const slack = tolerance === 'stored' ? FIT_SLACK : 0
   const wall = wallLength(room, opening.wall)
   const { bottom, top } = openingVerticalSpan(room, opening)
   const tall = top - bottom
   return {
-    width: { min: width.min, max: Math.min(width.max, wall) },
-    fromCorner: { min: 0, max: Math.max(0, wall - opening.width) },
+    width: { min: width.min, max: Math.min(width.max, wall) + slack },
+    // Never an empty range, even for a stored opening a little wider
+    // than its wall.
+    fromCorner: {
+      min: 0 - slack, // +0 when typed, not -0
+      max: Math.max(-slack, wall - opening.width) + slack,
+    },
     sill:
       opening.kind === 'door'
         ? { min: 0, max: 0 }
-        : { min: sill.min, max: Math.min(sill.max, room.height - tall) },
+        : {
+            min: sill.min,
+            max: Math.min(sill.max, room.height - tall) + slack,
+          },
     height:
       opening.kind === 'door'
         ? { min: tall, max: tall }
         : {
             min: height.min,
-            max: Math.min(height.max, room.height - opening.sill),
+            max: Math.min(height.max, room.height - opening.sill) + slack,
           },
   }
 }
 
-/** One of the opening's lengths, or null for a door's sill or height. */
-export function openingDimension(
-  opening: Opening,
-  dimension: OpeningDimension,
-): number | null {
-  switch (dimension) {
-    case 'width':
-      return opening.width
-    case 'fromCorner':
-      return openingSpan(opening).start
-    default:
-      return opening.kind === 'window' ? opening[dimension] : null
-  }
-}
-
-/** `null` when `meters` is an accepted `dimension` for the opening in this room. */
-export function checkOpeningDimension(
-  room: Room,
-  opening: Opening,
-  dimension: OpeningDimension,
-  meters: number,
-): RangeProblem | null {
-  return checkRange(meters, openingLimits(room, opening)[dimension])
-}
-
 /**
- * The opening with one length changed, or null when the value is rejected
- * (see checkOpeningDimension) or is a door's sill or height. A wider
- * opening moves in from a corner it would pass.
+ * The opening's lengths: its width, where it is as `fromCorner` (from the
+ * wall's start to its nearest edge), and a window's sill and height (a
+ * door has none: see openingVerticalSpan). A wider opening moves in from
+ * a corner it would pass.
  */
-export function withOpeningDimension(
-  room: Room,
-  opening: Opening,
-  dimension: OpeningDimension,
-  meters: number,
-): Opening | null {
-  if (checkOpeningDimension(room, opening, dimension, meters) !== null) {
-    return null
-  }
-  switch (dimension) {
-    case 'fromCorner':
-      return { ...opening, position: meters + opening.width / 2 }
-    case 'width':
-      return keepOnWall(room, { ...opening, width: meters })
-    default:
-      return opening.kind === 'window'
-        ? { ...opening, [dimension]: meters }
-        : null
-  }
+export const OPENING_LENGTHS: ObjectLengths<Opening, OpeningDimension> = {
+  dimensions: ['width', 'fromCorner', 'sill', 'height'],
+  limits: openingLimits,
+  read: (_, opening, dimension) => {
+    switch (dimension) {
+      case 'width':
+        return opening.width
+      case 'fromCorner':
+        return openingSpan(opening).start
+      default:
+        return opening.kind === 'window' ? opening[dimension] : null
+    }
+  },
+  set: (room, opening, dimension, meters) => {
+    switch (dimension) {
+      case 'fromCorner':
+        return { ...opening, position: meters + opening.width / 2 }
+      case 'width':
+        return keepOnWall(room, { ...opening, width: meters })
+      default:
+        return opening.kind === 'window'
+          ? { ...opening, [dimension]: meters }
+          : opening
+    }
+  },
 }
 
 /**
@@ -351,39 +352,15 @@ export function fitOpeningToRoom(room: Room, opening: Opening): Opening {
 }
 
 /**
- * How far an opening may reach past its wall's ends or the ceiling, in
- * meters: a share link writes its lengths to the millimeter
- * (link-precision.ts), which can move an edge half a millimeter for each.
- */
-const FIT_SLACK = linkSlack('openings')
-
-/**
  * Whether the opening is one a config may hold in `room`: a known kind on
- * a wall, every length inside its limits, and the whole opening on its
- * wall and under the ceiling (to the millimeter, see FIT_SLACK).
+ * a wall, and every length it has inside its stored limits (so the whole
+ * opening on its wall and under the ceiling, to the millimeter).
  */
 export function isValidOpening(room: Room, opening: Opening): boolean {
-  if (!OPENING_KINDS.includes(opening.kind) || !WALLS.includes(opening.wall)) {
-    return false
-  }
-  const { width, sill, height } = OPENINGS.limits
-  const wall = wallLength(room, opening.wall)
-  const { start, end } = openingSpan(opening)
-  const { bottom, top } = openingVerticalSpan(room, opening)
-  const inRange = (value: number, { min, max }: AcceptedRange) =>
-    checkRange(value, { min, max: max + FIT_SLACK }) === null
   return (
-    inRange(opening.width, {
-      min: width.min,
-      max: Math.min(width.max, wall),
-    }) &&
-    start >= -FIT_SLACK &&
-    end <= wall + FIT_SLACK &&
-    (opening.kind === 'door' ||
-      (inRange(opening.sill, sill) &&
-        inRange(opening.height, height) &&
-        bottom >= 0 &&
-        top <= room.height + FIT_SLACK))
+    OPENING_KINDS.includes(opening.kind) &&
+    WALLS.includes(opening.wall) &&
+    hasValidLengths(OPENING_LENGTHS, room, opening)
   )
 }
 

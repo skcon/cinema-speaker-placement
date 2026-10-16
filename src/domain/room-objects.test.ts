@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, type Config } from './config'
 import {
+  FURNITURE_LENGTHS,
   furnitureTurned,
   newFurnitureBox,
-  withFurnitureDimension,
   withFurnitureName,
 } from './furniture'
-import { newOpening, withOpeningWall } from './openings'
-import { DEFAULT_ROOM, type Room } from './room'
+import { newOpening, OPENING_LENGTHS, withOpeningWall } from './openings'
+import { checkRange } from './range'
+import { DEFAULT_ROOM, WALLS, type Room } from './room'
 import {
   areValidRoomObjects,
   DEFAULT_ROOM_OBJECTS,
@@ -18,16 +19,25 @@ import {
   roomObjectAt,
   roomObjectId,
   roomObjectKind,
+  roomObjectLength,
   SCREEN_ID,
   SEAT_ROW_ID,
   withRoomObjectAdded,
+  withRoomObjectDimension,
   withRoomObjectEdited,
   withRoomObjectMoved,
   withRoomObjectRemoved,
+  type RoomObjectId,
   type RoomObjects,
 } from './room-objects'
-import { defaultScreen, withScreenKind } from './screen'
-import { DEFAULT_SEAT_ROW, withSeatRowDimension } from './seat-row'
+import {
+  defaultScreen,
+  SCREEN_LENGTHS,
+  withAcousticTransparency,
+  withScreenKind,
+} from './screen'
+import { DEFAULT_SEAT_ROW, SEAT_ROW_LENGTHS } from './seat-row'
+import { decodeConfig, encodeConfig } from './share-link'
 
 /** The default config with `objects` as its room objects. */
 function configWith(objects: Partial<RoomObjects>): Config {
@@ -255,8 +265,13 @@ describe('editing a room object', () => {
   })
 
   it('edits the seat row and the screen by their ids', () => {
-    const wider = withRoomObjectEdited(DEFAULT_CONFIG, SEAT_ROW_ID, (_, row) =>
-      withSeatRowDimension(row, 'width', 3),
+    const wider = withRoomObjectEdited(
+      DEFAULT_CONFIG,
+      SEAT_ROW_ID,
+      (_, row) => ({
+        ...row,
+        width: 3,
+      }),
     )
     const projection = withRoomObjectEdited(WITH_TV, SCREEN_ID, (_, screen) =>
       withScreenKind(screen, 'projection'),
@@ -273,11 +288,6 @@ describe('editing a room object', () => {
     expect(
       withRoomObjectEdited(FURNISHED, 'furniture-1', (_, box) => box),
     ).toBe(FURNISHED)
-    expect(
-      withRoomObjectEdited(DEFAULT_CONFIG, SEAT_ROW_ID, (_, row) =>
-        withSeatRowDimension(row, 'depth', 0.3),
-      ),
-    ).toBe(DEFAULT_CONFIG)
   })
 
   it('comes back as it was for an equal object: no empty change', () => {
@@ -313,16 +323,6 @@ describe('editing a room object', () => {
     )
     expect(withRoomObjectEdited(FURNISHED, 'furniture-3', edit)).toBe(FURNISHED)
     expect(called).toBe(false)
-  })
-
-  it('takes a size within the limits of the box in this Room', () => {
-    const resize = (meters: number) =>
-      withRoomObjectEdited(FURNISHED, 'furniture-1', (room, box) =>
-        withFurnitureDimension(room, box, 'width', meters),
-      )
-
-    expect(objects(resize(2)).furniture[0]?.width).toBe(2)
-    expect(resize(9)).toBe(FURNISHED)
   })
 })
 
@@ -499,4 +499,197 @@ describe('room object validity', () => {
       }),
     ).toBe(false)
   })
+})
+
+describe("a room object's lengths", () => {
+  it('reads a length and the values its field accepts in this Room', () => {
+    expect(roomObjectLength(FURNISHED, 'furniture-1', 'width')).toEqual({
+      meters: 1.6,
+      limits: { min: 0.1, max: 4.5 },
+    })
+    expect(roomObjectLength(WITH_TV, SCREEN_ID, 'height')).toEqual({
+      meters: TV.height,
+      limits: { min: 0.3, max: 2.6 - TV.bottomEdge },
+    })
+    expect(roomObjectLength(DEFAULT_CONFIG, SEAT_ROW_ID, 'depth')).toEqual({
+      meters: 0.9,
+      limits: { min: 0.5, max: 2 },
+    })
+  })
+
+  it('has no length for an object the Room does not have, or a length it does not have', () => {
+    expect(roomObjectLength(DEFAULT_CONFIG, SCREEN_ID, 'width')).toBeNull()
+    expect(roomObjectLength(FURNISHED, 'furniture-3', 'width')).toBeNull()
+    expect(roomObjectLength(WITH_TV, SCREEN_ID, 'standoff')).toBeNull()
+    expect(roomObjectLength(WITH_OPENINGS, 'opening-1', 'sill')).toBeNull()
+    expect(roomObjectLength(WITH_OPENINGS, 'opening-2', 'sill')?.meters).toBe(
+      0.9,
+    )
+  })
+
+  it('sets a length within its limits, and moves a wider object in from a wall', () => {
+    const wider = withRoomObjectDimension(FURNISHED, 'furniture-1', 'width', 2)
+    const atLeftWall = withRoomObjectDimension(
+      WITH_TV,
+      SCREEN_ID,
+      'fromLeftWall',
+      0,
+    )
+    const widest = withRoomObjectDimension(atLeftWall, SCREEN_ID, 'width', 3)
+
+    expect(objects(wider).furniture[0]?.width).toBe(2)
+    expect(objects(atLeftWall).screen?.x).toBeCloseTo(-2.25 + 1.44 / 2, 9)
+    expect(objects(widest).screen).toMatchObject({ width: 3 })
+    expect(objects(widest).screen?.x).toBeCloseTo(-0.75, 9)
+    expect(
+      objects(withRoomObjectDimension(DEFAULT_CONFIG, SEAT_ROW_ID, 'depth', 1)),
+    ).toMatchObject({ seatRow: { width: 2, depth: 1 } })
+  })
+
+  it('comes back as it was for a value outside the limits, or a length or object the Room does not have', () => {
+    expect(withRoomObjectDimension(FURNISHED, 'furniture-1', 'width', 9)).toBe(
+      FURNISHED,
+    )
+    expect(
+      withRoomObjectDimension(DEFAULT_CONFIG, SEAT_ROW_ID, 'depth', 0.3),
+    ).toBe(DEFAULT_CONFIG)
+    expect(
+      withRoomObjectDimension(FURNISHED, 'furniture-1', 'height', Number.NaN),
+    ).toBe(FURNISHED)
+    expect(withRoomObjectDimension(WITH_TV, SCREEN_ID, 'standoff', 0.5)).toBe(
+      WITH_TV,
+    )
+    expect(
+      withRoomObjectDimension(WITH_OPENINGS, 'opening-1', 'sill', 0.5),
+    ).toBe(WITH_OPENINGS)
+    expect(withRoomObjectDimension(DEFAULT_CONFIG, SCREEN_ID, 'width', 2)).toBe(
+      DEFAULT_CONFIG,
+    )
+  })
+})
+
+/**
+ * Rooms to try every length in: the default, the smallest and largest
+ * the app takes, a low and narrow one, and one typed in feet and inches
+ * (long binary fractions in meters).
+ */
+const ROOMS: readonly Room[] = [
+  DEFAULT_ROOM,
+  { length: 2, width: 2, height: 2 },
+  { length: 15, width: 15, height: 5 },
+  { length: 7.5, width: 2.4, height: 2.1 },
+  {
+    length: (19 * 12 + 7.3) * 0.0254,
+    width: (13 * 12 + 1.7) * 0.0254,
+    height: (8 * 12 + 0.1) * 0.0254,
+  },
+]
+
+/**
+ * The room objects to try in `room`: each kind as added and edited the
+ * ways the sidebar can (a turned box, a projection screen in front of the
+ * wall, openings on every wall), with ids for each.
+ */
+function objectsToTry(room: Room): [RoomObjects, RoomObjectId[]] {
+  const projection = withAcousticTransparency(
+    withScreenKind(defaultScreen(room), 'projection'),
+    true,
+  )
+  const turnedShelf = furnitureTurned(room, newFurnitureBox(room, 'shelf'))
+  const openings = WALLS.flatMap((wall) =>
+    (['door', 'window'] as const).map((kind) =>
+      withOpeningWall(room, newOpening(room, kind), wall),
+    ),
+  ).slice(0, MAX_OPENINGS)
+  const furniture = [
+    newFurnitureBox(room, 'cabinet'),
+    turnedShelf,
+    newFurnitureBox(room, 'table'),
+  ]
+  return [
+    {
+      seatRow: { width: 3, depth: 1.2 },
+      screen: projection,
+      furniture,
+      openings,
+    },
+    [
+      SEAT_ROW_ID,
+      SCREEN_ID,
+      ...furniture.map((_, index) => roomObjectId('furniture', index)),
+      ...openings.map((_, index) => roomObjectId('opening', index)),
+    ],
+  ]
+}
+
+/** The lengths each kind declares. */
+const DIMENSIONS = {
+  seatRow: SEAT_ROW_LENGTHS.dimensions,
+  screen: SCREEN_LENGTHS.dimensions,
+  furniture: FURNITURE_LENGTHS.dimensions,
+  opening: OPENING_LENGTHS.dimensions,
+} as const
+
+/** Values across `limits`: both ends and seven between. */
+function valuesAcross({ min, max }: { min: number; max: number }): number[] {
+  return Array.from({ length: 9 }, (_, step) => min + ((max - min) * step) / 8)
+}
+
+describe('every value a length field accepts', () => {
+  const cases = ROOMS.flatMap((room) => {
+    const [roomObjects, ids] = objectsToTry(room)
+    const config: Config = { ...DEFAULT_CONFIG, room, roomObjects }
+    return ids.flatMap((id) => {
+      const kind = roomObjectKind(id)
+      if (!kind) return []
+      return DIMENSIONS[kind].map((dimension) => ({
+        name: `${room.length.toFixed(2)} x ${room.width.toFixed(2)} x ${room.height.toFixed(2)} m room, ${id} ${dimension}`,
+        config,
+        id,
+        dimension,
+      }))
+    })
+  })
+
+  it('starts from valid room objects', () => {
+    for (const { config } of cases) {
+      expect(areValidRoomObjects(config.room, config.roomObjects)).toBe(true)
+    }
+  })
+
+  it.each(cases)(
+    'gives a valid config that a share link keeps: $name',
+    ({ config, id, dimension }) => {
+      const length = roomObjectLength(config, id, dimension)
+      if (!length) return
+      for (const meters of valuesAcross(length.limits)) {
+        expect(checkRange(meters, length.limits)).toBeNull()
+        const set = withRoomObjectDimension(config, id, dimension, meters)
+
+        // The value went in: so the config took it as valid.
+        expect(roomObjectLength(set, id, dimension)?.meters).toBeCloseTo(
+          meters,
+          9,
+        )
+        expect(areValidRoomObjects(set.room, set.roomObjects)).toBe(true)
+        // A share link (to the millimeter) opens it again.
+        expect(decodeConfig(encodeConfig(set)).problem).toBeNull()
+      }
+    },
+  )
+
+  it.each(cases)(
+    'and nothing past its limits: $name',
+    ({ config, id, dimension }) => {
+      const length = roomObjectLength(config, id, dimension)
+      if (!length) return
+      const { min, max } = length.limits
+      for (const meters of [min - 1e-6, max + 1e-6, Number.NaN]) {
+        expect(checkRange(meters, length.limits)).not.toBeNull()
+        expect(withRoomObjectDimension(config, id, dimension, meters)).toBe(
+          config,
+        )
+      }
+    },
+  )
 })

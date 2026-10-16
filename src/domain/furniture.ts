@@ -14,11 +14,11 @@
  */
 import { linkSlack } from './link-precision'
 import {
-  checkRange,
-  clamp,
-  type AcceptedRange,
-  type RangeProblem,
-} from './range'
+  hasValidLengths,
+  type LengthTolerance,
+  type ObjectLengths,
+} from './object-lengths'
+import { clamp, type AcceptedRange } from './range'
 import { FURNITURE } from './reference'
 import type { FloorPoint, Room } from './room'
 
@@ -77,9 +77,10 @@ export function checkFurnitureName(name: string): FurnitureNameProblem | null {
 }
 
 /**
- * The box's lengths edited as lengths. Where it is is edited as
- * `fromLeftWall` and `fromFrontWall`: from the left wall to its left side,
- * and from the front wall to its side nearest it, as it is turned.
+ * The box's lengths edited as lengths (see FURNITURE_LENGTHS). Where it
+ * is is edited as `fromLeftWall` and `fromFrontWall`: from the left wall
+ * to its left side, and from the front wall to its side nearest it, as it
+ * is turned.
  */
 export type FurnitureDimension =
   'width' | 'depth' | 'height' | 'fromLeftWall' | 'fromFrontWall'
@@ -116,78 +117,77 @@ function extents(box: FurnitureBox): [alongX: number, alongY: number] {
 }
 
 /**
+ * How far a stored box may reach past a wall, in meters: a share link
+ * writes its sizes and position to the millimeter (link-precision.ts),
+ * which can move a side half a millimeter for each.
+ */
+const FIT_SLACK = linkSlack('furniture')
+
+/**
  * The accepted range of each of the box's dimensions in `room`: FURNITURE's
  * limits, and inside the Room. Its width and depth may reach the wall they
- * run along (a wider box moves in from a wall, see withFurnitureDimension).
+ * run along (a wider box moves in from a wall, see FURNITURE_LENGTHS.set).
+ * Stored, a box may reach FIT_SLACK past its limits and the walls.
  */
-export function furnitureLimits(
+function furnitureLimits(
   room: Room,
   box: FurnitureBox,
+  tolerance: LengthTolerance,
 ): Record<FurnitureDimension, AcceptedRange> {
   const { width, depth, height } = FURNITURE.limits
+  const slack = tolerance === 'stored' ? FIT_SLACK : 0
   const [acrossFor, alongFor] = isTurned(box)
     ? [room.length, room.width]
     : [room.width, room.length]
   const [alongX, alongY] = extents(box)
+  // From a wall: between it and the other wall less the box. Never an
+  // empty range, even for a stored box a little wider than the room.
+  const fromWall = (wall: number, along: number) => ({
+    min: 0 - slack, // +0 when typed, not -0
+    max: Math.max(-slack, wall - along) + slack,
+  })
   return {
-    width: { min: width.min, max: Math.min(width.max, acrossFor) },
-    depth: { min: depth.min, max: Math.min(depth.max, alongFor) },
-    height: { min: height.min, max: Math.min(height.max, room.height) },
-    fromLeftWall: { min: 0, max: Math.max(0, room.width - alongX) },
-    fromFrontWall: { min: 0, max: Math.max(0, room.length - alongY) },
+    width: { min: width.min, max: Math.min(width.max, acrossFor) + slack },
+    depth: { min: depth.min, max: Math.min(depth.max, alongFor) + slack },
+    height: { min: height.min, max: Math.min(height.max, room.height) + slack },
+    fromLeftWall: fromWall(room.width, alongX),
+    fromFrontWall: fromWall(room.length, alongY),
   }
-}
-
-/** One of the box's dimensions in `room`, in meters. */
-export function furnitureDimension(
-  room: Room,
-  box: FurnitureBox,
-  dimension: FurnitureDimension,
-): number {
-  const { left, front } = furnitureFootprint(box)
-  switch (dimension) {
-    case 'fromLeftWall':
-      return left + room.width / 2
-    case 'fromFrontWall':
-      return front
-    default:
-      return box[dimension]
-  }
-}
-
-/** `null` when `meters` is an accepted `dimension` for the box in this room. */
-export function checkFurnitureDimension(
-  room: Room,
-  box: FurnitureBox,
-  dimension: FurnitureDimension,
-  meters: number,
-): RangeProblem | null {
-  return checkRange(meters, furnitureLimits(room, box)[dimension])
 }
 
 /**
- * The box with one dimension changed, or null when the value is rejected
- * (see checkFurnitureDimension). A box that grows past a wall moves in
- * from it.
+ * The box's lengths: its size, and where it is as distances from the left
+ * and front walls to its nearest sides, as it is turned. A box that grows
+ * past a wall moves in from it.
  */
-export function withFurnitureDimension(
-  room: Room,
-  box: FurnitureBox,
-  dimension: FurnitureDimension,
-  meters: number,
-): FurnitureBox | null {
-  if (checkFurnitureDimension(room, box, dimension, meters) !== null) {
-    return null
-  }
-  const [alongX, alongY] = extents(box)
-  switch (dimension) {
-    case 'fromLeftWall':
-      return { ...box, x: meters + alongX / 2 - room.width / 2 }
-    case 'fromFrontWall':
-      return { ...box, y: meters + alongY / 2 }
-    default:
-      return keepInRoom(room, { ...box, [dimension]: meters })
-  }
+export const FURNITURE_LENGTHS: ObjectLengths<
+  FurnitureBox,
+  FurnitureDimension
+> = {
+  dimensions: ['width', 'depth', 'height', 'fromLeftWall', 'fromFrontWall'],
+  limits: furnitureLimits,
+  read: (room, box, dimension) => {
+    const { left, front } = furnitureFootprint(box)
+    switch (dimension) {
+      case 'fromLeftWall':
+        return left + room.width / 2
+      case 'fromFrontWall':
+        return front
+      default:
+        return box[dimension]
+    }
+  },
+  set: (room, box, dimension, meters) => {
+    const [alongX, alongY] = extents(box)
+    switch (dimension) {
+      case 'fromLeftWall':
+        return { ...box, x: meters + alongX / 2 - room.width / 2 }
+      case 'fromFrontWall':
+        return { ...box, y: meters + alongY / 2 }
+      default:
+        return keepInRoom(room, { ...box, [dimension]: meters })
+    }
+  },
 }
 
 /** The box with another name, trimmed, or null when it is rejected. */
@@ -201,36 +201,16 @@ export function withFurnitureName(
 }
 
 /**
- * How far a box may reach past a wall, in meters: a share link writes its
- * sizes and position to the millimeter (link-precision.ts), which can move
- * a side half a millimeter for each.
- */
-const FIT_SLACK = linkSlack('furniture')
-
-/**
- * Whether the box is one a config may hold in `room`: an accepted name,
- * every length inside its limits, and the whole box inside the Room (to
- * the millimeter, see FIT_SLACK).
+ * Whether the box is one a config may hold in `room`: an accepted name, a
+ * quarter turn, and every length inside its stored limits (so the whole
+ * box inside the Room, to the millimeter).
  */
 export function isValidFurnitureBox(room: Room, box: FurnitureBox): boolean {
-  const limits = furnitureLimits(room, box)
-  const withSlack = ({ min, max }: AcceptedRange) => ({
-    min,
-    max: max + FIT_SLACK,
-  })
-  const { left, right, front, back } = furnitureFootprint(box)
-  const half = room.width / 2
   return (
     checkFurnitureName(box.name) === null &&
     box.name === box.name.trim() &&
     FURNITURE_ROTATIONS.includes(box.rotation) &&
-    checkRange(box.width, withSlack(limits.width)) === null &&
-    checkRange(box.depth, withSlack(limits.depth)) === null &&
-    checkRange(box.height, withSlack(limits.height)) === null &&
-    left >= -half - FIT_SLACK &&
-    right <= half + FIT_SLACK &&
-    front >= -FIT_SLACK &&
-    back <= room.length + FIT_SLACK
+    hasValidLengths(FURNITURE_LENGTHS, room, box)
   )
 }
 
@@ -304,7 +284,7 @@ export function fitFurnitureToRoom(
   room: Room,
   box: FurnitureBox,
 ): FurnitureBox {
-  const limits = furnitureLimits(room, box)
+  const limits = furnitureLimits(room, box, 'typed')
   const width = Math.min(box.width, limits.width.max)
   const depth = Math.min(box.depth, limits.depth.max)
   const height = Math.min(box.height, limits.height.max)

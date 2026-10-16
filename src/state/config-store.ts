@@ -17,6 +17,7 @@ import {
   withRoom,
   withDragged,
   withRoomObjectAdded,
+  withRoomObjectDimension,
   withRoomObjectEdited,
   withRoomObjectRemoved,
   type Config,
@@ -27,6 +28,7 @@ import {
   type RoomPoint,
   type RoomDimension,
   type RoomObjectAddition,
+  type RoomObjectDimension,
   type RoomObjectEdit,
   type RoomObjectId,
   type SeatRecommendation,
@@ -159,13 +161,24 @@ export type ConfigState = {
   removeRoomObject: (id: RoomObjectId) => void
   /**
    * Change room object `id` with `edit`, for example one of a kind
-   * module's `with...` functions (a screen's kind, a box's name or a
-   * length, an opening's wall). Ignored when there is no such object, or
-   * the edit rejects the change or gives one that doesn't fit the Room.
+   * module's `with...` functions (a screen's kind, a box's name, an
+   * opening's wall). Ignored when there is no such object, or the edit
+   * rejects the change or gives one that doesn't fit the Room.
    */
   editRoomObject: <I extends RoomObjectId>(
     id: I,
     edit: RoomObjectEdit<I>,
+  ) => void
+  /**
+   * Set one of room object `id`'s lengths, a size or a distance from a
+   * wall (see withRoomObjectDimension in the domain). Ignored when the
+   * value is outside the limits roomObjectLength gives, or there is no
+   * such object or length.
+   */
+  setRoomObjectDimension: <I extends RoomObjectId>(
+    id: I,
+    dimension: RoomObjectDimension<I>,
+    meters: number,
   ) => void
   /**
    * Move the MLP to `seat`, the recommended seat on screen ("Move MLP
@@ -413,6 +426,10 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           editRoomObject: (id, edit) =>
             setConfigIfChanged((config) =>
               withRoomObjectEdited(config, id, edit),
+            ),
+          setRoomObjectDimension: (id, dimension, meters) =>
+            setConfigIfChanged((config) =>
+              withRoomObjectDimension(config, id, dimension, meters),
             ),
           moveMlpToRecommendedSeat: (seat) =>
             setConfigIfChanged((config) =>

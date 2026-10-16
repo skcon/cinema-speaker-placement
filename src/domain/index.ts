@@ -42,11 +42,9 @@ export {
 export { seatHeatmap, type HeatmapCell, type SeatHeatmap } from './seat-heatmap'
 export { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 export {
-  checkSeatRowDimension,
   DEFAULT_SEAT_ROW,
   SEAT_ROW_HEAD_OFFSET,
   seatRowFootprint,
-  withSeatRowDimension,
   type SeatRow,
   type SeatRowDimension,
   type SeatRowFootprint,
@@ -79,32 +77,33 @@ export {
   roomObjectAt,
   roomObjectId,
   roomObjectKind,
+  roomObjectLength,
   SCREEN_ID,
   SEAT_ROW_ID,
   withRoomObjectAdded,
+  withRoomObjectDimension,
   withRoomObjectEdited,
   withRoomObjectRemoved,
   type FurnitureId,
   type ListedRoomObjectKind,
   type OpeningId,
   type RoomObjectAddition,
+  type RoomObjectDimension,
   type RoomObjectEdit,
   type RoomObjectId,
   type RoomObjectKind,
+  type RoomObjectLength,
   type RoomObjectOf,
   type RoomObjects,
 } from './room-objects'
 export {
-  checkFurnitureDimension,
   checkFurnitureName,
   FURNITURE_NAME_MAX_LENGTH,
   FURNITURE_PRESETS,
   FURNITURE_ROTATIONS,
-  furnitureDimension,
   furnitureFootprint,
   furnitureLabel,
   furnitureTurned,
-  withFurnitureDimension,
   withFurnitureName,
   type FurnitureBox,
   type FurnitureDimension,
@@ -114,16 +113,13 @@ export {
   type FurnitureRotation,
 } from './furniture'
 export {
-  checkOpeningDimension,
   OPENING_KINDS,
-  openingDimension,
   openingEnds,
   openingLabel,
   openingSpan,
   openingVerticalSpan,
   pointOnWall,
   wallLength,
-  withOpeningDimension,
   withOpeningWall,
   type Door,
   type Opening,
@@ -132,13 +128,10 @@ export {
   type WindowOpening,
 } from './openings'
 export {
-  checkScreenDimension,
   defaultScreen,
   SCREEN_KINDS,
-  screenDimension,
   screenSurface,
   withAcousticTransparency,
-  withScreenDimension,
   withScreenKind,
   type RoomScreen,
   type ScreenDimension,
@@ -186,7 +179,7 @@ export {
   type PlacementRangeCheck,
   type UngradedAngle,
 } from './placement-range'
-export type { RangeProblem } from './range'
+export { checkRange, type AcceptedRange, type RangeProblem } from './range'
 export {
   checkRoomDimension,
   DEFAULT_ROOM,

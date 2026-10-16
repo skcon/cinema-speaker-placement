@@ -6,11 +6,13 @@ import { dimensionTargetName } from '@/scene/dimensions'
 import { Button } from '@/ui/components/button'
 import { GradeExplanation } from '@/ui/GradeExplanation'
 import { PlacementWarningList } from '@/ui/PlacementWarnings'
+import { screenRelationNote } from '@/ui/lib/screen-relation-text'
 
 /**
  * The Selected item's details in the sidebar: its name, where it is (from
  * its two nearest walls), its height, its distance to the MLP, whether
- * it is auto or manual, and its placement-range grade explained, with a
+ * it is auto or manual, how Left, Center or Right relates to the Screen,
+ * and its placement-range grade explained, with a
  * button to clear the selection. Without a
  * selection it says how to make one. Shown from the desktop layout up;
  * on narrower screens the room view reads the selection out instead.
@@ -70,6 +72,12 @@ export function SelectedItemPanel() {
             )}
             <dt className="text-muted-foreground">Placement</dt>
             <dd>{item.placement}</dd>
+            {item.screenRelation && (
+              <>
+                <dt className="text-muted-foreground">Screen</dt>
+                <dd>{screenRelationNote(item.name, item.screenRelation)}</dd>
+              </>
+            )}
           </dl>
           <Button
             variant="outline"

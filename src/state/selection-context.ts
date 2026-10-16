@@ -10,6 +10,7 @@ import {
   type Placement,
   type PlacementGrading,
   type RoomPoint,
+  type ScreenRelation,
 } from '@/domain'
 import { useConfig, useRoomAnalysis } from './config-context'
 
@@ -49,6 +50,11 @@ export type SelectedItem = {
   readonly distances: ItemDistances
   /** Its placement-range check, or null for the MLP. */
   readonly grading: PlacementGrading | null
+  /**
+   * How it relates to the Screen (L, C and R in a Room with one), else
+   * null.
+   */
+  readonly screenRelation: ScreenRelation | null
 }
 
 /**
@@ -71,6 +77,7 @@ export function useSelectedItem(): SelectedItem | null {
         placement: mlpPlacement,
         distances: itemDistances(room, mlp, null),
         grading: null,
+        screenRelation: null,
       }
     }
     const item = gradedItem(selected, speakers, overheads, subwoofers)
@@ -82,6 +89,7 @@ export function useSelectedItem(): SelectedItem | null {
       placement: item.placement,
       distances: itemDistances(room, item.position, mlp),
       grading: item.grading,
+      screenRelation: item.screenRelation,
     }
   }, [selected, room, mlp, mlpPlacement, speakers, overheads, subwoofers])
 }
@@ -107,12 +115,12 @@ function gradedItem(
       kind: 'overhead',
       check: overhead.placementRange,
     }
-    return { ...overhead, grading }
+    return { ...overhead, grading, screenRelation: null }
   }
   const subwoofer = subwoofers.find((sub) => sub.id === id)
   if (subwoofer) {
     const grading: PlacementGrading = { kind: 'subwoofer' }
-    return { ...subwoofer, grading }
+    return { ...subwoofer, grading, screenRelation: null }
   }
   return null
 }

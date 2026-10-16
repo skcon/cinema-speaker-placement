@@ -146,8 +146,9 @@ describe('positions in the sidebar', () => {
 
     expect(field('Center', /^Height/)).toHaveValue('1.2')
     expect(item('Center')).toHaveTextContent('auto')
-    // In the default room the recommended seat beats the 38% seed.
-    expect(item('MLP')).toHaveTextContent('manual')
+    // In the default room the 38% seed is the recommended seat (#48), so
+    // the MLP stays auto (the store tests cover a room where it moves).
+    expect(item('MLP')).toHaveTextContent('auto')
     await waitFor(() => expect(autoPlace).toBeDisabled())
   })
 })

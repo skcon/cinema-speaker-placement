@@ -15,12 +15,13 @@ import {
   withLayout,
   withMlpAtRecommendedSeat,
   withRoom,
+  withDragged,
   withRoomObjectAdded,
-  withRoomObjectDragged,
   withRoomObjectEdited,
   withRoomObjectRemoved,
   type Config,
   type DolbyLayout,
+  type DragTarget,
   type FloorPoint,
   type PlaceableId,
   type RoomPoint,
@@ -124,11 +125,15 @@ export type ConfigState = {
    */
   setCrossover: (crossoverHz: number) => void
   /**
-   * Move a channel, a subwoofer or the MLP on the floor plan (a drag),
-   * making it manual. It stays inside the Room by the wall clearances; its
-   * height stays. Ignored for an item the layout doesn't have.
+   * Drag a drag target on the floor plan: its anchor (see dragAnchors in
+   * the domain) goes to `to`, as withDragged says. A channel, a subwoofer
+   * or the MLP is made manual there, inside the wall clearances, keeping
+   * its height; dragging the Seat row moves the MLP the same way; the
+   * Screen slides along the front wall, a furniture box goes with its
+   * middle to `to` and an opening slides along its own wall, each stopping
+   * at the walls. Ignored for a target the config doesn't have.
    */
-  moveItem: (id: PlaceableId, to: FloorPoint) => void
+  moveDragTarget: (target: DragTarget, to: FloorPoint) => void
   /**
    * Set a listener-level speaker's height above the floor, in meters,
    * making it manual. Kept inside the floor and ceiling clearances;
@@ -162,15 +167,6 @@ export type ConfigState = {
     id: I,
     edit: RoomObjectEdit<I>,
   ) => void
-  /**
-   * Move a room object on the floor plan (a drag); a furniture box goes
-   * with its middle to `to`, stopping at the walls, and the Screen slides
-   * along the front wall, stopping at the side walls, and an opening along
-   * its own wall, stopping at the corners. The Seat row is
-   * dragged by the MLP on it: `to` is where the MLP goes, made manual, and
-   * the seat row comes with it.
-   */
-  moveRoomObject: (id: RoomObjectId, to: FloorPoint) => void
   /**
    * Move the MLP to `seat`, the recommended seat on screen ("Move MLP
    * here"), making it manual, as one undoable step; auto speakers follow
@@ -398,8 +394,8 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             if (checkCrossover(crossoverHz) !== null) return
             set(({ config }) => ({ config: { ...config, crossoverHz } }))
           },
-          moveItem: (id, { x, y }) =>
-            setConfigIfChanged((config) => placeManually(config, id, { x, y })),
+          moveDragTarget: (target, to) =>
+            setConfigIfChanged((config) => withDragged(config, target, to)),
           setItemHeight: (id, meters) =>
             setConfigIfChanged((config) =>
               placeManually(config, id, { z: meters }),
@@ -417,10 +413,6 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           editRoomObject: (id, edit) =>
             setConfigIfChanged((config) =>
               withRoomObjectEdited(config, id, edit),
-            ),
-          moveRoomObject: (id, to) =>
-            setConfigIfChanged((config) =>
-              withRoomObjectDragged(config, id, to),
             ),
           moveMlpToRecommendedSeat: (seat) =>
             setConfigIfChanged((config) =>

@@ -64,8 +64,13 @@ export {
   withLayout,
   withMlpAtRecommendedSeat,
   withRoom,
-  withRoomObjectDragged,
 } from './config-edits'
+export {
+  dragAnchors,
+  pressSelects,
+  withDragged,
+  type DragTarget,
+} from './drag-targets'
 export {
   DEFAULT_ROOM_OBJECTS,
   isRoomObjectId,

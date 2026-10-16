@@ -13,7 +13,7 @@
  * opening stays on its wall, between the corners, the floor and the
  * ceiling.
  */
-import { ROUNDING_SLACK, toMillimeter } from './manual-positions'
+import { linkSlack } from './link-precision'
 import {
   hasValidLengths,
   type LengthTolerance,
@@ -210,10 +210,10 @@ export function wallReflectionPoint(
 /**
  * How far a stored opening may reach past its wall's ends or the ceiling,
  * in meters: a share link writes its lengths to the millimeter
- * (roundOpeningForLink), which can move an edge half a millimeter for
+ * (link-precision.ts), which can move an edge half a millimeter for
  * each.
  */
-const FIT_SLACK = 2 * ROUNDING_SLACK
+const FIT_SLACK = linkSlack('openings')
 
 /**
  * The accepted range of each of the opening's lengths in `room`, given
@@ -386,26 +386,6 @@ export function newOpening(room: Room, kind: OpeningKind): Opening {
           ...OPENINGS.presets.window,
         }
   return fitOpeningToRoom(room, opening)
-}
-
-/**
- * The opening as a share link stores it: every length to the millimeter.
- * A typed imperial size is a long binary fraction in meters, and six
- * openings of them would not fit the URL budget; the millimeter is well
- * under the 0.1 in the app shows.
- */
-export function roundOpeningForLink(opening: Opening): Opening {
-  const position = toMillimeter(opening.position)
-  const width = toMillimeter(opening.width)
-  return opening.kind === 'door'
-    ? { ...opening, position, width }
-    : {
-        ...opening,
-        position,
-        width,
-        sill: toMillimeter(opening.sill),
-        height: toMillimeter(opening.height),
-      }
 }
 
 /** How the app names each kind of opening. */

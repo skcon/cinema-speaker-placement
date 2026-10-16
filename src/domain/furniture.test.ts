@@ -10,7 +10,6 @@ import {
   furnitureTurned,
   isValidFurnitureBox,
   newFurnitureBox,
-  roundFurnitureForLink,
   withFurnitureName,
   type FurnitureBox,
 } from './furniture'
@@ -310,18 +309,6 @@ describe('a furniture box', () => {
     it('stays as it was when it fits', () => {
       expect(fitFurnitureToRoom(ROOM, CABINET)).toBe(CABINET)
     })
-  })
-
-  it('goes into a share link to the millimeter, sizes and position', () => {
-    expect(
-      roundFurnitureForLink({
-        ...CABINET,
-        // 4 ft 1.3 in: 1.2522199999999999 m.
-        width: (4 * 12 + 1.3) * 0.0254,
-        x: -0.98765,
-        y: 2.0004,
-      }),
-    ).toEqual({ ...CABINET, width: 1.252, x: -0.988, y: 2 })
   })
 
   it('is named in words by its name and its place in the list, from 1', () => {

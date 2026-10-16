@@ -12,7 +12,7 @@
  * at the top, so at 90 its front faces the left wall. Every box stays
  * inside the Room.
  */
-import { ROUNDING_SLACK, toMillimeter } from './manual-positions'
+import { linkSlack } from './link-precision'
 import {
   hasValidLengths,
   type LengthTolerance,
@@ -118,10 +118,10 @@ function extents(box: FurnitureBox): [alongX: number, alongY: number] {
 
 /**
  * How far a stored box may reach past a wall, in meters: a share link
- * writes its sizes and position to the millimeter (roundFurnitureForLink),
+ * writes its sizes and position to the millimeter (link-precision.ts),
  * which can move a side half a millimeter for each.
  */
-const FIT_SLACK = 2 * ROUNDING_SLACK
+const FIT_SLACK = linkSlack('furniture')
 
 /**
  * The accepted range of each of the box's dimensions in `room`: FURNITURE's
@@ -293,23 +293,6 @@ export function fitFurnitureToRoom(
       ? box
       : { ...box, width, depth, height }
   return keepInRoom(room, sized)
-}
-
-/**
- * The box as a share link stores it: its lengths and position to the
- * millimeter. A typed imperial size is a long binary fraction in meters,
- * and eight boxes of them would not fit the URL budget; the millimeter is
- * well under the 0.1 in the app shows.
- */
-export function roundFurnitureForLink(box: FurnitureBox): FurnitureBox {
-  return {
-    ...box,
-    width: toMillimeter(box.width),
-    depth: toMillimeter(box.depth),
-    height: toMillimeter(box.height),
-    x: toMillimeter(box.x),
-    y: toMillimeter(box.y),
-  }
 }
 
 /** A furniture box as a solid in the Room, in meters: from the floor up. */

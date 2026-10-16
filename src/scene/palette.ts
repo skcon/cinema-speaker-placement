@@ -9,6 +9,13 @@ export const RECOMMENDED_SEAT_COLOR = '#7c3aed'
 /** The Screen in the room view and its legend: a color no grade or item uses. */
 export const SCREEN_COLOR = '#0891b2'
 
+/**
+ * A furniture box in the room view and its legend: a warm grey no grade or
+ * item uses, with a darker strip along its front.
+ */
+export const FURNITURE_COLOR = '#d6d3d1'
+export const FURNITURE_FRONT_COLOR = '#78716c'
+
 /** The "38% rule" reference line in the room view and its legend. */
 export const RULE_OF_THUMB_COLOR = '#a3a3a3'
 
@@ -26,6 +33,8 @@ export const SCENE_COLORS = {
   mlp: '#2563eb',
   seatRow: '#dbeafe',
   screen: SCREEN_COLOR,
+  furniture: FURNITURE_COLOR,
+  furnitureFront: FURNITURE_FRONT_COLOR,
   ruleOfThumb: RULE_OF_THUMB_COLOR,
   recommended: RECOMMENDED_SEAT_COLOR,
   /** The Selected item's ring and Dimension lines. */

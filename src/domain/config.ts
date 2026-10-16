@@ -14,6 +14,7 @@ import {
   DEFAULT_ROOM_OBJECTS,
   type RoomObjects,
 } from './room-objects'
+import { FURNITURE_ROTATIONS, type FurnitureBox } from './furniture'
 import { SCREEN_KINDS, type RoomScreen } from './screen'
 import type { SeatRow } from './seat-row'
 import {
@@ -88,6 +89,20 @@ const screenSchema = z.strictObject({
 }) satisfies z.ZodType<RoomScreen>
 
 /**
+ * A furniture box, in meters and degrees; whether it fits the Room, its
+ * name and how many there are is checked with the whole config.
+ */
+const furnitureBoxSchema = z.strictObject({
+  name: z.string(),
+  width: z.number(),
+  depth: z.number(),
+  height: z.number(),
+  x: z.number(),
+  y: z.number(),
+  rotation: z.literal(FURNITURE_ROTATIONS),
+}) satisfies z.ZodType<FurnitureBox>
+
+/**
  * The Seat row's size, in meters; its limits are checked with the other
  * room objects. It stores no position: it sits where the MLP is.
  */
@@ -143,12 +158,13 @@ export const configSchema = z
       z.enum(PLACEABLE_IDS),
       roomPointSchema,
     ) satisfies z.ZodType<ManualPositions>,
-    // Room objects (ADR 0006): drawn, never part of the estimate. A Room
-    // starts with DEFAULT_ROOM_OBJECTS; a version 1 link with those and its
-    // seat row width.
+    // Room objects (ADR 0006): drawn and warned about, never part of the
+    // estimate. A Room starts with DEFAULT_ROOM_OBJECTS; a version 1 link
+    // with those and its seat row width.
     roomObjects: z.strictObject({
       seatRow: seatRowSchema,
       screen: screenSchema.nullable(),
+      furniture: z.array(furnitureBoxSchema).readonly(),
     }) satisfies z.ZodType<RoomObjects>,
   })
   // The subwoofer count lives in the layout: own specs only for its subwoofers.

@@ -24,6 +24,12 @@ export type {
   ResponseWeakness,
 } from './response-notes'
 export type { Surface } from './boundary-interference'
+export {
+  warningsAbout,
+  type PlacementWarning,
+  type PlacementWarningId,
+  type WarnedItem,
+} from './placement-warnings'
 export type { RoomMode, RoomModeKind } from './room-modes'
 export {
   recommendSeat,
@@ -59,10 +65,14 @@ export {
   withRoom,
   withRoomObjectMoved,
   withRoomObjects,
+  withFurnitureAdded,
+  withFurnitureEdit,
+  withFurnitureRemoved,
   withScreenEdit,
   withSeatRowSize,
 } from './config-edits'
 export {
+  furnitureIds,
   isRoomObjectId,
   DEFAULT_ROOM_OBJECTS,
   ROOM_OBJECT_IDS,
@@ -71,6 +81,30 @@ export {
   type RoomObjectId,
   type RoomObjects,
 } from './room-objects'
+export {
+  checkFurnitureDimension,
+  checkFurnitureName,
+  FURNITURE_NAME_MAX_LENGTH,
+  FURNITURE_PRESETS,
+  FURNITURE_ROTATIONS,
+  furnitureDimension,
+  furnitureFootprint,
+  furnitureId,
+  furnitureIndex,
+  furnitureLabel,
+  furnitureTurned,
+  isFurnitureId,
+  MAX_FURNITURE,
+  withFurnitureDimension,
+  withFurnitureName,
+  type FurnitureBox,
+  type FurnitureDimension,
+  type FurnitureFootprint,
+  type FurnitureId,
+  type FurnitureNameProblem,
+  type FurniturePreset,
+  type FurnitureRotation,
+} from './furniture'
 export {
   checkScreenDimension,
   defaultScreen,
@@ -182,6 +216,7 @@ export {
 } from './speaker-specs'
 export {
   FRONT_STAGE_WALL_DISTANCE,
+  FURNITURE,
   HEADROOM_STATUS,
   LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,
@@ -192,6 +227,7 @@ export {
   TARGET_TOLERANCE,
   type Citation,
   type Source,
+  type SourceClass,
 } from './reference'
 export {
   TARGET_CURVE_KINDS,

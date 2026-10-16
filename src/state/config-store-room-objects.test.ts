@@ -326,6 +326,177 @@ describe('the screen', () => {
     expect(screen(store)).toBeNull()
     expect(
       decodeConfig(V1_LINKS.imperialRoom.encoded).config.roomObjects,
-    ).toEqual({ seatRow: { width: 3.048, depth: 0.9 }, screen: null })
+    ).toEqual({
+      seatRow: { width: 3.048, depth: 0.9 },
+      screen: null,
+      furniture: [],
+    })
+  })
+})
+
+function furniture(store: ConfigStore) {
+  return store.getState().config.roomObjects.furniture
+}
+
+/** A store with the default room and a cabinet against the front wall. */
+function storeWithCabinet(): ConfigStore {
+  const store = createConfigStore()
+  store.getState().addFurniture('cabinet')
+  return store
+}
+
+describe('furniture boxes', () => {
+  it('are not there to begin with, nor in a room from a version 1 link', () => {
+    expect(furniture(createConfigStore())).toEqual([])
+    const store = createConfigStore()
+    store.getState().openEncodedConfig(V1_LINKS.imperialRoom.encoded)
+    expect(furniture(store)).toEqual([])
+  })
+
+  it('are added from a preset against the middle of the front wall, each as one undo step', () => {
+    const store = createConfigStore()
+
+    store.getState().addFurniture('cabinet')
+    store.getState().addFurniture('shelf')
+
+    expect(furniture(store)).toEqual([
+      {
+        name: 'Cabinet',
+        width: 1.6,
+        depth: 0.45,
+        height: 0.5,
+        x: 0,
+        y: 0.225,
+        rotation: 0,
+      },
+      expect.objectContaining({ name: 'Shelf', height: 1.8, y: 0.15 }),
+    ])
+    store.getState().undo()
+    expect(furniture(store).map(({ name }) => name)).toEqual(['Cabinet'])
+    store.getState().redo()
+    expect(furniture(store)).toHaveLength(2)
+  })
+
+  it('stop at eight', () => {
+    const store = createConfigStore()
+    for (let added = 0; added < 9; added += 1) {
+      store.getState().addFurniture('table')
+    }
+
+    expect(furniture(store)).toHaveLength(8)
+  })
+
+  it('are renamed, trimmed, and keep their name for one that is rejected', () => {
+    const store = storeWithCabinet()
+
+    store.getState().setFurnitureName('furniture-1', ' TV-bänk ')
+    store.getState().setFurnitureName('furniture-1', 'A very long name')
+    store.getState().setFurnitureName('furniture-1', '')
+
+    expect(furniture(store)[0]?.name).toBe('TV-bänk')
+    store.getState().undo()
+    expect(furniture(store)[0]?.name).toBe('Cabinet')
+  })
+
+  it('are resized and moved from the walls within their ranges', () => {
+    const store = storeWithCabinet()
+
+    store.getState().setFurnitureDimension('furniture-1', 'height', 0.8)
+    store.getState().setFurnitureDimension('furniture-1', 'fromFrontWall', 1)
+    store.getState().setFurnitureDimension('furniture-1', 'width', 9)
+
+    expect(furniture(store)[0]).toMatchObject({
+      height: 0.8,
+      width: 1.6,
+      y: 1.225,
+    })
+  })
+
+  it('are turned a quarter turn at a time, as undo steps', () => {
+    const store = storeWithCabinet()
+
+    store.getState().turnFurniture('furniture-1')
+    store.getState().turnFurniture('furniture-1')
+
+    // Turned once against the front wall it moved in to 0.8 m.
+    expect(furniture(store)[0]).toMatchObject({ rotation: 180, y: 0.8 })
+    store.getState().undo()
+    expect(furniture(store)[0]?.rotation).toBe(90)
+  })
+
+  it('are dragged as one undo step, stopping at the walls', () => {
+    const store = storeWithCabinet()
+
+    store.getState().beginGesture()
+    store.getState().moveRoomObject('furniture-1', { x: 1, y: 2 })
+    store.getState().moveRoomObject('furniture-1', { x: 9, y: 3 })
+    store.getState().endGesture()
+
+    expect(furniture(store)[0]).toMatchObject({ x: 1.45, y: 3 })
+    store.getState().undo()
+    expect(furniture(store)[0]).toMatchObject({ x: 0, y: 0.225 })
+  })
+
+  it('are removed, the next one moving up, and undo brings it back', () => {
+    const store = storeWithCabinet()
+    store.getState().addFurniture('shelf')
+
+    store.getState().removeFurniture('furniture-1')
+
+    expect(furniture(store).map(({ name }) => name)).toEqual(['Shelf'])
+    store.getState().undo()
+    expect(furniture(store).map(({ name }) => name)).toEqual([
+      'Cabinet',
+      'Shelf',
+    ])
+  })
+
+  it('change nothing for a box that is not there', () => {
+    const store = storeWithCabinet()
+    const before = store.getState().config
+
+    store.getState().removeFurniture('furniture-2')
+    store.getState().turnFurniture('furniture-3')
+    store.getState().moveRoomObject('furniture-2', { x: 1, y: 1 })
+
+    expect(store.getState().config).toBe(before)
+  })
+
+  it('shrink with the room, and undo gives both back', () => {
+    const store = storeWithCabinet()
+    store.getState().setFurnitureDimension('furniture-1', 'width', 4)
+
+    store.getState().setRoomDimension('width', 3)
+
+    expect(furniture(store)[0]).toMatchObject({ width: 3, x: 0 })
+    store.getState().undo()
+    expect(furniture(store)[0]?.width).toBe(4)
+  })
+
+  it('give placement warnings in the analysis, and leave the estimate as it is', () => {
+    const store = storeWithCabinet()
+    const before = analysis(store).response
+    store.getState().setFurnitureDimension('furniture-1', 'height', 2)
+    store.getState().setFurnitureDimension('furniture-1', 'fromFrontWall', 1)
+
+    expect(
+      analysis(store).placementWarnings.map(({ id, items }) => [id, ...items]),
+    ).toContainEqual(['W4', 'C', 'furniture-1'])
+    expect(analysis(store).response).toEqual(before)
+  })
+
+  it('round-trip through the share link to the millimeter', () => {
+    const store = storeWithCabinet()
+    store.getState().setFurnitureName('furniture-1', 'Hylla för CD')
+    store.getState().turnFurniture('furniture-1')
+    store.getState().moveRoomObject('furniture-1', { x: -1.23456, y: 3.21 })
+    const config: Config = store.getState().config
+
+    const reopened = createConfigStore()
+    reopened.getState().openEncodedConfig(encodeConfig(config))
+
+    expect(furniture(reopened)).toEqual([
+      { ...config.roomObjects.furniture[0], x: -1.235 },
+    ])
   })
 })

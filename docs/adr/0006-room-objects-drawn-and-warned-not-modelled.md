@@ -33,6 +33,8 @@ Warnings are hints, never blocks. A speaker may overlap furniture; the warning s
 
 At most **8 furniture boxes** and **6 openings** per Room, so the worst-case share link stays within the URL budget (ADR 0003). These are our choices; the budget test checks them.
 
+A furniture box name is at most 12 characters of Western European letters (Latin-1), digits, spaces and `' & ( ) . , / -`, and a link stores furniture lengths and positions to the millimeter (#56): eight free-text names of any Unicode characters would not fit the budget. With eight such boxes the worst-case link is 1,836 of 2,000 characters, which leaves openings (#57) about 160.
+
 ## Considered Options
 
 - **Model openings as absorbing wall areas in the mode sum**: rejected. It would change the estimate by about the model's own uncertainty, using an absorption value no source gives.

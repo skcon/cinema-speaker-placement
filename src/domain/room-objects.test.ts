@@ -7,12 +7,23 @@ import {
   roomObjectsMoved,
   roundRoomObjectsForLink,
   SCREEN_ID,
+  withFurnitureBox,
   SEAT_ROW_ID,
   type RoomObjects,
 } from './room-objects'
 import { DEFAULT_ROOM } from './room'
+import { newFurnitureBox } from './furniture'
 import { defaultScreen } from './screen'
 import { DEFAULT_SEAT_ROW } from './seat-row'
+
+/** The default room objects with a cabinet and a shelf against the front wall. */
+const FURNISHED: RoomObjects = {
+  ...DEFAULT_ROOM_OBJECTS,
+  furniture: [
+    newFurnitureBox(DEFAULT_ROOM, 'cabinet'),
+    newFurnitureBox(DEFAULT_ROOM, 'shelf'),
+  ],
+}
 
 const WITH_TV: RoomObjects = {
   ...DEFAULT_ROOM_OBJECTS,
@@ -24,6 +35,7 @@ describe('room objects', () => {
     expect(DEFAULT_ROOM_OBJECTS).toEqual({
       seatRow: DEFAULT_SEAT_ROW,
       screen: null,
+      furniture: [],
     })
     expect(areValidRoomObjects(DEFAULT_ROOM, DEFAULT_ROOM_OBJECTS)).toBe(true)
   })
@@ -118,15 +130,74 @@ describe('room objects', () => {
     ).toBe(WITH_TV)
   })
 
+  it('name each furniture box by its place in the list', () => {
+    expect(isRoomObjectId('furniture-1')).toBe(true)
+    expect(isRoomObjectId('furniture-8')).toBe(true)
+    expect(isRoomObjectId('furniture')).toBe(false)
+  })
+
+  it('are valid with up to eight boxes inside the room, and not with one through a wall', () => {
+    expect(areValidRoomObjects(DEFAULT_ROOM, FURNISHED)).toBe(true)
+    const [cabinet] = FURNISHED.furniture
+    expect(
+      areValidRoomObjects(DEFAULT_ROOM, {
+        ...FURNISHED,
+        furniture: [{ ...cabinet!, x: 2 }],
+      }),
+    ).toBe(false)
+  })
+
+  it('drag a furniture box by its middle, stopping at the walls, and leave the others', () => {
+    const moved = roomObjectsMoved(DEFAULT_ROOM, FURNISHED, 'furniture-2', {
+      x: 3,
+      y: 3,
+    })
+
+    // The 0.8 m shelf stops with its right side on the 4.5 m room's wall.
+    expect(moved.furniture[1]).toMatchObject({ x: 1.85, y: 3 })
+    expect(moved.furniture[0]).toBe(FURNISHED.furniture[0])
+  })
+
+  it('come back as they were when a dragged box is not there', () => {
+    expect(
+      roomObjectsMoved(DEFAULT_ROOM, FURNISHED, 'furniture-3', { x: 1, y: 1 }),
+    ).toBe(FURNISHED)
+  })
+
+  it('change one furniture box, or come back as they were when the change is rejected', () => {
+    const renamed = withFurnitureBox(FURNISHED, 'furniture-1', (box) => ({
+      ...box,
+      name: 'TV bench',
+    }))
+    expect(renamed.furniture.map(({ name }) => name)).toEqual([
+      'TV bench',
+      'Shelf',
+    ])
+    expect(withFurnitureBox(FURNISHED, 'furniture-1', () => null)).toBe(
+      FURNISHED,
+    )
+  })
+
+  it('shrink furniture with a room too small for it, and keep the rest', () => {
+    const low = { ...DEFAULT_ROOM, height: 1.5 }
+    const kept = keepRoomObjectsInRoom(low, FURNISHED)
+
+    expect(kept.furniture[0]).toBe(FURNISHED.furniture[0])
+    expect(kept.furniture[1]).toMatchObject({ name: 'Shelf', height: 1.5 })
+    expect(keepRoomObjectsInRoom(DEFAULT_ROOM, FURNISHED)).toBe(FURNISHED)
+  })
+
   it('go into a share link with the screen to the millimeter and the seat row as typed', () => {
     const dragged: RoomObjects = {
       seatRow: { width: 3.6576, depth: 0.9144 },
       screen: { ...defaultScreen(DEFAULT_ROOM), x: 0.123456789 },
+      furniture: [],
     }
 
     expect(roundRoomObjectsForLink(dragged)).toEqual({
       seatRow: { width: 3.6576, depth: 0.9144 },
       screen: { ...dragged.screen, x: 0.123 },
+      furniture: [],
     })
     expect(roundRoomObjectsForLink(DEFAULT_ROOM_OBJECTS)).toEqual(
       DEFAULT_ROOM_OBJECTS,

@@ -1,6 +1,8 @@
 import { useId, type ReactNode } from 'react'
+import { warningsAbout, type PlacementWarning } from '@/domain'
 import { useRoomAnalysis } from '@/state/config-context'
 import { GRADE_STYLES, overheadAngles, UNGRADED_STYLE } from '@/scene/speakers'
+import { WarningLines } from '@/ui/PlacementWarnings'
 import { SidebarSubsection } from '@/ui/SidebarSection'
 
 /**
@@ -12,7 +14,8 @@ import { SidebarSubsection } from '@/ui/SidebarSection'
  */
 export function SpeakerList() {
   const noteId = useId()
-  const { speakers, overheads, subwoofers } = useRoomAnalysis()
+  const { speakers, overheads, subwoofers, placementWarnings } =
+    useRoomAnalysis()
 
   return (
     <SidebarSubsection title="Angles and grades">
@@ -42,6 +45,7 @@ export function SpeakerList() {
               name={name}
               angle={`${placementRange.azimuth.shown}°`}
               grade={GRADE_STYLES[placementRange.grade]}
+              warnings={warningsAbout(placementWarnings, channel)}
             />
           ))}
           {overheads.map((overhead) => (
@@ -51,6 +55,7 @@ export function SpeakerList() {
               name={overhead.name}
               angle={overheadAngles(overhead)}
               grade={GRADE_STYLES[overhead.placementRange.grade]}
+              warnings={warningsAbout(placementWarnings, overhead.channel)}
             />
           ))}
           {subwoofers.map(({ id, name }) => (
@@ -65,6 +70,7 @@ export function SpeakerList() {
                 </>
               }
               grade={UNGRADED_STYLE}
+              warnings={warningsAbout(placementWarnings, id)}
             />
           ))}
         </tbody>
@@ -89,11 +95,47 @@ function SpeakerRow({
   name,
   angle,
   grade: { color, label },
+  warnings,
 }: {
   abbreviation: string
   name: string
   angle: ReactNode
   grade: { color: string; label: string }
+  /** Its placement warnings, shown under it. */
+  warnings: readonly PlacementWarning[]
+}) {
+  return (
+    <>
+      <SpeakerCells
+        abbreviation={abbreviation}
+        name={name}
+        angle={angle}
+        color={color}
+        label={label}
+      />
+      {warnings.length > 0 && (
+        <tr>
+          <td colSpan={3} className="pb-1">
+            <WarningLines warnings={warnings} />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+function SpeakerCells({
+  abbreviation,
+  name,
+  angle,
+  color,
+  label,
+}: {
+  abbreviation: string
+  name: string
+  angle: ReactNode
+  color: string
+  label: string
 }) {
   return (
     <tr className="border-t">

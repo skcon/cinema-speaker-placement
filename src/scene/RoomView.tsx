@@ -25,12 +25,18 @@ import {
   UNGRADED_STYLE,
 } from '@/scene/speakers'
 import {
+  FURNITURE_COLOR,
+  FURNITURE_FRONT_COLOR,
   RECOMMENDED_SEAT_COLOR,
   RULE_OF_THUMB_COLOR,
   SCREEN_COLOR,
 } from '@/scene/palette'
 import type { DragTarget } from '@/scene/drag'
-import { describeScreen, describeSeatRow } from '@/scene/room-objects'
+import {
+  describeFurniture,
+  describeScreen,
+  describeSeatRow,
+} from '@/scene/room-objects'
 import { canUseWebGL } from '@/scene/webgl'
 import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
@@ -59,6 +65,7 @@ export function RoomView() {
   const [webGL] = useState(canUseWebGL)
   const { room, units } = useConfig((state) => state.config)
   const screen = useConfig((state) => state.config.roomObjects.screen)
+  const furniture = useConfig((state) => state.config.roomObjects.furniture)
   const seatRowSize = useConfig((state) => state.config.roomObjects.seatRow)
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveItem = useConfig((state) => state.moveItem)
@@ -122,6 +129,7 @@ export function RoomView() {
   const roomObjectsDescription = [
     describeSeatRow(seatRowSize, units),
     screen && describeScreen(screen, units),
+    describeFurniture(furniture, units),
     ROOM_OBJECTS_NOTE,
   ]
     .filter(Boolean)
@@ -178,6 +186,7 @@ export function RoomView() {
             overheads={overheads}
             subwoofers={subwoofers}
             screen={screen}
+            furniture={furniture}
             gridSpacing={baseUnit.meters}
             seatRow={seatRow}
             recommendedSeat={recommendation?.recommended.position ?? null}
@@ -213,6 +222,7 @@ export function RoomView() {
             the speakers and the MLP to move them; click or tap one to see its
             distances. Drag the seat row to move it with the MLP.
             {screen && ' Drag the screen along the front wall.'}
+            {furniture.length > 0 && ' Drag the furniture boxes to move them.'}
           </p>
         )}
         <div className="flex items-center gap-2">
@@ -295,6 +305,20 @@ export function RoomView() {
                 style={{ backgroundColor: SCREEN_COLOR }}
               />
               Screen (drawn only, not in the estimate)
+            </p>
+          )}
+          {furniture.length > 0 && (
+            <p className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="h-2.5 w-3 rounded-xs border-b-2"
+                style={{
+                  backgroundColor: FURNITURE_COLOR,
+                  borderColor: FURNITURE_FRONT_COLOR,
+                }}
+              />
+              Furniture box, front edge darker (drawn and warned about, not in
+              the estimate)
             </p>
           )}
         </div>

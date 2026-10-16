@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { RoomScreen } from '@/domain'
+import type { FurnitureBox, RoomScreen } from '@/domain'
 import {
+  describeFurniture,
   describeScreen,
+  furnitureBlock,
+  furniturePlan,
+  FURNITURE_FRONT_STRIP,
   describeSeatRow,
   SCREEN_BAR_DEPTH,
   screenBar,
@@ -92,5 +96,82 @@ describe('the seat row in words', () => {
     expect(describeSeatRow({ width: 3.6576, depth: 0.9144 }, 'imperial')).toBe(
       'A seat row 12 ft 0 in wide and 3 ft 0 in deep, with the MLP 1 ft 1.8 in in front of its back; dragging it moves the MLP.',
     )
+  })
+})
+
+/** A 1.6 x 0.45 x 0.5 m cabinet in the middle of a room. */
+const CABINET: FurnitureBox = {
+  name: 'Cabinet',
+  width: 1.6,
+  depth: 0.45,
+  height: 0.5,
+  x: 1,
+  y: 3,
+  rotation: 0,
+}
+
+describe('a furniture box from above', () => {
+  it('is a rectangle as it is turned, with a strip along its front', () => {
+    const plan = furniturePlan(CABINET)
+
+    expect(plan.center).toEqual({ x: 1, y: 3, z: 0 })
+    expect(plan.size[0]).toBeCloseTo(1.6, 9)
+    expect(plan.size[1]).toBeCloseTo(0.45, 9)
+    // Unturned, its front faces the back wall: the strip is on its back
+    // side, from the front wall's view (room +y).
+    expect(plan.front.size[0]).toBeCloseTo(1.6, 9)
+    expect(plan.front.size[1]).toBe(FURNITURE_FRONT_STRIP)
+    expect(plan.front.center.y).toBeCloseTo(
+      3.225 - FURNITURE_FRONT_STRIP / 2,
+      9,
+    )
+  })
+
+  it.each([
+    [90, 'x', 1 - 0.225 + FURNITURE_FRONT_STRIP / 2],
+    [180, 'y', 3 - 0.225 + FURNITURE_FRONT_STRIP / 2],
+    [270, 'x', 1 + 0.225 - FURNITURE_FRONT_STRIP / 2],
+  ] as const)(
+    'turned %i°, has its front strip along its side on %s = %d',
+    (rotation, axis, at) => {
+      const plan = furniturePlan({ ...CABINET, rotation })
+
+      expect(plan.front.center[axis]).toBeCloseTo(at, 9)
+    },
+  )
+
+  it('keeps the strip inside a small box', () => {
+    const plan = furniturePlan({ ...CABINET, width: 0.1, depth: 0.1 })
+
+    expect(plan.front.size[1]).toBeCloseTo(0.1 / 3, 9)
+  })
+})
+
+describe('a furniture box in 3D', () => {
+  it('stands on the floor, its height up', () => {
+    const block = furnitureBlock({ ...CABINET, rotation: 90 })
+
+    // Three.js has y up: room (x, y, z) -> (x, z, y).
+    expect(block.position).toEqual([1, 0.25, 3])
+    expect(block.size[0]).toBeCloseTo(0.45, 9)
+    expect(block.size[1]).toBe(0.5)
+    expect(block.size[2]).toBeCloseTo(1.6, 9)
+  })
+})
+
+describe('furniture in words', () => {
+  it('names each box by its name and number, with its size', () => {
+    expect(
+      describeFurniture(
+        [CABINET, { ...CABINET, name: 'Shelf', height: 1.8288 }],
+        'imperial',
+      ),
+    ).toBe(
+      'Furniture: Cabinet (box 1), 5 ft 3 in wide, 1 ft 5.7 in deep and 1 ft 7.7 in high; Shelf (box 2), 5 ft 3 in wide, 1 ft 5.7 in deep and 6 ft 0 in high.',
+    )
+  })
+
+  it('is empty without furniture', () => {
+    expect(describeFurniture([], 'metric')).toBe('')
   })
 })

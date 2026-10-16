@@ -21,3 +21,12 @@ A share link's `config` search param holds the encoded config: lz-string's URL-s
 - Every version, including one that is never released, still has to keep the versions released before it opening. The frozen version 1 fixtures stay as v1.0.0 wrote them.
 - A frozen schema imports nothing but zod (an ESLint rule checks this). It holds copies of the room limits, layout list, channel ids and placement rules as they were at its release, so later changes to the live code can't change which old links it accepts.
 - A development build between releases can write a version 2 link that a later development build no longer opens. Only tagged releases make that promise, so this is accepted.
+
+## Amendment (1.1.0): short field names in version 2 links
+
+The worst-case link grew past the URL budget once 1.1.0 added room objects (eight furniture boxes, and openings to come): the config's own field names (`"speakerGroups"`, `"driverDiameter"`, repeated for every object) cost about a quarter of the link, which lz-string compresses poorly. From version 2 on, a link's config spells every field name short (`"room"` is `"r"`, `"width"` is `"w"`), from the table `SHORT_FIELD_NAMES` in `src/domain/share-link.ts`. Values, and record keys such as channel ids, stay as they are, so every number still comes back to its last digit.
+
+- The table is part of the wire format: a short name is never changed or reused, only added for a new field. Each short name is used once and is never a field name, so a link can always be spelled out again.
+- Decoding spells the names out before the migrations and the strict schema check. A version 2 link with a field name spelled out was not written by the app, so it is unreadable, as any other hand-edited link.
+- Version 1 links keep their spelled-out names: the frozen fixtures stay byte-identical.
+- Considered: rounding the speaker specs in the link (it drops digits a user typed, which the codec tests rule out), and a fixed tuple layout per object (shorter still, but every field becomes a position to keep in step). Short names keep the config's shape and save about 400 characters on the worst case.

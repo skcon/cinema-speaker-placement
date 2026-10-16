@@ -19,15 +19,44 @@ import {
 import { IMPERIAL_ROOM, V1_LINKS, V2_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
 import { configSchemaV1, type ConfigV1 } from './config-v1'
-import { createConfigCodec, migrateFrom } from './share-link'
+import {
+  createConfigCodec,
+  migrateFrom,
+  SHORT_FIELD_NAMES,
+  shortenFieldNames,
+} from './share-link'
 
 /**
  * An encoded config holding any JSON, written the way configs are encoded
- * (JSON, then lz-string's URL-safe compression), to test what decoding does
- * with links the app would never write.
+ * (JSON, then lz-string's URL-safe compression, with the config's field
+ * names short from version 2 on), to test what decoding does with links
+ * the app would never write.
  */
 function encodedHolding(json: unknown): string {
-  return compressToEncodedURIComponent(JSON.stringify(json))
+  const envelope = json as { v?: unknown; config?: unknown } | null
+  const short =
+    typeof envelope?.v === 'number' && envelope.v >= 2 && 'config' in envelope
+      ? { ...envelope, config: shortenFieldNames(envelope.config) }
+      : json
+  return compressToEncodedURIComponent(JSON.stringify(short))
+}
+
+/** What an encoded config holds: its version and config as written. */
+function envelopeOf(encoded: string): { v: number; config: unknown } {
+  return JSON.parse(decompressFromEncodedURIComponent(encoded)) as {
+    v: number
+    config: unknown
+  }
+}
+
+/** Every object key in `value`, through nested objects and arrays. */
+function keysIn(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(keysIn)
+  if (typeof value !== 'object' || value === null) return []
+  return Object.entries(value).flatMap(([key, field]) => [
+    key,
+    ...keysIn(field),
+  ])
 }
 
 const FALLBACK = { config: DEFAULT_CONFIG, problem: 'unreadable' }
@@ -382,89 +411,162 @@ const TV = {
 /** The default seat row, as the broken room objects below have it. */
 const COUCH = { width: 2, depth: 0.9 } as const
 
+/** The default seat row with no screen and no furniture. */
+const NO_OBJECTS = { seatRow: COUCH, screen: null, furniture: [] } as const
+
+/** A 1.6 m TV cabinet against the middle of the default room's front wall. */
+const CABINET = {
+  name: 'Cabinet',
+  width: 1.6,
+  depth: 0.45,
+  height: 0.5,
+  x: 0,
+  y: 0.225,
+  rotation: 0,
+} as const
+
+/** The default room objects with this one furniture box. */
+function withBox(box: unknown) {
+  return { ...NO_OBJECTS, furniture: [box] }
+}
+
 /** Room objects that break the rules of version 2, in the default room. */
 const BROKEN_ROOM_OBJECTS: [string, unknown][] = [
   ['room objects that are null', null],
-  ['no screen field', { seatRow: COUCH }],
-  ['an unknown room object', { seatRow: COUCH, screen: null, piano: true }],
+  ['no screen field', { seatRow: COUCH, furniture: [] }],
+  ['no furniture field', { seatRow: COUCH, screen: null }],
+  ['an unknown room object', { ...NO_OBJECTS, piano: true }],
   [
     'an unknown kind of screen',
-    { seatRow: COUCH, screen: { ...TV, kind: 'laser' } },
+    { ...NO_OBJECTS, screen: { ...TV, kind: 'laser' } },
   ],
   [
     'a screen narrower than 0.5 m',
-    { seatRow: COUCH, screen: { ...TV, width: 0.4 } },
+    { ...NO_OBJECTS, screen: { ...TV, width: 0.4 } },
   ],
   // The default room is 4.5 m wide.
   [
     'a screen wider than the front wall',
-    { seatRow: COUCH, screen: { ...TV, width: 4.6 } },
+    { ...NO_OBJECTS, screen: { ...TV, width: 4.6 } },
   ],
-  ['a screen past a side wall', { seatRow: COUCH, screen: { ...TV, x: 1.6 } }],
+  ['a screen past a side wall', { ...NO_OBJECTS, screen: { ...TV, x: 1.6 } }],
   // The default room is 2.6 m high.
   [
     'a screen through the ceiling',
-    { seatRow: COUCH, screen: { ...TV, bottomEdge: 2 } },
+    { ...NO_OBJECTS, screen: { ...TV, bottomEdge: 2 } },
   ],
   [
     'a screen below the floor',
-    { seatRow: COUCH, screen: { ...TV, bottomEdge: -0.1 } },
+    { ...NO_OBJECTS, screen: { ...TV, bottomEdge: -0.1 } },
   ],
-  [
-    'a TV with a standoff',
-    { seatRow: COUCH, screen: { ...TV, standoff: 0.5 } },
-  ],
+  ['a TV with a standoff', { ...NO_OBJECTS, screen: { ...TV, standoff: 0.5 } }],
   [
     'a standoff above 1.5 m',
-    { seatRow: COUCH, screen: { ...TV, kind: 'projection', standoff: 1.6 } },
+    { ...NO_OBJECTS, screen: { ...TV, kind: 'projection', standoff: 1.6 } },
   ],
   [
     'a screen width that is text',
-    { seatRow: COUCH, screen: { ...TV, width: '1.44' } },
+    { ...NO_OBJECTS, screen: { ...TV, width: '1.44' } },
   ],
   [
     'a screen without a standoff field',
     {
-      seatRow: COUCH,
+      ...NO_OBJECTS,
       screen: { kind: 'tv', width: 1.44, height: 0.81, bottomEdge: 0.93, x: 0 },
     },
   ],
   [
     'a screen with an unknown field',
-    { seatRow: COUCH, screen: { ...TV, diagonal: 65 } },
+    { ...NO_OBJECTS, screen: { ...TV, diagonal: 65 } },
   ],
-  ['no seat row field', { screen: null }],
-  ['a seat row that is null', { seatRow: null, screen: null }],
+  ['furniture that is null', { ...NO_OBJECTS, furniture: null }],
+  [
+    'nine furniture boxes',
+    { ...NO_OBJECTS, furniture: Array.from({ length: 9 }, () => CABINET) },
+  ],
+  ['a box without a name', withBox({ ...CABINET, name: '' })],
+  ['a box named only spaces', withBox({ ...CABINET, name: '   ' })],
+  ['a box name with spaces around it', withBox({ ...CABINET, name: ' TV ' })],
+  [
+    'a box name longer than 12 characters',
+    withBox({ ...CABINET, name: 'Coffee tables' }),
+  ],
+  [
+    'a box name with a character a link does not carry cheaply',
+    withBox({ ...CABINET, name: 'Bokhylla 書架' }),
+  ],
+  ['a box turned 45°', withBox({ ...CABINET, rotation: 45 })],
+  ['a box thinner than 0.1 m', withBox({ ...CABINET, height: 0.05 })],
+  // The default room is 6 m long, 4.5 m wide and 2.6 m high.
+  ['a box taller than the room', withBox({ ...CABINET, height: 2.7 })],
+  ['a box wider than the room', withBox({ ...CABINET, width: 4.6 })],
+  [
+    'a box turned so it is longer than the room',
+    withBox({ ...CABINET, width: 6.5, rotation: 90, y: 3 }),
+  ],
+  ['a box through the left wall', withBox({ ...CABINET, x: -1.5, width: 1.6 })],
+  ['a box through the front wall', withBox({ ...CABINET, y: 0.2 })],
+  ['a box through the back wall', withBox({ ...CABINET, y: 5.9 })],
+  ['a box width that is text', withBox({ ...CABINET, width: '1.6' })],
+  ['a box without a rotation', withBox({ ...CABINET, rotation: undefined })],
+  ['a box with an unknown field', withBox({ ...CABINET, color: 'oak' })],
+  ['no seat row field', { screen: null, furniture: [] }],
+  ['a seat row that is null', { seatRow: null, screen: null, furniture: [] }],
   [
     'a seat row narrower than one seat',
-    { seatRow: { ...COUCH, width: 0.4 }, screen: null },
+    { seatRow: { ...COUCH, width: 0.4 }, screen: null, furniture: [] },
   ],
   [
     'a seat row shallower than 0.5 m',
-    { seatRow: { ...COUCH, depth: 0.4 }, screen: null },
+    { seatRow: { ...COUCH, depth: 0.4 }, screen: null, furniture: [] },
   ],
   [
     'a seat row deeper than 2 m',
-    { seatRow: { ...COUCH, depth: 2.1 }, screen: null },
+    { seatRow: { ...COUCH, depth: 2.1 }, screen: null, furniture: [] },
   ],
   [
     'a seat row depth that is text',
-    { seatRow: { ...COUCH, depth: '0.9' }, screen: null },
+    { seatRow: { ...COUCH, depth: '0.9' }, screen: null, furniture: [] },
   ],
-  ['a seat row without a depth', { seatRow: { width: 2 }, screen: null }],
+  [
+    'a seat row without a depth',
+    { seatRow: { width: 2 }, screen: null, furniture: [] },
+  ],
   [
     'a seat row with a position of its own',
-    { seatRow: { ...COUCH, x: 0, y: 3 }, screen: null },
+    { seatRow: { ...COUCH, x: 0, y: 3 }, screen: null, furniture: [] },
   ],
 ]
 
 describe('share link codec', () => {
   it('writes new share links as version 2', () => {
-    const envelope: unknown = JSON.parse(
-      decompressFromEncodedURIComponent(encodeConfig(DEFAULT_CONFIG)),
-    )
+    expect(envelopeOf(encodeConfig(DEFAULT_CONFIG))).toMatchObject({ v: 2 })
+  })
 
-    expect(envelope).toMatchObject({ v: 2 })
+  it('spells the field names short in version 2 links, keeping every value', () => {
+    const { config } = envelopeOf(encodeConfig(IMPERIAL_ROOM))
+
+    expect(config).toMatchObject({
+      u: 'imperial',
+      r: { l: 8, w: 5, h: 3 },
+      ly: { dl: '7.1.4', s: 2 },
+      m: { Rrs: { x: 2.2, y: 7.2, z: 1.5 }, Sub2: { x: 2.2, y: 7.7, z: 0.3 } },
+      ro: { st: { w: 3.6576, d: 0.9144 } },
+    })
+    expect(keysIn(config).filter((key) => key in SHORT_FIELD_NAMES)).toEqual([])
+  })
+
+  it('falls back for a version 2 link that spells a field name out', () => {
+    const { v, config } = envelopeOf(encodeConfig(DEFAULT_CONFIG))
+    const spelledOut = { ...(config as object), u: undefined, units: 'metric' }
+
+    expect(
+      decodeConfig(
+        compressToEncodedURIComponent(
+          JSON.stringify({ v, config: spelledOut }),
+        ),
+      ),
+    ).toEqual(FALLBACK)
   })
 
   it('rebuilds the default config from its share link', () => {
@@ -650,6 +752,34 @@ describe('share link codec', () => {
     })
   })
 
+  it('rebuilds furniture boxes, every length and position to the nearest millimeter', () => {
+    const shelf = {
+      name: 'Hylla för CD',
+      // 4 ft 1.3 in typed in imperial: 1.2522199999999999 m.
+      width: (4 * 12 + 1.3) * 0.0254,
+      depth: 0.3,
+      height: 1.8,
+      x: -2.0498765,
+      y: 3.00049,
+      rotation: 90,
+    } as const
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: { ...DEFAULT_ROOM_OBJECTS, furniture: [CABINET, shelf] },
+    }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config: {
+        ...config,
+        roomObjects: {
+          ...DEFAULT_ROOM_OBJECTS,
+          furniture: [CABINET, { ...shelf, width: 1.252, x: -2.05, y: 3 }],
+        },
+      },
+      problem: null,
+    })
+  })
+
   it('rebuilds where a screen was dragged to the nearest millimeter', () => {
     const config: Config = {
       ...DEFAULT_CONFIG,
@@ -806,6 +936,7 @@ describe('released share links', () => {
           roomObjects: {
             seatRow: { width: seatRowWidth, depth: 0.9 },
             screen: null,
+            furniture: [],
           },
         },
         problem: null,
@@ -864,6 +995,40 @@ function longestPosition(n: number, z?: number) {
     y: mm(14.219 - n * 0.0713),
     z: z ?? mm(4.687 - n * 0.0919),
   }
+}
+
+/**
+ * Every character a furniture box's name may have but the space (which
+ * can't start or end one): A–Z, a–z, digits, the accented letters of
+ * Latin-1 and - ' & ( ) . , /.
+ */
+const NAME_CHARACTERS = [
+  ...Array.from({ length: 64 }, (_, i) => String.fromCharCode(0xc0 + i)),
+  ..."'&().,/-",
+  ...'0123456789',
+  ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+]
+  .filter((character) => character !== '×' && character !== '÷')
+  .join('')
+
+/**
+ * Furniture box `n` (from 0) as long as a share link stores one: the
+ * longest name (12 characters, none of them shared with another box, so
+ * compression gains nothing), the largest lengths to the millimeter, the
+ * position negative across and to the millimeter, and the longest
+ * rotation, in the worst-case room.
+ */
+function longestFurniture(n: number) {
+  const mm = (meters: number) => Math.round(meters * 1000) / 1000
+  return {
+    name: NAME_CHARACTERS.slice(12 * n, 12 * n + 12),
+    width: mm(7.999 - n * 0.0537),
+    depth: mm(7.989 - n * 0.0613),
+    height: mm(4.987 - n * 0.0719),
+    x: mm(-3.419 + n * 0.0127),
+    y: mm(10.987 - n * 0.0371),
+    rotation: 270,
+  } as const
 }
 
 /**
@@ -929,6 +1094,7 @@ const WORST_CASE_CONFIG: Config = {
   // feet + inches value can have. The screen of the longer kind with a
   // standoff, every length with all 17 significant digits, and the
   // position negative and to the millimeter, as a dragged screen is stored.
+  // The most furniture boxes, each as long as a link stores it.
   roomObjects: {
     seatRow: { width: 8 - 1 / 7, depth: 2 - 1 / 7 },
     screen: {
@@ -939,6 +1105,7 @@ const WORST_CASE_CONFIG: Config = {
       x: -3.499,
       standoff: 1.5 - 1 / 7,
     },
+    furniture: Array.from({ length: 8 }, (_, n) => longestFurniture(n)),
   },
 }
 
@@ -953,6 +1120,41 @@ const PRODUCTION_PAGE = 'https://skcon.github.io/cinema-speaker-placement/'
  * such as GitHub Pages accept.
  */
 const URL_BUDGET = 2000
+
+describe('short field names', () => {
+  it('cover every field of the worst-case config', () => {
+    // Record keys (channel and subwoofer ids, MLP) are not field names.
+    const recordKeys = new Set([
+      ...Object.keys(WORST_CASE_CONFIG.manualPositions),
+      ...Object.keys(WORST_CASE_CONFIG.speakerGroups.subwoofers.ownSpecs),
+    ])
+    const short = new Set(['x', 'y', 'z'])
+    const unnamed = keysIn(WORST_CASE_CONFIG).filter(
+      (key) => !recordKeys.has(key) && !short.has(key),
+    )
+
+    expect(unnamed.filter((key) => !(key in SHORT_FIELD_NAMES))).toEqual([])
+  })
+
+  it('are not record keys, so a link can always be spelled out again', () => {
+    const shortNames: string[] = Object.values(SHORT_FIELD_NAMES)
+    const recordKeys = keysIn(WORST_CASE_CONFIG.manualPositions)
+
+    expect(shortNames.filter((name) => recordKeys.includes(name))).toEqual([])
+  })
+
+  it('must be unique', () => {
+    expect(() =>
+      createConfigCodec({
+        version: 1,
+        schema: configSchema,
+        migrations: {},
+        fallback: DEFAULT_CONFIG,
+        shortFieldNames: { since: 1, names: { width: 'w', weight: 'w' } },
+      }),
+    ).toThrow('Short field names must be unique and not field names')
+  })
+})
 
 describe('share link size', () => {
   it('is measured with a worst-case config the app accepts', () => {

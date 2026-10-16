@@ -25,6 +25,14 @@ v1.0.0 put every listener-level speaker on one circle around the MLP, its radius
 - No config or share-link change: manual positions are untouched, and only auto positions move.
 - The research values came from search extracts (the network blocked the primary sites). Re-check them when a session can reach the sources; changing the one constant is cheap.
 
+## Amendment (#48): the seat score keeps the auto speakers symmetric to the room
+
+Implementing the seat rule (#48) showed that the centre-line preference alone did not fix the default room. The seat score placed the auto speakers around each candidate seat, so an off-centre seat brought its own front stage and surrounds along. Its placement fit stayed perfect, and bass alone could win it the recommendation: in the default room an off-centre seat beat the best centre-line seat by 0.023, just over `SEAT_SCORE.meaningfulDifference`.
+
+A real install doesn't work that way. The front stage and surrounds are installed symmetric to the room, and the listener moves along the couch. So the seat score now places the **auto** listener-level speakers around the candidate's **projection onto the centre line** (x = 0, the same distance from the front wall), and grades them from the candidate itself. An off-centre seat then hears them at its real, skewed angles and distances, so its placement grades and equidistance drop where they should. Manual speakers stay where they are, as before. The MLP is scored the same way, and the centre-line preference above is unchanged.
+
+No new numbers. With this change, the default room (6 × 4.5 × 2.6 m, 5.1.2) recommends its 38% MLP on the centre line, because no seat beats it by the meaningful difference. Off-centre recommendations still happen where the placement fit allows them, for example in a 2.1 room, where Left and Right stay in range from a seat a little off the centre line. The UI then says why.
+
 ## Amendment (1.1.0): the front stage follows the screen (#58)
 
 With a Screen in the Room, auto-place fits L, C and R to it. **Dolby's cited ranges always win**; the screen only chooses a point inside them, and the Center's height. This is option C of `docs/research/screen-and-front-stage.md` section 7 with the clamp of option B. Without a screen, auto-place stays exactly as above. Manual speakers never move, and surrounds, overheads and subwoofers keep their rules.
@@ -33,4 +41,4 @@ With a Screen in the Room, auto-place fits L, C and R to it. **Dolby's cited ran
 - **C below, above or behind.** For a TV or solid screen that covers ear height (as seen from the MLP), C goes 0.15 m below or above the image as seen from the MLP, whichever is nearer ear height and fits between floor and ceiling, below on a tie (ITU-R BS.775 and Dolby WEB101 say "just above or below" without choosing; research section 4 finds below usually nearer ear level). If neither fits, it stays at ear height in front of the image. Behind a transparent screen C stays on its 0° line at ear height (Dolby IG p.6).
 - **Front-stage line.** In front of a TV or solid screen it stays 0.5 m from the front wall. Behind a transparent screen it moves nearer the wall when needed to stay 0.1 m behind the screen (SV-AT's about 4 in for a woven screen). With less than the 0.3 m wall clearance left behind it (a standoff under 0.4 m), there is no room behind the screen, and it counts as solid.
 - **New numbers**, all ours and in `SCREEN_FRONT_STAGE` (reference.ts): the 0.15 m edge clearance and 0.15 m Center clearance (about half a cabinet plus a small gap; the sources give the rules but no distances) and the 0.1 m gap behind a transparent screen.
-- **No config or share-link change.** Only auto positions move. The seat score places each candidate seat's auto speakers by the same rule. Auto-place doesn't avoid openings or furniture (ADR 0006 warns about them instead).
+- **No config or share-link change.** Only auto positions move. The seat score places each candidate seat's auto speakers by the same rule, around the seat's projection onto the centre line (amendment above). Auto-place doesn't avoid openings or furniture (ADR 0006 warns about them instead).

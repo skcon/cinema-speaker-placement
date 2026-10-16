@@ -126,23 +126,38 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toBeVisible()
   })
 
-  await test.step('the recommended seat is ringed, and "Move MLP here" moves the MLP there and reaches the address', async () => {
+  await test.step('the default MLP is the recommended seat; moved off the center line, "Move MLP here" brings it back to the center line and reaches the address', async () => {
     await expect(scene.getByText('Recommended', { exact: true })).toBeVisible()
     const seating = page.getByRole('region', { name: 'Seating' })
     const move = seating.getByRole('button', { name: 'Move MLP here' })
+    const atRecommended = seating.getByText(
+      /^Your MLP is at the recommended seat/,
+    )
+    // The 38% MLP is on the center line, and no seat beats it meaningfully (#48).
+    await expect(atRecommended).toBeVisible()
+    await expect(move).toBeDisabled()
+
+    const mlp = page.getByRole('group', { name: 'MLP position' })
+    await mlp.locator('summary').click()
+    const fromLeftWall = mlp
+      .getByRole('group', { name: /^From the left wall/ })
+      .getByRole('textbox', { name: 'm' })
+    await expect(fromLeftWall).toHaveValue('2.25')
+    // A meter left of the center line.
+    await fromLeftWall.fill('1.25')
+    await fromLeftWall.press('Tab')
+    await expect(mlp).toContainText('manual')
     await expect(move).toBeEnabled()
     const addressBefore = page.url()
 
     await move.click()
 
     await expect(page).toHaveURL((url) => url.href !== addressBefore)
-    await expect(
-      seating.getByText(/^Your MLP is at the recommended seat/),
-    ).toBeVisible()
+    await expect(atRecommended).toBeVisible()
     await expect(move).toBeDisabled()
-    await expect(
-      page.getByRole('group', { name: 'MLP position' }),
-    ).toContainText('manual')
+    await expect(mlp).toContainText('manual')
+    // Back on the center line, 2.25 m from either side wall.
+    await expect(fromLeftWall).toHaveValue('2.25')
   })
 
   await test.step('the seat-score heatmap turns on with its legend and description', async () => {

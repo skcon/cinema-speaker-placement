@@ -18,7 +18,7 @@ function configWithLayout(layout: Config['layout']): Config {
 }
 
 describe('the default config', () => {
-  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout, our default speaker specs and 100 W amplifier, the flat target curve, an 80 Hz crossover, a 2 m seat row and everything auto-placed', () => {
+  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout, our default speaker specs and 100 W amplifier, the flat target curve, an 80 Hz crossover, a 2 m seat row, everything auto-placed and no room objects (no screen)', () => {
     const bookshelf88 = { specs: { type: 'bookshelf', sensitivity: 88 } }
     expect(DEFAULT_CONFIG).toEqual({
       units: 'metric',
@@ -46,6 +46,7 @@ describe('the default config', () => {
       crossoverHz: 80,
       seatRowWidth: 2,
       manualPositions: {},
+      roomObjects: { screen: null },
     })
   })
 })

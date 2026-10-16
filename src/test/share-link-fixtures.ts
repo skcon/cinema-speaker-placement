@@ -10,9 +10,10 @@
  * 12 in model as its own specs, tower fronts and rear surrounds, our own
  * sensitivity for every speaker group, a 150 W amplifier, the house
  * curve, a 100 Hz crossover, a 12 ft seat row,
- * and the Right Rear Surround and Subwoofer 2 moved by hand into the
- * back right corner:
- * nothing at its default.
+ * the Right Rear Surround and Subwoofer 2 moved by hand into the
+ * back right corner, and a 9 x 5 ft acoustically transparent projection
+ * screen 2 ft off the floor and 18 in in front of the front wall, moved
+ * left of centre: nothing at its default.
  */
 export const IMPERIAL_ROOM = {
   units: 'imperial',
@@ -48,6 +49,16 @@ export const IMPERIAL_ROOM = {
   manualPositions: {
     Rrs: { x: 2.2, y: 7.2, z: 1.5 },
     Sub2: { x: 2.2, y: 7.7, z: 0.3 },
+  },
+  roomObjects: {
+    screen: {
+      kind: 'projection',
+      width: 2.7432,
+      height: 1.524,
+      bottomEdge: 0.6096,
+      x: -0.25,
+      standoff: 0.4572,
+    },
   },
 } as const
 
@@ -205,11 +216,11 @@ export const V1_LINKS = {
 
 /**
  * Version 2 share links as the app writes them today, with the config each
- * one holds: so far the version 1 links' configs, as version 2 has version
- * 1's shape. Version 2 is not released until v1.1.0 is tagged, so the
- * 1.1.0 changes that extend it regenerate these (ADR 0003); after that,
- * never edit them. Like the version 1 links, two sit on the edges of the
- * ranges.
+ * one holds: the version 1 links' configs as the migration to version 2
+ * gives them (no room objects), except that the two on the edges of the
+ * ranges also have a screen on the edges of its ranges. Version 2 is not
+ * released until v1.1.0 is tagged, so the 1.1.0 changes that extend it
+ * regenerate these (ADR 0003); after that, never edit them.
  */
 export const V2_LINKS = {
   /**
@@ -220,7 +231,7 @@ export const V2_LINKS = {
    */
   imperialRoom: {
     encoded:
-      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGYAjAFY4IAO4YAJiKgAWCXLGLhtbMKJRoEsZqnQAvvBZMAnkjwnIoVUhYAjBwBlHzq4gkjIS0OwgJHheSlxoDGQwtpF0TADWDADinHjUiaBonCiuoCR0CPkgRA505ERISgwRJAIkxBhgxA5QAJwADNbJCAJETW4ptBW81bWQIF5caSQGLGjNre2d1VAAHDs6g-BR9DkoqpVlk5UztOQLSEsra0cbRB1duwBshyD0tEz0ADKeBOzjOF3K1xqtzm90etFW6xQbTeW26kB232SSDADAMTHOvEuU3GLWRmw+GLkPyiMTiCSJkN4AgQLCQxxhIGoSHoo1UEVUjFx9AAIsxKLRRvQoH1pFI+op6JQSAB1JhEUhaOR9eCpNJqjWJfoDeANFCApnjYFecLjFlsjnkFqsWj8+CCjoMMVMCVSmVhOSaDjKg2amDa3X-fXqsPagaDZI+6gsDCYBihxIyaByeBEAFYSUAYRBuPIwmcLQiCE4JBIOIYAAkAF5QLM6yL-IgAJQaKrUGkgUgkfU0O3glCYKDwrAACuz2qh8gmgA',
+      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVxQwBcBnKEDAWwAcBTAJwwEMAbEeepJS3EF2lFiIALKAHYAdAGYAjAFY4IAO4YAJiKgAWCXLGLhtbMKJRoEsZqnQAvvBZMAnkjwnIoVUhYAjBwBlHzq4gkjIS0OwgJHheSlxoDGQwtpF0TADWDADinHjUiaBonCiuoCR0CPkgRA505ERISgwRJAIkxBhgxA5QAJwADNbJCAJETW4ptBW81bWQIF5caSQGLGjNre2d1VAAHDs6g-BR9DkoqpVlk5UztOQLSEsra0cbRB1duwBshyD0tEz0ADKeBOzjOF3K1xqtzm90etFW6xQbTeW26kB232SSDADAMTHOvEuU3GLWRmw+GLkPyiMTiCSJkN4AgQLCQxxhIGoSHoo1UEVUjFx9AAIsxKLRRvQoH1pFI+op6JQSAB1JhEUhaOR9eCpNJqjWJfoDeANFCApnjYFecLjFlsjnkFqsWj8+CCjoMMVMCVSmVhOSaDjKg2amDa3X-fXqsPagaDZI+6gsDCYBihxIyaByeBEAFYSUAYRBuPIwmcLQiCE4JBIOIYAAkAF5QLM6yL-IgAJQaKrUGkgUgkfU0O3glCYKDwrAACuz2qh8slONwAPJeABWkzDpWrtAEUCnLBYCaAA',
     config: {
       units: 'imperial',
       room: { length: 7.3152, width: 4.572, height: 2.7432 },
@@ -253,6 +264,7 @@ export const V2_LINKS = {
       crossoverHz: 120,
       seatRowWidth: 3.048,
       manualPositions: {},
+      roomObjects: { screen: null },
     },
   },
   /**
@@ -261,11 +273,12 @@ export const V2_LINKS = {
    * sensitivity (70 dB) for every speaker group, a 1 W amplifier, the lowest
    * crossover accepted (40 Hz), the narrowest seat row (0.5 m), and every
    * item moved by hand to the
-   * clearance lines, Left to the ceiling's and Right to the floor's.
+   * clearance lines, Left to the ceiling's and Right to the floor's, and
+   * the smallest screen at the floor and the left wall.
    */
   smallestRoom: {
     encoded:
-      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAsocEAHcMAEwFD4-Ktn5EhAX3icAhgE8keRZFDiknAEYaAMpu26Q0AHQBGJiBJ4jI1miq0ykOyqcAHKjUAa08AcRY8f29QNBYUXVASQIQYkCINQPIjVmCSWU40RxIeEmIMMGINKAB2AAYlPwQeIk8OZKpUjgysyBAcpDyCovgSlDKiCqrahr9nWkiUcTSOrr10zKps3PyqQuLS8sqMmcbmINoAZTwF7SWVlLSerb6Bob2Rp0PJ4+rIerOICQYE8sjUy3aj3a3ymJ3+s1GLjcSA8XkhnTSPAQnCQ8xeXzU3HEjnE9BBtAAIhg1NRWrQoHV7ABWaAAZgAnJyudzOQAOZgUEgAdTURFIUDsdXggRCIrF3klfiQIhQlyhekafhp-k4GEwnjl4p88CIaloWBoAGEbiDyGh1Ip4AgWCQSMDPAAJABeUAALFKCUQAErKoUSKSQRlM+AUNQoPCEgAKuPKqDSpg4AA8oABaRk1eB-Rms+A+nw2Gp+INZhkVwsSusgMvFvzXIwOdbZyONos2EtN2usvwAWVMiZrkDzPYbBYH5egmqUQA',
+      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAsocEAHcMAEwFD4-Ktn5EhAX3icAhgE8keRZFDiknAEYaAMpu26Q0AHQBGJiBJ4jI1miq0ykOyqcAHKjUAa08AcRY8f29QNBYUXVASQIQYkCINQPIjVmCSWU40RxIeEmIMMGINKAB2AAYlPwQeIk8OZKpUjgysyBAcpDyCovgSlDKiCqrahr9nWkiUcTSOrr10zKps3PyqQuLS8sqMmcbmINoAZTwF7SWVlLSerb6Bob2Rp0PJ4+rIerOICQYE8sjUy3aj3a3ymJ3+s1GLjcSA8XkhnTSPAQnCQ8xeXzU3HEjnE9BBtAAIhg1NRWrQoHV7ABWaAAZgAnJyudzOQAOZgUEgAdTURFIUDsdXggRCIrF3klfiQIhQlyhekafhp-k4GEwnjl4p88CIaloWBoAGEbiDyGh1Ip4AgWCQSMDPAAJABeUAALFKCUQAErKoUSKSQRlM+AUNQoPCEgAKuPKqDSpg4AA8oABaRk1eB-Rms+A+nw2Gp+INZhkVwsSusgMvFvzXIwOdbZyONos2EtN2usvwAWVMiZrkDzPYbBYH5eggJYbAA8kYAFadI1JZ1UHgcYIYJbkIgQeBiSSCbvRkCyeS6YvwHJitgAUXEFoZ8C7U5q15IpqWFEikgeNOE4TUlCAA',
     config: {
       units: 'metric',
       room: { length: 2, width: 2, height: 2 },
@@ -297,6 +310,17 @@ export const V2_LINKS = {
         Sub1: { x: 0.7, y: 0.3, z: 0.3 },
         MLP: { x: -0.7, y: 1.7, z: 1.2 },
       },
+      // The smallest screen, a TV on the floor against the left wall.
+      roomObjects: {
+        screen: {
+          kind: 'tv',
+          width: 0.5,
+          height: 0.3,
+          bottomEdge: 0,
+          x: -0.75,
+          standoff: null,
+        },
+      },
     },
   },
   /**
@@ -306,11 +330,12 @@ export const V2_LINKS = {
    * every group, a 5,000 W amplifier, the house curve, the highest
    * crossover accepted (200 Hz), the widest seat row (8 m), and Right (at
    * the ceiling clearance), Right Top Rear (on the ceiling), Subwoofer 4
-   * and the MLP moved by hand into the corners.
+   * and the MLP moved by hand into the corners, and the largest screen at
+   * the ceiling and the right wall.
    */
   largestRoom: {
     encoded:
-      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAsoARgCs8AO4YAJgOFiQ-Ktn5EoIgL7xOAQwCeSPKsigpSTgCNdAGT0GjIAOwA6IU4AsTECTznxrNFS0ZJBuml4ADlTaANaBAOIseOHBoGgsKEagJJEIKSBEupHkREjigZ4kPCTEGGDEusJCAAzqYQg8ROXGEVS5HAVFkPml5fCVKNVEtfWNLWHetIkoUnnZvXkDVMUjtBVVNXUFs63MUbQAyniLBsurORuFW0MlZbtj+1OHDZBCzScgSDAgUU2hWHDWfW640m0yOPz+8x8fiQASC4PuHB4CE4SAWTxA4SQtE6Uk8UnoQNoABEMNpqJ1dpAmk4AGxNACcInZ3J5vO5zAoJAA6toiKRhE1JU14JEYiKxcFoFKWvBSihzhjupdzB5ulicXjyJVtNxSfBybVAjS6TQusy2Zy+U72QLhaLxT9lTKotF5R6lVLWv86eFOBhMIE-cERFL4ERtLQsDQAMJXIHkfgGSqeBAsEgkQGBAASAC8oAH3qKAEqlIXSWSQAAc8Ao2hQeBNAAVcTVUHkqxwAB5QZxwEDfIRuJwOeBlkLTsJVuhDkdOMcTqczkBzjTwbW60DDyAAWlH8A309nUGZAGYwgBZKydlcns-j69OG9Xn5roPqIA',
+      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVxQwBcBnKEAWwFMiAnDBEeWpJC3EAGypSyIAsoARgCs8AO4YAJgOFiQ-Ktn5EoIgL7xOAQwCeSPKsigpSTgCNdAGT0GjIAOwA6IU4AsTECTznxrNFS0ZJBuml4ADlTaANaBAOIseOHBoGgsKEagJJEIKSBEupHkREjigZ4kPCTEGGDEusJCAAzqYQg8ROXGEVS5HAVFkPml5fCVKNVEtfWNLWHetIkoUnnZvXkDVMUjtBVVNXUFs63MUbQAyniLBsurORuFW0MlZbtj+1OHDZBCzScgSDAgUU2hWHDWfW640m0yOPz+8x8fiQASC4PuHB4CE4SAWTxA4SQtE6Uk8UnoQNoABEMNpqJ1dpAmk4AGxNACcInZ3J5vO5zAoJAA6toiKRhE1JU14JEYiKxcFoFKWvBSihzhjupdzB5ulicXjyJVtNxSfBybVAjS6TQusy2Zy+U72QLhaLxT9lTKotF5R6lVLWv86eFOBhMIE-cERFL4ERtLQsDQAMJXIHkfgGSqeBAsEgkQGBAASAC8oAH3qKAEqlIXSWSQAAc8Ao2hQeBNAAVcTVUHkqxwAB5QZxwEDfIRuJwOeBlkLTsJVuhDkdOMcTqczkBzjTwbW60DDyAAWlH8A309nUGZAGYwgBZKydlcns-j69OG9Xn5r-4sNgAPLmAAVr0HpZLmVA8Bw0QYMs5DhCwoEIFMqCeJIMiCE28CKMoRhuPA5hIGKbAAKJSEmwjwEeN5OPIJDxssKJoMIdFBuoQA',
     config: {
       units: 'metric',
       room: { length: 15, width: 15, height: 5 },
@@ -349,6 +374,18 @@ export const V2_LINKS = {
         Rtr: { x: 7.2, y: 14.7, z: 5 },
         Sub4: { x: -7.2, y: 14.7, z: 0.3 },
         MLP: { x: -7.2, y: 0.3, z: 1.2 },
+      },
+      // The largest screen, acoustically transparent at the largest
+      // standoff, up to the ceiling against the right wall.
+      roomObjects: {
+        screen: {
+          kind: 'projection',
+          width: 8,
+          height: 4,
+          bottomEdge: 1,
+          x: 3.5,
+          standoff: 1.5,
+        },
       },
     },
   },

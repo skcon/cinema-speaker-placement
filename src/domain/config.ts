@@ -9,6 +9,12 @@ import {
   placeablesIn,
   type ManualPositions,
 } from './manual-positions'
+import {
+  areValidRoomObjects,
+  NO_ROOM_OBJECTS,
+  type RoomObjects,
+} from './room-objects'
+import { SCREEN_KINDS, type RoomScreen } from './screen'
 import { checkSeatRowWidth, DEFAULT_SEAT_ROW_WIDTH } from './seat-row'
 import {
   checkRoomDimension,
@@ -69,6 +75,19 @@ const roomPointSchema = z.strictObject({
 }) satisfies z.ZodType<RoomPoint>
 
 /**
+ * The Screen on the front wall, in meters; whether it fits the Room is
+ * checked with the whole config.
+ */
+const screenSchema = z.strictObject({
+  kind: z.enum(SCREEN_KINDS),
+  width: z.number(),
+  height: z.number(),
+  bottomEdge: z.number(),
+  x: z.number(),
+  standoff: z.number().nullable(),
+}) satisfies z.ZodType<RoomScreen>
+
+/**
  * The config's shape and rules: a config that passes it is one the store
  * accepts, and share links store configs in this shape. Strict: every field
  * is required and unknown fields are rejected, so a share link that doesn't
@@ -119,6 +138,11 @@ export const configSchema = z
       z.enum(PLACEABLE_IDS),
       roomPointSchema,
     ) satisfies z.ZodType<ManualPositions>,
+    // Room objects (ADR 0006): drawn, never part of the estimate. A Room
+    // without any (every version 1 link) has NO_ROOM_OBJECTS.
+    roomObjects: z.strictObject({
+      screen: screenSchema.nullable(),
+    }) satisfies z.ZodType<RoomObjects>,
   })
   // The subwoofer count lives in the layout: own specs only for its subwoofers.
   .refine(({ layout, speakerGroups }) => {
@@ -134,6 +158,8 @@ export const configSchema = z
       ([id, point]) => inLayout.includes(id) && mayBeAt(room, id, point),
     )
   })
+  // Every room object inside the Room, each within its own limits.
+  .refine(({ room, roomObjects }) => areValidRoomObjects(room, roomObjects))
 
 /**
  * The single source of truth for a room plan: only inputs and manual
@@ -154,4 +180,5 @@ export const DEFAULT_CONFIG: Config = {
   crossoverHz: DEFAULT_CROSSOVER_HZ,
   seatRowWidth: DEFAULT_SEAT_ROW_WIDTH,
   manualPositions: {},
+  roomObjects: NO_ROOM_OBJECTS,
 }

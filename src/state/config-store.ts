@@ -9,19 +9,29 @@ import {
   clampSeatRowWidth,
   decodeConfig,
   DEFAULT_CONFIG,
+  defaultScreen,
   MLP_ID,
   placeAtWallDistance,
   placeManually,
   withAutoPlacement,
   withLayout,
   withMlpAtRecommendedSeat,
+  withAcousticTransparency,
   withRoom,
+  withRoomObjectMoved,
+  withRoomObjects,
+  withScreenDimension,
+  withScreenEdit,
+  withScreenKind,
   type Config,
   type DolbyLayout,
   type FloorPoint,
   type PlaceableId,
   type RoomPoint,
   type RoomDimension,
+  type RoomObjectId,
+  type ScreenDimension,
+  type ScreenKind,
   type SeatRecommendation,
   type ShareLinkProblem,
   type SpeakerGroupId,
@@ -140,6 +150,33 @@ export type ConfigState = {
    * inside the wall clearances.
    */
   setWallDistance: (id: PlaceableId, wall: Wall, meters: number) => void
+  /**
+   * Add a Screen to the front wall: the default TV, centred (see
+   * defaultScreen in the domain). Ignored when there is one.
+   */
+  addScreen: () => void
+  /** Take the Screen away. Ignored when there is none. */
+  removeScreen: () => void
+  /**
+   * Make the Screen a TV or a projection screen, keeping its size; a TV
+   * hangs on the wall, so it loses any standoff.
+   */
+  setScreenKind: (kind: ScreenKind) => void
+  /**
+   * Make a projection screen acoustically transparent (standing off the
+   * front wall, at the default standoff) or not. Ignored for a TV.
+   */
+  setScreenAcousticallyTransparent: (transparent: boolean) => void
+  /**
+   * Set one of the Screen's lengths, in meters. Values outside its range
+   * in this Room are ignored; a wider screen moves in from a side wall.
+   */
+  setScreenDimension: (dimension: ScreenDimension, meters: number) => void
+  /**
+   * Move a room object on the floor plan (a drag); the Screen slides
+   * along the front wall, stopping at the side walls.
+   */
+  moveRoomObject: (id: RoomObjectId, to: FloorPoint) => void
   /**
    * Move the MLP to `seat`, the recommended seat on screen ("Move MLP
    * here"), making it manual, as one undoable step; auto speakers follow
@@ -386,6 +423,40 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             setConfigIfChanged((config) =>
               placeAtWallDistance(config, id, wall, meters),
             ),
+          addScreen: () =>
+            setConfigIfChanged((config) =>
+              withRoomObjects(config, (room, objects) =>
+                objects.screen
+                  ? objects
+                  : { ...objects, screen: defaultScreen(room) },
+              ),
+            ),
+          removeScreen: () =>
+            setConfigIfChanged((config) =>
+              withRoomObjects(config, (_, objects) =>
+                objects.screen ? { ...objects, screen: null } : objects,
+              ),
+            ),
+          setScreenKind: (kind) =>
+            setConfigIfChanged((config) =>
+              withScreenEdit(config, (_, screen) =>
+                withScreenKind(screen, kind),
+              ),
+            ),
+          setScreenAcousticallyTransparent: (transparent) =>
+            setConfigIfChanged((config) =>
+              withScreenEdit(config, (_, screen) =>
+                withAcousticTransparency(screen, transparent),
+              ),
+            ),
+          setScreenDimension: (dimension, meters) =>
+            setConfigIfChanged((config) =>
+              withScreenEdit(config, (room, screen) =>
+                withScreenDimension(room, screen, dimension, meters),
+              ),
+            ),
+          moveRoomObject: (id, to) =>
+            setConfigIfChanged((config) => withRoomObjectMoved(config, id, to)),
           moveMlpToRecommendedSeat: (seat) =>
             setConfigIfChanged((config) =>
               withMlpAtRecommendedSeat(config, seat),

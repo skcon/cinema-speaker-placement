@@ -23,7 +23,7 @@ afterEach(() => {
 })
 
 describe('sidebar sections', () => {
-  it('groups the sidebar into Room, Layout, Speakers, Seating and Results, in that order, under the Selected item', async () => {
+  it('groups the sidebar into Room, Layout, Speakers, Seating, Room objects and Results, in that order, under the Selected item', async () => {
     renderApp()
 
     const sidebar = await findSidebar()
@@ -35,13 +35,11 @@ describe('sidebar sections', () => {
       'Layout',
       'Speakers',
       'Seating',
+      'Room objects',
       'Results',
     ]
     expect(headings).toHaveLength(names.length)
     names.forEach((name, i) => expect(headings[i]).toHaveAccessibleName(name))
-    expect(
-      within(sidebar).queryByRole('heading', { name: 'Room objects' }),
-    ).not.toBeInTheDocument()
   })
 
   it('explains each section in one line, and what the MLP is the first time it comes up', async () => {
@@ -53,6 +51,7 @@ describe('sidebar sections', () => {
       ['Layout', /^Which speakers you have/],
       ['Speakers', /MLP \(main listening position: /],
       ['Seating', /^Where you sit/],
+      ['Room objects', /not part of the estimated response\.$/],
       ['Results', /^How loud/],
     ] as const) {
       expect(screen.getByRole('region', { name })).toHaveAccessibleDescription(

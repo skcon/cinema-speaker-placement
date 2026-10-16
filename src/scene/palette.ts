@@ -6,6 +6,9 @@ import { Color, LinearSRGBColorSpace } from 'three'
  */
 export const RECOMMENDED_SEAT_COLOR = '#7c3aed'
 
+/** The Screen in the room view and its legend: a color no grade or item uses. */
+export const SCREEN_COLOR = '#0891b2'
+
 /** The "38% rule" reference line in the room view and its legend. */
 export const RULE_OF_THUMB_COLOR = '#a3a3a3'
 
@@ -22,6 +25,7 @@ export const SCENE_COLORS = {
   frontWall: '#171717',
   mlp: '#2563eb',
   seatRow: '#dbeafe',
+  screen: SCREEN_COLOR,
   ruleOfThumb: RULE_OF_THUMB_COLOR,
   recommended: RECOMMENDED_SEAT_COLOR,
   /** The Selected item's ring and Dimension lines. */

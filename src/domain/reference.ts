@@ -3,8 +3,9 @@
  * docs/research/dolby-speaker-placement.md,
  * docs/research/multi-subwoofer-placement.md,
  * docs/research/low-frequency-response.md,
- * docs/research/crossover-enclosure-boundaries.md and
- * docs/research/reference-level-headroom.md.
+ * docs/research/crossover-enclosure-boundaries.md,
+ * docs/research/reference-level-headroom.md and
+ * docs/research/screen-and-front-stage.md.
  */
 
 /**
@@ -20,6 +21,10 @@ export type SourceKey =
   | LowFrequencySourceKey
   | BassSourceKey
   | HeadroomSourceKey
+  | ScreenSourceKey
+
+/** docs/research/screen-and-front-stage.md, section 1. */
+type ScreenSourceKey = 'CEPRO-H' | 'SV-AT' | 'ELITE-AT' | 'AVS-AT'
 
 /** docs/research/reference-level-headroom.md, section 1. */
 type HeadroomSourceKey = 'ATSC-A52' | 'FLORIAN-2000'
@@ -602,6 +607,68 @@ export const SEAT_ROW = {
   depth: number
   headOffset: number
   note: string
+}
+
+/**
+ * The Screen (GLOSSARY.md): a TV or projection screen on the front wall, a
+ * room object that is drawn but never part of the estimated response
+ * (ADR 0006). Its accepted sizes, and the screen a Room gets when one is
+ * added.
+ *
+ * - **limits**: our product limits that catch typos, not cited values; no
+ *   source gives a range of screen sizes (docs/research/screen-and-front-stage.md
+ *   section 2.3 and gap 8). Each is also kept inside the Room: the screen
+ *   fits on the front wall, between the floor and the ceiling.
+ * - **standoff**: how far an acoustically transparent screen stands in
+ *   front of the front wall, with the speakers behind it. The sources'
+ *   gaps between speaker and screen run from about 1 in to 12 in
+ *   (ELITE-AT, SV-AT, AVS-AT), which are product-specific; the limits and
+ *   the default are ours. The default puts the screen about 0.1 m (SV-AT's
+ *   4 in for a woven screen) in front of a cabinet about 0.3 m deep whose
+ *   front stage sits FRONT_STAGE_WALL_DISTANCE (0.5 m) from the wall.
+ * - **defaultTv**: a 65 in 16:9 TV (1.44 x 0.81 m), our pick from the
+ *   55-85 in range of section 2.3, itself ours (market observation).
+ * - **eyeLineFraction**: where seated eye height crosses the image,
+ *   measured up from its bottom edge: the line between its bottom third and
+ *   its top two-thirds (CEPRO-H, trade press by a screen manufacturer). The
+ *   default bottom edge puts EAR_HEIGHT there: 0.93 m for the default TV,
+ *   as in section 5 of the research note.
+ */
+export const SCREEN = {
+  limits: {
+    width: { min: 0.5, max: 8 },
+    height: { min: 0.3, max: 4 },
+    bottomEdge: { min: 0, max: 3 },
+    standoff: { min: 0.05, max: 1.5 },
+  },
+  defaultTv: { width: 1.44, height: 0.81 },
+  defaultStandoff: 0.75,
+  eyeLineFraction: 1 / 3,
+  note:
+    'Limits, the default TV and the default standoff are ours, not cited ' +
+    '(docs/research/screen-and-front-stage.md sections 2.3 and 5).',
+  citations: [
+    {
+      source: 'CEPRO-H',
+      note: 'seated eye level at the bottom third of the image (excerpt)',
+    },
+    {
+      source: 'SV-AT',
+      note: 'about 4 in (woven) to 12 in (microperf) behind an AT screen (excerpt)',
+    },
+    { source: 'ELITE-AT', note: 'about 1 in for its own materials (excerpt)' },
+    { source: 'AVS-AT', note: 'community practice (excerpt)' },
+  ],
+} as const satisfies {
+  limits: Record<
+    'width' | 'height' | 'bottomEdge' | 'standoff',
+    { min: number; max: number }
+  >
+  defaultTv: { width: number; height: number }
+  defaultStandoff: number
+  eyeLineFraction: number
+  note: string
+  citations: readonly Citation[]
 }
 
 /** The target curve's tolerance band: ± this many dB around the target. */

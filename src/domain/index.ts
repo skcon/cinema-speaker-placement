@@ -54,7 +54,32 @@ export {
   withLayout,
   withMlpAtRecommendedSeat,
   withRoom,
+  withRoomObjectMoved,
+  withRoomObjects,
+  withScreenEdit,
 } from './config-edits'
+export {
+  isRoomObjectId,
+  NO_ROOM_OBJECTS,
+  ROOM_OBJECT_IDS,
+  SCREEN_ID,
+  type RoomObjectId,
+  type RoomObjects,
+} from './room-objects'
+export {
+  checkScreenDimension,
+  defaultScreen,
+  SCREEN_KINDS,
+  screenDimension,
+  screenSurface,
+  withAcousticTransparency,
+  withScreenDimension,
+  withScreenKind,
+  type RoomScreen,
+  type ScreenDimension,
+  type ScreenKind,
+  type ScreenSurface,
+} from './screen'
 export {
   MLP_ID,
   type ManualPositions,
@@ -155,6 +180,7 @@ export {
   HEADROOM_STATUS,
   LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,
+  SCREEN,
   SEAT_SCORE,
   sourceOf,
   SPEAKER_TYPE_GEOMETRY,

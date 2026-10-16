@@ -57,6 +57,7 @@ import { z } from 'zod'
 import { configSchema, DEFAULT_CONFIG, type Config } from './config'
 import { configSchemaV1 } from './config-v1'
 import { roundToMillimeter } from './manual-positions'
+import { NO_ROOM_OBJECTS, roundRoomObjectsForLink } from './room-objects'
 
 /**
  * Why a share link could not be opened: it is damaged or not a share link
@@ -163,9 +164,12 @@ const CONFIG_VERSION = 2
 
 /** Migrations from each earlier schema version to the next. */
 const CONFIG_MIGRATIONS: Readonly<Record<number, Migration>> = {
-  // Version 2 has version 1's shape so far. The 1.1.0 tickets that extend
-  // version 2 give their new fields a value here.
-  1: migrateFrom(configSchemaV1, (config) => config),
+  // The 1.1.0 tickets that extend version 2 give their new fields the
+  // value a version 1 link means here. Version 1 had no room objects.
+  1: migrateFrom(configSchemaV1, (config) => ({
+    ...config,
+    roomObjects: NO_ROOM_OBJECTS,
+  })),
 }
 
 const configCodec = createConfigCodec({
@@ -177,14 +181,16 @@ const configCodec = createConfigCodec({
 
 /**
  * The config as an encoded config: the URL-safe text a share link carries
- * in its `config` search param. Manual positions are written to the
- * nearest millimeter, which keeps links short: a drag gives 17 significant
- * digits, and nobody mounts a speaker more precisely than that.
+ * in its `config` search param. Manual positions, and where a room object
+ * was dragged to, are written to the nearest millimeter, which keeps links
+ * short: a drag gives 17 significant digits, and nobody mounts a speaker
+ * more precisely than that.
  */
 export function encodeConfig(config: Config): EncodedConfig {
   return configCodec.encode({
     ...config,
     manualPositions: roundToMillimeter(config.manualPositions),
+    roomObjects: roundRoomObjectsForLink(config.roomObjects),
   }) as EncodedConfig
 }
 

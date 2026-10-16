@@ -15,9 +15,18 @@ import {
   type PlaceableId,
 } from './manual-positions'
 import { positionOf } from './placements'
+import {
+  areValidRoomObjects,
+  keepRoomObjectsInRoom,
+  roomObjectsMoved,
+  type RoomObjectId,
+  type RoomObjects,
+} from './room-objects'
 import { recommendSeat } from './seat-score'
+import type { RoomScreen } from './screen'
 import {
   atDistanceFromWall,
+  type FloorPoint,
   type Room,
   type RoomPoint,
   type Wall,
@@ -67,13 +76,48 @@ export function placeAtWallDistance(
   )
 }
 
-/** The config in another Room; manual items the walls moved past move in with them. */
+/**
+ * The config in another Room; manual items and room objects the walls
+ * moved past move in with them (and room objects shrink to fit).
+ */
 export function withRoom(config: Config, room: Room): Config {
   return {
     ...config,
     room,
     manualPositions: keepInRoom(room, config.manualPositions),
+    roomObjects: keepRoomObjectsInRoom(room, config.roomObjects),
   }
+}
+
+/**
+ * The config with its room objects changed by `edit`, which gets the Room
+ * and the current ones. Comes back as it was when the edit changes
+ * nothing, or gives an object that doesn't fit the Room.
+ */
+export function withRoomObjects(
+  config: Config,
+  edit: (room: Room, objects: RoomObjects) => RoomObjects,
+): Config {
+  const roomObjects = edit(config.room, config.roomObjects)
+  if (
+    roomObjects === config.roomObjects ||
+    JSON.stringify(roomObjects) === JSON.stringify(config.roomObjects) ||
+    !areValidRoomObjects(config.room, roomObjects)
+  ) {
+    return config
+  }
+  return { ...config, roomObjects }
+}
+
+/** Room object `id` dragged on the floor plan to `to` (see roomObjectsMoved). */
+export function withRoomObjectMoved(
+  config: Config,
+  id: RoomObjectId,
+  to: FloorPoint,
+): Config {
+  return withRoomObjects(config, (room, objects) =>
+    roomObjectsMoved(room, objects, id, to),
+  )
 }
 
 /**
@@ -123,4 +167,21 @@ export function withAutoPlacement(config: Config): Config {
 /** Whether two configs have the same manual positions. */
 function samePositions(a: Config, b: Config): boolean {
   return JSON.stringify(a.manualPositions) === JSON.stringify(b.manualPositions)
+}
+
+/**
+ * The config with its Screen changed by `edit`, which gets the Room and
+ * the current screen and returns the changed one, or null to reject the
+ * change. Comes back as it was without a screen, or when the edit is
+ * rejected or changes nothing.
+ */
+export function withScreenEdit(
+  config: Config,
+  edit: (room: Room, screen: RoomScreen) => RoomScreen | null,
+): Config {
+  return withRoomObjects(config, (room, objects) => {
+    if (!objects.screen) return objects
+    const screen = edit(room, objects.screen)
+    return screen ? { ...objects, screen } : objects
+  })
 }

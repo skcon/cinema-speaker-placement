@@ -8,6 +8,7 @@ import {
   DEFAULT_CONFIG,
   decodeConfig,
   encodeConfig,
+  NO_ROOM_OBJECTS,
   TARGET_CURVE_KINDS,
   UNIT_SYSTEM_NAMES,
   V1_DOLBY_LAYOUTS,
@@ -17,7 +18,7 @@ import {
 } from '@/domain'
 import { IMPERIAL_ROOM, V1_LINKS, V2_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
-import { configSchemaV1 } from './config-v1'
+import { configSchemaV1, type ConfigV1 } from './config-v1'
 import { createConfigCodec, migrateFrom } from './share-link'
 
 /**
@@ -30,6 +31,25 @@ function encodedHolding(json: unknown): string {
 }
 
 const FALLBACK = { config: DEFAULT_CONFIG, problem: 'unreadable' }
+
+/** A config in version 1's shape: without room objects. */
+function inVersion1({ roomObjects, ...config }: Config): ConfigV1 {
+  void roomObjects
+  return config
+}
+
+/** The default config as a version 1 link holds it. */
+const DEFAULT_V1 = inVersion1(DEFAULT_CONFIG)
+
+/**
+ * A config of version 1's shape as a version 2 link would hold it: with
+ * no room objects (anything that is not an object stays as it is).
+ */
+function inVersion2(config: unknown): unknown {
+  return typeof config === 'object' && config !== null && !Array.isArray(config)
+    ? { ...config, roomObjects: NO_ROOM_OBJECTS }
+    : config
+}
 
 /** Two subwoofer models that differ from the defaults in every spec. */
 const PORTED_15 = {
@@ -47,95 +67,93 @@ const SEALED_10 = {
 
 /** The default config (6 x 4.5 x 2.6 m, 5.1.2) with these manual positions. */
 function withManualPositions(manualPositions: unknown) {
-  return { ...DEFAULT_CONFIG, manualPositions }
+  return { ...DEFAULT_V1, manualPositions }
 }
 
 /** The default config with these specs for one other speaker group. */
 function withSpeakerGroup(group: string, specs: unknown) {
   return {
-    ...DEFAULT_CONFIG,
-    speakerGroups: { ...DEFAULT_CONFIG.speakerGroups, [group]: { specs } },
+    ...DEFAULT_V1,
+    speakerGroups: { ...DEFAULT_V1.speakerGroups, [group]: { specs } },
   }
 }
 
 /** The default config with this Subwoofers group: specs and own specs. */
 function withSubwooferGroup(subwoofers: unknown) {
   return {
-    ...DEFAULT_CONFIG,
-    speakerGroups: { ...DEFAULT_CONFIG.speakerGroups, subwoofers },
+    ...DEFAULT_V1,
+    speakerGroups: { ...DEFAULT_V1.speakerGroups, subwoofers },
   }
 }
 
 /**
  * Configs that break the rules of versions 1 and 2, mostly the default
  * config with one thing wrong, so a link holding one falls back to the
- * default config.
+ * default config. In version 1's shape: version 2 links hold them with
+ * room objects added (inVersion2).
  */
 const BROKEN_CONFIGS: [string, unknown][] = [
   [
     'a room too long',
-    { ...DEFAULT_CONFIG, room: { length: 50, width: 4.5, height: 2.6 } },
+    { ...DEFAULT_V1, room: { length: 50, width: 4.5, height: 2.6 } },
   ],
   [
     'a ceiling too low',
-    { ...DEFAULT_CONFIG, room: { length: 6, width: 4.5, height: 1.2 } },
+    { ...DEFAULT_V1, room: { length: 6, width: 4.5, height: 1.2 } },
   ],
   [
     'a dimension that is text',
-    { ...DEFAULT_CONFIG, room: { length: '6', width: 4.5, height: 2.6 } },
+    { ...DEFAULT_V1, room: { length: '6', width: 4.5, height: 2.6 } },
   ],
-  [
-    'a missing dimension',
-    { ...DEFAULT_CONFIG, room: { length: 6, width: 4.5 } },
-  ],
-  ['a room that is null', { ...DEFAULT_CONFIG, room: null }],
-  ['unknown units', { ...DEFAULT_CONFIG, units: 'furlongs' }],
+  ['a missing dimension', { ...DEFAULT_V1, room: { length: 6, width: 4.5 } }],
+  ['a room that is null', { ...DEFAULT_V1, room: null }],
+  ['unknown units', { ...DEFAULT_V1, units: 'furlongs' }],
   [
     'a layout outside v1',
-    { ...DEFAULT_CONFIG, layout: { dolbyLayout: '9.1.4', subwoofers: 1 } },
+    { ...DEFAULT_V1, layout: { dolbyLayout: '9.1.4', subwoofers: 1 } },
   ],
   [
     'no subwoofer',
-    { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 0 } },
+    { ...DEFAULT_V1, layout: { dolbyLayout: '5.1', subwoofers: 0 } },
   ],
   [
     'five subwoofers',
-    { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 5 } },
+    { ...DEFAULT_V1, layout: { dolbyLayout: '5.1', subwoofers: 5 } },
   ],
   [
     'a fractional subwoofer count',
-    { ...DEFAULT_CONFIG, layout: { dolbyLayout: '5.1', subwoofers: 1.5 } },
+    { ...DEFAULT_V1, layout: { dolbyLayout: '5.1', subwoofers: 1.5 } },
   ],
   // A link the app wrote at this version has every field and nothing
   // else, so anything missing or extra means it was changed by hand.
-  ['no units', { room: DEFAULT_CONFIG.room, layout: DEFAULT_CONFIG.layout }],
-  ['no layout', { units: 'metric', room: DEFAULT_CONFIG.room }],
-  ['an unknown field', { ...DEFAULT_CONFIG, theme: 'dark' }],
+  ['no units', { room: DEFAULT_V1.room, layout: DEFAULT_V1.layout }],
+  ['no layout', { units: 'metric', room: DEFAULT_V1.room }],
+  ['an unknown field', { ...DEFAULT_V1, theme: 'dark' }],
   [
     'an unknown room field',
-    { ...DEFAULT_CONFIG, room: { ...DEFAULT_CONFIG.room, depth: 3 } },
+    { ...DEFAULT_V1, room: { ...DEFAULT_V1.room, depth: 3 } },
   ],
   [
     'an unknown layout field',
     {
-      ...DEFAULT_CONFIG,
-      layout: { ...DEFAULT_CONFIG.layout, overheads: 4 },
+      ...DEFAULT_V1,
+      layout: { ...DEFAULT_V1.layout, overheads: 4 },
     },
   ],
   [
     'no speaker groups',
     {
       units: 'metric',
-      room: DEFAULT_CONFIG.room,
-      layout: DEFAULT_CONFIG.layout,
+      room: DEFAULT_V1.room,
+      layout: DEFAULT_V1.layout,
     },
   ],
   [
     'an unknown speaker group',
     {
-      ...DEFAULT_CONFIG,
+      ...DEFAULT_V1,
       speakerGroups: {
-        ...DEFAULT_CONFIG.speakerGroups,
+        ...DEFAULT_V1.speakerGroups,
         center: { specs: PORTED_15 },
       },
     },
@@ -154,13 +172,13 @@ const BROKEN_CONFIGS: [string, unknown][] = [
       ownSpecs: {},
     }),
   ],
-  ['a crossover below 40 Hz', { ...DEFAULT_CONFIG, crossoverHz: 39 }],
-  ['a crossover above 200 Hz', { ...DEFAULT_CONFIG, crossoverHz: 250 }],
-  ['a crossover that is text', { ...DEFAULT_CONFIG, crossoverHz: '80' }],
+  ['a crossover below 40 Hz', { ...DEFAULT_V1, crossoverHz: 39 }],
+  ['a crossover above 200 Hz', { ...DEFAULT_V1, crossoverHz: 250 }],
+  ['a crossover that is text', { ...DEFAULT_V1, crossoverHz: '80' }],
   [
     'no crossover',
     Object.fromEntries(
-      Object.entries(DEFAULT_CONFIG).filter(([key]) => key !== 'crossoverHz'),
+      Object.entries(DEFAULT_V1).filter(([key]) => key !== 'crossoverHz'),
     ),
   ],
   [
@@ -208,9 +226,9 @@ const BROKEN_CONFIGS: [string, unknown][] = [
   [
     'a missing speaker group',
     {
-      ...DEFAULT_CONFIG,
+      ...DEFAULT_V1,
       speakerGroups: Object.fromEntries(
-        Object.entries(DEFAULT_CONFIG.speakerGroups).filter(
+        Object.entries(DEFAULT_V1.speakerGroups).filter(
           ([group]) => group !== 'center',
         ),
       ),
@@ -218,18 +236,16 @@ const BROKEN_CONFIGS: [string, unknown][] = [
   ],
   [
     'an amplifier power below the accepted range',
-    { ...DEFAULT_CONFIG, amplifierWatts: 0.5 },
+    { ...DEFAULT_V1, amplifierWatts: 0.5 },
   ],
   [
     'an amplifier power above the accepted range',
-    { ...DEFAULT_CONFIG, amplifierWatts: 5001 },
+    { ...DEFAULT_V1, amplifierWatts: 5001 },
   ],
   [
     'no amplifier power',
     Object.fromEntries(
-      Object.entries(DEFAULT_CONFIG).filter(
-        ([key]) => key !== 'amplifierWatts',
-      ),
+      Object.entries(DEFAULT_V1).filter(([key]) => key !== 'amplifierWatts'),
     ),
   ],
   [
@@ -252,27 +268,24 @@ const BROKEN_CONFIGS: [string, unknown][] = [
     'own specs for a subwoofer beyond the subwoofer count',
     withSubwooferGroup({ specs: PORTED_15, ownSpecs: { Sub2: SEALED_10 } }),
   ],
-  ['an unknown target curve', { ...DEFAULT_CONFIG, targetCurve: 'harman' }],
-  [
-    'a seat row narrower than one seat',
-    { ...DEFAULT_CONFIG, seatRowWidth: 0.4 },
-  ],
-  ['a seat row wider than 8 m', { ...DEFAULT_CONFIG, seatRowWidth: 8.1 }],
-  ['a seat row width that is text', { ...DEFAULT_CONFIG, seatRowWidth: '2' }],
+  ['an unknown target curve', { ...DEFAULT_V1, targetCurve: 'harman' }],
+  ['a seat row narrower than one seat', { ...DEFAULT_V1, seatRowWidth: 0.4 }],
+  ['a seat row wider than 8 m', { ...DEFAULT_V1, seatRowWidth: 8.1 }],
+  ['a seat row width that is text', { ...DEFAULT_V1, seatRowWidth: '2' }],
   [
     'no seat row width',
     Object.fromEntries(
-      Object.entries(DEFAULT_CONFIG).filter(([key]) => key !== 'seatRowWidth'),
+      Object.entries(DEFAULT_V1).filter(([key]) => key !== 'seatRowWidth'),
     ),
   ],
   [
     'no manual positions field',
     {
       units: 'metric',
-      room: DEFAULT_CONFIG.room,
-      layout: DEFAULT_CONFIG.layout,
-      speakerGroups: DEFAULT_CONFIG.speakerGroups,
-      amplifierWatts: DEFAULT_CONFIG.amplifierWatts,
+      room: DEFAULT_V1.room,
+      layout: DEFAULT_V1.layout,
+      speakerGroups: DEFAULT_V1.speakerGroups,
+      amplifierWatts: DEFAULT_V1.amplifierWatts,
       targetCurve: 'flat',
     },
   ],
@@ -336,13 +349,51 @@ const BROKEN_CONFIGS: [string, unknown][] = [
     'no target curve',
     {
       units: 'metric',
-      room: DEFAULT_CONFIG.room,
-      layout: DEFAULT_CONFIG.layout,
-      speakerGroups: DEFAULT_CONFIG.speakerGroups,
-      amplifierWatts: DEFAULT_CONFIG.amplifierWatts,
+      room: DEFAULT_V1.room,
+      layout: DEFAULT_V1.layout,
+      speakerGroups: DEFAULT_V1.speakerGroups,
+      amplifierWatts: DEFAULT_V1.amplifierWatts,
       manualPositions: {},
     },
   ],
+]
+
+/** A 65 in TV in the middle of the default room's front wall. */
+const TV = {
+  kind: 'tv',
+  width: 1.44,
+  height: 0.81,
+  bottomEdge: 0.93,
+  x: 0,
+  standoff: null,
+} as const
+
+/** Room objects that break the rules of version 2, in the default room. */
+const BROKEN_ROOM_OBJECTS: [string, unknown][] = [
+  ['room objects that are null', null],
+  ['no screen field', {}],
+  ['an unknown room object', { screen: null, piano: true }],
+  ['an unknown kind of screen', { screen: { ...TV, kind: 'laser' } }],
+  ['a screen narrower than 0.5 m', { screen: { ...TV, width: 0.4 } }],
+  // The default room is 4.5 m wide.
+  ['a screen wider than the front wall', { screen: { ...TV, width: 4.6 } }],
+  ['a screen past a side wall', { screen: { ...TV, x: 1.6 } }],
+  // The default room is 2.6 m high.
+  ['a screen through the ceiling', { screen: { ...TV, bottomEdge: 2 } }],
+  ['a screen below the floor', { screen: { ...TV, bottomEdge: -0.1 } }],
+  ['a TV with a standoff', { screen: { ...TV, standoff: 0.5 } }],
+  [
+    'a standoff above 1.5 m',
+    { screen: { ...TV, kind: 'projection', standoff: 1.6 } },
+  ],
+  ['a screen width that is text', { screen: { ...TV, width: '1.44' } }],
+  [
+    'a screen without a standoff field',
+    {
+      screen: { kind: 'tv', width: 1.44, height: 0.81, bottomEdge: 0.93, x: 0 },
+    },
+  ],
+  ['a screen with an unknown field', { screen: { ...TV, diagonal: 65 } }],
 ]
 
 describe('share link codec', () => {
@@ -504,6 +555,53 @@ describe('share link codec', () => {
     })
   })
 
+  it.each([
+    ['no screen', NO_ROOM_OBJECTS],
+    ['a TV on the wall', { screen: TV }],
+    [
+      'an acoustically transparent projection screen',
+      {
+        screen: {
+          ...TV,
+          kind: 'projection',
+          width: 2.66,
+          standoff: 0.75,
+          x: -0.5,
+        },
+      },
+    ],
+  ] as const)('rebuilds a room with %s', (_, roomObjects) => {
+    const config: Config = { ...DEFAULT_CONFIG, roomObjects }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config,
+      problem: null,
+    })
+  })
+
+  it('rebuilds where a screen was dragged to the nearest millimeter', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: { screen: { ...TV, x: -0.98765 } },
+    }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config: { ...config, roomObjects: { screen: { ...TV, x: -0.988 } } },
+      problem: null,
+    })
+  })
+
+  it('rebuilds a screen dragged against a side wall, rounded half a millimeter past it', () => {
+    // 4.5 m wall, 1.4428 m screen: its middle stops 1.5286 m off centre.
+    const screen = { ...TV, width: 1.4428, x: (4.5 - 1.4428) / 2 }
+    const config: Config = { ...DEFAULT_CONFIG, roomObjects: { screen } }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config: { ...config, roomObjects: { screen: { ...screen, x: 1.529 } } },
+      problem: null,
+    })
+  })
+
   describe('falls back to the default config', () => {
     const valid = encodeConfig(IMPERIAL_ROOM)
 
@@ -536,17 +634,42 @@ describe('share link codec', () => {
       expect(decodeConfig(encodedHolding(json))).toEqual(FALLBACK)
     })
 
-    // Version 2 has version 1's shape so far, so both break the same rules.
-    describe.each([1, 2])('for a version %i config', (v) => {
+    // Version 2 is version 1 with room objects, so both break the same rules.
+    describe.each([
+      [1, DEFAULT_V1, (config: unknown) => config],
+      [2, DEFAULT_CONFIG, inVersion2],
+    ])('for a version %i config', (v, defaultConfig, inVersion) => {
       it('but opens the config these cases start from', () => {
         expect(
-          decodeConfig(encodedHolding({ v, config: DEFAULT_CONFIG })),
+          decodeConfig(encodedHolding({ v, config: defaultConfig })),
         ).toEqual({ config: DEFAULT_CONFIG, problem: null })
       })
 
       it.each(BROKEN_CONFIGS)('with %s', (_, config) => {
-        expect(decodeConfig(encodedHolding({ v, config }))).toEqual(FALLBACK)
+        expect(
+          decodeConfig(encodedHolding({ v, config: inVersion(config) })),
+        ).toEqual(FALLBACK)
       })
+    })
+
+    describe('for a version 2 config', () => {
+      it.each(BROKEN_ROOM_OBJECTS)('with %s', (_, roomObjects) => {
+        const config = { ...DEFAULT_CONFIG, roomObjects }
+
+        expect(decodeConfig(encodedHolding({ v: 2, config }))).toEqual(FALLBACK)
+      })
+
+      it('without room objects', () => {
+        expect(
+          decodeConfig(encodedHolding({ v: 2, config: DEFAULT_V1 })),
+        ).toEqual(FALLBACK)
+      })
+    })
+
+    it('for a version 1 config with room objects', () => {
+      expect(
+        decodeConfig(encodedHolding({ v: 1, config: DEFAULT_CONFIG })),
+      ).toEqual(FALLBACK)
     })
 
     it('and says so when the link comes from a newer version of the app', () => {
@@ -588,12 +711,15 @@ const codecV1 = createConfigCodec({
 
 describe('released share links', () => {
   // Typed here, so the shared fixtures stay valid configs.
-  const links: Record<string, { encoded: string; config: Config }> = V1_LINKS
+  const links: Record<string, { encoded: string; config: ConfigV1 }> = V1_LINKS
 
   it.each(Object.entries(links))(
-    'keep opening: %s',
+    'keep opening as the same room, without room objects: %s',
     (_, { encoded, config }) => {
-      expect(decodeConfig(encoded)).toEqual({ config, problem: null })
+      expect(decodeConfig(encoded)).toEqual({
+        config: { ...config, roomObjects: NO_ROOM_OBJECTS },
+        problem: null,
+      })
     },
   )
 
@@ -707,6 +833,19 @@ const WORST_CASE_CONFIG: Config = {
     Sub3: longestPosition(9, 0.3),
     Sub4: longestPosition(10, 0.3),
     MLP: longestPosition(11, 1.2),
+  },
+  // The longer kind with a standoff, every length with all 17 significant
+  // digits a converted feet + inches value can have, and the position
+  // negative and to the millimeter, as a dragged screen is stored.
+  roomObjects: {
+    screen: {
+      kind: 'projection',
+      width: 8 - 1 / 7,
+      height: 4 - 1 / 7,
+      bottomEdge: 1 - 1 / 81,
+      x: -3.499,
+      standoff: 1.5 - 1 / 7,
+    },
   },
 }
 

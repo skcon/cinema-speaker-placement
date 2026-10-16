@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { FloorPoint, PlaceableId } from '@/domain'
-import { createDragController } from '@/scene/drag'
+import type { FloorPoint } from '@/domain'
+import { createDragController, type DragTarget } from '@/scene/drag'
 
 /** A controller that records what it tells the store. */
 function recordedDrag() {
   const calls: string[] = []
-  const moves: [PlaceableId, FloorPoint][] = []
+  const moves: [DragTarget, FloorPoint][] = []
   const drag = createDragController({
     onDragStart: () => calls.push('start'),
     onDragMove: (id, to) => {

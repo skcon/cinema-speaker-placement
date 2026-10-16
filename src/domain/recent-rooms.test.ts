@@ -1,6 +1,6 @@
 import { compressToEncodedURIComponent } from 'lz-string'
 import { describe, expect, it } from 'vitest'
-import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
+import { IMPERIAL_ROOM, V1_LINKS, V2_LINKS } from '@/test/share-link-fixtures'
 import { DEFAULT_CONFIG } from './config'
 import {
   parseRecentRooms,
@@ -154,8 +154,9 @@ describe('reading stored recent rooms', () => {
   })
 
   it('reads a room saved by an older version as the app writes it today, so opening it again keeps one entry', () => {
-    const { encoded, config } = V1_LINKS.imperialRoom
-    const today = encodeConfig(config)
+    const { encoded } = V1_LINKS.imperialRoom
+    // The same room as today's version writes it.
+    const today = V2_LINKS.imperialRoom.encoded as EncodedConfig
     // Opened again from a link: saved once more, as today's version writes it.
     const stored = serializeRecentRooms([
       { encoded: today, savedAt: 2 },

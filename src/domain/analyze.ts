@@ -13,7 +13,7 @@ import {
   type OverheadPlacementRangeCheck,
   type PlacementRangeCheck,
 } from './placement-range'
-import type { Aim } from './placement'
+import type { Aim, ScreenRelation } from './placement'
 import { placeAll } from './placements'
 import {
   azimuthFromMlp,
@@ -66,6 +66,12 @@ export type PlacedSpeaker = {
   readonly aim: Aim
   /** Its angle from the MLP, graded against Dolby's placement range. */
   readonly placementRange: PlacementRangeCheck
+  /**
+   * How auto-place fitted it to the Screen (placement.ts, rule 6), or that
+   * it is manual: null without a screen, or for a channel other than L, C
+   * and R.
+   */
+  readonly screenRelation: ScreenRelation | null
 }
 
 /**
@@ -179,7 +185,7 @@ export function analyzeRoom(config: Config): RoomAnalysis {
   // Each speaker faces the current MLP; its reflections follow from that
   // aim and are worked out once, for both the estimate and the notes.
   const heardSpeakers = placements.speakers.map(
-    ({ reference, position, placement }) => {
+    ({ reference, position, placement, screenRelation }) => {
       const { aim, woofer, reflections, levels } = hearSpeaker(
         config,
         { channel: reference.channel, position },
@@ -197,6 +203,7 @@ export function analyzeRoom(config: Config): RoomAnalysis {
           reference,
           azimuthFromMlp(mlp, position),
         ),
+        screenRelation,
       }
       return {
         speaker,

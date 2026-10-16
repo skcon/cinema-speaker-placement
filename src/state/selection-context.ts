@@ -58,11 +58,32 @@ export type SelectedItem = {
 }
 
 /**
+ * The Selected item, shared by every component under the config store
+ * (ConfigStoreProvider provides it), so it is derived once per change.
+ * Undefined outside the provider.
+ */
+export const SelectedItemContext = createContext<
+  SelectedItem | null | undefined
+>(undefined)
+
+/**
  * The selected item, placed in the current room with its distances, or
  * null when nothing is selected or the selected item has left the layout.
  * It follows the config live, so a drag updates it every frame.
  */
 export function useSelectedItem(): SelectedItem | null {
+  const item = useContext(SelectedItemContext)
+  if (item === undefined) {
+    throw new Error('useSelectedItem must be used inside <ConfigStoreProvider>')
+  }
+  return item
+}
+
+/**
+ * Works the Selected item out, for SelectedItemContext only: from the
+ * selection and the shared Room analysis.
+ */
+export function useComputedSelectedItem(): SelectedItem | null {
   const { selected } = useSelection()
   const room = useConfig((state) => state.config.room)
   const { mlp, mlpPlacement, speakers, overheads, subwoofers } =

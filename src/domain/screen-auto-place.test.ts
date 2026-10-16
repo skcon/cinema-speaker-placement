@@ -9,7 +9,7 @@ import {
   type Room,
   type RoomScreen,
 } from '@/domain'
-import { placeAll } from '@/domain/placements'
+import { centerLineProjection, placeSpeakers } from '@/domain/placements'
 import { azimuthFromMlp } from '@/domain/room'
 
 // The default room is 6 x 4.5 x 2.6 m with the auto MLP on the centre line
@@ -319,15 +319,19 @@ describe('auto-place with a screen', () => {
     })
 
     it('places the speakers of a candidate seat with the same rule', () => {
-      // The seat score places auto speakers around each seat by placeAll,
-      // with the seat as the MLP.
+      // The seat score installs each seat's auto speakers for its
+      // projection onto the center line (ADR 0005, amendment).
       const seat = { x: 0.4, y: 3, z: 1.2 }
-      const config = withScreen(tv(1), { manualPositions: { MLP: seat } })
-      const left = placeAll(config).speakers.find(
-        ({ reference }) => reference.channel === 'L',
-      )
+      const installedFor = centerLineProjection(seat)
+      const left = placeSpeakers(withScreen(tv(1)), {
+        installedFor,
+        heardAt: seat,
+      }).find(({ reference }) => reference.channel === 'L')
       expect(left?.screenRelation).toMatchObject({ kind: 'clamped' })
-      expect(azimuthFromMlp(seat, left?.position ?? seat)).toBeCloseTo(-22, 9)
+      expect(azimuthFromMlp(installedFor, left?.position ?? seat)).toBeCloseTo(
+        -22,
+        9,
+      )
     })
   })
 })

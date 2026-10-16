@@ -24,6 +24,7 @@ import {
   withRoomObjectMoved,
   type RoomObjectId,
 } from './room-objects'
+import { screenSurface } from './screen'
 
 /** What can be dragged on the floor plan: an item or a room object. */
 export type DragTarget = PlaceableId | RoomObjectId
@@ -63,7 +64,10 @@ export function dragAnchors(
   anchors.set(SEAT_ROW_ID, onFloor(mlp.position))
   const { screen, furniture, openings } = roomObjects
   if (screen) {
-    anchors.set(SCREEN_ID, { x: screen.x, y: screen.standoff ?? 0 })
+    anchors.set(SCREEN_ID, {
+      x: screen.x,
+      y: screenSurface(screen).fromFrontWall,
+    })
   }
   furniture.forEach(({ x, y }, index) =>
     anchors.set(roomObjectId('furniture', index), { x, y }),

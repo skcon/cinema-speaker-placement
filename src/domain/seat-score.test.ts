@@ -5,6 +5,7 @@ import {
   recommendSeat,
   scoreSeat,
   type Config,
+  type ScoredSeat,
 } from '@/domain'
 import { V1_LINKS } from '@/test/share-link-fixtures'
 
@@ -116,6 +117,12 @@ describe('recommended seat', () => {
     expect(mlpIsRecommended).toBe(true)
   })
 
+  it('says nothing about the center line when the MLP stays the recommended seat', () => {
+    const config = V1_LINKS.imperialRoom.config as Config
+
+    expect(recommendSeat(config).offCenterLine).toBeUndefined()
+  })
+
   it('only considers seats inside the MLP’s wall clearance, at ear height', () => {
     const { candidates } = recommendSeat(DEFAULT_CONFIG)
 
@@ -126,6 +133,21 @@ describe('recommended seat', () => {
       expect(position.z).toBe(1.2)
     }
     expect(candidates.length).toBeGreaterThan(100)
+  })
+
+  it('has a column of candidates on the center line in any room width', () => {
+    // 2.8 m wide: 2.2 m between the side clearances, which 0.25 m steps
+    // would split into an even number of columns, none in the middle.
+    for (const width of [2, 2.8, 3.3, 4.5, 15]) {
+      const { candidates } = recommendSeat({
+        ...DEFAULT_CONFIG,
+        room: { ...DEFAULT_CONFIG.room, width },
+      })
+      const across = [...new Set(candidates.map(({ position }) => position.x))]
+
+      expect(across.filter((x) => x === 0)).toHaveLength(1)
+      expect(across.length % 2).toBe(1)
+    }
   })
 
   it('recommends a seat in the largest room with 4 subwoofers and 7 listener-level speakers quickly enough to run live', () => {
@@ -143,5 +165,115 @@ describe('recommended seat', () => {
     recommendSeat(config)
 
     expect(performance.now() - started).toBeLessThan(2000)
+  })
+})
+
+describe('recommended seat on the center line (ADR 0005)', () => {
+  /** The best of these seats, ties to the first. */
+  const bestOf = (seats: readonly ScoredSeat[]) =>
+    seats.reduce((best, seat) => (seat.score > best.score ? seat : best))
+  const onCenterLine = ({ position }: ScoredSeat) => position.x === 0
+
+  /** A 6 x 5 m room with two subwoofers, front and back. */
+  const twoSubwoofers: Config = {
+    ...DEFAULT_CONFIG,
+    room: { length: 6, width: 5, height: 2.6 },
+    layout: { dolbyLayout: '5.1.2', subwoofers: 2 },
+  }
+
+  /** A long, narrow room, its one subwoofer moved toward the right wall. */
+  const subwooferOffCenter: Config = {
+    ...DEFAULT_CONFIG,
+    room: { length: 7, width: 3.5, height: 2.6 },
+    manualPositions: { Sub1: { x: 1, y: 0.3, z: 0.3 } },
+  }
+
+  it('recommends the best center-line seat when an off-center seat scores better, but not meaningfully', () => {
+    const { recommended, current, candidates, offCenterLine } =
+      recommendSeat(twoSubwoofers)
+    const best = bestOf(candidates)
+    const bestOnCenterLine = bestOf(candidates.filter(onCenterLine))
+
+    // The grid's best seat is off the center line, within the precision.
+    expect(best.position.x).not.toBe(0)
+    expect(best.score).toBeGreaterThan(bestOnCenterLine.score)
+    expect(best.score - bestOnCenterLine.score).toBeLessThan(0.02)
+    expect(recommended).toBe(bestOnCenterLine)
+    expect(recommended.score).toBeGreaterThan(current.score + 0.02)
+    expect(offCenterLine).toBeUndefined()
+  })
+
+  it('keeps a center-line seat recommended once the MLP is moved there', () => {
+    const { recommended } = recommendSeat(twoSubwoofers)
+    const moved = recommendSeat({
+      ...twoSubwoofers,
+      manualPositions: { MLP: recommended.position },
+    })
+
+    expect(moved.mlpIsRecommended).toBe(true)
+    expect(moved.recommended.position.x).toBe(0)
+  })
+
+  it('recommends an off-center seat that beats every center-line seat meaningfully, with the margin and the center-line seat it beat', () => {
+    // The default room: about 2.3 points better 0.84 m off the center line.
+    const { recommended, current, candidates, offCenterLine } =
+      recommendSeat(DEFAULT_CONFIG)
+    const bestOnCenterLine = bestOf([
+      current,
+      ...candidates.filter(onCenterLine),
+    ])
+
+    expect(Math.abs(recommended.position.x)).toBeCloseTo(0.84, 2)
+    expect(recommended).toBe(bestOf(candidates))
+    expect(offCenterLine?.centerLine).toBe(bestOnCenterLine)
+    expect(offCenterLine?.margin).toBeCloseTo(
+      recommended.score - bestOnCenterLine.score,
+      12,
+    )
+    expect(offCenterLine?.margin).toBeGreaterThan(0.02)
+  })
+
+  it('names a width mode strongest on the center line when the bass is smoother off it', () => {
+    // The subwoofer in the middle of the front wall drives the even width
+    // modes, which are strongest on the center line: the second one is at
+    // 343 / 4.5 = 76.2 Hz.
+    const { recommended, offCenterLine } = recommendSeat(DEFAULT_CONFIG)
+
+    expect(recommended.responseDeviationDb).toBeLessThan(
+      offCenterLine!.centerLine.responseDeviationDb,
+    )
+    expect(offCenterLine?.widthMode?.mode.indices).toEqual({
+      length: 0,
+      width: 2,
+      height: 0,
+    })
+    expect(offCenterLine?.widthMode?.mode.frequency).toBeCloseTo(76.2, 1)
+    expect(offCenterLine?.widthMode?.atCenterLine).toBe('strongest')
+  })
+
+  it('names a width mode with a null on the center line when an off-center subwoofer drives it', () => {
+    // Off the center line the subwoofer drives the first width mode,
+    // 343 / (2 × 3.5) = 49 Hz, whose null runs down the center line.
+    const { recommended, offCenterLine } = recommendSeat(subwooferOffCenter)
+
+    expect(recommended.position.x).not.toBe(0)
+    expect(offCenterLine?.margin).toBeGreaterThan(0.02)
+    expect(offCenterLine?.widthMode?.mode.indices).toEqual({
+      length: 0,
+      width: 1,
+      height: 0,
+    })
+    expect(offCenterLine?.widthMode?.mode.frequency).toBeCloseTo(49, 1)
+    expect(offCenterLine?.widthMode?.atCenterLine).toBe('null')
+  })
+
+  it('counts an MLP on the center line as a center-line seat, and keeps it when no seat beats it meaningfully', () => {
+    // The 24 x 15 ft fixture room: its 38% MLP is on the center line and
+    // scores about as well as the grid's best center-line seat.
+    const config = V1_LINKS.imperialRoom.config as Config
+    const { recommended, current } = recommendSeat(config)
+
+    expect(current.position.x).toBe(0)
+    expect(recommended).toBe(current)
   })
 })

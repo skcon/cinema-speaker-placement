@@ -31,6 +31,7 @@ function recommendation(
 ): SeatRecommendation {
   return {
     recommended,
+    offCenterLine: undefined,
     current,
     mlpIsRecommended: recommended === current,
     candidates,
@@ -152,6 +153,7 @@ describe('seat-score heatmap', () => {
     expect(
       seatHeatmap({
         recommended: mlp,
+        offCenterLine: undefined,
         current: mlp,
         mlpIsRecommended: true,
         candidates: [],

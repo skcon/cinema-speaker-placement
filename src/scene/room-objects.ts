@@ -5,7 +5,9 @@ import {
   openingLabel,
   openingSpan,
   openingVerticalSpan,
-  pointOnWall,
+  fromWallFrame,
+  inwardDirection,
+  wallStart,
   type Opening,
   type Room,
   type Wall,
@@ -212,14 +214,6 @@ export const OPENING_MARK_DEPTH = 0.1
  */
 const OPENING_PANEL_OFFSET = 0.01
 
-/** Which way is into the room from each wall, on the floor plan. */
-const INWARD = {
-  front: { x: 0, y: 1 },
-  back: { x: 0, y: -1 },
-  left: { x: 1, y: 0 },
-  right: { x: -1, y: 0 },
-} as const satisfies Record<Wall, { x: number; y: number }>
-
 /** A rectangle on the floor plan: its middle and its size along x and y. */
 export type FloorRect = {
   center: RoomPoint
@@ -231,15 +225,14 @@ export type FloorRect = {
  * opening and `depth` deep into the room.
  */
 function againstWall(room: Room, opening: Opening, depth: number): FloorRect {
-  const middle = pointOnWall(room, opening.wall, opening.position)
-  const inward = INWARD[opening.wall]
-  const alongX = opening.wall === 'front' || opening.wall === 'back'
+  const center = fromWallFrame(room, opening.wall, {
+    along: opening.position,
+    out: depth / 2,
+  })
+  // Into the room along y means the wall runs along x.
+  const alongX = inwardDirection(opening.wall).x === 0
   return {
-    center: {
-      x: middle.x + (inward.x * depth) / 2,
-      y: middle.y + (inward.y * depth) / 2,
-      z: 0,
-    },
+    center: { ...center, z: 0 },
     size: alongX ? [opening.width, depth] : [depth, opening.width],
   }
 }
@@ -257,13 +250,15 @@ export function doorSwing(room: Room, door: Opening): FloorRect {
   return againstWall(room, door, door.width)
 }
 
-/** How each wall's 3D panel is turned to face into the room (about y). */
-const PANEL_TURN = {
-  front: 0,
-  back: Math.PI,
-  left: Math.PI / 2,
-  right: -Math.PI / 2,
-} as const satisfies Record<Wall, number>
+/**
+ * How a 3D panel on `wall` is turned about Three.js y to face into the
+ * room: a Three.js plane faces +z (room +y), and turning it by `a` faces
+ * it along (sin a, cos a) in room (x, y).
+ */
+function panelTurn(wall: Wall): number {
+  const inward = inwardDirection(wall)
+  return Math.atan2(inward.x, inward.y)
+}
 
 /**
  * An opening in 3D: an upright panel in Three.js coordinates on the inside
@@ -275,26 +270,16 @@ export function openingPanel(
   opening: Opening,
 ): { position: Vec3; size: [width: number, height: number]; rotation: Vec3 } {
   const { bottom, top } = openingVerticalSpan(room, opening)
-  const middle = pointOnWall(room, opening.wall, opening.position)
-  const inward = INWARD[opening.wall]
+  const { x, y } = fromWallFrame(room, opening.wall, {
+    along: opening.position,
+    out: OPENING_PANEL_OFFSET,
+  })
   return {
-    position: toScenePosition({
-      x: middle.x + inward.x * OPENING_PANEL_OFFSET,
-      y: middle.y + inward.y * OPENING_PANEL_OFFSET,
-      z: (bottom + top) / 2,
-    }),
+    position: toScenePosition({ x, y, z: (bottom + top) / 2 }),
     size: [opening.width, top - bottom],
-    rotation: [0, PANEL_TURN[opening.wall], 0],
+    rotation: [0, panelTurn(opening.wall), 0],
   }
 }
-
-/** Where along each wall an opening is measured from, in words. */
-const MEASURED_FROM = {
-  front: 'the left wall',
-  back: 'the left wall',
-  left: 'the front wall',
-  right: 'the front wall',
-} as const satisfies Record<Wall, string>
 
 /**
  * The openings in words, for the room view's screen-reader description,
@@ -314,7 +299,7 @@ export function describeOpenings(
         : `${length(opening.width)} wide`
     return (
       `${openingLabel(opening, index)} on the ${opening.wall} wall, ${size}, ` +
-      `${length(openingSpan(opening).start)} from ${MEASURED_FROM[opening.wall]}`
+      `${length(openingSpan(opening).start)} from the ${wallStart(opening.wall)} wall`
     )
   })
   return `Doors and windows: ${described.join('; ')}.`

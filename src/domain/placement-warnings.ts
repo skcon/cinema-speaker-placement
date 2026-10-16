@@ -20,7 +20,6 @@ import {
   isInFrontOfOpening,
   isInOpening,
   openingLabel,
-  wallReflectionPoint,
   type Opening,
 } from './openings'
 import {
@@ -34,6 +33,7 @@ import {
   type RoomObjects,
 } from './room-objects'
 import type { Room, RoomPoint, Wall } from './room'
+import { mirroredWall, wallReflectionPoint } from './wall-frame'
 import type { SubwooferId } from './subwoofer-arrangements'
 
 /** A placement warning's id: its number in the research note's section 6. */
@@ -205,11 +205,8 @@ const MIRRORED_CHANNELS = [
   ['Lrs', 'Rrs'],
 ] as const satisfies readonly (readonly [ChannelId, ChannelId])[]
 
-/** Each side wall and the one that mirrors it. */
-const MIRRORED_WALLS = [
-  ['left', 'right'],
-  ['right', 'left'],
-] as const satisfies readonly (readonly [Wall, Wall])[]
+/** The side walls, whose first reflections W5 compares with their mirror wall's. */
+const SIDE_WALLS = ['left', 'right'] as const satisfies readonly Wall[]
 
 /**
  * W5: of a left/right pair, one speaker's first reflection off a side
@@ -223,10 +220,10 @@ const reflectionsDiffer: WarningRule = ({ room, roomObjects, mlp, speakers }) =>
       speakers.find((speaker) => speaker.channel === channel),
     )
     if (!left || !right) return []
-    return MIRRORED_WALLS.flatMap(([wall, mirrorWall]) => {
+    return SIDE_WALLS.flatMap((wall) => {
       const sides = [
         { speaker: left, wall },
-        { speaker: right, wall: mirrorWall },
+        { speaker: right, wall: mirroredWall(wall) },
       ].map(({ speaker, wall: side }) => {
         const point = wallReflectionPoint(room, side, speaker.position, mlp)
         return {

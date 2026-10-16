@@ -13,9 +13,9 @@
 import type { Config } from './config'
 import { placeManually, samePositions } from './config-edits'
 import { MLP_ID, type PlaceableId } from './manual-positions'
-import { pointOnWall } from './openings'
 import { placeAll } from './placements'
 import type { FloorPoint } from './room'
+import { fromWallFrame } from './wall-frame'
 import {
   isRoomObjectId,
   roomObjectId,
@@ -75,7 +75,7 @@ export function dragAnchors(
   openings.forEach(({ wall, position }, index) =>
     anchors.set(
       roomObjectId('opening', index),
-      pointOnWall(room, wall, position),
+      fromWallFrame(room, wall, { along: position, out: 0 }),
     ),
   )
   return anchors

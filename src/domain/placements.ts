@@ -27,7 +27,8 @@ import {
   checkPlacementRange,
   type PlacementRangeCheck,
 } from './placement-range'
-import { azimuthFromMlp, nearestWall, type RoomPoint, type Wall } from './room'
+import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
+import { nearestWall } from './wall-frame'
 import type { SubwooferId } from './subwoofer-arrangements'
 import { autoPlaceSubwoofers } from './subwoofer-placement'
 

@@ -118,8 +118,6 @@ export {
   openingLabel,
   openingSpan,
   openingVerticalSpan,
-  pointOnWall,
-  wallLength,
   withOpeningWall,
   type Door,
   type Opening,
@@ -195,9 +193,16 @@ export {
   type RoomSegment,
   toRadians,
   type Wall,
+} from './room'
+export {
+  fromWallFrame,
+  inwardDirection,
+  wallLength,
+  wallStart,
   type WallDistance,
   wallDistances,
-} from './room'
+  type WallFramePoint,
+} from './wall-frame'
 export type {
   ChannelHeadroom,
   GroupHeadroom,

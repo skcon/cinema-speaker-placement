@@ -18,7 +18,7 @@ function configWithLayout(layout: Config['layout']): Config {
 }
 
 describe('the default config', () => {
-  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout, our default speaker specs and 100 W amplifier, the flat target curve, an 80 Hz crossover, a 2 m seat row and everything auto-placed', () => {
+  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout, our default speaker specs and 100 W amplifier, the flat target curve, an 80 Hz crossover, everything auto-placed, and a 2 x 0.9 m seat row and no other room objects (no screen)', () => {
     const bookshelf88 = { specs: { type: 'bookshelf', sensitivity: 88 } }
     expect(DEFAULT_CONFIG).toEqual({
       units: 'metric',
@@ -44,8 +44,14 @@ describe('the default config', () => {
       amplifierWatts: 100,
       targetCurve: 'flat',
       crossoverHz: 80,
-      seatRowWidth: 2,
+
       manualPositions: {},
+      roomObjects: {
+        seatRow: { width: 2, depth: 0.9 },
+        screen: null,
+        furniture: [],
+        openings: [],
+      },
     })
   })
 })
@@ -129,11 +135,19 @@ describe('layouts', () => {
 })
 
 describe('the seat row and the 38% rule', () => {
-  it('draws the seat row centered on the MLP, as wide as the config says', () => {
-    const { seatRow, mlp } = analyzeRoom({ ...DEFAULT_CONFIG, seatRowWidth: 3 })
+  it('draws the seat row with the MLP near its back, centered across and as wide and deep as the config says', () => {
+    const { seatRow, mlp } = analyzeRoom({
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        ...DEFAULT_CONFIG.roomObjects,
+        seatRow: { width: 3, depth: 1.2 },
+      },
+    })
 
+    // The couch back is 0.35 m behind the MLP (2.28 m), 1.2 m deep.
     expect(seatRow.center.x).toBeCloseTo(mlp.x, 9)
-    expect(seatRow.center.y).toBeCloseTo(mlp.y, 9)
+    expect(seatRow.center.y + seatRow.depth / 2).toBeCloseTo(2.63, 9)
+    expect(seatRow.center.y - seatRow.depth / 2).toBeCloseTo(1.43, 9)
     expect(seatRow.width).toBeCloseTo(3, 9)
   })
 

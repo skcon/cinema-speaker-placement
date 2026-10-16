@@ -1,23 +1,70 @@
 /**
- * The Seat row (GLOSSARY.md): a couch or row of seats drawn centered on
- * the MLP. A visual cue only: nothing is analyzed at its seats.
+ * The Seat row (GLOSSARY.md): the couch or row of seats the MLP, the
+ * listener's head, sits on. A room object (ADR 0006): drawn, never part of
+ * the estimated response, and nothing is analyzed at its other seats.
+ *
+ * Its width and depth are in the config. Where it is follows the MLP,
+ * which stays the one source of truth for the position: centered across
+ * the room on the MLP, with the couch's back edge SEAT_ROW.headOffset
+ * behind it and the rest of its depth in front, as a seated head rests
+ * near the back cushion. So dragging the seat row moves the MLP, and
+ * moving the MLP (by hand, Auto-place or "Move MLP here") moves the seat
+ * row with it.
  */
 import { checkRange, type RangeProblem } from './range'
 import { SEAT_ROW } from './reference'
 import type { FloorPoint, Room, RoomPoint } from './room'
 
-/** The seat row width a config starts with, in meters. */
-export const DEFAULT_SEAT_ROW_WIDTH: number = SEAT_ROW.defaultWidth
-
-/** `null` when `meters` is an accepted seat row width. */
-export function checkSeatRowWidth(meters: number): RangeProblem | null {
-  return checkRange(meters, SEAT_ROW.limits)
+/** The seat row's size, in meters. */
+export type SeatRow = {
+  /** Side to side. */
+  width: number
+  /** Front to back, from its front edge to the back of its back. */
+  depth: number
 }
 
-/** The nearest accepted seat row width, or NaN for a value that is not a number. */
-export function clampSeatRowWidth(meters: number): number {
-  const { min, max } = SEAT_ROW.limits
-  return Number.isFinite(meters) ? Math.min(Math.max(meters, min), max) : NaN
+/** How far the seat row's back edge is behind the MLP, in meters. */
+export const SEAT_ROW_HEAD_OFFSET: number = SEAT_ROW.headOffset
+
+/** One of the seat row's lengths the user sets. */
+export type SeatRowDimension = keyof SeatRow
+
+/** The seat row a config starts with: about a three-seat couch. */
+export const DEFAULT_SEAT_ROW: SeatRow = {
+  width: SEAT_ROW.defaultWidth,
+  depth: SEAT_ROW.defaultDepth,
+}
+
+const LIMITS = {
+  width: SEAT_ROW.widthLimits,
+  depth: SEAT_ROW.depthLimits,
+} as const satisfies Record<SeatRowDimension, unknown>
+
+/** `null` when `meters` is an accepted seat row width or depth. */
+export function checkSeatRowDimension(
+  dimension: SeatRowDimension,
+  meters: number,
+): RangeProblem | null {
+  return checkRange(meters, LIMITS[dimension])
+}
+
+/** Whether both of the seat row's lengths are accepted. */
+export function isValidSeatRow(seatRow: SeatRow): boolean {
+  return (
+    checkSeatRowDimension('width', seatRow.width) === null &&
+    checkSeatRowDimension('depth', seatRow.depth) === null
+  )
+}
+
+/** The seat row with one length changed, or null when it isn't accepted. */
+export function withSeatRowDimension(
+  seatRow: SeatRow,
+  dimension: SeatRowDimension,
+  meters: number,
+): SeatRow | null {
+  return checkSeatRowDimension(dimension, meters) === null
+    ? { ...seatRow, [dimension]: meters }
+    : null
 }
 
 /** Where the seat row is drawn on the floor plan, in meters. */
@@ -31,22 +78,22 @@ export type SeatRowFootprint = {
 }
 
 /**
- * The seat row as a rectangle centered on the MLP, `width` wide and
- * SEAT_ROW's depth deep, cut off where it would go through a wall.
+ * The seat row as a rectangle its width wide, centered across the room on
+ * the MLP, and its depth deep, its back edge SEAT_ROW.headOffset behind
+ * the MLP. It is cut off where it would go through a wall: the MLP may sit
+ * closer to the back wall than the head offset (its wall clearance is
+ * smaller), and then the couch back stops at the wall; a seat row wider
+ * than the room, or deep enough to reach the front wall, stops there too.
  */
 export function seatRowFootprint(
   room: Room,
   mlp: RoomPoint,
-  width: number,
+  { width, depth }: SeatRow,
 ): SeatRowFootprint {
   const half = room.width / 2
   const [left, right] = clip(mlp.x - width / 2, mlp.x + width / 2, -half, half)
-  const [front, back] = clip(
-    mlp.y - SEAT_ROW.depth / 2,
-    mlp.y + SEAT_ROW.depth / 2,
-    0,
-    room.length,
-  )
+  const couchBack = mlp.y + SEAT_ROW_HEAD_OFFSET
+  const [front, back] = clip(couchBack - depth, couchBack, 0, room.length)
   return {
     center: { x: (left + right) / 2, y: (front + back) / 2 },
     width: right - left,

@@ -50,6 +50,23 @@ export type OverheadPlacementRangeCheck = {
 }
 
 /**
+ * A placed item's placement-range check: a listener-level speaker's or an
+ * overhead's, or a subwoofer's, which Dolby gives no range for.
+ */
+export type PlacementGrading =
+  | { readonly kind: 'speaker'; readonly check: PlacementRangeCheck }
+  | { readonly kind: 'overhead'; readonly check: OverheadPlacementRangeCheck }
+  | { readonly kind: 'subwoofer' }
+
+/** How an angle is rounded before it is graded (see checkPlacementRange). */
+export const ANGLE_GRADING = {
+  assumption:
+    "Our modelling assumption, not Dolby's: Dolby's ranges are whole " +
+    'degrees, so each angle is rounded to the nearest whole degree, the ' +
+    'number shown, before it is graded.',
+} as const satisfies { assumption: string }
+
+/**
  * Grade a channel's azimuth from the MLP against its Dolby placement range:
  * inside the ideal range is ideal, inside the wider acceptable range (L/R
  * only) is acceptable, anything else (including the wrong side of the

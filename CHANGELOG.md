@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented here. The project follows [Semantic Versioning](https://semver.org/). Every release is a `vX.Y.Z` tag on `main`, which deploys the site to GitHub Pages.
 
+## [1.1.0] - 2026-10-16
+
+Real-room placement, room objects and a clearer UI. Speakers now land where a home theater would put them, the plan can hold the couch, screen, furniture, doors and windows, and every grade explains itself.
+
+### Changed
+
+- **Auto-place follows real rooms** (ADR 0005). Speakers keep Dolby's angles, but Left, Center and Right sit 0.5 m from the front wall and the surrounds go to the side or back walls, instead of all sitting on one circle around the MLP. The sidebar explains that the receiver's distance (delay) setting evens out the different distances (#49).
+- **The recommended seat prefers the centre line.** An off-centre seat is only recommended when it is meaningfully better, and the UI says why. Candidate seats are scored with the speakers installed symmetric to the room (#48).
+- **The couch is drawn with the listener's head near its back**, so the MLP sits where a head would be (#47).
+- **Grouped, collapsible sidebar**: Room, Layout, Speakers, Seating, Room objects and Results (#52).
+
+### Added
+
+- **Measurements in the sketch**: the room's width and length along its walls (#50).
+- **Select an item** to see its distances to the two nearest walls and to the MLP, drawn as dimension lines (#51).
+- **Every grade explains itself**: its range, where it comes from and the cited source (#53).
+- **Room objects**, drawn and warned about but not part of the estimate (ADR 0006):
+  - a **screen or TV** on the front wall, with acoustically transparent screens (#55)
+  - a movable, resizable **couch**; the MLP sits on it (#54)
+  - up to 8 **furniture boxes**, turnable in 90° steps (#56)
+  - up to 6 **doors and windows** on any wall (#57)
+- **Placement warnings** W1–W7: a speaker in a door's swing or in front of a window, a subwoofer in a doorway, furniture blocking the direct sound, a speaker just above a cabinet top, uneven L/R reflection points, and the MLP close to the back wall. Each names its source class (#56, #57).
+- **Auto-place uses the screen**: with a screen, Left and Right go to its edges and the Center below, above or behind it, always inside Dolby's ranges (#58).
+- Research notes on real-room placement, seating, screens and openings, from manufacturers, standards and forums alongside Dolby (#40–#43), and ADRs 0005 and 0006 (#44, #45).
+
+### Notes
+
+- **Share links**: config schema version 2 (#46). Links made with 1.0.0 keep opening and are migrated. Version 2 links use short field names and compact openings to stay under the URL budget (ADR 0003 amendments).
+- With a default TV, auto Left and Right move in to 22°, the narrow end of Dolby's 22°–30° range: Dolby's range always wins over the screen edges.
+- In the default room the surrounds now read about 0.7 dB short of reference level on headroom, because they sit farther away at the side walls.
+- All acoustic output is still an estimate from a simplified model, never a measurement (ADR 0002).
+
 ## [1.0.0] - 2026-10-15
 
 The first complete release: plan a rectangular home theater room from Dolby's placement guidelines and a simplified low-frequency model, entirely in the browser.
@@ -44,5 +76,6 @@ The first complete release: plan a rectangular home theater room from Dolby's pl
 - CI for pull requests to `develop`, and the GitHub Pages deploy on release tags (#18).
 - Planning documents: CLAUDE.md, GLOSSARY.md, ADRs 0001–0002 and the cited Dolby placement research (#3).
 
+[1.1.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/skcon/cinema-speaker-placement/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/skcon/cinema-speaker-placement/releases/tag/v0.1.0

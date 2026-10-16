@@ -21,8 +21,28 @@ The one listening position that the layout is aimed at and that is analyzed and 
 _Avoid_: Sweet spot, best seat, primary seat
 
 **Seat row**:
-A couch or row of seats drawn centered on the MLP; a visual cue, not analyzed.
+The couch or row of seats the MLP sits on, a room object with a width and depth: centered across the room on the MLP, with the MLP (the listener's head) near the couch's back and the rest of the couch in front. It has no position of its own: it goes where the MLP goes, so dragging it moves the MLP (making it manual), and Auto-place and "Move MLP here" move it with the MLP. Drawn, not analyzed.
 _Avoid_: Couch zone
+
+**Room object**:
+Something in the Room besides speakers and the MLP that the user places, moves and sizes: the seat row (couch), a screen, a furniture box or an opening. Drawn and used for placement warnings, never part of the estimated response (ADR 0006).
+_Avoid_: Prop, item (for these alone), obstacle
+
+**Screen**:
+The TV or projection screen on the front wall: its width, height and bottom-edge height, where it is along the wall (centred by default), and whether it is acoustically transparent (a projection screen standing off the wall with the front speakers behind it; the gap is its **standoff**). Auto-place fits L, C and R to it inside Dolby's ranges (ADR 0005 amendment).
+_Avoid_: Display, panel, TV area
+
+**Furniture box**:
+A piece of furniture as a box (width, depth, height) on the floor plan, such as a cabinet, table or shelf.
+_Avoid_: Obstacle, block
+
+**Opening**:
+A door or window on a wall: where along the wall (from the left wall on the front and back walls, from the front wall on the side walls), how wide, and for a window its sill and height. A door is drawn 2 m high, our assumption (ADR 0006).
+_Avoid_: Gap, hole, aperture
+
+**Placement warning**:
+A hint that a speaker, subwoofer or the MLP sits somewhere a room object makes worse (in front of a door or window, behind furniture), naming its source class: a standard, a manufacturer, community practice or our own assumption. Never a block.
+_Avoid_: Error, violation, alert
 
 ## Speakers
 
@@ -121,7 +141,7 @@ How far above the reference peak a speaker group (its weakest Speaker) or the Su
 _Avoid_: Reserve, margin (in the UI), SPL capability
 
 **Seat score**:
-How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The best of a grid of candidates is the recommended seat; an estimate, never a measurement.
+How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The **recommended seat** is the best candidate on the room's center line, unless a seat off it scores meaningfully better; then the app says why, for example a width mode at the center line (ADR 0005). An estimate, never a measurement.
 _Avoid_: Rating, quality
 
 **Seat-score heatmap**:
@@ -129,12 +149,22 @@ The recommended seat's candidate grid drawn as colors on the floor plan, so good
 _Avoid_: Heat map, score map
 
 **Auto-place**:
-Placing every speaker from the reference recommendations for the current room and layout, and the MLP at the recommended seat. The button sets everything back to auto, then puts the MLP at the recommended seat (manual there, unless the auto MLP, seeded by the "38% rule", already is it).
+Placing every speaker from the reference recommendations for the current room and layout, and the MLP at the recommended seat. Listener-level speakers keep Dolby's angles: Left, Center and Right sit 0.5 m from the front wall, the others at the walls (ADR 0005). The button sets everything back to auto, then puts the MLP at the recommended seat (manual there, unless the auto MLP, seeded by the "38% rule", already is it).
 _Avoid_: Auto-layout, optimize
 
 **Auto / manual**:
 Whether a channel's speaker, a subwoofer or the MLP is placed by Auto-place (auto, follows Room and MLP changes) or was dragged or edited by the user (manual, stays where it was left; its **manual position** is stored in the config).
 _Avoid_: Locked, pinned, custom position
+
+## Room view
+
+**Selected item**:
+The one speaker, subwoofer or MLP picked in the room view (or by opening its row under Positions): highlighted, with its Dimension lines and its details in the sidebar. View state only: never in the config, the share link or the undo history.
+_Avoid_: Active item, focused speaker, current selection
+
+**Dimension line**:
+A line drawn from the Selected item to one of its two nearest walls, or to the MLP, labelled with its length in the user's units. Wall distances are measured in plan; the distance to the MLP is straight, in 3D.
+_Avoid_: Measure line, distance line, ruler
 
 ## Sharing
 

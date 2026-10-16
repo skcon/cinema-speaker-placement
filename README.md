@@ -15,19 +15,22 @@ See [CLAUDE.md](CLAUDE.md) for the project brief and architecture, [GLOSSARY.md]
   - layouts 2.1, 3.1, 5.1, 7.1, 5.1.2, 5.1.4, 7.1.2 and 7.1.4
   - 1–4 subwoofers (for example `7.2.4`)
 - **Auto-place from Dolby's guidelines**:
-  - listener-level speakers at Dolby's azimuth ranges
+  - listener-level speakers at Dolby's azimuth ranges: the front stage near the front wall, the surrounds at the side or back walls, with the receiver's distance setting evening out the arrival times
   - overhead speakers at Dolby's elevation angles and spacing
   - subwoofers in published multi-subwoofer arrangements
+  - with a screen, Left and Right at its edges and the Center below, above or behind it, inside Dolby's ranges
   - every range cites its source
-- **Placement-range grades**: each speaker is ideal, acceptable or outside on its angle (and elevation for overhead speakers) from the main listening position (MLP).
+- **Placement-range grades**: each speaker is ideal, acceptable or outside on its angle (and elevation for overhead speakers) from the main listening position (MLP), and each grade explains its range and source.
 - **Room view**:
-  - a top-down floor plan where you drag speakers, subwoofers and the MLP
+  - a top-down floor plan where you drag speakers, subwoofers, the MLP and room objects, with the room's measurements along its walls
+  - select an item to see its distances to the nearest walls and the MLP
   - a 3D view you can orbit to see overhead speakers in space
   - a seat row, the 38% rule of thumb as a reference, and a seat-score heatmap
 - **Estimated response at the MLP**:
   - room modes, boundary interference, crossover and subwoofer roll-off, against a flat or house target curve
   - weaknesses and strengths listed with their likely cause
-- **Recommended seat** from a grid of candidate seats scored on bass smoothness and placement fit, and "Move MLP here".
+- **Room objects**: a movable, resizable couch the MLP sits on, a screen or TV, up to 8 furniture boxes and up to 6 doors and windows. They are drawn and give placement warnings (for example a speaker in front of a window or furniture blocking the direct sound), each naming its source.
+- **Recommended seat** from a grid of candidate seats scored on bass smoothness and placement fit, preferring the room's centre line, and "Move MLP here".
 - **Headroom check**: whether your speakers and amplifier can reach reference level at the MLP.
 - **Share links**:
   - the whole plan lives in the URL, so copying the address shares the room
@@ -38,7 +41,7 @@ See [CLAUDE.md](CLAUDE.md) for the project brief and architecture, [GLOSSARY.md]
 ## Limitations
 
 - **Estimates, not measurements.** The acoustic model is simplified (ADR 0002): low-frequency room modes, boundary interference for listener-level speakers, and angle checks. It is not a full-band simulation, and a real room needs measuring (for example with REW).
-- **Rectangular rooms only.** No doors, windows, openings, furniture or room treatment.
+- **Rectangular rooms only.** No room treatment. Doors, windows, furniture and the screen are drawn and warned about, but they don't change the estimate (ADR 0006).
 - **The layouts above only.** No 9.1.x or larger, no Atmos-enabled (up-firing) or hybrid height layouts (a hint suggests them for low ceilings), no wall-mounted front or rear height speakers, and at least one subwoofer.
 - **One seat analyzed.** The analysis runs at the MLP only; the seat row is drawn, not analyzed.
 - **No dragging in 3D.** The 3D view is view only.

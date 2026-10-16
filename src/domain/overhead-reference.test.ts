@@ -78,7 +78,9 @@ describe('overhead placement ranges (research section 4)', () => {
     ])
     expect(azimuth).toEqual({
       ideal: null,
-      note: expect.stringMatching(/no azimuth/i) as unknown,
+      note: expect.stringMatching(
+        /no angle range from straight ahead/i,
+      ) as unknown,
     })
   })
 

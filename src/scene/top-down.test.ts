@@ -6,6 +6,7 @@ import {
   floorPlane,
   draggedTo,
   grabOffset,
+  grabLength,
   grabRadius,
   toFloorPoint,
   toScenePosition,
@@ -69,6 +70,12 @@ describe('room points in the scene', () => {
     expect(grabRadius(0.2, 50)).toBeCloseTo(0.44, 9)
     // Zoomed in to 400 px per meter, the marker itself is larger.
     expect(grabRadius(0.2, 400)).toBe(0.2)
+  })
+
+  it('makes a long, thin marker grabbable over at least a 44 px touch target across', () => {
+    // The screen's 0.08 m bar at 50 px per meter: 44 px is 0.88 m.
+    expect(grabLength(0.08, 50)).toBeCloseTo(0.88, 9)
+    expect(grabLength(1.44, 50)).toBe(1.44)
   })
 })
 

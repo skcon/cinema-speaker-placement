@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_CONFIG,
+  encodeConfig,
   recommendSeat,
   type SeatRecommendation,
 } from '@/domain'
@@ -64,7 +65,7 @@ describe('seat-score heatmap in the room view', () => {
     expect(scene()).not.toHaveAccessibleName(/heatmap/)
   })
 
-  it('turns on with a legend from low to high, says the scores are relative estimates, and describes where the best area is', async () => {
+  it('turns on with a legend from low to high, says the scores are relative estimates, and says the MLP stays the recommended seat in the default room', async () => {
     const toggle = renderRoomView()
 
     fireEvent.click(toggle)
@@ -77,7 +78,7 @@ describe('seat-score heatmap in the room view', () => {
       /simplified model/,
     )
     expect(scene()).toHaveAccessibleName(
-      /Seat-score heatmap shown \(a relative estimate\): highest around .* from the front wall/,
+      /Seat-score heatmap shown \(a relative estimate\): no seat scores meaningfully better than the MLP, so it stays the recommended seat\./,
     )
   })
 
@@ -178,5 +179,159 @@ describe('overhead speakers in the room view', () => {
         '83° (ideal), Right Top Middle elevation 83° (ideal).',
     )
     expect(screen.getByText('Overhead speaker (ring)')).toBeInTheDocument()
+  })
+})
+
+describe('the seat row in the room view', () => {
+  it('is described for screen readers as a room object the MLP sits on, and can be dragged', async () => {
+    renderRoomView()
+
+    expect(scene()).toHaveAccessibleName(
+      /A seat row 2 m wide and 0\.9 m deep, with the MLP 0\.35 m in front of its back; dragging it moves the MLP\. Room objects are drawn and used for placement warnings, not part of the estimated response\./,
+    )
+    expect(await screen.findByText('top-down camera')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Drag the seat row to move it with the MLP\./),
+    ).toBeVisible()
+  })
+})
+
+describe('the screen in the room view', () => {
+  function renderWithScreen() {
+    const config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        ...DEFAULT_CONFIG.roomObjects,
+        screen: {
+          kind: 'tv',
+          width: 1.44,
+          height: 0.81,
+          bottomEdge: 0.93,
+          x: -0.25,
+          standoff: null,
+        },
+      },
+    } as const
+    render(
+      <ConfigStoreProvider initialEncodedConfig={encodeConfig(config)}>
+        <RoomView />
+      </ConfigStoreProvider>,
+    )
+  }
+
+  it('is described for screen readers, as drawn only and not in the estimate', () => {
+    renderWithScreen()
+
+    expect(scene()).toHaveAccessibleName(
+      /A TV on the front wall, 1\.44 m wide and 0\.81 m high, its bottom edge 0\.93 m above the floor, its middle 0\.25 m left of centre\. Room objects are drawn and used for placement warnings, not part of the estimated response\./,
+    )
+    expect(
+      screen.getByText('Screen (drawn only, not in the estimate)'),
+    ).toBeInTheDocument()
+  })
+
+  it('is not mentioned in a room without one', () => {
+    renderRoomView()
+
+    expect(scene()).not.toHaveAccessibleName(/screen|TV/)
+    expect(screen.queryByText(/^Screen \(drawn only/)).toBeNull()
+  })
+})
+
+describe('furniture boxes in the room view', () => {
+  it('are described for screen readers and named in the legend as drawn and warned about, not in the estimate', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        ...DEFAULT_CONFIG.roomObjects,
+        furniture: [
+          {
+            name: 'Cabinet',
+            width: 1.6,
+            depth: 0.45,
+            height: 0.5,
+            x: 0,
+            y: 0.225,
+            rotation: 0,
+          },
+        ],
+      },
+    } as const
+    render(
+      <ConfigStoreProvider initialEncodedConfig={encodeConfig(config)}>
+        <RoomView />
+      </ConfigStoreProvider>,
+    )
+
+    expect(scene()).toHaveAccessibleName(
+      /Furniture: Cabinet \(box 1\), 1\.6 m wide, 0\.45 m deep and 0\.5 m high\. Room objects are drawn and used for placement warnings, not part of the estimated response\./,
+    )
+    expect(
+      screen.getByText(
+        /^Furniture box, front edge darker \(drawn and warned about, not in the estimate\)/,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Drag the furniture boxes to move them\./),
+    ).toBeInTheDocument()
+  })
+
+  it('are not mentioned in a room without any', () => {
+    renderRoomView()
+
+    expect(scene()).not.toHaveAccessibleName(/Furniture/)
+    expect(screen.queryByText(/^Furniture box/)).toBeNull()
+  })
+})
+
+describe('doors and windows in the room view', () => {
+  it('are described for screen readers and named in the legend as drawn and warned about, not in the estimate', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        ...DEFAULT_CONFIG.roomObjects,
+        openings: [
+          { kind: 'door', wall: 'back', position: 2.25, width: 0.9 },
+          {
+            kind: 'window',
+            wall: 'right',
+            position: 3,
+            width: 1.2,
+            sill: 0.9,
+            height: 1.2,
+          },
+        ],
+      },
+    } as const
+    render(
+      <ConfigStoreProvider initialEncodedConfig={encodeConfig(config)}>
+        <RoomView />
+      </ConfigStoreProvider>,
+    )
+
+    expect(scene()).toHaveAccessibleName(
+      /Doors and windows: Door \(opening 1\) on the back wall, 0\.9 m wide, 1\.8 m from the left wall; Window \(opening 2\) on the right wall, 1\.2 m wide and 1\.2 m high, its sill 0\.9 m up, 2\.4 m from the front wall\. Room objects are drawn and used for placement warnings, not part of the estimated response\./,
+    )
+    expect(
+      screen.getByText(
+        /^Door and where it swings \(drawn and warned about, not in the estimate\)/,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /^Window \(drawn and warned about, not in the estimate\)/,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Drag doors and windows along their wall\./),
+    ).toBeInTheDocument()
+  })
+
+  it('are not mentioned in a room without any', () => {
+    renderRoomView()
+
+    expect(scene()).not.toHaveAccessibleName(/Doors and windows/)
+    expect(screen.queryByText(/^Door and where it swings/)).toBeNull()
+    expect(screen.queryByText(/^Window \(/)).toBeNull()
   })
 })

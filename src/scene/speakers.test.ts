@@ -204,15 +204,15 @@ describe('overhead speakers in the top-down scene', () => {
   })
 
   it('show the angle from the MLP where Dolby grades it, and the elevation', () => {
-    // 5.1.4 in the default room: top front at 38°, 45° up (side view).
-    expect(overheadAngles(fourOverheads[0]!)).toBe('38° · elev. 45°')
+    // 5.1.4 in the default room: top front at 40°, 45° up (side view).
+    expect(overheadAngles(fourOverheads[0]!)).toBe('40° · elev. 45°')
     // Top middle has no Dolby azimuth range, so only its elevation is shown.
     expect(overheadAngles(twoOverheads[0]!)).toBe('elev. 83°')
   })
 
   it('are described in words with their angles and grade', () => {
     expect(describeOverhead(fourOverheads[2]!)).toBe(
-      'Left Top Rear 142°, elevation 135° (ideal)',
+      'Left Top Rear 140°, elevation 135° (ideal)',
     )
     expect(describeOverhead(twoOverheads[1]!)).toBe(
       'Right Top Middle elevation 83° (ideal)',

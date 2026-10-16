@@ -1,5 +1,6 @@
 import {
   formatLength,
+  FRONT_STAGE_WALL_DISTANCE,
   MLP_ID,
   wallDistances,
   type PlaceableId,
@@ -10,8 +11,9 @@ import {
 } from '@/domain'
 import { GRADE_STYLES } from '@/scene/speakers'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
+import { useSelection } from '@/state/selection-context'
 import { LengthField } from '@/ui/LengthField'
-import { SidebarSection } from '@/ui/SidebarSection'
+import { SidebarSubsection } from '@/ui/SidebarSection'
 
 /**
  * Where each speaker, subwoofer and the MLP is, for mounting it: height and
@@ -23,14 +25,25 @@ import { SidebarSection } from '@/ui/SidebarSection'
 export function PositionsForm() {
   const { mlp, mlpPlacement, speakers, overheads, subwoofers } =
     useRoomAnalysis()
+  const units = useConfig((state) => state.config.units)
 
   return (
-    <SidebarSection title="Positions">
+    <SidebarSubsection title="Positions">
       <p className="text-xs text-muted-foreground">
-        Drag speakers and the MLP in the room view, or edit them here. Moved
-        items are manual and stay where you put them; auto items follow the room
-        and the MLP. Auto-place puts everything back to auto and the MLP at the
+        Drag speakers and the MLP in the room view, or edit them here. Opening a
+        row selects its item in the room view, with its distances. Moved items
+        are manual and stay where you put them; auto items follow the room and
+        the MLP. Auto-place puts everything back to auto and the MLP at the
         recommended seat.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Auto-place keeps Dolby&rsquo;s angles and puts Left, Center and Right{' '}
+        {formatLength(FRONT_STAGE_WALL_DISTANCE.meters, units)} from the front
+        wall and the other speakers at the walls, as most home theaters do. So
+        they aren&rsquo;t all the same distance from the MLP: set each
+        speaker&rsquo;s distance in your receiver (its distance or delay
+        setting, which room calibration usually does). That evens out when their
+        sound arrives, exactly at the MLP and less so at other seats.
       </p>
       <ul className="flex flex-col">
         {speakers.map(({ channel, name, position, placement }) => (
@@ -81,7 +94,7 @@ export function PositionsForm() {
           height={{ fixed: 'Ear height' }}
         />
       </ul>
-    </SidebarSection>
+    </SidebarSubsection>
   )
 }
 
@@ -108,11 +121,19 @@ function PositionItem({
   const units = useConfig((state) => state.config.units)
   const setItemHeight = useConfig((state) => state.setItemHeight)
   const setWallDistance = useConfig((state) => state.setWallDistance)
+  const { select } = useSelection()
   const { across, along } = wallDistances(room, position)
 
   return (
     <li role="group" aria-label={`${name} position`} className="border-t">
-      <details className="group">
+      {/* Opening an item's row selects it in the room view: the keyboard
+          way to select an item. */}
+      <details
+        className="group"
+        onToggle={(event) => {
+          if (event.currentTarget.open) select(id)
+        }}
+      >
         <summary className="flex min-h-9 cursor-pointer items-center gap-1 py-1 text-sm max-lg:min-h-11">
           <span className="w-9 shrink-0 font-medium">{abbreviation}</span>
           <span>{name}</span>

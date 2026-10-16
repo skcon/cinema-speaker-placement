@@ -1,9 +1,9 @@
 import {
-  formatLength,
   type RoomDimension,
   type RoomDimensionProblem,
   type UnitSystem,
 } from '@/domain'
+import { lengthErrorMessage } from '@/ui/lib/length-error'
 
 /** The field label for each room dimension. */
 export const ROOM_DIMENSION_LABELS = {
@@ -15,12 +15,13 @@ export const ROOM_DIMENSION_LABELS = {
 /** The inline error for a rejected room dimension. */
 export function roomDimensionErrorMessage(
   dimension: RoomDimension,
-  { problem, min, max }: RoomDimensionProblem,
+  problem: RoomDimensionProblem,
   units: UnitSystem,
 ): string {
-  if (problem === 'not-a-number') {
-    return `Enter the ${dimension} as a number.`
-  }
-  // Round the limits inward so the numbers shown are themselves accepted.
-  return `${ROOM_DIMENSION_LABELS[dimension]} must be between ${formatLength(min, units, 'up')} and ${formatLength(max, units, 'down')}.`
+  return lengthErrorMessage(
+    dimension,
+    ROOM_DIMENSION_LABELS[dimension],
+    problem,
+    units,
+  )
 }

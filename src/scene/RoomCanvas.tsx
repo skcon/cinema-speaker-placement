@@ -28,18 +28,26 @@ import {
 } from 'three'
 import {
   floorCorners,
+  furnitureId,
   MLP_ID,
+  openingId,
+  type Opening,
   type FloorPoint,
+  type FurnitureBox,
   wallBases,
-  type PlaceableId,
   type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
   type Room,
   type RoomPoint,
+  type RoomScreen,
+  SCREEN_ID,
+  SEAT_ROW_ID,
   type SeatHeatmap,
   type SeatRowFootprint,
+  type UnitSystem,
 } from '@/domain'
+import { roomDimensions, type SelectionDimensions } from '@/scene/dimensions'
 import { HEATMAP_OPACITY } from '@/scene/heatmap'
 import { heatmapColor } from '@/scene/heatmap-color'
 import {
@@ -64,11 +72,22 @@ import {
   createDragController,
   type DragCallbacks,
   type DragController,
+  type DragTarget,
 } from '@/scene/drag'
+import {
+  doorSwing,
+  furnitureBlock,
+  furniturePlan,
+  openingMark,
+  openingPanel,
+  screenBar,
+  screenPanel,
+} from '@/scene/room-objects'
 import {
   FLAT_ON_FLOOR,
   floorGrid,
   floorPlane,
+  grabLength,
   grabRadius,
   toFloorPoint,
   toScenePosition,
@@ -90,10 +109,26 @@ const LAYER = {
   seatRow: 0.007,
   ruleOfThumb: 0.008,
   heatmap: 0.009,
+  doorSwing: 0.0092,
+  furniture: 0.0094,
+  furnitureFront: 0.0097,
   walls: 0.01,
+  opening: 0.0105,
+  screen: 0.011,
   recommended: 0.012,
+  /**
+   * A room object's grab area: under the items' grab discs, so where the
+   * two overlap (a speaker in front of the screen) the item is picked up.
+   */
+  objectGrab: 0.013,
   grab: 0.015,
 } as const
+
+/** The ring around the Selected item, inner and outer radius in meters. */
+const SELECTION_RING = { inner: 0.33, outer: 0.38 } as const
+
+/** How far the ring and Dimension lines sit above the item, so they draw over it. */
+const SELECTION_LIFT = 0.02
 
 /** Radius of the MLP marker, in meters. */
 const MLP_MARKER_RADIUS = 0.18
@@ -103,6 +138,12 @@ const RECOMMENDED_RING = { inner: 0.24, outer: 0.3 } as const
 
 /** Free space between a speaker's center and its label, in pixels. */
 const SPEAKER_LABEL_GAP_PX = 14
+
+/**
+ * The CSS z-index of a raised label: above drei's default range for the
+ * other labels (which tops out at 16777271).
+ */
+const RAISED_LABEL_Z_INDEX = [16777272, 16777272]
 
 /** The floor plane in Three.js coordinates, where pointer rays are read. */
 const FLOOR = new Plane(new Vector3(0, 1, 0), 0)
@@ -121,12 +162,19 @@ export function RoomCanvas({
   speakers,
   overheads,
   subwoofers,
+  screen,
+  furniture,
+  openings,
   gridSpacing,
   seatRow,
   recommendedSeat,
   heatmap,
   ruleOfThumbFromFrontWall,
   view,
+  units,
+  selection,
+  onSelect,
+  onDeselect,
   ...callbacks
 }: {
   /** Which camera looks at the room; only the top-down view drags. */
@@ -137,6 +185,15 @@ export function RoomCanvas({
   /** On the ceiling: drawn over everything else from straight above. */
   overheads: readonly PlacedOverhead[]
   subwoofers: readonly PlacedSubwoofer[]
+  /** The Screen on the front wall, or null: drawn only. */
+  screen: RoomScreen | null
+  /** The furniture boxes, in the config's order: drawn, and dragged from above. */
+  furniture: readonly FurnitureBox[]
+  /**
+   * The doors and windows, in the config's order: drawn on their walls,
+   * and dragged along them from above.
+   */
+  openings: readonly Opening[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
   /** The Seat row around the MLP. */
@@ -147,6 +204,17 @@ export function RoomCanvas({
   heatmap: SeatHeatmap | null
   /** Where the "38% rule" puts the seat, in meters from the front wall. */
   ruleOfThumbFromFrontWall: number
+  /** How the room's measurements are written. */
+  units: UnitSystem
+  /** The Selected item, highlighted with its Dimension lines, or null. */
+  selection: SelectionDimensions | null
+  /**
+   * Pressing an item or room object in the top-down view: selects an
+   * item.
+   */
+  onSelect: (id: DragTarget) => void
+  /** Clear the selection: a click on the empty floor in the top-down view does. */
+  onDeselect: () => void
 } & DragCallbacks) {
   // Labels render into this layer over the canvas. Without a fixed target,
   // drei's Html can remount once r3f connects events and lose its content.
@@ -173,7 +241,7 @@ export function RoomCanvas({
   }, [controller, view])
   const dragging = view === 'top-down'
   const markerDrag: MarkerDrag | null = dragging
-    ? { room, controller, setCursor }
+    ? { room, controller, setCursor, onSelect }
     : null
   return (
     <div
@@ -190,6 +258,11 @@ export function RoomCanvas({
         flat
         dpr={[1, 2]}
         style={{ touchAction: 'none' }}
+        // A click that hits no marker (and doesn't move) clears the
+        // selection; only from above, where markers can be pressed.
+        onPointerMissed={() => {
+          if (dragging) onDeselect()
+        }}
       >
         {view === '3d' ? (
           <OrbitView room={room} />
@@ -198,14 +271,43 @@ export function RoomCanvas({
         )}
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
-        <SeatRow footprint={seatRow} />
+        <SeatRow footprint={seatRow} mlp={mlp} markerDrag={markerDrag} />
         <RuleOfThumbLine room={room} fromFrontWall={ruleOfThumbFromFrontWall} />
         {heatmap && heatmap.cells.length > 0 && (
           // Remounted when the number of cells changes: an instanced
           // mesh's count is fixed.
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
         )}
+        {view === '3d' ? (
+          <FurnitureBlocks furniture={furniture} />
+        ) : (
+          <FurniturePlans
+            furniture={furniture}
+            labelLayer={labelLayer}
+            markerDrag={markerDrag}
+          />
+        )}
         <Walls room={room} labelLayer={labelLayer} />
+        {view === '3d' ? (
+          <OpeningPanels room={room} openings={openings} />
+        ) : (
+          <OpeningMarks
+            room={room}
+            openings={openings}
+            markerDrag={markerDrag}
+          />
+        )}
+        {screen &&
+          (view === '3d' ? (
+            <ScreenPanel screen={screen} />
+          ) : (
+            <ScreenBar screen={screen} markerDrag={markerDrag} />
+          ))}
+        <RoomDimensionLabels
+          room={room}
+          units={units}
+          labelLayer={labelLayer}
+        />
         {view === '3d' && <RoomBox room={room} />}
         {recommendedSeat && (
           <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
@@ -226,6 +328,9 @@ export function RoomCanvas({
           labelLayer={labelLayer}
           markerDrag={markerDrag}
         />
+        {selection && (
+          <SelectionMarks selection={selection} labelLayer={labelLayer} />
+        )}
       </Canvas>
       <div ref={labelLayer} className="pointer-events-none absolute inset-0" />
     </div>
@@ -236,11 +341,15 @@ type LabelLayer = RefObject<HTMLDivElement>
 
 type DragCursor = 'auto' | 'grab' | 'grabbing'
 
-/** What a draggable marker needs: the Room, the drag controller and the cursor. */
+/**
+ * What a draggable marker needs: the Room, the drag controller, the
+ * cursor, and the selection, which pressing a marker sets.
+ */
 type MarkerDrag = {
   room: Room
   controller: DragController
   setCursor: (cursor: DragCursor) => void
+  onSelect: (id: DragTarget) => void
 }
 
 /**
@@ -269,18 +378,24 @@ function leaveTextField() {
 }
 
 type DraggableProps = {
-  id: PlaceableId
+  id: DragTarget
   at: RoomPoint
-  /** The marker's own radius, in meters. */
-  radius: number
+  /**
+   * The marker's own size, in meters: the radius of an item's round grab
+   * area, or the width (along x) and depth (along y) of a room object's
+   * rectangular one (which items' grab areas win over), centred on `at`
+   * unless `center` says where (the Seat row is dragged by the MLP on it).
+   */
+  grab:
+    { radius: number } | { width: number; depth: number; center?: FloorPoint }
   children: ReactNode
 }
 
 /**
  * Makes its markers draggable on the floor plan as item `id`, which is at
  * `at`. Pressing on a marker (or within a touch target of its center, see
- * grabRadius) picks it up; it follows the pointer, keeping where it was
- * grabbed, until released. The store keeps it inside the Room. Without
+ * grabRadius) selects it and picks it up; it follows the pointer, keeping
+ * where it was grabbed, until released. The store keeps it inside the Room. Without
  * `markerDrag` (the 3D view) the markers are only drawn, with no grab area.
  */
 function Draggable({
@@ -294,8 +409,8 @@ function Draggable({
 function DraggableGroup({
   id,
   at,
-  radius,
-  markerDrag: { room, controller, setCursor },
+  grab,
+  markerDrag: { room, controller, setCursor, onSelect },
   children,
 }: DraggableProps & { markerDrag: MarkerDrag }) {
   const size = useThree((state) => state.size)
@@ -325,6 +440,8 @@ function DraggableGroup({
         if (!pointer || event.button !== 0) return
         leaveTextField()
         if (!controller.press(event.pointerId, id, at, pointer)) return
+        // A press selects the item, whether it then moves (a drag) or not.
+        onSelect(id)
         event.stopPropagation()
         captureTarget(event).setPointerCapture(event.pointerId)
         setCursor('grabbing')
@@ -348,13 +465,24 @@ function DraggableGroup({
       }}
     >
       {children}
-      {/* An invisible disc on the floor, under every marker, so a marker
-          is easy to pick up with a finger; markers drawn above it win. */}
+      {/* An invisible disc (or rectangle) on the floor, under every
+          marker, so a marker is easy to pick up with a finger; markers
+          drawn above it win. */}
       <mesh
-        position={toScenePosition({ ...at, z: LAYER.grab })}
+        position={toScenePosition(
+          'radius' in grab
+            ? { ...at, z: LAYER.grab }
+            : { ...(grab.center ?? at), z: LAYER.objectGrab },
+        )}
         rotation={FLAT_ON_FLOOR}
       >
-        <circleGeometry args={[grabRadius(radius, zoom), 32]} />
+        {'radius' in grab ? (
+          <circleGeometry args={[grabRadius(grab.radius, zoom), 32]} />
+        ) : (
+          <planeGeometry
+            args={[grabLength(grab.width, zoom), grabLength(grab.depth, zoom)]}
+          />
+        )}
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
     </group>
@@ -372,6 +500,7 @@ function SceneLabel({
   tone,
   className,
   style,
+  raised = false,
   children,
 }: {
   at: RoomPoint
@@ -379,10 +508,17 @@ function SceneLabel({
   tone: LabelTone
   className: string
   style?: CSSProperties
+  /** Drawn over every other label (the Selected item's distances). */
+  raised?: boolean
   children: ReactNode
 }) {
   return (
-    <Html position={toScenePosition(at)} portal={layer} center>
+    <Html
+      position={toScenePosition(at)}
+      portal={layer}
+      center
+      zIndexRange={raised ? RAISED_LABEL_Z_INDEX : undefined}
+    >
       <span
         className={cn(
           'block rounded-sm px-1 text-xs whitespace-nowrap select-none',
@@ -497,6 +633,43 @@ function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
   )
 }
 
+/**
+ * The Room's width and length written just outside the back and left
+ * walls, a fixed few pixels out at any zoom; the length turns to run along
+ * its wall.
+ */
+function RoomDimensionLabels({
+  room,
+  units,
+  labelLayer,
+}: {
+  room: Room
+  units: UnitSystem
+  labelLayer: LabelLayer
+}) {
+  const [width, length] = roomDimensions(room, units)
+  return (
+    <>
+      <SceneLabel
+        at={width.at}
+        layer={labelLayer}
+        tone="muted"
+        className="translate-y-3.5"
+      >
+        &larr; {width.text} &rarr;
+      </SceneLabel>
+      <SceneLabel
+        at={length.at}
+        layer={labelLayer}
+        tone="muted"
+        className="-translate-x-3.5 -rotate-90"
+      >
+        &larr; {length.text} &rarr;
+      </SceneLabel>
+    </>
+  )
+}
+
 /** A line on the floor at layer height `z`, `width` pixels wide. */
 function FloorLine({
   points,
@@ -518,16 +691,220 @@ function FloorLine({
   )
 }
 
-/** The Seat row: a pale rectangle on the floor around the MLP, drawn only. */
-function SeatRow({ footprint }: { footprint: SeatRowFootprint }) {
+/**
+ * The Seat row: a pale rectangle on the floor with the MLP near its back.
+ * Seen from above it is dragged by the MLP on it, which the store moves
+ * (and makes manual), so the couch and the MLP move together.
+ */
+function SeatRow({
+  footprint,
+  mlp,
+  markerDrag,
+}: {
+  footprint: SeatRowFootprint
+  mlp: RoomPoint
+  markerDrag: MarkerDrag | null
+}) {
   const { center, width, depth } = footprint
   return (
-    <mesh
-      position={toScenePosition({ ...center, z: LAYER.seatRow })}
-      rotation={FLAT_ON_FLOOR}
+    <Draggable
+      id={SEAT_ROW_ID}
+      at={mlp}
+      grab={{ width, depth, center }}
+      markerDrag={markerDrag}
     >
-      <planeGeometry args={[width, depth]} />
-      <meshBasicMaterial color={SCENE_COLORS.seatRow} />
+      <mesh
+        position={toScenePosition({ ...center, z: LAYER.seatRow })}
+        rotation={FLAT_ON_FLOOR}
+      >
+        <planeGeometry args={[width, depth]} />
+        <meshBasicMaterial color={SCENE_COLORS.seatRow} />
+      </mesh>
+    </Draggable>
+  )
+}
+
+/**
+ * The Screen seen from above: a bar along the front wall (see screenBar),
+ * dragged along the wall like the other markers; the store keeps it on the
+ * wall.
+ */
+function ScreenBar({
+  screen,
+  markerDrag,
+}: {
+  screen: RoomScreen
+  markerDrag: MarkerDrag | null
+}) {
+  const { center, width, depth } = screenBar(screen)
+  return (
+    <Draggable
+      id={SCREEN_ID}
+      at={center}
+      grab={{ width, depth }}
+      markerDrag={markerDrag}
+    >
+      <mesh
+        position={toScenePosition({ ...center, z: LAYER.screen })}
+        rotation={FLAT_ON_FLOOR}
+      >
+        <planeGeometry args={[width, depth]} />
+        <meshBasicMaterial color={SCENE_COLORS.screen} />
+      </mesh>
+    </Draggable>
+  )
+}
+
+/**
+ * The furniture boxes seen from above: each a rectangle with a darker
+ * strip along its front and its name, dragged by its middle like the
+ * other markers; the store keeps it inside the Room.
+ */
+function FurniturePlans({
+  furniture,
+  labelLayer,
+  markerDrag,
+}: {
+  furniture: readonly FurnitureBox[]
+  labelLayer: LabelLayer
+  markerDrag: MarkerDrag | null
+}) {
+  return furniture.map((box, index) => {
+    const { center, size, front } = furniturePlan(box)
+    return (
+      <Draggable
+        // Keyed by place: the room view names a box by it (furnitureId).
+        key={index}
+        id={furnitureId(index)}
+        at={center}
+        grab={{ width: size[0], depth: size[1] }}
+        markerDrag={markerDrag}
+      >
+        <mesh
+          position={toScenePosition({ ...center, z: LAYER.furniture })}
+          rotation={FLAT_ON_FLOOR}
+        >
+          <planeGeometry args={size} />
+          <meshBasicMaterial color={SCENE_COLORS.furniture} />
+        </mesh>
+        <mesh
+          position={toScenePosition({
+            ...front.center,
+            z: LAYER.furnitureFront,
+          })}
+          rotation={FLAT_ON_FLOOR}
+        >
+          <planeGeometry args={front.size} />
+          <meshBasicMaterial color={SCENE_COLORS.furnitureFront} />
+        </mesh>
+        <SceneLabel at={center} layer={labelLayer} tone="muted" className="">
+          {box.name}
+        </SceneLabel>
+      </Draggable>
+    )
+  })
+}
+
+/** The furniture boxes in 3D: solid boxes standing on the floor. */
+function FurnitureBlocks({
+  furniture,
+}: {
+  furniture: readonly FurnitureBox[]
+}) {
+  return furniture.map((box, index) => {
+    const { position, size } = furnitureBlock(box)
+    return (
+      <mesh key={index} position={position}>
+        <boxGeometry args={size} />
+        <meshBasicMaterial
+          color={SCENE_COLORS.furniture}
+          transparent
+          opacity={0.85}
+        />
+      </mesh>
+    )
+  })
+}
+
+/**
+ * The doors and windows seen from above: each a mark along the inside of
+ * its wall, dragged along the wall like the other markers (the store keeps
+ * it on its wall), and a door's swing as a pale square in front of it.
+ */
+function OpeningMarks({
+  room,
+  openings,
+  markerDrag,
+}: {
+  room: Room
+  openings: readonly Opening[]
+  markerDrag: MarkerDrag | null
+}) {
+  return openings.map((opening, index) => {
+    const { center, size } = openingMark(room, opening)
+    const swing = opening.kind === 'door' && doorSwing(room, opening)
+    return (
+      // Keyed by place: the room view names an opening by it (openingId).
+      <group key={index}>
+        {swing && (
+          <mesh
+            position={toScenePosition({ ...swing.center, z: LAYER.doorSwing })}
+            rotation={FLAT_ON_FLOOR}
+          >
+            <planeGeometry args={swing.size} />
+            <meshBasicMaterial color={SCENE_COLORS.doorSwing} />
+          </mesh>
+        )}
+        <Draggable
+          id={openingId(index)}
+          at={center}
+          grab={{ width: size[0], depth: size[1] }}
+          markerDrag={markerDrag}
+        >
+          <mesh
+            position={toScenePosition({ ...center, z: LAYER.opening })}
+            rotation={FLAT_ON_FLOOR}
+          >
+            <planeGeometry args={size} />
+            <meshBasicMaterial color={SCENE_COLORS[opening.kind]} />
+          </mesh>
+        </Draggable>
+      </group>
+    )
+  })
+}
+
+/** The doors and windows in 3D: panels on their walls, at their height. */
+function OpeningPanels({
+  room,
+  openings,
+}: {
+  room: Room
+  openings: readonly Opening[]
+}) {
+  return openings.map((opening, index) => {
+    const { position, size, rotation } = openingPanel(room, opening)
+    return (
+      <mesh key={index} position={position} rotation={rotation}>
+        <planeGeometry args={size} />
+        <meshBasicMaterial
+          color={SCENE_COLORS[opening.kind]}
+          side={DoubleSide}
+          transparent
+          opacity={0.6}
+        />
+      </mesh>
+    )
+  })
+}
+
+/** The Screen in 3D: an upright panel at its height on the front wall. */
+function ScreenPanel({ screen }: { screen: RoomScreen }) {
+  const { position, size } = screenPanel(screen)
+  return (
+    <mesh position={position}>
+      <planeGeometry args={size} />
+      <meshBasicMaterial color={SCENE_COLORS.screen} side={DoubleSide} />
     </mesh>
   )
 }
@@ -648,7 +1025,7 @@ function MlpMarker({
       <Draggable
         id={MLP_ID}
         at={mlp}
-        radius={MLP_MARKER_RADIUS}
+        grab={{ radius: MLP_MARKER_RADIUS }}
         markerDrag={markerDrag}
       >
         <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
@@ -686,7 +1063,7 @@ function SpeakerMarkers({
         <Draggable
           id={speaker.channel}
           at={speaker.position}
-          radius={SPEAKER_FOOTPRINT.width / 2}
+          grab={{ radius: SPEAKER_FOOTPRINT.width / 2 }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
@@ -737,7 +1114,7 @@ function OverheadMarkers({
         <Draggable
           id={overhead.channel}
           at={overhead.position}
-          radius={OVERHEAD_MARKER_RADIUS}
+          grab={{ radius: OVERHEAD_MARKER_RADIUS }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
@@ -796,7 +1173,7 @@ function SubwooferMarkers({
         <Draggable
           id={subwoofer.id}
           at={subwoofer.position}
-          radius={SUBWOOFER_FOOTPRINT / 2}
+          grab={{ radius: SUBWOOFER_FOOTPRINT / 2 }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
@@ -825,4 +1202,53 @@ function SubwooferMarkers({
 function besideMarker({ x, y }: ScreenDirection): string {
   const gap = `${SPEAKER_LABEL_GAP_PX}px`
   return `translate(calc(${x} * (50% + ${gap})), calc(${y} * (50% + ${gap})))`
+}
+
+/**
+ * The Selected item, ringed, with its Dimension lines to its two nearest
+ * walls and the MLP, each labelled with its length (see
+ * selectionDimensions) over every other label. Drawn just above the item,
+ * so they read over the floor and its marker.
+ */
+function SelectionMarks({
+  selection: { at, lines },
+  labelLayer,
+}: {
+  selection: SelectionDimensions
+  labelLayer: LabelLayer
+}) {
+  const lift = (point: RoomPoint) => ({ ...point, z: point.z + SELECTION_LIFT })
+  return (
+    <>
+      <mesh position={toScenePosition(lift(at))} rotation={FLAT_ON_FLOOR}>
+        <ringGeometry args={[SELECTION_RING.inner, SELECTION_RING.outer, 48]} />
+        <meshBasicMaterial color={SCENE_COLORS.selection} side={DoubleSide} />
+      </mesh>
+      {lines.map(({ target, from, to, labelAt, text }) => (
+        <Fragment key={target}>
+          <Line
+            points={[toScenePosition(lift(from)), toScenePosition(lift(to))]}
+            color={SCENE_COLORS.selection}
+            lineWidth={1.5}
+            dashed
+            dashSize={0.08}
+            gapSize={0.05}
+          />
+          <SceneLabel
+            at={labelAt}
+            layer={labelLayer}
+            tone="selection"
+            raised
+            className="border font-medium tabular-nums"
+            style={{
+              backgroundColor: SCENE_COLORS.background,
+              borderColor: SCENE_COLORS.selection,
+            }}
+          >
+            {text}
+          </SceneLabel>
+        </Fragment>
+      ))}
+    </>
+  )
 }

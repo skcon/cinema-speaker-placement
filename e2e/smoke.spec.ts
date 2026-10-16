@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { V1_LINKS } from '../src/test/share-link-fixtures.ts'
+import { V1_LINKS, V2_LINKS } from '../src/test/share-link-fixtures.ts'
 
 /** The part of HTMLCanvasElement we use (e2e is typechecked without the DOM lib). */
 type WebGLCanvas = { getContext(contextId: 'webgl2'): object | null }
@@ -7,12 +7,12 @@ type WebGLCanvas = { getContext(contextId: 'webgl2'): object | null }
 /** The sidebar text box for one part (`m`, `ft`, `in`) of a room dimension. */
 function dimensionInput(page: Page, dimension: string, unit: string) {
   return page
-    .getByRole('complementary', { name: 'Room and layout' })
+    .getByRole('complementary', { name: 'Room plan' })
     .getByRole('group', { name: dimension, exact: true })
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, moves the MLP to the recommended seat, shows the seat-score heatmap, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
   page,
 }) => {
   await page.goto('./')
@@ -49,6 +49,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     // The labels are placed from the scene's camera, so they show once it renders.
     await expect(scene.getByText('Front wall')).toBeVisible()
     await expect(scene.getByText('MLP')).toBeVisible()
+    // The default room's width and length are written along its walls.
+    await expect(scene.getByText('← 4.5 m →')).toBeVisible()
+    await expect(scene.getByText('← 6 m →')).toBeVisible()
   })
 
   await test.step('the default 5.1.2 speakers show with their angle and grade', async () => {
@@ -72,6 +75,28 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toBeVisible()
   })
 
+  await test.step('clicking Left selects it and shows its distances, without an undo step; Escape clears it', async () => {
+    const box = await scene.locator('canvas').boundingBox()
+    if (!box) throw new Error('the room view has no canvas')
+    // The view fits the 6 x 4.5 m room inside a 32 px margin, with the
+    // front wall at the top (src/scene/top-down.ts). Left is auto-placed
+    // at (-0.868, 0.500) m (src/domain/item-distances.test.ts).
+    const zoom = Math.min((box.width - 64) / 4.5, (box.height - 64) / 6)
+    await page.mouse.click(
+      box.x + box.width / 2 - 0.868 * zoom,
+      box.y + box.height / 2 + (0.5 - 3) * zoom,
+    )
+
+    const panel = page.getByRole('region', { name: 'Selected item' })
+    await expect(panel.getByRole('heading', { name: 'Left' })).toBeVisible()
+    await expect(panel).toContainText('To the MLP1.98 m')
+    await expect(scene.getByText('1.98 m', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled()
+
+    await page.keyboard.press('Escape')
+    await expect(panel).toContainText('Nothing selected')
+  })
+
   await test.step('the estimated response is charted, with its summary, weaknesses and the estimate note', async () => {
     const panel = page.getByRole('region', { name: 'Estimated response' })
     const chart = panel.getByRole('img', {
@@ -91,7 +116,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       panel
         .getByRole('list', { name: 'Weaknesses' })
         .getByText(
-          /^Dip at 1\d\d Hz .*front-wall reflection notch \(Left and Right\)/,
+          /^Dip at 1\d\d Hz .*front-wall .*reflection notch \(Left, Center and Right\)/,
         ),
     ).toBeVisible()
     await expect(
@@ -101,23 +126,38 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toBeVisible()
   })
 
-  await test.step('the recommended seat is ringed, and "Move MLP here" moves the MLP there and reaches the address', async () => {
+  await test.step('the default MLP is the recommended seat; moved off the center line, "Move MLP here" brings it back to the center line and reaches the address', async () => {
     await expect(scene.getByText('Recommended', { exact: true })).toBeVisible()
     const seating = page.getByRole('region', { name: 'Seating' })
     const move = seating.getByRole('button', { name: 'Move MLP here' })
+    const atRecommended = seating.getByText(
+      /^Your MLP is at the recommended seat/,
+    )
+    // The 38% MLP is on the center line, and no seat beats it meaningfully (#48).
+    await expect(atRecommended).toBeVisible()
+    await expect(move).toBeDisabled()
+
+    const mlp = page.getByRole('group', { name: 'MLP position' })
+    await mlp.locator('summary').click()
+    const fromLeftWall = mlp
+      .getByRole('group', { name: /^From the left wall/ })
+      .getByRole('textbox', { name: 'm' })
+    await expect(fromLeftWall).toHaveValue('2.25')
+    // A meter left of the center line.
+    await fromLeftWall.fill('1.25')
+    await fromLeftWall.press('Tab')
+    await expect(mlp).toContainText('manual')
     await expect(move).toBeEnabled()
     const addressBefore = page.url()
 
     await move.click()
 
     await expect(page).toHaveURL((url) => url.href !== addressBefore)
-    await expect(
-      seating.getByText(/^Your MLP is at the recommended seat/),
-    ).toBeVisible()
+    await expect(atRecommended).toBeVisible()
     await expect(move).toBeDisabled()
-    await expect(
-      page.getByRole('group', { name: 'MLP position' }),
-    ).toContainText('manual')
+    await expect(mlp).toContainText('manual')
+    // Back on the center line, 2.25 m from either side wall.
+    await expect(fromLeftWall).toHaveValue('2.25')
   })
 
   await test.step('the seat-score heatmap turns on with its legend and description', async () => {
@@ -194,6 +234,15 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toBeVisible()
   })
 
+  // The same room as this version writes it: version 2.
+  const upgraded = V2_LINKS.imperialRoom.encoded
+
+  await test.step('the address takes the link this version writes for the room', async () => {
+    await expect(page).toHaveURL(
+      (url) => url.searchParams.get('config') === upgraded,
+    )
+  })
+
   await test.step('an edit reaches the address, under the base path', async () => {
     await dimensionInput(page, 'Length', 'ft').fill('30')
 
@@ -201,7 +250,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       (url) =>
         url.pathname === '/cinema-speaker-placement/' &&
         url.searchParams.has('config') &&
-        url.searchParams.get('config') !== encoded,
+        url.searchParams.get('config') !== upgraded,
     )
   })
 
@@ -240,10 +289,10 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       x: box.x + box.width / 2 + x * zoom,
       y: box.y + box.height / 2 + (y - room.length / 2) * zoom,
     })
-    // The Center is auto-placed on the center line, 0.3 m from the front
+    // The Center is auto-placed on the center line, 0.5 m from the front
     // wall; drag it 1 m right and 1 m back.
-    const from = onScreen(0, 0.3)
-    const to = onScreen(1, 1.3)
+    const from = onScreen(0, 0.5)
+    const to = onScreen(1, 1.5)
     const addressBefore = page.url()
 
     await page.mouse.move(from.x, from.y)
@@ -251,8 +300,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await page.mouse.move(to.x, to.y, { steps: 10 })
     await page.mouse.up()
 
-    // From the MLP, 3.47 m from the front wall, it is now about 25° right.
-    await expect(centerLabel).toHaveText(/^C 2[456]°$/)
+    // From the MLP, 3.47 m from the front wall, it is now about
+    // atan(1 / 1.97) = 27° right.
+    await expect(centerLabel).toHaveText(/^C 2[678]°$/)
     await expect(page).toHaveURL((url) => url.href !== addressBefore)
   })
 

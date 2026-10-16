@@ -3,8 +3,10 @@
  * docs/research/dolby-speaker-placement.md,
  * docs/research/multi-subwoofer-placement.md,
  * docs/research/low-frequency-response.md,
- * docs/research/crossover-enclosure-boundaries.md and
- * docs/research/reference-level-headroom.md.
+ * docs/research/crossover-enclosure-boundaries.md,
+ * docs/research/reference-level-headroom.md,
+ * docs/research/screen-and-front-stage.md and
+ * docs/research/room-openings-and-furniture.md.
  */
 
 /**
@@ -20,6 +22,38 @@ export type SourceKey =
   | LowFrequencySourceKey
   | BassSourceKey
   | HeadroomSourceKey
+  | ScreenSourceKey
+  | RoomObjectSourceKey
+
+/**
+ * docs/research/room-openings-and-furniture.md, section 1 (its KUTTRUFF and
+ * MHA are the books LowFrequencySourceKey already names).
+ */
+type RoomObjectSourceKey =
+  | 'TOOLE-SR'
+  | 'TOOLE-2006'
+  | 'EBU-3276'
+  | 'EBU-3276-S1'
+  | 'BS1116'
+  | 'RP22'
+  | 'ODEON-2025'
+  | 'MAGALOTTI'
+  | 'MALUSKI-2004'
+  | 'SCHULTZ-1964'
+  | 'COUPLED-ARXIV'
+  | 'GEN-8030A'
+  | 'GEN-8430A'
+  | 'GEN-1237A'
+  | 'LINKWITZ-EDN'
+  | 'C-AVS-OPEN'
+  | 'C-AH-DOOR'
+  | 'C-GS-GLASS'
+  | 'C-SN-WINDOW'
+  | 'C-OHM-REAR'
+
+/** docs/research/screen-and-front-stage.md, section 1. */
+type ScreenSourceKey =
+  'CEPRO-H' | 'SV-AT' | 'ELITE-AT' | 'AVS-AT' | 'ITU-775' | 'AF-LAYOUT'
 
 /** docs/research/reference-level-headroom.md, section 1. */
 type HeadroomSourceKey = 'ATSC-A52' | 'FLORIAN-2000'
@@ -89,6 +123,141 @@ export type Citation =
       readonly note?: string
     }
 
+/** A source document's title and where to read it. */
+export type Source = { readonly title: string; readonly url: string }
+
+/**
+ * The titles and URLs of the sources the app shows with its grades and
+ * placement warnings, copied from the sources tables in section 1 of
+ * docs/research/dolby-speaker-placement.md,
+ * docs/research/multi-subwoofer-placement.md and
+ * docs/research/room-openings-and-furniture.md. The Dolby table writes the
+ * per-layout sheets' shared title prefix as "..."; it is spelled out here.
+ * Only keys that the placement ranges, the subwoofers' "not graded"
+ * reason or PLACEMENT_WARNINGS cite are listed.
+ */
+export const SOURCES = {
+  IG: {
+    title: 'Dolby Atmos Home Theater Installation Guidelines (60 pp.)',
+    url: 'https://www.dolby.com/siteassets/technologies/dolby-atmos/atmos-installation-guidelines-121318_r3.1.pdf',
+  },
+  WEB101: {
+    title: 'Dolby Atmos Speaker Setup 101 (web page)',
+    url: 'https://www.dolby.com/about/support/guide/dolby-atmos-speaker-setup/',
+  },
+  'S-21': {
+    title: 'Home Theater Speaker Guide: 2.1 Virtual Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/2.1-virtual-speakers/2_1_virtual_speakers.pdf',
+  },
+  'S-31': {
+    title: 'Home Theater Speaker Guide: 3.1 Virtual Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/3.1-virtual-speakers-setup/3_1_virtual_speaker_setup.pdf',
+  },
+  'S-51': {
+    title: 'Home Theater Speaker Guide: 5.1 Virtual Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1-virtual-speakers-setup/5_1_virtual_speaker_setup.pdf',
+  },
+  'S-71': {
+    title: 'Home Theater Speaker Guide: 7.1 Virtual Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1-virtual-speakers-setup/7_1_virtual_speaker_setup.pdf',
+  },
+  'S-512-OH': {
+    title: 'Home Theater Speaker Guide: 5.1.2 Overhead Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.2-overhead-speaker-placement/5_1_2_overhead_speakers_setup.pdf',
+  },
+  'S-512-EN': {
+    title: 'Home Theater Speaker Guide: 5.1.2 Dolby Atmos Enabled Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.2-dolby-atmos-enabled-speaker-placement/5_1_2_atmos_enabled_speaker_setup.pdf',
+  },
+  'S-514-OH': {
+    title: 'Home Theater Speaker Guide: 5.1.4 Overhead Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.4-overhead-speaker-placement/sell-sheet-5.1.4-mounted.pdf',
+  },
+  'S-514-EN': {
+    title: 'Home Theater Speaker Guide: 5.1.4 Dolby Atmos Enabled Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.4-dolby-atmos-enabled-speaker-placement/5_1_4_atmos_enabled_speaker_setup.pdf',
+  },
+  'S-514-HY': {
+    title:
+      'Home Theater Speaker Guide: 5.1.4 Hybrid (front enabled / rear overhead)',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/5.1.4-hybrid-dolby-atmos-enabled--overhead-speaker-placement/5_1_4_hybrid_overhead.pdf',
+  },
+  'S-712-OH': {
+    title: 'Home Theater Speaker Guide: 7.1.2 Overhead Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.2-overhead-speaker-placement/7_1_2_overhead_speaker_setup.pdf',
+  },
+  'S-712-EN': {
+    title: 'Home Theater Speaker Guide: 7.1.2 Dolby Atmos Enabled Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.2-dolby-atmos-enabled-speaker-placement/7_1_2_atmos_enabled_speaker_setup.pdf',
+  },
+  'S-714-OH': {
+    title: 'Home Theater Speaker Guide: 7.1.4 Overhead Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.4-overhead-speaker-placement/7_1_4_overhead_speaker_setup.pdf',
+  },
+  'S-714-EN': {
+    title: 'Home Theater Speaker Guide: 7.1.4 Dolby Atmos Enabled Speakers',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.4-dolby-atmos-enabled-speaker-placement/7_1_4_atmos_enabled_speaker_setup.pdf',
+  },
+  'S-714-HY': {
+    title:
+      'Home Theater Speaker Guide: 7.1.4 Hybrid (front enabled / rear overhead)',
+    url: 'https://www.dolby.com/siteassets/about/support/guide/setup-guides/7.1.4-hybrid-dolby-atmos-enabled--overhead-speaker-placement/7_1_4_hybrid_dolby_atmos_enabled_overhead_speaker_placement.pdf',
+  },
+  'HW-SUBS': {
+    title:
+      'T. Welti (Harman International), "Subwoofers: Optimum Number and Locations", Harman white paper (slides with notes, 80 slides on 30 pages)',
+    url: 'https://www.harman.com/Documents/multsubs.pdf',
+  },
+  'EBU-3276': {
+    title:
+      'EBU Tech 3276, Listening conditions for the assessment of sound programme material: monophonic and two-channel stereophonic (2nd ed., 1998)',
+    url: 'https://tech.ebu.ch/docs/tech/tech3276.pdf',
+  },
+  'GEN-8030A': {
+    title: 'Genelec 8030A Quick Setup Guide (third-party copy)',
+    url: 'https://tgm-wiki.jade-hs.de/_media/inventar_specs/qs8030a.pdf',
+  },
+  'GEN-8430A': {
+    title: 'Genelec 8430A Operating Manual (third-party copy)',
+    url: 'https://www.fullcompass.com/common/files/27953-Genelec8430AOperatingManual.pdf',
+  },
+  'EBU-3276-S1': {
+    title:
+      'EBU Tech 3276, Supplement 1: Listening conditions for the assessment of sound programme material: multichannel sound',
+    url: 'https://tech.ebu.ch/docs/tech/tech3276s1.pdf',
+  },
+  'GEN-1237A': {
+    title: 'Genelec 1237A manual (third-party copy)',
+    url: 'https://www.notice-facile.com/en/manual/813295/genelec+1237a',
+  },
+  'C-AH-DOOR': {
+    title:
+      'Audioholics forum, "Building home theater: open entrance to theater or door?" (community practice: a forum thread)',
+    url: 'https://forums.audioholics.com/forums/threads/building-home-theater-open-entrance-to-theater-or-door.107437/post-1187651',
+  },
+  'C-GS-GLASS': {
+    title:
+      'Gearspace forum, "Glass walls" (community practice: a forum thread)',
+    url: 'https://gearspace.com/threads/glass-walls.685260/',
+  },
+  'C-SN-WINDOW': {
+    title:
+      'StereoNET forum, "Room with a large window behind the speakers" (community practice: a forum thread)',
+    url: 'https://stereonet.com/forums/topic/614116-room-with-a-large-window-behind-the-speakers',
+  },
+  'C-OHM-REAR': {
+    title:
+      'Ohm Speakers, "No Cost Sound Improvement – Move Your Seat" (community practice: a manufacturer\'s marketing blog)',
+    url: 'https://ohmspeaker.com/news/no-cost-sound-improvement-move-your-seat-get-better-sound/',
+  },
+} as const satisfies Partial<Record<SourceKey, Source>>
+
+/** A source's title and URL, or null when SOURCES does not list it. */
+export function sourceOf(key: SourceKey): Source | null {
+  const sources: Partial<Record<SourceKey, Source>> = SOURCES
+  return sources[key] ?? null
+}
+
 /** Seated ear height: listener-level speakers and the MLP sit here. */
 export const EAR_HEIGHT = {
   meters: 1.2,
@@ -143,6 +312,21 @@ export const SPEAKER_WALL_CLEARANCE = {
   note:
     'Our modelling assumption, not Dolby: Dolby gives no distance from ' +
     'the walls (docs/research/dolby-speaker-placement.md section 7).',
+} as const satisfies { meters: number; note: string }
+
+/**
+ * How far from the front wall auto-place puts the front stage (Left,
+ * Center and Right, at their acoustic centers): close to the wall, where
+ * the manufacturers want monitors, and far enough that the first
+ * front-wall cancellation stays above the crossover (ADR 0005).
+ */
+export const FRONT_STAGE_WALL_DISTANCE = {
+  meters: 0.5,
+  note:
+    'Our choice, not Dolby: Dolby gives no distance from the front wall. ' +
+    'The sources disagree on one number (Genelec under about 0.6 m, ADAM ' +
+    'under 0.5 m, KEF 0.3-1 m), read from search extracts ' +
+    '(docs/research/real-room-placement.md section 2.1; ADR 0005).',
 } as const satisfies { meters: number; note: string }
 
 /**
@@ -473,22 +657,399 @@ export const SEAT_SCORE = {
 }
 
 /**
- * The Seat row (GLOSSARY.md): a couch or row of seats drawn centered on
- * the MLP, a visual cue only. Its width is in the config; its depth is
- * fixed. The default (about a three-seat couch), the limits (one seat to
- * a long row) and the depth are product choices, not cited values.
+ * The Seat row (GLOSSARY.md): the couch or row of seats the MLP sits on,
+ * a room object that is drawn but never part of the estimated response
+ * (ADR 0006). Its width and depth are in the config; where it is follows
+ * the MLP. The defaults, the limits and the head offset are product
+ * choices, not cited values (docs/research/seating-and-mlp.md section 2):
+ *
+ * - **defaultWidth**: about a three-seat couch (retail 1.83-2.44 m).
+ * - **widthLimits**: one seat to a long row; kept from v1.0.0.
+ * - **defaultDepth**: inside the retail overall depth of 0.81-1.02 m.
+ * - **depthLimits**: ours, to catch typos. The retail 0.81-1.02 m sits well
+ *   inside; the minimum keeps the MLP on the couch (deeper than
+ *   headOffset), the maximum leaves room for a chaise or a reclined seat.
+ * - **headOffset**: how far the couch's back edge is behind the MLP.
  */
 export const SEAT_ROW = {
   defaultWidth: 2,
-  limits: { min: 0.5, max: 8 },
-  depth: 0.9,
-  note: 'Product choices for a visual cue, not cited values.',
+  widthLimits: { min: 0.5, max: 8 },
+  defaultDepth: 0.9,
+  depthLimits: { min: 0.5, max: 2 },
+  headOffset: 0.35,
+  note:
+    'Product choices for a room object, not cited values. headOffset is how ' +
+    "far the couch's back edge is behind the MLP (the listener's head): our " +
+    'estimate, UNVERIFIED, from couch back thickness (0.25–0.45 m) plus about ' +
+    '0.1 m from the back of the head to the ears; no source gives it ' +
+    '(docs/research/seating-and-mlp.md, section 2 and its table; range 0.3–0.5 m). ' +
+    'The depth limits are ours; the retail overall depth (0.81–1.02 m, ' +
+    'UNVERIFIED) sits inside them.',
 } as const satisfies {
   defaultWidth: number
-  limits: { min: number; max: number }
-  depth: number
+  widthLimits: { min: number; max: number }
+  defaultDepth: number
+  depthLimits: { min: number; max: number }
+  headOffset: number
   note: string
 }
+
+/**
+ * The Screen (GLOSSARY.md): a TV or projection screen on the front wall, a
+ * room object that is drawn but never part of the estimated response
+ * (ADR 0006). Its accepted sizes, and the screen a Room gets when one is
+ * added.
+ *
+ * - **limits**: our product limits that catch typos, not cited values; no
+ *   source gives a range of screen sizes (docs/research/screen-and-front-stage.md
+ *   section 2.3 and gap 8). Each is also kept inside the Room: the screen
+ *   fits on the front wall, between the floor and the ceiling.
+ * - **standoff**: how far an acoustically transparent screen stands in
+ *   front of the front wall, with the speakers behind it. The sources'
+ *   gaps between speaker and screen run from about 1 in to 12 in
+ *   (ELITE-AT, SV-AT, AVS-AT), which are product-specific; the limits and
+ *   the default are ours. The default puts the screen about 0.1 m (SV-AT's
+ *   4 in for a woven screen) in front of a cabinet about 0.3 m deep whose
+ *   front stage sits FRONT_STAGE_WALL_DISTANCE (0.5 m) from the wall.
+ * - **defaultTv**: a 65 in 16:9 TV (1.44 x 0.81 m), our pick from the
+ *   55-85 in range of section 2.3, itself ours (market observation).
+ * - **eyeLineFraction**: where seated eye height crosses the image,
+ *   measured up from its bottom edge: the line between its bottom third and
+ *   its top two-thirds (CEPRO-H, trade press by a screen manufacturer). The
+ *   default bottom edge puts EAR_HEIGHT there: 0.93 m for the default TV,
+ *   as in section 5 of the research note.
+ */
+export const SCREEN = {
+  limits: {
+    width: { min: 0.5, max: 8 },
+    height: { min: 0.3, max: 4 },
+    bottomEdge: { min: 0, max: 3 },
+    standoff: { min: 0.05, max: 1.5 },
+  },
+  defaultTv: { width: 1.44, height: 0.81 },
+  defaultStandoff: 0.75,
+  eyeLineFraction: 1 / 3,
+  note:
+    'Limits, the default TV and the default standoff are ours, not cited ' +
+    '(docs/research/screen-and-front-stage.md sections 2.3 and 5).',
+  citations: [
+    {
+      source: 'CEPRO-H',
+      note: 'seated eye level at the bottom third of the image (excerpt)',
+    },
+    {
+      source: 'SV-AT',
+      note: 'about 4 in (woven) to 12 in (microperf) behind an AT screen (excerpt)',
+    },
+    { source: 'ELITE-AT', note: 'about 1 in for its own materials (excerpt)' },
+    { source: 'AVS-AT', note: 'community practice (excerpt)' },
+  ],
+} as const satisfies {
+  limits: Record<
+    'width' | 'height' | 'bottomEdge' | 'standoff',
+    { min: number; max: number }
+  >
+  defaultTv: { width: number; height: number }
+  defaultStandoff: number
+  eyeLineFraction: number
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * How auto-place fits the front stage (Left, Center and Right) to the
+ * Screen (#58, ADR 0005 amendment). Dolby's azimuth ranges always win over
+ * these: they only choose a point inside the ranges, and the Center's
+ * height.
+ *
+ * - **edgeClearance**: how far outside a TV's or solid screen's edge
+ *   (inside an acoustically transparent screen's edge) L and R stand, as
+ *   seen from the MLP: from the image edge to the speaker's acoustic
+ *   center, about half a 0.2-0.25 m wide cabinet plus a small gap, so the
+ *   cabinet clears the image. The sources say "just outside" or "just
+ *   inside" without a number (AF-LAYOUT; research section 3.1).
+ * - **centerClearance**: how far below or above a TV's or solid screen's
+ *   image the Center's acoustic center sits, as seen from the MLP: about
+ *   half a 0.2 m tall center cabinet plus a small gap. ITU-R BS.775 and
+ *   Dolby say "just above or below" without a number (research section 4).
+ *   It is also how far the Center stays above the floor and below the
+ *   ceiling.
+ * - **behindScreenGap**: the gap between a speaker's acoustic center and
+ *   an acoustically transparent screen in front of it. SV-AT measured
+ *   about 4 in (0.1 m) for a woven screen; the sources run from 1 in to
+ *   12 in and are product-specific (research section 5).
+ */
+export const SCREEN_FRONT_STAGE = {
+  edgeClearance: 0.15,
+  centerClearance: 0.15,
+  behindScreenGap: 0.1,
+  note:
+    'All three distances are ours, not Dolby: Dolby relates no speaker to ' +
+    'a screen edge. The sources give the rules (L/R just outside a screen, ' +
+    'just inside an acoustically transparent one; C just above or below a ' +
+    'solid screen, behind a transparent one) but no distances ' +
+    '(docs/research/screen-and-front-stage.md sections 3-5; ADR 0005 ' +
+    'amendment).',
+  citations: [
+    {
+      source: 'AF-LAYOUT',
+      note: 'L/R just inside the edges of an acoustically transparent screen (excerpt, practitioner)',
+    },
+    {
+      source: 'ITU-775',
+      note: 'C immediately above or below a picture that is not acoustically transparent (excerpt)',
+    },
+    { source: 'WEB101', note: 'C just above or below the TV' },
+    {
+      source: 'SV-AT',
+      note: 'about 4 in (woven) behind an acoustically transparent screen (excerpt)',
+    },
+  ],
+} as const satisfies {
+  edgeClearance: number
+  centerClearance: number
+  behindScreenGap: number
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * Furniture boxes (GLOSSARY.md): cabinets, tables, shelves and the like as
+ * boxes on the floor plan, room objects that are drawn and warned about but
+ * never part of the estimated response (ADR 0006). Everything here is our
+ * product choice, not a cited value
+ * (docs/research/room-openings-and-furniture.md section 4 gives no sizes):
+ *
+ * - **maxCount**: ADR 0006's limit, so the worst-case share link stays
+ *   within the URL budget (the codec tests check it).
+ * - **nameMaxLength** and the name's characters (furniture.ts): short
+ *   names in Western European letters, which a share link carries cheaply;
+ *   the worst-case link has eight of them.
+ * - **limits**: catch typos, as the screen's do; each box also stays
+ *   inside the Room.
+ * - **presets**: the boxes the sidebar adds, typical sizes of a TV cabinet,
+ *   a coffee table and a bookshelf.
+ */
+export const FURNITURE = {
+  maxCount: 8,
+  nameMaxLength: 12,
+  limits: {
+    width: { min: 0.1, max: 8 },
+    depth: { min: 0.1, max: 8 },
+    height: { min: 0.1, max: 5 },
+  },
+  presets: {
+    cabinet: { name: 'Cabinet', width: 1.6, depth: 0.45, height: 0.5 },
+    table: { name: 'Table', width: 1.2, depth: 0.6, height: 0.45 },
+    shelf: { name: 'Shelf', width: 0.8, depth: 0.3, height: 1.8 },
+  },
+  note:
+    'Product choices for a room object, not cited values (ADR 0006; ' +
+    'docs/research/room-openings-and-furniture.md section 4).',
+} as const satisfies {
+  maxCount: number
+  nameMaxLength: number
+  limits: Record<'width' | 'depth' | 'height', { min: number; max: number }>
+  presets: Record<
+    string,
+    { name: string; width: number; depth: number; height: number }
+  >
+  note: string
+}
+
+/**
+ * Openings (GLOSSARY.md): doors and windows on the walls, room objects that
+ * are drawn and warned about but never part of the estimated response
+ * (ADR 0006). Everything here is our product choice, not a cited value
+ * (docs/research/room-openings-and-furniture.md gives no sizes):
+ *
+ * - **maxCount**: ADR 0006's limit, so the worst-case share link stays
+ *   within the URL budget (the codec tests check it).
+ * - **doorHeight**: a door has only a width (ADR 0006); it is drawn, and
+ *   checked for W5, this high (a typical interior door), or up to the
+ *   ceiling in a lower room.
+ * - **limits**: catch typos, as the furniture's do; each opening also
+ *   stays on its wall, between the floor and the ceiling.
+ * - **presets**: what "Add a door" and "Add a window" give: a typical
+ *   interior door and a typical window.
+ */
+export const OPENINGS = {
+  maxCount: 6,
+  doorHeight: 2,
+  limits: {
+    width: { min: 0.3, max: 8 },
+    sill: { min: 0, max: 4.5 },
+    height: { min: 0.2, max: 5 },
+  },
+  presets: {
+    door: { width: 0.9 },
+    window: { width: 1.2, sill: 0.9, height: 1.2 },
+  },
+  note:
+    'Product choices for a room object, not cited values (ADR 0006; ' +
+    'docs/research/room-openings-and-furniture.md section 2).',
+} as const satisfies {
+  maxCount: number
+  doorHeight: number
+  limits: Record<'width' | 'sill' | 'height', { min: number; max: number }>
+  presets: {
+    door: { width: number }
+    window: { width: number; sill: number; height: number }
+  }
+  note: string
+}
+
+/**
+ * Where a placement warning's rule comes from (GLOSSARY.md, "Placement
+ * warning"; CLAUDE.md principle 7): a standard, a manufacturer's own
+ * documents, community practice (forums and blogs, labelled as such) or
+ * our own assumption.
+ */
+export type SourceClass = 'standard' | 'manufacturer' | 'community' | 'ours'
+
+/**
+ * The placement warnings' rules, by their number in section 6 of
+ * docs/research/room-openings-and-furniture.md (ADR 0006): where each
+ * comes from, and the distances that are ours. Every source there was read
+ * through search summaries only (UNVERIFIED against the full text).
+ *
+ * - **W1**: a speaker or subwoofer in front of a door, where the door
+ *   swings. Not acoustic: the door has to open (ours). The swing zone is
+ *   ours too: as wide as the door and as deep as it is wide (the leaf's
+ *   reach), assuming it opens into the Room.
+ * - **W2**: a listener-level speaker in front of a window: the glass
+ *   reflects mids and treble and passes or absorbs bass unevenly, unlike
+ *   the wall beside it. Community practice only (C-SN-WINDOW, C-GS-GLASS),
+ *   labelled as such; no primary source. "In front of" (within the
+ *   window's width, at its height and within 1 m of its wall) is ours.
+ * - **W3**: a subwoofer in or near a doorway: bass may leak into the next
+ *   room (community practice, C-AH-DOOR), and the estimated response
+ *   assumes a closed, rigid wall there (the model's own assumption,
+ *   KUTTRUFF ch. 3, ADR 0002). The 0.5 m is ours.
+ * - **W5**: a door or window at one of a left/right pair's first side-wall
+ *   reflection points but not at the mirror one: the main loudspeakers
+ *   should be symmetrical about the listening axis (EBU-3276-S1), and so
+ *   should reflective objects near them (GEN-1237A). The reflection point
+ *   is the image-source one (speaker, wall, MLP's ears).
+ * - **W4**: furniture between a speaker and the MLP blocks its direct
+ *   sound (EBU-3276; GEN-8030A "do not place the monitors ... behind
+ *   objects"). Subwoofers are exempt: EBU-3276 says obstacles matter little
+ *   below 150 Hz. Checked from the speaker's acoustic centre to the MLP's
+ *   ear point; that straight line is ours.
+ * - **W6**: a speaker just above a cabinet or desk top, with the box
+ *   between it and the MLP: the top reflects into the listening position
+ *   (GEN-8430A, GEN-8030A). The 0.3 m is ours.
+ * - **W7**: the MLP close to the back wall. The bass part (every
+ *   length mode at full strength there; KUTTRUFF ch. 3) is already in the
+ *   estimated response; the reflection right behind the head is community
+ *   practice (C-OHM-REAR), which gives no number we use. The 0.6 m is ours.
+ */
+export const PLACEMENT_WARNINGS = {
+  W1: {
+    sourceClass: 'ours',
+    note:
+      'Not acoustic: the door has to open. The rule, and its swing zone ' +
+      '(as deep as the door is wide, opening into the room), are our ' +
+      'assumption.',
+    citations: [],
+  },
+  W2: {
+    sourceClass: 'community',
+    meters: 1,
+    note:
+      'Common advice, not a rule: no standard or manufacturer source was ' +
+      'found. Within 1 m of the window is our assumption.',
+    citations: [
+      {
+        source: 'C-SN-WINDOW',
+        note: 'glass behind the speakers reflects mids and treble, unlike a wall',
+      },
+      {
+        source: 'C-GS-GLASS',
+        note: 'glass reflects mids and highs and lets more bass through',
+      },
+    ],
+  },
+  W3: {
+    sourceClass: 'community',
+    meters: 0.5,
+    note:
+      'Bass leaking through a doorway is community practice; the estimated ' +
+      "response assumes a closed wall there (the model's own " +
+      'assumption), and the 0.5 m is our assumption.',
+    citations: [
+      {
+        source: 'C-AH-DOOR',
+        note: 'less bass, and poor results with a subwoofer near an opening',
+      },
+    ],
+  },
+  W4: {
+    sourceClass: 'standard',
+    note:
+      'Subwoofers are exempt: obstacles matter little below 150 Hz. ' +
+      'Read from search summaries of the sources only.',
+    citations: [
+      {
+        source: 'EBU-3276',
+        note: 'no obstacles in the direct sound; not so important below 150 Hz',
+      },
+      {
+        source: 'GEN-8030A',
+        note: 'do not place the monitors behind objects',
+      },
+    ],
+  },
+  W5: {
+    sourceClass: 'standard',
+    note:
+      'Informational: it asks for matching sides, not for removing ' +
+      'reflections. Read from search summaries of the sources only.',
+    citations: [
+      {
+        source: 'EBU-3276-S1',
+        note: 'main loudspeakers symmetrical about the listening axis',
+      },
+      {
+        source: 'GEN-1237A',
+        note: 'reflective objects near the monitors placed symmetrically',
+      },
+    ],
+  },
+  W6: {
+    sourceClass: 'manufacturer',
+    meters: 0.3,
+    note:
+      'Genelec warns about reflections off desks and cabinets; the 0.3 m ' +
+      'is our assumption. Read from search summaries of the sources only.',
+    citations: [
+      { source: 'GEN-8430A', note: 'reflections off desks and cabinets' },
+      { source: 'GEN-8030A', note: 'reflections off nearby surfaces' },
+    ],
+  },
+  W7: {
+    sourceClass: 'community',
+    meters: 0.6,
+    note:
+      'The extra bass near the back wall is already in the estimated ' +
+      'response; the reflection behind your head is community practice, ' +
+      'and the 0.6 m is our assumption.',
+    citations: [
+      {
+        source: 'C-OHM-REAR',
+        note: 'a strong, early reflection from behind the seat',
+      },
+    ],
+  },
+} as const satisfies Record<
+  string,
+  {
+    sourceClass: SourceClass
+    meters?: number
+    note: string
+    citations: readonly Citation[]
+  }
+>
 
 /** The target curve's tolerance band: ± this many dB around the target. */
 export const TARGET_TOLERANCE = {

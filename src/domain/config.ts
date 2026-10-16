@@ -9,10 +9,19 @@ import {
   placeablesIn,
   type ManualPositions,
 } from './manual-positions'
-import { checkSeatRowWidth, DEFAULT_SEAT_ROW_WIDTH } from './seat-row'
+import {
+  areValidRoomObjects,
+  DEFAULT_ROOM_OBJECTS,
+  type RoomObjects,
+} from './room-objects'
+import { FURNITURE_ROTATIONS, type FurnitureBox } from './furniture'
+import { SCREEN_KINDS, type RoomScreen } from './screen'
+import type { Door, Opening, WindowOpening } from './openings'
+import type { SeatRow } from './seat-row'
 import {
   checkRoomDimension,
   DEFAULT_ROOM,
+  WALLS,
   type Room,
   type RoomDimension,
   type RoomPoint,
@@ -69,6 +78,63 @@ const roomPointSchema = z.strictObject({
 }) satisfies z.ZodType<RoomPoint>
 
 /**
+ * The Screen on the front wall, in meters; whether it fits the Room is
+ * checked with the whole config.
+ */
+const screenSchema = z.strictObject({
+  kind: z.enum(SCREEN_KINDS),
+  width: z.number(),
+  height: z.number(),
+  bottomEdge: z.number(),
+  x: z.number(),
+  standoff: z.number().nullable(),
+}) satisfies z.ZodType<RoomScreen>
+
+/**
+ * A furniture box, in meters and degrees; whether it fits the Room, its
+ * name and how many there are is checked with the whole config.
+ */
+const furnitureBoxSchema = z.strictObject({
+  name: z.string(),
+  width: z.number(),
+  depth: z.number(),
+  height: z.number(),
+  x: z.number(),
+  y: z.number(),
+  rotation: z.literal(FURNITURE_ROTATIONS),
+}) satisfies z.ZodType<FurnitureBox>
+
+/**
+ * A door or a window on a wall, in meters; whether it fits its wall and
+ * how many there are is checked with the whole config.
+ */
+const openingSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('door'),
+    wall: z.enum(WALLS),
+    position: z.number(),
+    width: z.number(),
+  }) satisfies z.ZodType<Door>,
+  z.strictObject({
+    kind: z.literal('window'),
+    wall: z.enum(WALLS),
+    position: z.number(),
+    width: z.number(),
+    sill: z.number(),
+    height: z.number(),
+  }) satisfies z.ZodType<WindowOpening>,
+]) satisfies z.ZodType<Opening>
+
+/**
+ * The Seat row's size, in meters; its limits are checked with the other
+ * room objects. It stores no position: it sits where the MLP is.
+ */
+const seatRowSchema = z.strictObject({
+  width: z.number(),
+  depth: z.number(),
+}) satisfies z.ZodType<SeatRow>
+
+/**
  * The config's shape and rules: a config that passes it is one the store
  * accepts, and share links store configs in this shape. Strict: every field
  * is required and unknown fields are rejected, so a share link that doesn't
@@ -76,8 +142,8 @@ const roomPointSchema = z.strictObject({
  *
  * The `Config` type is inferred from it, so a new field is added here and
  * the compiler asks for its value in DEFAULT_CONFIG and the test fixtures.
- * Once share links are released, any change here needs a new schema
- * version and a migration (see share-link.ts).
+ * Share links are released, so a change here extends the unreleased schema
+ * version or starts a new one, with a migration (see share-link.ts).
  */
 export const configSchema = z
   .strictObject({
@@ -110,15 +176,20 @@ export const configSchema = z
     targetCurve: z.enum(TARGET_CURVE_KINDS),
     // The crossover between the Speakers and the Subwoofers, in Hz.
     crossoverHz: z.number().refine((hz) => checkCrossover(hz) === null),
-    // The Seat row's width in meters: drawn only, not analyzed.
-    seatRowWidth: z
-      .number()
-      .refine((meters) => checkSeatRowWidth(meters) === null),
     // Keyed by channel, subwoofer id or MLP; an item without one is auto.
     manualPositions: z.partialRecord(
       z.enum(PLACEABLE_IDS),
       roomPointSchema,
     ) satisfies z.ZodType<ManualPositions>,
+    // Room objects (ADR 0006): drawn and warned about, never part of the
+    // estimate. A Room starts with DEFAULT_ROOM_OBJECTS; a version 1 link
+    // with those and its seat row width.
+    roomObjects: z.strictObject({
+      seatRow: seatRowSchema,
+      screen: screenSchema.nullable(),
+      furniture: z.array(furnitureBoxSchema).readonly(),
+      openings: z.array(openingSchema).readonly(),
+    }) satisfies z.ZodType<RoomObjects>,
   })
   // The subwoofer count lives in the layout: own specs only for its subwoofers.
   .refine(({ layout, speakerGroups }) => {
@@ -134,6 +205,8 @@ export const configSchema = z
       ([id, point]) => inLayout.includes(id) && mayBeAt(room, id, point),
     )
   })
+  // Every room object inside the Room, each within its own limits.
+  .refine(({ room, roomObjects }) => areValidRoomObjects(room, roomObjects))
 
 /**
  * The single source of truth for a room plan: only inputs and manual
@@ -152,6 +225,6 @@ export const DEFAULT_CONFIG: Config = {
   amplifierWatts: DEFAULT_AMPLIFIER_WATTS,
   targetCurve: 'flat',
   crossoverHz: DEFAULT_CROSSOVER_HZ,
-  seatRowWidth: DEFAULT_SEAT_ROW_WIDTH,
   manualPositions: {},
+  roomObjects: DEFAULT_ROOM_OBJECTS,
 }

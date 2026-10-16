@@ -24,19 +24,30 @@ export type {
   ResponseWeakness,
 } from './response-notes'
 export type { Surface } from './boundary-interference'
+export {
+  warningsAbout,
+  type PlacementWarning,
+  type PlacementWarningId,
+  type WarnedItem,
+} from './placement-warnings'
 export type { RoomMode, RoomModeKind } from './room-modes'
 export {
   recommendSeat,
   scoreSeat,
+  type CenterLineWidthMode,
+  type OffCenterLine,
   type ScoredSeat,
   type SeatRecommendation,
 } from './seat-score'
 export { seatHeatmap, type HeatmapCell, type SeatHeatmap } from './seat-heatmap'
 export { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 export {
-  checkSeatRowWidth,
-  clampSeatRowWidth,
+  checkSeatRowDimension,
+  DEFAULT_SEAT_ROW,
+  SEAT_ROW_HEAD_OFFSET,
   seatRowFootprint,
+  type SeatRow,
+  type SeatRowDimension,
   type SeatRowFootprint,
 } from './seat-row'
 export { DEFAULT_CONFIG, type Config } from './config'
@@ -52,7 +63,90 @@ export {
   withLayout,
   withMlpAtRecommendedSeat,
   withRoom,
+  withRoomObjectMoved,
+  withRoomObjects,
+  withFurnitureAdded,
+  withFurnitureEdit,
+  withFurnitureRemoved,
+  withOpeningAdded,
+  withOpeningEdit,
+  withOpeningRemoved,
+  withScreenEdit,
+  withSeatRowSize,
 } from './config-edits'
+export {
+  furnitureIds,
+  isRoomObjectId,
+  openingIds,
+  DEFAULT_ROOM_OBJECTS,
+  ROOM_OBJECT_IDS,
+  SCREEN_ID,
+  SEAT_ROW_ID,
+  type RoomObjectId,
+  type RoomObjects,
+} from './room-objects'
+export {
+  checkFurnitureDimension,
+  checkFurnitureName,
+  FURNITURE_NAME_MAX_LENGTH,
+  FURNITURE_PRESETS,
+  FURNITURE_ROTATIONS,
+  furnitureDimension,
+  furnitureFootprint,
+  furnitureId,
+  furnitureIndex,
+  furnitureLabel,
+  furnitureTurned,
+  isFurnitureId,
+  MAX_FURNITURE,
+  withFurnitureDimension,
+  withFurnitureName,
+  type FurnitureBox,
+  type FurnitureDimension,
+  type FurnitureFootprint,
+  type FurnitureId,
+  type FurnitureNameProblem,
+  type FurniturePreset,
+  type FurnitureRotation,
+} from './furniture'
+export {
+  checkOpeningDimension,
+  isOpeningId,
+  MAX_OPENINGS,
+  OPENING_KINDS,
+  openingDimension,
+  openingEnds,
+  openingId,
+  openingIndex,
+  openingLabel,
+  openingSpan,
+  openingVerticalSpan,
+  pointOnWall,
+  wallLength,
+  withOpeningDimension,
+  withOpeningWall,
+  type Door,
+  type Opening,
+  type OpeningDimension,
+  type OpeningId,
+  type OpeningKind,
+  type WindowOpening,
+} from './openings'
+export {
+  checkScreenDimension,
+  defaultScreen,
+  SCREEN_KINDS,
+  screenDimension,
+  screenSurface,
+  withAcousticTransparency,
+  withScreenDimension,
+  withScreenKind,
+  type RoomScreen,
+  type ScreenDimension,
+  type ScreenKind,
+  type ScreenSurface,
+} from './screen'
+export type { ScreenRelation } from './placement'
 export {
   MLP_ID,
   type ManualPositions,
@@ -63,6 +157,7 @@ export {
   OVERHEAD_CHANNEL_IDS,
   OVERHEAD_CHANNELS,
   overheadSideSign,
+  SUBWOOFER_NO_RANGE,
   V1_DOLBY_LAYOUTS,
   type ChannelId,
   type DolbyLayout,
@@ -83,11 +178,14 @@ export {
   type SubwooferCount,
 } from './layout'
 export { suggestsAtmosEnabledSpeakers } from './atmos-enabled'
-export type {
-  AngleCheck,
-  OverheadPlacementRangeCheck,
-  PlacementGrade,
-  UngradedAngle,
+export {
+  ANGLE_GRADING,
+  type AngleCheck,
+  type OverheadPlacementRangeCheck,
+  type PlacementGrade,
+  type PlacementGrading,
+  type PlacementRangeCheck,
+  type UngradedAngle,
 } from './placement-range'
 export type { RangeProblem } from './range'
 export {
@@ -96,6 +194,7 @@ export {
   floorCenter,
   floorCorners,
   wallBases,
+  WALLS,
   type FloorPoint,
   type Room,
   type RoomDimension,
@@ -145,12 +244,21 @@ export {
   type SubwooferSpecs,
 } from './speaker-specs'
 export {
+  FRONT_STAGE_WALL_DISTANCE,
+  FURNITURE,
   HEADROOM_STATUS,
+  OPENINGS,
   LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,
+  SCREEN,
+  SCREEN_FRONT_STAGE,
   SEAT_SCORE,
+  sourceOf,
   SPEAKER_TYPE_GEOMETRY,
   TARGET_TOLERANCE,
+  type Citation,
+  type Source,
+  type SourceClass,
 } from './reference'
 export {
   TARGET_CURVE_KINDS,
@@ -189,3 +297,9 @@ export {
   type UnitSystem,
   type UnitSystemSpec,
 } from './units'
+export {
+  itemDistances,
+  type DimensionLine,
+  type ItemDistances,
+  type WallDimensionLine,
+} from './item-distances'

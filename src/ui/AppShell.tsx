@@ -12,8 +12,10 @@ import { LayoutForm } from '@/ui/LayoutForm'
 import { PositionsForm } from '@/ui/PositionsForm'
 import { RecentRooms } from '@/ui/RecentRooms'
 import { Seating } from '@/ui/Seating'
+import { SelectedItemPanel } from '@/ui/SelectedItemPanel'
 import { RoomForm } from '@/ui/RoomForm'
-import { SidebarSection } from '@/ui/SidebarSection'
+import { RoomObjectsForm } from '@/ui/RoomObjectsForm'
+import { SidebarSection, SidebarSubsection } from '@/ui/SidebarSection'
 import { SpeakerList } from '@/ui/SpeakerList'
 import { SpeakerSpecsForm } from '@/ui/SpeakerSpecsForm'
 
@@ -42,27 +44,36 @@ export function AppShell({
           <CopyLinkButton shareLinkFor={shareLinkFor} />
         </header>
         <LinkProblemMessage />
-        <aside
-          aria-labelledby="sidebar-heading"
-          className="flex flex-col gap-4"
-        >
-          <h2 id="sidebar-heading" className="font-medium">
-            Room and layout
-          </h2>
+        <aside aria-label="Room plan" className="flex flex-col gap-4">
+          {/* First, so it stays in view above the collapsible sections. */}
+          <SelectedItemPanel />
           <RoomForm />
           <LayoutForm />
-          <SpeakerList />
-          <PositionsForm />
+          <SidebarSection
+            id="speakers"
+            title="Speakers"
+            description="Where each speaker goes, its angle from the MLP (main listening position: the seat the layout is aimed at), and its specs."
+          >
+            <SpeakerList />
+            <PositionsForm />
+            <SidebarSubsection title="Speaker specs">
+              <SpeakerSpecsForm />
+              <CrossoverField />
+            </SidebarSubsection>
+          </SidebarSection>
           <Seating />
-          <SidebarSection title="Speaker specs">
-            <SpeakerSpecsForm />
-            <CrossoverField />
-          </SidebarSection>
-          <SidebarSection title="Headroom at the MLP">
-            <HeadroomIndicator />
-          </SidebarSection>
-          <SidebarSection title="Recent rooms">
-            <RecentRooms />
+          <RoomObjectsForm />
+          <SidebarSection
+            id="results"
+            title="Results"
+            description="How loud your speakers can play at the MLP, and the rooms you opened recently."
+          >
+            <SidebarSubsection title="Headroom at the MLP">
+              <HeadroomIndicator />
+            </SidebarSubsection>
+            <SidebarSubsection title="Recent rooms">
+              <RecentRooms />
+            </SidebarSubsection>
           </SidebarSection>
         </aside>
       </div>

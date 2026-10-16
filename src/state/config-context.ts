@@ -79,7 +79,7 @@ export function useSeatHeatmap(enabled: boolean): SeatHeatmap | null {
 /**
  * Works the recommended seat out, for SeatRecommendationContext only:
  * deferred, kept through a gesture, and memoized on everything the score
- * depends on (seatScoreKey), so a change of units or seat row width
+ * depends on (seatScoreKey), so a change of units or seat row size
  * keeps it.
  */
 export function useComputedSeatRecommendation(): SeatRecommendation | null {

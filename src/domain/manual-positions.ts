@@ -174,7 +174,7 @@ export function clampToRoom(
  * links round to the millimeter, which can put an item on the clearance
  * line up to half a millimeter past it.
  */
-const ROUNDING_SLACK = 0.0005
+export const ROUNDING_SLACK = 0.0005
 
 /** Whether item `id` may be at `point` (see above), to the millimeter. */
 export function mayBeAt(
@@ -210,11 +210,15 @@ export function keepInLayout(
 /** Share links store positions to the nearest millimeter, to stay short. */
 const MILLIMETERS_PER_METER = 1000
 
+/** A length rounded to the nearest millimeter. */
+export function toMillimeter(meters: number): number {
+  // `+ 0` turns -0 into 0, so the JSON stays as short as it can be.
+  return Math.round(meters * MILLIMETERS_PER_METER) / MILLIMETERS_PER_METER + 0
+}
+
 /** Every coordinate rounded to the nearest millimeter. */
 export function roundToMillimeter(positions: ManualPositions): ManualPositions {
-  const round = (meters: number) =>
-    // `+ 0` turns -0 into 0, so the JSON stays as short as it can be.
-    Math.round(meters * MILLIMETERS_PER_METER) / MILLIMETERS_PER_METER + 0
+  const round = toMillimeter
   return mapPositions(positions, (_, { x, y, z }) => ({
     x: round(x),
     y: round(y),

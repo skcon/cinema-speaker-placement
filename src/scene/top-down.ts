@@ -52,6 +52,15 @@ export function grabRadius(radius: number, zoom: number): number {
   return Math.max(radius, TOUCH_TARGET_PX / 2 / zoom)
 }
 
+/**
+ * The length, in meters, of a side of the area that picks up a long marker
+ * (the Screen's bar) for dragging: at least `length`, and never shorter on
+ * screen than a touch target at this zoom (pixels per meter).
+ */
+export function grabLength(length: number, zoom: number): number {
+  return Math.max(length, TOUCH_TARGET_PX / zoom)
+}
+
 /** From the pointer to a marker's center when it is grabbed. */
 export function grabOffset(at: FloorPoint, pointer: FloorPoint): FloorPoint {
   return { x: at.x - pointer.x, y: at.y - pointer.y }

@@ -37,7 +37,7 @@ function configParamInAddress(history: ReturnType<typeof renderApp>) {
 }
 
 describe('app shell', () => {
-  it('shows the room and layout sidebar, the room view and the estimated response', async () => {
+  it('shows the room plan sidebar, the room view and the estimated response', async () => {
     renderApp()
 
     expect(
@@ -47,7 +47,7 @@ describe('app shell', () => {
       }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('complementary', { name: 'Room and layout' }),
+      screen.getByRole('complementary', { name: 'Room plan' }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('region', { name: 'Room view' }),
@@ -61,7 +61,7 @@ describe('app shell', () => {
     renderApp()
 
     const sidebar = await screen.findByRole('complementary', {
-      name: 'Room and layout',
+      name: 'Room plan',
     })
     const length = within(sidebar).getByRole('group', { name: 'Length' })
     expect(within(length).getByRole('textbox', { name: 'm' })).toHaveValue('6')
@@ -71,7 +71,7 @@ describe('app shell', () => {
     renderApp()
 
     const sidebar = await screen.findByRole('complementary', {
-      name: 'Room and layout',
+      name: 'Room plan',
     })
     const speakers = within(sidebar).getByRole('table', { name: 'Speakers' })
     expect(within(speakers).getByText('Left Surround')).toBeInTheDocument()
@@ -113,7 +113,7 @@ describe('app shell', () => {
   it('shows the speakers of the layout picked in the sidebar', async () => {
     renderApp()
     const sidebar = await screen.findByRole('complementary', {
-      name: 'Room and layout',
+      name: 'Room plan',
     })
 
     fireEvent.click(within(sidebar).getByRole('radio', { name: '7.1' }))
@@ -218,6 +218,24 @@ describe('share links', () => {
     expect(configParamInAddress(history)).not.toBe(edited)
     await waitFor(() => expect(configParamInAddress(history)).toBe(edited))
     expect(history.length).toBe(1)
+  })
+
+  it('never writes the Selected item to the address', async () => {
+    const path = shareLinkPath(DEFAULT_CONFIG)
+    const history = renderApp(path)
+    const left = await screen.findByRole('group', { name: 'Left position' })
+
+    fireEvent.click(within(left).getByText('Left'))
+
+    const panel = screen.getByRole('region', { name: 'Selected item' })
+    expect(
+      await within(panel).findByRole('heading', { name: 'Left' }),
+    ).toBeInTheDocument()
+    // Longer than the address update's 300 ms pause.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(configParamInAddress(history)).toBe(encodeConfig(DEFAULT_CONFIG))
+    expect(history.length).toBe(1)
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
   })
 
   it('follows the address back and forward between share links', async () => {

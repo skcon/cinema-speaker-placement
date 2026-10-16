@@ -84,18 +84,18 @@ describe('config store', () => {
   it('auto-place keeps the room and layout, puts every speaker at its auto-placed position and the MLP at the recommended seat', () => {
     const store = createConfigStore()
     store.getState().setLayout('7.1')
-    store.getState().setRoomDimension('width', 5)
+    store.getState().setRoomDimension('width', 4)
 
     store.getState().autoPlace()
 
-    const sevenOneInFiveMeters = {
+    const sevenOneInFourMeters = {
       ...DEFAULT_CONFIG,
-      room: { length: 6, width: 5, height: 2.6 },
+      room: { length: 6, width: 4, height: 2.6 },
       layout: { dolbyLayout: '7.1', subwoofers: 1 },
     } as const
-    const { recommended } = recommendSeat(sevenOneInFiveMeters)
+    const { recommended } = recommendSeat(sevenOneInFourMeters)
     const autoPlaced = {
-      ...sevenOneInFiveMeters,
+      ...sevenOneInFourMeters,
       manualPositions: { MLP: recommended.position },
     }
     expect(store.getState().config).toEqual(autoPlaced)
@@ -228,38 +228,6 @@ describe('amplifier power', () => {
     store.getState().setAmplifierWatts(watts)
 
     expect(store.getState().config).toBe(IMPERIAL_ROOM)
-  })
-})
-
-describe('seat row', () => {
-  it('starts 2 m wide and takes a new width in meters, as an undoable change', () => {
-    const store = createConfigStore()
-    expect(store.getState().config.seatRowWidth).toBe(2)
-
-    store.getState().setSeatRowWidth(3.2)
-    expect(store.getState().config).toEqual({
-      ...DEFAULT_CONFIG,
-      seatRowWidth: 3.2,
-    })
-    store.getState().undo()
-    expect(store.getState().config.seatRowWidth).toBe(2)
-  })
-
-  it('keeps the width between one seat (0.5 m) and 8 m', () => {
-    const store = createConfigStore()
-
-    store.getState().setSeatRowWidth(0.1)
-    expect(store.getState().config.seatRowWidth).toBe(0.5)
-    store.getState().setSeatRowWidth(20)
-    expect(store.getState().config.seatRowWidth).toBe(8)
-  })
-
-  it('ignores a width that is not a number', () => {
-    const store = createConfigStore()
-
-    store.getState().setSeatRowWidth(Number.NaN)
-
-    expect(store.getState().config).toBe(DEFAULT_CONFIG)
   })
 })
 

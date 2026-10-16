@@ -137,6 +137,26 @@ export default defineConfig([
       ],
     },
   },
+  // A frozen config schema (src/domain/share-link.ts) keeps the rules of a
+  // released version, so it copies everything it uses: importing live code
+  // would let later changes reach links already shared.
+  {
+    files: ['src/domain/config-v*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**', '!zod'],
+              message:
+                'A frozen config schema imports nothing but zod: copy what it uses, as it was at its release.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   {
     files: ['src/state/**/*.{ts,tsx}'],
     rules: {

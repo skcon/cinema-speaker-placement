@@ -6,22 +6,50 @@ import {
   checkAmplifierWatts,
   checkCrossover,
   checkRoomDimension,
-  clampSeatRowWidth,
   decodeConfig,
   DEFAULT_CONFIG,
+  defaultScreen,
   MLP_ID,
   placeAtWallDistance,
   placeManually,
   withAutoPlacement,
   withLayout,
   withMlpAtRecommendedSeat,
+  withAcousticTransparency,
+  furnitureTurned,
+  withFurnitureAdded,
+  withFurnitureDimension,
+  withFurnitureEdit,
+  withFurnitureName,
+  withFurnitureRemoved,
+  withOpeningAdded,
+  withOpeningDimension,
+  withOpeningEdit,
+  withOpeningRemoved,
+  withOpeningWall,
   withRoom,
+  withRoomObjectMoved,
+  withRoomObjects,
+  withScreenDimension,
+  withScreenEdit,
+  withSeatRowSize,
+  withScreenKind,
   type Config,
   type DolbyLayout,
   type FloorPoint,
+  type FurnitureDimension,
+  type FurnitureId,
+  type FurniturePreset,
+  type OpeningDimension,
+  type OpeningId,
+  type OpeningKind,
   type PlaceableId,
   type RoomPoint,
   type RoomDimension,
+  type RoomObjectId,
+  type ScreenDimension,
+  type ScreenKind,
+  type SeatRowDimension,
   type SeatRecommendation,
   type ShareLinkProblem,
   type SpeakerGroupId,
@@ -118,11 +146,10 @@ export type ConfigState = {
    */
   setCrossover: (crossoverHz: number) => void
   /**
-   * Set the Seat row's width, in meters, kept between one seat and the
-   * widest row (SEAT_ROW in the domain's reference data). Values that are
-   * not numbers are ignored.
+   * Set the Seat row's width or depth, in meters. Values outside its range
+   * (SEAT_ROW in the domain's reference data) are ignored.
    */
-  setSeatRowWidth: (meters: number) => void
+  setSeatRowDimension: (dimension: SeatRowDimension, meters: number) => void
   /**
    * Move a channel, a subwoofer or the MLP on the floor plan (a drag),
    * making it manual. It stays inside the Room by the wall clearances; its
@@ -140,6 +167,89 @@ export type ConfigState = {
    * inside the wall clearances.
    */
   setWallDistance: (id: PlaceableId, wall: Wall, meters: number) => void
+  /**
+   * Add a Screen to the front wall: the default TV, centred (see
+   * defaultScreen in the domain). Ignored when there is one.
+   */
+  addScreen: () => void
+  /** Take the Screen away. Ignored when there is none. */
+  removeScreen: () => void
+  /**
+   * Make the Screen a TV or a projection screen, keeping its size; a TV
+   * hangs on the wall, so it loses any standoff.
+   */
+  setScreenKind: (kind: ScreenKind) => void
+  /**
+   * Make a projection screen acoustically transparent (standing off the
+   * front wall, at the default standoff) or not. Ignored for a TV.
+   */
+  setScreenAcousticallyTransparent: (transparent: boolean) => void
+  /**
+   * Set one of the Screen's lengths, in meters. Values outside its range
+   * in this Room are ignored; a wider screen moves in from a side wall.
+   */
+  setScreenDimension: (dimension: ScreenDimension, meters: number) => void
+  /**
+   * Add a furniture box from `preset` (a cabinet, table or shelf, see
+   * FURNITURE in the domain's reference data), its back against the middle
+   * of the front wall. Ignored when the Room has MAX_FURNITURE boxes.
+   */
+  addFurniture: (preset: FurniturePreset) => void
+  /** Take furniture box `id` away; the boxes after it move up a place. */
+  removeFurniture: (id: FurnitureId) => void
+  /**
+   * Rename furniture box `id`, trimmed. A name that is empty, too long or
+   * has characters a name can't have is ignored (see checkFurnitureName).
+   */
+  setFurnitureName: (id: FurnitureId, name: string) => void
+  /**
+   * Set one of furniture box `id`'s lengths, or where it is from the left
+   * or front wall, in meters. Values outside its range in this Room are
+   * ignored; a box that grows past a wall moves in from it.
+   */
+  setFurnitureDimension: (
+    id: FurnitureId,
+    dimension: FurnitureDimension,
+    meters: number,
+  ) => void
+  /**
+   * Turn furniture box `id` a quarter turn clockwise (seen from above),
+   * moving it in from a wall it would cross. Ignored when it would not fit
+   * the Room turned.
+   */
+  turnFurniture: (id: FurnitureId) => void
+  /**
+   * Add a door (in the middle of the back wall) or a window (in the middle
+   * of the right wall), see OPENINGS in the domain's reference data.
+   * Ignored when the Room has MAX_OPENINGS.
+   */
+  addOpening: (kind: OpeningKind) => void
+  /** Take opening `id` away; the openings after it move up a place. */
+  removeOpening: (id: OpeningId) => void
+  /**
+   * Move opening `id` to another wall, as far along it as it was, moved in
+   * from a corner (and narrowed) to fit it.
+   */
+  setOpeningWall: (id: OpeningId, wall: Wall) => void
+  /**
+   * Set one of opening `id`'s lengths, or where it is from the wall's
+   * start, in meters. Values outside its range in this Room, and a door's
+   * sill or height, are ignored; a wider opening moves in from a corner.
+   */
+  setOpeningDimension: (
+    id: OpeningId,
+    dimension: OpeningDimension,
+    meters: number,
+  ) => void
+  /**
+   * Move a room object on the floor plan (a drag); a furniture box goes
+   * with its middle to `to`, stopping at the walls, and the Screen slides
+   * along the front wall, stopping at the side walls, and an opening along
+   * its own wall, stopping at the corners. The Seat row is
+   * dragged by the MLP on it: `to` is where the MLP goes, made manual, and
+   * the seat row comes with it.
+   */
+  moveRoomObject: (id: RoomObjectId, to: FloorPoint) => void
   /**
    * Move the MLP to `seat`, the recommended seat on screen ("Move MLP
    * here"), making it manual, as one undoable step; auto speakers follow
@@ -367,15 +477,10 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             if (checkCrossover(crossoverHz) !== null) return
             set(({ config }) => ({ config: { ...config, crossoverHz } }))
           },
-          setSeatRowWidth: (meters) => {
-            const seatRowWidth = clampSeatRowWidth(meters)
-            if (Number.isNaN(seatRowWidth)) return
+          setSeatRowDimension: (dimension, meters) =>
             setConfigIfChanged((config) =>
-              config.seatRowWidth === seatRowWidth
-                ? config
-                : { ...config, seatRowWidth },
-            )
-          },
+              withSeatRowSize(config, dimension, meters),
+            ),
           moveItem: (id, { x, y }) =>
             setConfigIfChanged((config) => placeManually(config, id, { x, y })),
           setItemHeight: (id, meters) =>
@@ -386,6 +491,76 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             setConfigIfChanged((config) =>
               placeAtWallDistance(config, id, wall, meters),
             ),
+          addScreen: () =>
+            setConfigIfChanged((config) =>
+              withRoomObjects(config, (room, objects) =>
+                objects.screen
+                  ? objects
+                  : { ...objects, screen: defaultScreen(room) },
+              ),
+            ),
+          removeScreen: () =>
+            setConfigIfChanged((config) =>
+              withRoomObjects(config, (_, objects) =>
+                objects.screen ? { ...objects, screen: null } : objects,
+              ),
+            ),
+          setScreenKind: (kind) =>
+            setConfigIfChanged((config) =>
+              withScreenEdit(config, (_, screen) =>
+                withScreenKind(screen, kind),
+              ),
+            ),
+          setScreenAcousticallyTransparent: (transparent) =>
+            setConfigIfChanged((config) =>
+              withScreenEdit(config, (_, screen) =>
+                withAcousticTransparency(screen, transparent),
+              ),
+            ),
+          setScreenDimension: (dimension, meters) =>
+            setConfigIfChanged((config) =>
+              withScreenEdit(config, (room, screen) =>
+                withScreenDimension(room, screen, dimension, meters),
+              ),
+            ),
+          addFurniture: (preset) =>
+            setConfigIfChanged((config) => withFurnitureAdded(config, preset)),
+          removeFurniture: (id) =>
+            setConfigIfChanged((config) => withFurnitureRemoved(config, id)),
+          setFurnitureName: (id, name) =>
+            setConfigIfChanged((config) =>
+              withFurnitureEdit(config, id, (_, box) =>
+                withFurnitureName(box, name),
+              ),
+            ),
+          setFurnitureDimension: (id, dimension, meters) =>
+            setConfigIfChanged((config) =>
+              withFurnitureEdit(config, id, (room, box) =>
+                withFurnitureDimension(room, box, dimension, meters),
+              ),
+            ),
+          turnFurniture: (id) =>
+            setConfigIfChanged((config) =>
+              withFurnitureEdit(config, id, furnitureTurned),
+            ),
+          addOpening: (kind) =>
+            setConfigIfChanged((config) => withOpeningAdded(config, kind)),
+          removeOpening: (id) =>
+            setConfigIfChanged((config) => withOpeningRemoved(config, id)),
+          setOpeningWall: (id, wall) =>
+            setConfigIfChanged((config) =>
+              withOpeningEdit(config, id, (room, opening) =>
+                withOpeningWall(room, opening, wall),
+              ),
+            ),
+          setOpeningDimension: (id, dimension, meters) =>
+            setConfigIfChanged((config) =>
+              withOpeningEdit(config, id, (room, opening) =>
+                withOpeningDimension(room, opening, dimension, meters),
+              ),
+            ),
+          moveRoomObject: (id, to) =>
+            setConfigIfChanged((config) => withRoomObjectMoved(config, id, to)),
           moveMlpToRecommendedSeat: (seat) =>
             setConfigIfChanged((config) =>
               withMlpAtRecommendedSeat(config, seat),

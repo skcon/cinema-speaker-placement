@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import type { PlaceableId } from '@/domain'
 import {
   ConfigStoreContext,
   SeatRecommendationContext,
   useComputedSeatRecommendation,
 } from './config-context'
 import { createConfigStore } from './config-store'
+import { SelectionContext, type Selection } from './selection-context'
 
 /**
  * Creates one config store for everything inside it, starting from the
@@ -26,7 +28,9 @@ export function ConfigStoreProvider({
   })
   return (
     <ConfigStoreContext value={store}>
-      <SeatRecommendationProvider>{children}</SeatRecommendationProvider>
+      <SeatRecommendationProvider>
+        <SelectionProvider>{children}</SelectionProvider>
+      </SeatRecommendationProvider>
     </ConfigStoreContext>
   )
 }
@@ -43,4 +47,19 @@ function SeatRecommendationProvider({ children }: { children: ReactNode }) {
       {children}
     </SeatRecommendationContext>
   )
+}
+
+/**
+ * Holds the Selected item for everything inside it: view state, kept out
+ * of the config store, so it never reaches the share link or the undo
+ * history.
+ */
+function SelectionProvider({ children }: { children: ReactNode }) {
+  const [selected, setSelected] = useState<PlaceableId | null>(null)
+  const clear = useCallback(() => setSelected(null), [])
+  const selection = useMemo<Selection>(
+    () => ({ selected, select: setSelected, clear }),
+    [selected, clear],
+  )
+  return <SelectionContext value={selection}>{children}</SelectionContext>
 }

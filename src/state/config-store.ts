@@ -6,7 +6,6 @@ import {
   checkAmplifierWatts,
   checkCrossover,
   checkRoomDimension,
-  clampSeatRowWidth,
   decodeConfig,
   DEFAULT_CONFIG,
   defaultScreen,
@@ -22,6 +21,7 @@ import {
   withRoomObjects,
   withScreenDimension,
   withScreenEdit,
+  withSeatRowSize,
   withScreenKind,
   type Config,
   type DolbyLayout,
@@ -32,6 +32,7 @@ import {
   type RoomObjectId,
   type ScreenDimension,
   type ScreenKind,
+  type SeatRowDimension,
   type SeatRecommendation,
   type ShareLinkProblem,
   type SpeakerGroupId,
@@ -128,11 +129,10 @@ export type ConfigState = {
    */
   setCrossover: (crossoverHz: number) => void
   /**
-   * Set the Seat row's width, in meters, kept between one seat and the
-   * widest row (SEAT_ROW in the domain's reference data). Values that are
-   * not numbers are ignored.
+   * Set the Seat row's width or depth, in meters. Values outside its range
+   * (SEAT_ROW in the domain's reference data) are ignored.
    */
-  setSeatRowWidth: (meters: number) => void
+  setSeatRowDimension: (dimension: SeatRowDimension, meters: number) => void
   /**
    * Move a channel, a subwoofer or the MLP on the floor plan (a drag),
    * making it manual. It stays inside the Room by the wall clearances; its
@@ -174,7 +174,9 @@ export type ConfigState = {
   setScreenDimension: (dimension: ScreenDimension, meters: number) => void
   /**
    * Move a room object on the floor plan (a drag); the Screen slides
-   * along the front wall, stopping at the side walls.
+   * along the front wall, stopping at the side walls. The Seat row is
+   * dragged by the MLP on it: `to` is where the MLP goes, made manual, and
+   * the seat row comes with it.
    */
   moveRoomObject: (id: RoomObjectId, to: FloorPoint) => void
   /**
@@ -404,15 +406,10 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             if (checkCrossover(crossoverHz) !== null) return
             set(({ config }) => ({ config: { ...config, crossoverHz } }))
           },
-          setSeatRowWidth: (meters) => {
-            const seatRowWidth = clampSeatRowWidth(meters)
-            if (Number.isNaN(seatRowWidth)) return
+          setSeatRowDimension: (dimension, meters) =>
             setConfigIfChanged((config) =>
-              config.seatRowWidth === seatRowWidth
-                ? config
-                : { ...config, seatRowWidth },
-            )
-          },
+              withSeatRowSize(config, dimension, meters),
+            ),
           moveItem: (id, { x, y }) =>
             setConfigIfChanged((config) => placeManually(config, id, { x, y })),
           setItemHeight: (id, meters) =>

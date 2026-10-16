@@ -35,6 +35,30 @@ describe('room objects in the sidebar', () => {
     )
   })
 
+  it('show the seat row as 2 m wide and 0.9 m deep, and resize it as undoable steps', () => {
+    renderRoomObjects()
+    expect(input('Seat row width', 'm')).toHaveValue('2')
+    expect(input('Seat row depth', 'm')).toHaveValue('0.9')
+
+    type(input('Seat row depth', 'm'), '1.2')
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+    expect(input('Seat row depth', 'm')).toHaveValue('0.9')
+  })
+
+  it('explain a seat row size out of range in feet and inches in imperial', () => {
+    renderRoomObjects()
+    fireEvent.click(screen.getByRole('radio', { name: 'Imperial (ft + in)' }))
+
+    type(input('Seat row depth', 'ft'), '7')
+
+    expect(
+      screen.getByText(
+        /^Seat row depth must be between 1 ft 7\.\d in and 6 ft 6\.\d in\.$/,
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('start without a screen, and add a 65 in TV centred on the front wall', () => {
     renderRoomObjects()
     expect(screen.getByText(/^No screen\./)).toBeInTheDocument()

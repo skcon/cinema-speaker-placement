@@ -8,7 +8,7 @@ import {
   type ScoredSeat,
 } from '@/domain'
 import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
-import { V1_LINKS } from '@/test/share-link-fixtures'
+import { V2_LINKS } from '@/test/share-link-fixtures'
 
 /** The default room with the front speakers left by hand where auto-place puts them today. */
 function withManualFront(): Config {
@@ -316,7 +316,7 @@ describe('recommended seat on the center line (ADR 0005)', () => {
   it('counts an MLP on the center line as a center-line seat, and keeps it when no seat beats it meaningfully', () => {
     // The 24 x 15 ft fixture room: its 38% MLP is on the center line and
     // scores about as well as the grid's best center-line seat.
-    const config = V1_LINKS.imperialRoom.config as Config
+    const config = V2_LINKS.imperialRoom.config as Config
     const { recommended, current, offCenterLine } = recommendSeat(config)
 
     expect(current.position.x).toBe(0)

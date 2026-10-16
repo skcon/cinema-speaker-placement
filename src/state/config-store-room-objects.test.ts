@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  analyzeRoom,
   decodeConfig,
   DEFAULT_CONFIG,
   encodeConfig,
+  recommendSeat,
   SCREEN_ID,
+  SEAT_ROW_ID,
   type Config,
 } from '@/domain'
 import { createConfigStore, type ConfigStore } from '@/state/config-store'
@@ -25,8 +28,161 @@ function screen(store: ConfigStore) {
 
 /** A store with the default room and its default TV. */
 function storeWithTv(): ConfigStore {
-  return createConfigStore({ ...DEFAULT_CONFIG, roomObjects: { screen: TV } })
+  return createConfigStore({
+    ...DEFAULT_CONFIG,
+    roomObjects: { ...DEFAULT_CONFIG.roomObjects, screen: TV },
+  })
 }
+
+function analysis(store: ConfigStore) {
+  return analyzeRoom(store.getState().config)
+}
+
+function seatRowSize(store: ConfigStore) {
+  return store.getState().config.roomObjects.seatRow
+}
+
+describe('the seat row', () => {
+  it('starts 2 m wide and 0.9 m deep, auto with the MLP at the 38% seed', () => {
+    const store = createConfigStore()
+
+    expect(seatRowSize(store)).toEqual({ width: 2, depth: 0.9 })
+    // The MLP is 2.28 m from the front wall: the couch back 0.35 m behind it.
+    expect(analysis(store).mlpPlacement).toBe('auto')
+    const { center, width, depth } = analysis(store).seatRow
+    expect(center.x).toBeCloseTo(0, 9)
+    expect(center.y).toBeCloseTo(2.18, 9)
+    expect(width).toBeCloseTo(2, 9)
+    expect(depth).toBeCloseTo(0.9, 9)
+  })
+
+  it('moves the MLP when dragged, making it manual, and the analysis follows, as one undo step', () => {
+    const store = createConfigStore()
+    const before = analysis(store)
+
+    store.getState().beginGesture()
+    store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0.2, y: 2.8 })
+    store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0.4, y: 3.1 })
+    store.getState().endGesture()
+
+    const after = analysis(store)
+    expect(store.getState().config.manualPositions).toEqual({
+      MLP: { x: 0.4, y: 3.1, z: 1.2 },
+    })
+    expect(after.mlpPlacement).toBe('manual')
+    // The couch came with the MLP: its back still 0.35 m behind it.
+    expect(after.seatRow.center.x).toBeCloseTo(0.4, 9)
+    expect(after.seatRow.center.y + after.seatRow.depth / 2).toBeCloseTo(
+      3.45,
+      9,
+    )
+    // The grades and the estimated response are worked out at the new MLP.
+    expect(after.speakers.map((s) => s.placementRange)).not.toEqual(
+      before.speakers.map((s) => s.placementRange),
+    )
+    expect(after.response.estimated).not.toEqual(before.response.estimated)
+
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('keeps the MLP inside its wall clearances when dragged into a wall', () => {
+    const store = createConfigStore()
+
+    store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0, y: 9 })
+
+    // The 6 m room's back wall, less the MLP's clearance.
+    expect(analysis(store).mlp.y).toBeLessThan(6)
+    expect(analysis(store).seatRow.center.y).toBeLessThan(6)
+  })
+
+  it('goes back with the MLP on Auto-place, and undo restores both', () => {
+    const store = createConfigStore()
+    store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0.4, y: 3.1 })
+    const dragged = store.getState().config
+    const { recommended } = recommendSeat(DEFAULT_CONFIG)
+
+    store.getState().autoPlace()
+
+    expect(analysis(store).mlp).toEqual(recommended.position)
+    expect(analysis(store).seatRow.center.x).toBeCloseTo(
+      recommended.position.x,
+      9,
+    )
+    store.getState().undo()
+    expect(store.getState().config).toBe(dragged)
+    expect(analysis(store).seatRow.center.x).toBeCloseTo(0.4, 9)
+  })
+
+  it('moves so the MLP lands on the recommended seat on "Move MLP here"', () => {
+    const store = createConfigStore()
+    const seat = { x: -0.5, y: 2.5, z: 1.2 }
+
+    store.getState().moveMlpToRecommendedSeat(seat)
+
+    expect(analysis(store).seatRow.center.x).toBeCloseTo(-0.5, 9)
+    expect(
+      analysis(store).seatRow.center.y + analysis(store).seatRow.depth / 2,
+    ).toBeCloseTo(2.85, 9)
+    store.getState().undo()
+    expect(analysis(store).seatRow.center.x).toBeCloseTo(0, 9)
+  })
+
+  it('is resized within its ranges, each change one undo step, and rejects a size outside them', () => {
+    const store = createConfigStore()
+
+    store.getState().setSeatRowDimension('width', 3.2)
+    store.getState().setSeatRowDimension('depth', 1.1)
+    store.getState().setSeatRowDimension('width', 8.5)
+    store.getState().setSeatRowDimension('depth', 0.3)
+    store.getState().setSeatRowDimension('depth', Number.NaN)
+
+    expect(seatRowSize(store)).toEqual({ width: 3.2, depth: 1.1 })
+    // A deeper couch reaches further forward; its back stays behind the MLP.
+    expect(analysis(store).seatRow.center.y).toBeCloseTo(2.63 - 1.1 / 2, 9)
+    store.getState().undo()
+    expect(seatRowSize(store)).toEqual({ width: 3.2, depth: 0.9 })
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+  })
+
+  it('records nothing for a size it already has', () => {
+    const store = createConfigStore()
+
+    store.getState().setSeatRowDimension('width', 2)
+
+    expect(store.getState().config).toBe(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('round-trips through the share link, moved and resized', () => {
+    const store = createConfigStore()
+    store.getState().moveRoomObject(SEAT_ROW_ID, { x: -0.31234, y: 3.45678 })
+    store.getState().setSeatRowDimension('depth', 1.3)
+    const config: Config = store.getState().config
+
+    const reopened = createConfigStore()
+    reopened.getState().openEncodedConfig(encodeConfig(config))
+
+    expect(seatRowSize(reopened)).toEqual({ width: 2, depth: 1.3 })
+    expect(analysis(reopened).mlp).toEqual({ x: -0.312, y: 3.457, z: 1.2 })
+    expect(analysis(reopened).seatRow.center.x).toBeCloseTo(-0.312, 9)
+  })
+
+  it('comes from a version 1 link as its seat row width, 0.9 m deep, where its MLP is', () => {
+    const store = createConfigStore()
+
+    // 15 x 15 m with the MLP moved by hand to (-7.2, 0.3) and an 8 m row.
+    store.getState().openEncodedConfig(V1_LINKS.largestRoom.encoded)
+
+    expect(store.getState().linkProblem).toBeNull()
+    expect(seatRowSize(store)).toEqual({ width: 8, depth: 0.9 })
+    // Cut off at the left wall (x -7.5): from -7.5 to -3.2.
+    expect(analysis(store).seatRow.center.x).toBeCloseTo(-5.35, 9)
+    expect(analysis(store).seatRow.width).toBeCloseTo(4.3, 9)
+  })
+})
 
 describe('the screen', () => {
   it('is not there to begin with, as in v1.0.0', () => {
@@ -170,6 +326,6 @@ describe('the screen', () => {
     expect(screen(store)).toBeNull()
     expect(
       decodeConfig(V1_LINKS.imperialRoom.encoded).config.roomObjects,
-    ).toEqual({ screen: null })
+    ).toEqual({ seatRow: { width: 3.048, depth: 0.9 }, screen: null })
   })
 })

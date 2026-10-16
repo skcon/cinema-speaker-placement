@@ -36,9 +36,12 @@ export {
 export { seatHeatmap, type HeatmapCell, type SeatHeatmap } from './seat-heatmap'
 export { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 export {
-  checkSeatRowWidth,
-  clampSeatRowWidth,
+  checkSeatRowDimension,
+  DEFAULT_SEAT_ROW,
+  SEAT_ROW_HEAD_OFFSET,
   seatRowFootprint,
+  type SeatRow,
+  type SeatRowDimension,
   type SeatRowFootprint,
 } from './seat-row'
 export { DEFAULT_CONFIG, type Config } from './config'
@@ -57,12 +60,14 @@ export {
   withRoomObjectMoved,
   withRoomObjects,
   withScreenEdit,
+  withSeatRowSize,
 } from './config-edits'
 export {
   isRoomObjectId,
-  NO_ROOM_OBJECTS,
+  DEFAULT_ROOM_OBJECTS,
   ROOM_OBJECT_IDS,
   SCREEN_ID,
+  SEAT_ROW_ID,
   type RoomObjectId,
   type RoomObjects,
 } from './room-objects'

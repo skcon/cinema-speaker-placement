@@ -30,7 +30,7 @@ import {
   SCREEN_COLOR,
 } from '@/scene/palette'
 import type { DragTarget } from '@/scene/drag'
-import { describeScreen } from '@/scene/room-objects'
+import { describeScreen, describeSeatRow } from '@/scene/room-objects'
 import { canUseWebGL } from '@/scene/webgl'
 import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
@@ -59,6 +59,7 @@ export function RoomView() {
   const [webGL] = useState(canUseWebGL)
   const { room, units } = useConfig((state) => state.config)
   const screen = useConfig((state) => state.config.roomObjects.screen)
+  const seatRowSize = useConfig((state) => state.config.roomObjects.seatRow)
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveItem = useConfig((state) => state.moveItem)
   const moveRoomObject = useConfig((state) => state.moveRoomObject)
@@ -118,9 +119,13 @@ export function RoomView() {
         `elevation from the MLP and Dolby placement-range grade: ` +
         `${overheads.map(describeOverhead).join(', ')}.`
       : ''
-  const screenDescription = screen
-    ? `${describeScreen(screen, units)} ${ROOM_OBJECTS_NOTE}`
-    : ''
+  const roomObjectsDescription = [
+    describeSeatRow(seatRowSize, units),
+    screen && describeScreen(screen, units),
+    ROOM_OBJECTS_NOTE,
+  ]
+    .filter(Boolean)
+    .join(' ')
   const subwoofersDescription =
     `${subwoofers.length} ${subwoofers.length === 1 ? 'subwoofer' : 'subwoofers'}, ` +
     `not graded as Dolby gives subwoofers no placement range: ` +
@@ -133,7 +138,7 @@ export function RoomView() {
         <p>{speakersDescription}</p>
         {overheadsDescription && <p>{overheadsDescription}</p>}
         <p>{subwoofersDescription}</p>
-        {screenDescription && <p>{screenDescription}</p>}
+        <p>{roomObjectsDescription}</p>
         {seatDescription && <p>{seatDescription}</p>}
         <p>This browser can&rsquo;t draw the room view (no WebGL 2).</p>
       </div>
@@ -149,7 +154,7 @@ export function RoomView() {
           speakersDescription,
           overheadsDescription,
           subwoofersDescription,
-          screenDescription,
+          roomObjectsDescription,
           seatDescription,
           describeHeatmap(heatmap, units),
         ]
@@ -206,7 +211,8 @@ export function RoomView() {
           <p>
             To scale, seen from above. Grid squares are 1 {baseUnit.unit}. Drag
             the speakers and the MLP to move them; click or tap one to see its
-            distances.{screen && ' Drag the screen along the front wall.'}
+            distances. Drag the seat row to move it with the MLP.
+            {screen && ' Drag the screen along the front wall.'}
           </p>
         )}
         <div className="flex items-center gap-2">

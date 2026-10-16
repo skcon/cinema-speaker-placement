@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { RoomScreen } from '@/domain'
 import {
   describeScreen,
+  describeSeatRow,
   SCREEN_BAR_DEPTH,
   screenBar,
   screenPanel,
@@ -76,6 +77,20 @@ describe('the screen in words', () => {
   it('writes the lengths in the chosen units', () => {
     expect(describeScreen({ ...TV, x: 0.3048 }, 'imperial')).toBe(
       'A TV on the front wall, 4 ft 8.7 in wide and 2 ft 7.9 in high, its bottom edge 3 ft 0.6 in above the floor, its middle 1 ft 0 in right of centre.',
+    )
+  })
+})
+
+describe('the seat row in words', () => {
+  it('gives its size and where the MLP sits on it', () => {
+    expect(describeSeatRow({ width: 2, depth: 0.9 }, 'metric')).toBe(
+      'A seat row 2 m wide and 0.9 m deep, with the MLP 0.35 m in front of its back; dragging it moves the MLP.',
+    )
+  })
+
+  it('writes the lengths in the chosen units', () => {
+    expect(describeSeatRow({ width: 3.6576, depth: 0.9144 }, 'imperial')).toBe(
+      'A seat row 12 ft 0 in wide and 3 ft 0 in deep, with the MLP 1 ft 1.8 in in front of its back; dragging it moves the MLP.',
     )
   })
 })

@@ -1,10 +1,14 @@
 import { useId } from 'react'
 import {
   checkScreenDimension,
+  checkSeatRowDimension,
+  formatLength,
   screenDimension,
+  SEAT_ROW_HEAD_OFFSET,
   type RoomScreen,
   type ScreenDimension,
   type ScreenKind,
+  type SeatRowDimension,
 } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { Button } from '@/ui/components/button'
@@ -16,20 +20,72 @@ import { SidebarSection, SidebarSubsection } from '@/ui/SidebarSection'
 
 /**
  * Room objects in the sidebar (ADR 0006): things in the room besides the
- * speakers and the MLP. So far the Screen; the couch, furniture boxes and
- * openings join this section as subsections.
+ * speakers and the MLP. So far the Seat row and the Screen; furniture
+ * boxes and openings join this section as subsections.
  */
 export function RoomObjectsForm() {
   return (
     <SidebarSection
       id="roomObjects"
       title="Room objects"
-      description="What else is in your room, such as a screen. Room objects are drawn in the room view and used for placement warnings, but they are not part of the estimated response."
+      description="What else is in your room, such as your couch and screen. Room objects are drawn in the room view and used for placement warnings, but they are not part of the estimated response."
     >
+      <SidebarSubsection title="Seat row">
+        <SeatRowForm />
+      </SidebarSubsection>
       <SidebarSubsection title="Screen">
         <ScreenForm />
       </SidebarSubsection>
     </SidebarSection>
+  )
+}
+
+/** How each of the seat row's lengths is labelled, and named in its errors. */
+const SEAT_ROW_FIELDS = {
+  width: { label: 'Seat row width', noun: 'seat row width' },
+  depth: { label: 'Seat row depth', noun: 'seat row depth' },
+} as const satisfies Record<SeatRowDimension, { label: string; noun: string }>
+
+/**
+ * The Seat row: the couch the MLP sits on. Every room has one; it moves
+ * with the MLP, so only its size is set here.
+ */
+function SeatRowForm() {
+  const units = useConfig((state) => state.config.units)
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted-foreground">
+        Your couch or row of seats. The MLP (your head) sits on it,{' '}
+        {formatLength(SEAT_ROW_HEAD_OFFSET, units)} in front of its back. Drag
+        the seat row or the MLP in the top-down view to move both; Auto-place
+        and &ldquo;Move MLP here&rdquo; move it too.
+      </p>
+      <SeatRowDimensionField dimension="width" />
+      <SeatRowDimensionField dimension="depth" />
+    </div>
+  )
+}
+
+/** One of the seat row's lengths, checked against its range. */
+function SeatRowDimensionField({ dimension }: { dimension: SeatRowDimension }) {
+  const units = useConfig((state) => state.config.units)
+  const meters = useConfig(
+    (state) => state.config.roomObjects.seatRow[dimension],
+  )
+  const setSeatRowDimension = useConfig((state) => state.setSeatRowDimension)
+  const { label, noun } = SEAT_ROW_FIELDS[dimension]
+
+  return (
+    <CheckedLengthField
+      label={label}
+      meters={meters}
+      units={units}
+      check={(value) => checkSeatRowDimension(dimension, value)}
+      errorMessage={(problem) =>
+        lengthErrorMessage(noun, label, problem, units)
+      }
+      onChange={(value) => setSeatRowDimension(dimension, value)}
+    />
   )
 }
 

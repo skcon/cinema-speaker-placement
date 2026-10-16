@@ -1,8 +1,10 @@
 import {
   formatLength,
   screenSurface,
+  SEAT_ROW_HEAD_OFFSET,
   type RoomPoint,
   type RoomScreen,
+  type SeatRow,
   type UnitSystem,
 } from '@/domain'
 import { toScenePosition, type Vec3 } from '@/scene/top-down'
@@ -67,6 +69,23 @@ export function screenPanel(screen: RoomScreen): {
     }),
     size: [screen.width, screen.height],
   }
+}
+
+/**
+ * The Seat row in words, for the room view's screen-reader description,
+ * for example "A seat row 2 m wide and 0.9 m deep, with the MLP 0.35 m in
+ * front of its back; dragging it moves the MLP."
+ */
+export function describeSeatRow(
+  { width, depth }: SeatRow,
+  units: UnitSystem,
+): string {
+  const length = (meters: number) => formatLength(meters, units)
+  return (
+    `A seat row ${length(width)} wide and ${length(depth)} deep, with the ` +
+    `MLP ${length(SEAT_ROW_HEAD_OFFSET)} in front of its back; dragging it ` +
+    `moves the MLP.`
+  )
 }
 
 /** Closer to the centre line than this (half a millimeter) counts as centred. */

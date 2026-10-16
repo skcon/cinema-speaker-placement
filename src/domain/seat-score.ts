@@ -11,14 +11,25 @@
  *   calibration is a fixed one, made at the MLP (like a receiver
  *   calibrated there), so a seat where the bass is weaker or stronger
  *   than at the MLP counts, not only its shape.
- * - **Placement fit**: auto speakers are placed around the seat as
- *   auto-place would; manual speakers stay where they are. Every
+ * - **Placement fit**: auto speakers are placed as auto-place would for
+ *   an MLP at the seat's projection onto the center line (same distance
+ *   from the front wall): installed symmetric to the room, as in a real
+ *   install, while the listener moves along the couch (ADR 0005,
+ *   amendment). Manual speakers stay where they are. Every
  *   speaker's angle is graded from the seat against its placement range,
  *   and a speaker much nearer than the front speakers (a wall squeezes it
  *   against the seat) counts less, after Dolby's equidistance rule.
  *
- * The best seat is recommended only when it beats the MLP by SEAT_SCORE's
- * meaningful difference; smaller differences are within the simplified
+ * The best seat on the room's center line is preferred (ADR 0005:
+ * published practice puts the reference seat there and fixes the bass
+ * with subwoofers, not by moving the seat). An off-center seat is
+ * preferred only when it beats every center-line seat by more than
+ * SEAT_SCORE's meaningful difference, and then the recommendation says
+ * why: by how much, and the width mode the center line sits on when the
+ * bass is part of it.
+ *
+ * The preferred seat is recommended only when it beats the MLP by the
+ * meaningful difference too; smaller differences are within the simplified
  * model's precision, and the MLP stays the recommended seat. That also
  * keeps the recommendation where it is once the MLP moves there, though
  * moving the MLP recalibrates at the new seat and so changes every score.
@@ -51,6 +62,7 @@ import { checkPlacementRange, type PlacementGrade } from './placement-range'
 import { placeAll } from './placements'
 import { EAR_HEIGHT, SEAT_SCORE, SPEAKER_WALL_CLEARANCE } from './reference'
 import { azimuthFromMlp, distanceBetween, type RoomPoint } from './room'
+import type { RoomMode } from './room-modes'
 import { targetCurve, type TargetPoint } from './target-curve'
 
 /** A candidate MLP and how good it is. */
@@ -71,13 +83,50 @@ export type ScoredSeat = {
   readonly placementFit: number
 }
 
+/**
+ * A width mode the center line sits on: an odd one has a null there, an
+ * even one is strongest there.
+ */
+export type CenterLineWidthMode = {
+  /** An axial width mode the subwoofers excite. */
+  readonly mode: RoomMode
+  readonly atCenterLine: 'null' | 'strongest'
+}
+
+/**
+ * Why the recommended seat is off the room's center line: it beats the
+ * best center-line seat by more than SEAT_SCORE's meaningful difference.
+ */
+export type OffCenterLine = {
+  /** The best center-line seat (the MLP, when it is on the line and best). */
+  readonly centerLine: ScoredSeat
+  /** How much more the recommended seat scores, on the 0 to 1 scale. */
+  readonly margin: number
+  /**
+   * The width mode that most likely makes the bass smoother off the
+   * center line, in the model: one the subwoofers excite, up to the
+   * crossover and in the reliable rows, at whose frequency the recommended
+   * seat is nearest the target compared with the center-line seat.
+   * Undefined when the bass is not smoother off the center line, or no
+   * width mode is nearer the target there.
+   */
+  readonly widthMode: CenterLineWidthMode | undefined
+}
+
 /** The best seat of the grid, and how the current MLP compares. */
 export type SeatRecommendation = {
   /**
-   * The recommended MLP: the best-scoring seat, or the current MLP when no
-   * seat beats it by a meaningful difference.
+   * The recommended MLP: the best center-line seat, or an off-center seat
+   * that beats it by a meaningful difference (`offCenterLine` says why);
+   * but the current MLP when that seat doesn't beat it meaningfully.
    */
   readonly recommended: ScoredSeat
+  /**
+   * Why the recommended seat is off the center line, when an off-center
+   * seat beat the center line; undefined otherwise (an MLP kept where it
+   * is, on the center line or not, has no such reason).
+   */
+  readonly offCenterLine: OffCenterLine | undefined
   /** The current MLP, scored the same way. */
   readonly current: ScoredSeat
   /** Whether the MLP already is (within a centimeter) at the recommended seat. */
@@ -97,27 +146,43 @@ export function scoreSeat(config: Config, seat: RoomPoint): ScoredSeat {
 }
 
 /**
- * Score a grid of candidate seats across the Room, and recommend the best
- * (see above). Ties go to the MLP, then to the seat nearest the center
- * line, then nearest the front wall. Pure and not memoized: the caller
- * memoizes.
+ * Score a grid of candidate seats across the Room, and recommend one (see
+ * above). Ties go to the MLP, then to the seat nearest the center line,
+ * then nearest the front wall. Pure and not memoized: the caller memoizes.
  */
 export function recommendSeat(config: Config): SeatRecommendation {
-  const { current, scoreAt } = scoringAtMlp(config)
+  const { current, scoreAt, widthModeOffCenterLine } = scoringAtMlp(config)
   const candidates = candidateSeats(config).map(scoreAt)
-  const best = candidates.reduce(
-    (best, candidate) =>
-      candidate.score > best.score + SCORE_TIE ? candidate : best,
-    current,
+  const best = bestSeat(current, candidates)
+  // The MLP counts as a center-line seat when it is on the line.
+  const centerLine = bestSeat(
+    isOnCenterLine(current.position) ? current : undefined,
+    candidates.filter(({ position }) => isOnCenterLine(position)),
   )
+  // Off the center line only when meaningfully better than all of it.
+  const preferred =
+    centerLine &&
+    best.score <= centerLine.score + SEAT_SCORE.meaningfulDifference
+      ? centerLine
+      : best
   // A seat only a little better than the MLP is no better within the
   // model's precision: the MLP stays the recommended seat.
   const recommended =
-    best.score >= current.score + SEAT_SCORE.meaningfulDifference
-      ? best
+    preferred.score >= current.score + SEAT_SCORE.meaningfulDifference
+      ? preferred
       : current
+  const offCenter =
+    recommended !== current && !isOnCenterLine(recommended.position)
   return {
     recommended,
+    offCenterLine:
+      offCenter && centerLine
+        ? {
+            centerLine,
+            margin: recommended.score - centerLine.score,
+            widthMode: widthModeOffCenterLine(centerLine, recommended),
+          }
+        : undefined,
     current,
     mlpIsRecommended:
       recommended === current ||
@@ -133,13 +198,44 @@ const SCORE_TIE = 1e-9
 const SAME_SEAT = 0.01
 
 /**
+ * The best-scoring of `seats`, starting from `first` (which may be none):
+ * a seat must beat the best so far to replace it, so ties go to the
+ * earlier seat.
+ */
+function bestSeat<T extends ScoredSeat | undefined>(
+  first: T,
+  seats: readonly ScoredSeat[],
+): ScoredSeat | T {
+  return seats.reduce<ScoredSeat | T>(
+    (best, seat) =>
+      best === undefined || seat.score > best.score + SCORE_TIE ? seat : best,
+    first,
+  )
+}
+
+/** The seat moved straight across onto the room's center line (x = 0). */
+function onCenterLine(seat: RoomPoint): RoomPoint {
+  return { ...seat, x: 0 }
+}
+
+/** Whether a seat is on the room's center line (x = 0), within SAME_SEAT. */
+function isOnCenterLine({ x }: RoomPoint): boolean {
+  return Math.abs(x) < SAME_SEAT
+}
+
+/**
  * The setup both entry points share: the room heard, the calibration made
- * at the config's MLP, the MLP scored with it, and a way to score any
- * seat with the same calibration.
+ * at the config's MLP, the MLP scored with it, a way to score any seat
+ * with the same calibration, and a way to find the width mode behind an
+ * off-center seat's smoother bass.
  */
 function scoringAtMlp(config: Config): {
   current: ScoredSeat
   scoreAt: (seat: RoomPoint) => ScoredSeat
+  widthModeOffCenterLine: (
+    centerLine: ScoredSeat,
+    offCenter: ScoredSeat,
+  ) => CenterLineWidthMode | undefined
 } {
   const room = hearRoom(config)
   const mlp = room.hear(placeAll(config).mlp.position)
@@ -147,20 +243,19 @@ function scoringAtMlp(config: Config): {
   return {
     current: room.score(mlp, calibration),
     scoreAt: (seat) => room.score(room.hear(seat), calibration),
+    widthModeOffCenterLine: (centerLine, offCenter) =>
+      room.widthModeBetween(centerLine, offCenter, calibration),
   }
 }
 
 /**
- * The candidate seats: a grid inside the MLP's wall clearance, ordered
- * nearest the center line first, then nearest the front wall (for the
- * tie-break).
+ * The candidate seats: a grid inside the MLP's wall clearance, with a
+ * column on the center line, ordered nearest the center line first, then
+ * nearest the front wall (for the tie-break).
  */
 function candidateSeats({ room }: Config): RoomPoint[] {
   const clearance = SPEAKER_WALL_CLEARANCE.meters
-  const halfWidth = room.width / 2 - clearance
-  const across = evenlySpaced(-halfWidth, halfWidth).toSorted(
-    (a, b) => Math.abs(a) - Math.abs(b),
-  )
+  const across = acrossFromCenterLine(room.width / 2 - clearance)
   const along = evenlySpaced(clearance, room.length - clearance)
   return across.flatMap((x) =>
     along.map((y) => ({ x, y, z: EAR_HEIGHT.meters })),
@@ -171,18 +266,44 @@ function candidateSeats({ room }: Config): RoomPoint[] {
 const FLOAT_EPSILON = 1e-9
 
 /**
+ * How many points SEAT_SCORE's grid spacing needs across `span`, both
+ * ends included, but no more than its maximum per side.
+ */
+function spacedCount(span: number): number {
+  return Math.min(
+    SEAT_SCORE.maxPerSide,
+    // A span that is a whole number of spacings needs no extra point.
+    Math.ceil(span / SEAT_SCORE.gridSpacing - FLOAT_EPSILON) + 1,
+  )
+}
+
+/**
  * Points from `low` to `high`, both included, at most SEAT_SCORE's grid
  * spacing apart, but no more than its maximum per side.
  */
 function evenlySpaced(low: number, high: number): number[] {
   const span = high - low
-  const count = Math.min(
-    SEAT_SCORE.maxPerSide,
-    // A span that is a whole number of spacings needs no extra point.
-    Math.ceil(span / SEAT_SCORE.gridSpacing - FLOAT_EPSILON) + 1,
-  )
+  const count = spacedCount(span)
   if (count < 2) return [(low + high) / 2]
   return Array.from({ length: count }, (_, i) => low + (span * i) / (count - 1))
+}
+
+/**
+ * Points across the room from `-halfWidth` to `halfWidth` as
+ * `evenlySpaced` would place them, but always an odd number, so one is
+ * exactly on the center line (x = 0) and the rest are exact mirror
+ * images; nearest the center line first. SEAT_SCORE's maximum per side
+ * is odd, so the extra point never goes past it.
+ */
+function acrossFromCenterLine(halfWidth: number): number[] {
+  const spaced = spacedCount(2 * halfWidth)
+  const count = spaced % 2 === 0 ? spaced + 1 : spaced
+  const step = count > 1 ? (2 * halfWidth) / (count - 1) : 0
+  // 0, then -1, 1, -2, 2, ... steps.
+  return Array.from(
+    { length: count },
+    (_, i) => (i % 2 === 1 ? -1 : 1) * Math.ceil(i / 2) * step,
+  )
 }
 
 /** A seat as heard, before any calibration. */
@@ -217,9 +338,15 @@ function hearRoom(config: Config) {
    * where they are, each graded from the seat.
    */
   function hear(seat: RoomPoint): HeardSeat {
+    // Auto speakers are installed symmetric to the room: around the seat's
+    // projection onto the center line, not around the seat (ADR 0005,
+    // amendment), so an off-center seat hears them at its skewed angles.
     const { speakers } = placeAll({
       ...config,
-      manualPositions: { ...config.manualPositions, [MLP_ID]: seat },
+      manualPositions: {
+        ...config.manualPositions,
+        [MLP_ID]: onCenterLine(seat),
+      },
     })
     const speakerLevels = speakers
       .filter(({ reference }) => isCharted(reference.channel))
@@ -278,7 +405,75 @@ function hearRoom(config: Config) {
     }
   }
 
-  return { hear, calibrateAt, score }
+  /**
+   * The width mode that most likely makes the bass smoother at
+   * `offCenter` than at `centerLine` (OffCenterLine.widthMode): of the
+   * axial width modes the subwoofers excite up to the crossover, at a
+   * reliable row of the modal sum, the one at whose frequency `offCenter`
+   * comes nearest the target compared with `centerLine`.
+   */
+  function widthModeBetween(
+    centerLine: ScoredSeat,
+    offCenter: ScoredSeat,
+    calibration: ResponseCalibration,
+  ): CenterLineWidthMode | undefined {
+    if (!(offCenter.responseDeviationDb < centerLine.responseDeviationDb)) {
+      return undefined
+    }
+    const deviationsAt = ({ position }: ScoredSeat) =>
+      partsDeviations(prepared, hear(position).parts, target, calibration)
+    const onLine = deviationsAt(centerLine)
+    const offLine = deviationsAt(offCenter)
+    const modalRows = frequencies.slice(0, prepared.modalFrequencyCount)
+    const { modes, excited } = prepared.modal
+    const nearer = modes.flatMap((mode, n) => {
+      if (
+        mode.kind !== 'axial' ||
+        mode.indices.width === 0 ||
+        !excited[n] ||
+        // Above the crossover the subwoofers hardly play.
+        mode.frequency > config.crossoverHz
+      ) {
+        return []
+      }
+      const row = nearestRow(modalRows, mode.frequency)
+      if (row === undefined || !isReliable[row]) return []
+      const by = Math.abs(onLine[row]!) - Math.abs(offLine[row]!)
+      return by > 0 ? [{ mode, by }] : []
+    })
+    const most = nearer.reduce<(typeof nearer)[number] | undefined>(
+      (most, entry) =>
+        most === undefined || entry.by > most.by ? entry : most,
+      undefined,
+    )
+    return (
+      most && {
+        mode: most.mode,
+        atCenterLine: most.mode.indices.width % 2 === 1 ? 'null' : 'strongest',
+      }
+    )
+  }
+
+  return { hear, calibrateAt, score, widthModeBetween }
+}
+
+/**
+ * The index of the row nearest `frequency` (on a log scale), or undefined
+ * when it lies outside the rows.
+ */
+function nearestRow(
+  rows: readonly number[],
+  frequency: number,
+): number | undefined {
+  const first = rows[0]
+  const last = rows.at(-1)
+  if (first === undefined || last === undefined) return undefined
+  if (frequency < first || frequency > last) return undefined
+  const distance = (i: number) => Math.abs(Math.log(rows[i]! / frequency))
+  return rows.reduce(
+    (nearest, _, i) => (distance(i) < distance(nearest) ? i : nearest),
+    0,
+  )
 }
 
 /** A listener-level speaker, where it is and its grade from a seat. */

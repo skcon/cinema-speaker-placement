@@ -15,7 +15,7 @@ import {
 const ORDINALS = ['first', 'second', 'third', 'fourth'] as const
 
 /** "first length mode", "tangential mode (1, 1, 0)". */
-function modeName({ indices, kind }: RoomMode): string {
+export function modeName({ indices, kind }: RoomMode): string {
   if (kind === 'axial') {
     const [dimension, order] = (
       Object.entries(indices) as [keyof typeof indices, number][]

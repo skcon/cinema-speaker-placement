@@ -501,3 +501,160 @@ describe('furniture boxes', () => {
     ])
   })
 })
+
+function openings(store: ConfigStore) {
+  return store.getState().config.roomObjects.openings
+}
+
+/** A store with the default room and a door in the middle of the back wall. */
+function storeWithDoor(): ConfigStore {
+  const store = createConfigStore()
+  store.getState().addOpening('door')
+  return store
+}
+
+/** The default door: 0.9 m, in the middle of the default room's back wall. */
+const DOOR = { kind: 'door', wall: 'back', position: 2.25, width: 0.9 }
+
+describe('doors and windows', () => {
+  it('are not there to begin with, nor in a room from a version 1 link', () => {
+    expect(openings(createConfigStore())).toEqual([])
+    const store = createConfigStore()
+    store.getState().openEncodedConfig(V1_LINKS.imperialRoom.encoded)
+    expect(openings(store)).toEqual([])
+  })
+
+  it('are added, a door on the back wall and a window on the right wall, each as one undo step', () => {
+    const store = createConfigStore()
+
+    store.getState().addOpening('door')
+    store.getState().addOpening('window')
+
+    expect(openings(store)).toEqual([
+      DOOR,
+      {
+        kind: 'window',
+        wall: 'right',
+        position: 3,
+        width: 1.2,
+        sill: 0.9,
+        height: 1.2,
+      },
+    ])
+    store.getState().undo()
+    expect(openings(store)).toEqual([DOOR])
+    store.getState().redo()
+    expect(openings(store)).toHaveLength(2)
+  })
+
+  it('stop at six', () => {
+    const store = createConfigStore()
+    for (let added = 0; added < 7; added += 1) {
+      store.getState().addOpening('window')
+    }
+
+    expect(openings(store)).toHaveLength(6)
+  })
+
+  it('move to another wall, and are resized and moved along it within their ranges', () => {
+    const store = storeWithDoor()
+
+    store.getState().setOpeningWall('opening-1', 'left')
+    store.getState().setOpeningDimension('opening-1', 'fromCorner', 1)
+    store.getState().setOpeningDimension('opening-1', 'width', 0.8)
+    store.getState().setOpeningDimension('opening-1', 'width', 0.1)
+    store.getState().setOpeningDimension('opening-1', 'sill', 0.5)
+
+    expect(openings(store)).toEqual([
+      { ...DOOR, wall: 'left', position: 1.45, width: 0.8 },
+    ])
+    store.getState().undo()
+    expect(openings(store)[0]).toMatchObject({ position: 1.45, width: 0.9 })
+  })
+
+  it('are dragged along their wall as one undo step, stopping at a corner', () => {
+    const store = storeWithDoor()
+
+    store.getState().beginGesture()
+    store.getState().moveRoomObject('opening-1', { x: 1, y: 3 })
+    store.getState().moveRoomObject('opening-1', { x: 9, y: 3 })
+    store.getState().endGesture()
+
+    expect(openings(store)).toEqual([{ ...DOOR, position: 4.05 }])
+    store.getState().undo()
+    expect(openings(store)).toEqual([DOOR])
+  })
+
+  it('are removed, the next one moving up, and undo brings it back', () => {
+    const store = storeWithDoor()
+    store.getState().addOpening('window')
+
+    store.getState().removeOpening('opening-1')
+
+    expect(openings(store).map(({ kind }) => kind)).toEqual(['window'])
+    store.getState().undo()
+    expect(openings(store).map(({ kind }) => kind)).toEqual(['door', 'window'])
+  })
+
+  it('change nothing for an opening that is not there', () => {
+    const store = storeWithDoor()
+    const before = store.getState().config
+
+    store.getState().removeOpening('opening-2')
+    store.getState().setOpeningWall('opening-2', 'front')
+    store.getState().moveRoomObject('opening-3', { x: 1, y: 1 })
+
+    expect(store.getState().config).toBe(before)
+  })
+
+  it('stay on their wall when the room shrinks, and undo gives both back', () => {
+    const store = storeWithDoor()
+
+    store.getState().setRoomDimension('width', 2)
+
+    // Into the right corner of the 2 m back wall.
+    expect(openings(store)[0]?.position).toBeCloseTo(1.55, 12)
+    store.getState().undo()
+    expect(openings(store)).toEqual([DOOR])
+  })
+
+  it('warn about a speaker dragged in front of a door, and stop when it moves away', () => {
+    const store = storeWithDoor()
+    const doorWarnings = () =>
+      analysis(store)
+        .placementWarnings.filter(({ id }) => id === 'W1')
+        .map(({ items }) => items)
+    expect(doorWarnings()).toEqual([])
+
+    store.getState().moveItem('Ls', { x: 0.2, y: 5.6 })
+    expect(doorWarnings()).toEqual([['Ls', 'opening-1']])
+
+    store.getState().moveItem('Ls', { x: -1.5, y: 5.6 })
+    expect(doorWarnings()).toEqual([])
+  })
+
+  it('leave the estimated response as it is', () => {
+    const store = storeWithDoor()
+    store.getState().addOpening('window')
+
+    expect(analysis(store).response).toEqual(
+      analyzeRoom(DEFAULT_CONFIG).response,
+    )
+  })
+
+  it('round-trip through the share link to the millimeter', () => {
+    const store = storeWithDoor()
+    store.getState().addOpening('window')
+    store.getState().setOpeningDimension('opening-2', 'width', 36 * 0.0254)
+    store.getState().moveRoomObject('opening-1', { x: -1.23456, y: 6 })
+    const config: Config = store.getState().config
+
+    const reopened = createConfigStore()
+    reopened.getState().openEncodedConfig(encodeConfig(config))
+
+    expect(openings(reopened)).toEqual([
+      { ...DOOR, position: 1.015 },
+      { ...config.roomObjects.openings[1], width: 0.914 },
+    ])
+  })
+})

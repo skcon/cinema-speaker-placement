@@ -22,6 +22,14 @@ import {
   type FurnitureId,
   type FurniturePreset,
 } from './furniture'
+import {
+  MAX_OPENINGS,
+  newOpening,
+  openingIndex,
+  type Opening,
+  type OpeningId,
+  type OpeningKind,
+} from './openings'
 import { positionOf } from './placements'
 import {
   areValidRoomObjects,
@@ -29,6 +37,7 @@ import {
   roomObjectsMoved,
   SEAT_ROW_ID,
   withFurnitureBox,
+  withOpening,
   type RoomObjectId,
   type RoomObjects,
 } from './room-objects'
@@ -279,4 +288,51 @@ function furnitureIndexOf(
 ): number | null {
   const index = objects.furniture.findIndex((_, at) => furnitureId(at) === id)
   return index < 0 ? null : index
+}
+
+/**
+ * The config with an opening of `kind` added (see newOpening). Comes back
+ * as it was when the Room already has MAX_OPENINGS.
+ */
+export function withOpeningAdded(config: Config, kind: OpeningKind): Config {
+  return withRoomObjects(config, (room, objects) =>
+    objects.openings.length >= MAX_OPENINGS
+      ? objects
+      : {
+          ...objects,
+          openings: [...objects.openings, newOpening(room, kind)],
+        },
+  )
+}
+
+/**
+ * The config without opening `id`; the openings after it move up a place.
+ * Comes back as it was when there is no such opening.
+ */
+export function withOpeningRemoved(config: Config, id: OpeningId): Config {
+  return withRoomObjects(config, (_, objects) => {
+    const index = openingIndex(id)
+    return index === null || index >= objects.openings.length
+      ? objects
+      : {
+          ...objects,
+          openings: objects.openings.filter((__, at) => at !== index),
+        }
+  })
+}
+
+/**
+ * The config with opening `id` changed by `edit`, which gets the Room and
+ * the opening and returns the changed one, or null to reject the change.
+ * Comes back as it was without such an opening, or when the edit is
+ * rejected or changes nothing.
+ */
+export function withOpeningEdit(
+  config: Config,
+  id: OpeningId,
+  edit: (room: Room, opening: Opening) => Opening | null,
+): Config {
+  return withRoomObjects(config, (room, objects) =>
+    withOpening(objects, id, (opening) => edit(room, opening)),
+  )
 }

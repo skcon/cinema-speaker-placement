@@ -1,10 +1,11 @@
 import { useId } from 'react'
-import { formatLength } from '@/domain'
-import { useConfig } from '@/state/config-context'
+import { formatLength, warningsAbout } from '@/domain'
+import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { useSelectedItem, useSelection } from '@/state/selection-context'
 import { dimensionTargetName } from '@/scene/dimensions'
 import { Button } from '@/ui/components/button'
 import { GradeExplanation } from '@/ui/GradeExplanation'
+import { PlacementWarningList } from '@/ui/PlacementWarnings'
 
 /**
  * The Selected item's details in the sidebar: its name, where it is (from
@@ -19,6 +20,8 @@ export function SelectedItemPanel() {
   const item = useSelectedItem()
   const { clear } = useSelection()
   const units = useConfig((state) => state.config.units)
+  const { placementWarnings } = useRoomAnalysis()
+  const warnings = item ? warningsAbout(placementWarnings, item.id) : []
 
   return (
     <section
@@ -76,6 +79,10 @@ export function SelectedItemPanel() {
           >
             Clear selection
           </Button>
+          <PlacementWarningList
+            warnings={warnings}
+            label={`Placement warnings for ${item.name}`}
+          />
           {item.grading && <GradeExplanation grading={item.grading} />}
         </>
       )}

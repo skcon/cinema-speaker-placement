@@ -1,16 +1,32 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import {
+  checkFurnitureDimension,
+  checkFurnitureName,
   checkScreenDimension,
   checkSeatRowDimension,
   formatLength,
+  FURNITURE_NAME_MAX_LENGTH,
+  FURNITURE_PRESETS,
+  furnitureDimension,
+  furnitureId,
+  furnitureLabel,
+  MAX_FURNITURE,
   screenDimension,
   SEAT_ROW_HEAD_OFFSET,
+  warningsAbout,
+  type FurnitureBox,
+  type FurnitureDimension,
+  type FurnitureId,
+  type FurnitureNameProblem,
+  type FurniturePreset,
   type RoomScreen,
   type ScreenDimension,
   type ScreenKind,
   type SeatRowDimension,
 } from '@/domain'
-import { useConfig } from '@/state/config-context'
+import { useConfig, useRoomAnalysis } from '@/state/config-context'
+import { Input } from '@/ui/components/input'
+import { PlacementWarningList } from '@/ui/PlacementWarnings'
 import { Button } from '@/ui/components/button'
 import { Label } from '@/ui/components/label'
 import { RadioGroup, RadioGroupItem } from '@/ui/components/radio-group'
@@ -20,8 +36,9 @@ import { SidebarSection, SidebarSubsection } from '@/ui/SidebarSection'
 
 /**
  * Room objects in the sidebar (ADR 0006): things in the room besides the
- * speakers and the MLP. So far the Seat row and the Screen; furniture
- * boxes and openings join this section as subsections.
+ * speakers and the MLP. So far the Seat row, the Screen and furniture
+ * boxes, then every placement warning; openings join this section as a
+ * subsection.
  */
 export function RoomObjectsForm() {
   return (
@@ -35,6 +52,12 @@ export function RoomObjectsForm() {
       </SidebarSubsection>
       <SidebarSubsection title="Screen">
         <ScreenForm />
+      </SidebarSubsection>
+      <SidebarSubsection title="Furniture">
+        <FurnitureForm />
+      </SidebarSubsection>
+      <SidebarSubsection title="Placement warnings">
+        <AllPlacementWarnings />
       </SidebarSubsection>
     </SidebarSection>
   )
@@ -270,5 +293,243 @@ function ScreenDimensionField({
       }
       onChange={(value) => setScreenDimension(dimension, value)}
     />
+  )
+}
+
+/** How each preset's add button reads. */
+const PRESET_BUTTONS = {
+  cabinet: 'Add a cabinet',
+  table: 'Add a table',
+  shelf: 'Add a shelf',
+} as const satisfies Record<FurniturePreset, string>
+
+/**
+ * Furniture boxes: added from a preset (a cabinet, table or shelf, against
+ * the middle of the front wall), then named, sized, moved from the walls,
+ * turned or removed. Up to MAX_FURNITURE of them.
+ */
+function FurnitureForm() {
+  const furniture = useConfig((state) => state.config.roomObjects.furniture)
+  const addFurniture = useConfig((state) => state.addFurniture)
+  const full = furniture.length >= MAX_FURNITURE
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted-foreground">
+        Cabinets, tables, shelves and the like, as boxes. Drawn in the room view
+        and used for placement warnings, but not part of the estimated response.
+        Drag them in the top-down view; distances are to a box&rsquo;s nearest
+        side.
+      </p>
+      {furniture.map((box, index) => (
+        <FurnitureBoxForm
+          // Keyed by place: the room view names a box by it (furnitureId).
+          key={index}
+          id={furnitureId(index)}
+          box={box}
+          label={furnitureLabel(box, index)}
+        />
+      ))}
+      <div className="flex flex-wrap gap-2">
+        {FURNITURE_PRESETS.map((preset) => (
+          <Button
+            key={preset}
+            variant="outline"
+            className="max-lg:h-11"
+            disabled={full}
+            onClick={() => addFurniture(preset)}
+          >
+            {PRESET_BUTTONS[preset]}
+          </Button>
+        ))}
+      </div>
+      {full && (
+        <p className="text-xs text-muted-foreground">
+          A room holds up to {MAX_FURNITURE} furniture boxes, so its share link
+          stays short enough to send.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** How each of a box's lengths is labelled, and named in its errors. */
+const FURNITURE_FIELDS = {
+  width: { label: 'Box width', noun: 'box width' },
+  depth: { label: 'Box depth', noun: 'box depth' },
+  height: { label: 'Box height', noun: 'box height' },
+  fromLeftWall: { label: 'Box from the left wall', noun: 'distance' },
+  fromFrontWall: { label: 'Box from the front wall', noun: 'distance' },
+} as const satisfies Record<FurnitureDimension, { label: string; noun: string }>
+
+/** Which wall a box's front faces, by how it is turned (see furniture.ts). */
+const FRONT_FACES = {
+  0: 'the back wall',
+  90: 'the left wall',
+  180: 'the front wall',
+  270: 'the right wall',
+} as const satisfies Record<FurnitureBox['rotation'], string>
+
+/** One furniture box: its name, size, place, turn, warnings and removal. */
+function FurnitureBoxForm({
+  id,
+  box,
+  label,
+}: {
+  id: FurnitureId
+  box: FurnitureBox
+  label: string
+}) {
+  const headingId = useId()
+  const turnFurniture = useConfig((state) => state.turnFurniture)
+  const removeFurniture = useConfig((state) => state.removeFurniture)
+  const warnings = warningsAbout(useRoomAnalysis().placementWarnings, id)
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-3 rounded-md border p-2"
+    >
+      <h4 id={headingId} className="text-sm font-medium">
+        {label}
+      </h4>
+      <FurnitureNameField id={id} name={box.name} />
+      <FurnitureDimensionField id={id} box={box} dimension="width" />
+      <FurnitureDimensionField id={id} box={box} dimension="depth" />
+      <FurnitureDimensionField id={id} box={box} dimension="height" />
+      <FurnitureDimensionField id={id} box={box} dimension="fromLeftWall" />
+      <FurnitureDimensionField id={id} box={box} dimension="fromFrontWall" />
+      <p className="text-xs text-muted-foreground">
+        Turned {box.rotation}°: its front faces {FRONT_FACES[box.rotation]}.
+      </p>
+      <PlacementWarningList
+        warnings={warnings}
+        label={`Placement warnings for ${label}`}
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          className="max-lg:h-11"
+          aria-label={`Turn ${label} 90°`}
+          onClick={() => turnFurniture(id)}
+        >
+          Turn 90°
+        </Button>
+        <Button
+          variant="outline"
+          className="max-lg:h-11"
+          aria-label={`Remove ${label}`}
+          onClick={() => removeFurniture(id)}
+        >
+          Remove
+        </Button>
+      </div>
+    </section>
+  )
+}
+
+/** What a rejected name gets told. */
+const NAME_ERRORS = {
+  empty: 'Give the box a name.',
+  'too-long': `Use at most ${FURNITURE_NAME_MAX_LENGTH} characters.`,
+  characters:
+    "Use letters (also with accents such as é or ö), digits, spaces and - ' & ( ) . , / only.",
+} as const satisfies Record<FurnitureNameProblem, string>
+
+/**
+ * A box's name, checked as it is typed: an accepted name goes to the store
+ * (trimmed), a rejected one stays in the field with an inline error. When
+ * the stored name changes elsewhere (undo, a share link) the field starts
+ * over from it.
+ */
+function FurnitureNameField({ id, name }: { id: FurnitureId; name: string }) {
+  const setFurnitureName = useConfig((state) => state.setFurnitureName)
+  const [draft, setDraft] = useState(name)
+  const [seenInStore, setSeenInStore] = useState(name)
+  const inputId = useId()
+  const errorId = useId()
+
+  // Adjust state while rendering, as CheckedLengthField does.
+  if (seenInStore !== name) {
+    setSeenInStore(name)
+    if (draft.trim() !== name) setDraft(name)
+  }
+
+  const problem = checkFurnitureName(draft)
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={inputId}>Name</Label>
+      <Input
+        id={inputId}
+        autoComplete="off"
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          if (checkFurnitureName(event.target.value) === null) {
+            setFurnitureName(id, event.target.value)
+          }
+        }}
+        aria-invalid={problem !== null}
+        aria-describedby={errorId}
+        className="max-w-48"
+      />
+      <p id={errorId} aria-live="polite" className="text-sm text-destructive">
+        {problem && NAME_ERRORS[problem]}
+      </p>
+    </div>
+  )
+}
+
+/** One of a box's lengths, or where it is, checked against its range. */
+function FurnitureDimensionField({
+  id,
+  box,
+  dimension,
+}: {
+  id: FurnitureId
+  box: FurnitureBox
+  dimension: FurnitureDimension
+}) {
+  const room = useConfig((state) => state.config.room)
+  const units = useConfig((state) => state.config.units)
+  const setFurnitureDimension = useConfig(
+    (state) => state.setFurnitureDimension,
+  )
+  const { label, noun } = FURNITURE_FIELDS[dimension]
+
+  return (
+    <CheckedLengthField
+      label={label}
+      meters={furnitureDimension(room, box, dimension)}
+      units={units}
+      check={(value) => checkFurnitureDimension(room, box, dimension, value)}
+      errorMessage={(problem) =>
+        lengthErrorMessage(noun, label, problem, units)
+      }
+      onChange={(value) => setFurnitureDimension(id, dimension, value)}
+    />
+  )
+}
+
+/**
+ * Every placement warning in the room, with where its rule comes from: a
+ * hint, never a block.
+ */
+function AllPlacementWarnings() {
+  const { placementWarnings } = useRoomAnalysis()
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted-foreground">
+        Hints where a room object makes a speaker or the MLP worse off, each
+        with where its rule comes from. They never stop you placing anything,
+        and they don&rsquo;t change the estimated response.
+      </p>
+      {placementWarnings.length === 0 ? (
+        <p className="text-xs">No placement warnings.</p>
+      ) : (
+        <PlacementWarningList warnings={placementWarnings} />
+      )}
+    </div>
   )
 }

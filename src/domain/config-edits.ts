@@ -14,12 +14,21 @@ import {
   placeablesIn,
   type PlaceableId,
 } from './manual-positions'
+import {
+  furnitureId,
+  MAX_FURNITURE,
+  newFurnitureBox,
+  type FurnitureBox,
+  type FurnitureId,
+  type FurniturePreset,
+} from './furniture'
 import { positionOf } from './placements'
 import {
   areValidRoomObjects,
   keepRoomObjectsInRoom,
   roomObjectsMoved,
   SEAT_ROW_ID,
+  withFurnitureBox,
   type RoomObjectId,
   type RoomObjects,
 } from './room-objects'
@@ -210,4 +219,64 @@ export function withScreenEdit(
     const screen = edit(room, objects.screen)
     return screen ? { ...objects, screen } : objects
   })
+}
+
+/**
+ * The config with a furniture box from `preset` added (see
+ * newFurnitureBox). Comes back as it was when the Room already has
+ * MAX_FURNITURE boxes.
+ */
+export function withFurnitureAdded(
+  config: Config,
+  preset: FurniturePreset,
+): Config {
+  return withRoomObjects(config, (room, objects) =>
+    objects.furniture.length >= MAX_FURNITURE
+      ? objects
+      : {
+          ...objects,
+          furniture: [...objects.furniture, newFurnitureBox(room, preset)],
+        },
+  )
+}
+
+/**
+ * The config without furniture box `id`; the boxes after it move up a
+ * place. Comes back as it was when there is no such box.
+ */
+export function withFurnitureRemoved(config: Config, id: FurnitureId): Config {
+  return withRoomObjects(config, (_, objects) => {
+    const index = furnitureIndexOf(objects, id)
+    return index === null
+      ? objects
+      : {
+          ...objects,
+          furniture: objects.furniture.filter((__, at) => at !== index),
+        }
+  })
+}
+
+/**
+ * The config with furniture box `id` changed by `edit`, which gets the
+ * Room and the box and returns the changed one, or null to reject the
+ * change. Comes back as it was without such a box, or when the edit is
+ * rejected or changes nothing.
+ */
+export function withFurnitureEdit(
+  config: Config,
+  id: FurnitureId,
+  edit: (room: Room, box: FurnitureBox) => FurnitureBox | null,
+): Config {
+  return withRoomObjects(config, (room, objects) =>
+    withFurnitureBox(objects, id, (box) => edit(room, box)),
+  )
+}
+
+/** Where box `id` is in the list, or null when there is no such box. */
+function furnitureIndexOf(
+  objects: RoomObjects,
+  id: FurnitureId,
+): number | null {
+  const index = objects.furniture.findIndex((_, at) => furnitureId(at) === id)
+  return index < 0 ? null : index
 }

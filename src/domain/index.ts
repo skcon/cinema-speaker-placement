@@ -57,10 +57,14 @@ export {
   withRoom,
   withRoomObjectMoved,
   withRoomObjects,
+  withFurnitureAdded,
+  withFurnitureEdit,
+  withFurnitureRemoved,
   withScreenEdit,
   withSeatRowSize,
 } from './config-edits'
 export {
+  furnitureIds,
   isRoomObjectId,
   DEFAULT_ROOM_OBJECTS,
   ROOM_OBJECT_IDS,
@@ -69,6 +73,30 @@ export {
   type RoomObjectId,
   type RoomObjects,
 } from './room-objects'
+export {
+  checkFurnitureDimension,
+  checkFurnitureName,
+  FURNITURE_NAME_MAX_LENGTH,
+  FURNITURE_PRESETS,
+  FURNITURE_ROTATIONS,
+  furnitureDimension,
+  furnitureFootprint,
+  furnitureId,
+  furnitureIndex,
+  furnitureLabel,
+  furnitureTurned,
+  isFurnitureId,
+  MAX_FURNITURE,
+  withFurnitureDimension,
+  withFurnitureName,
+  type FurnitureBox,
+  type FurnitureDimension,
+  type FurnitureFootprint,
+  type FurnitureId,
+  type FurnitureNameProblem,
+  type FurniturePreset,
+  type FurnitureRotation,
+} from './furniture'
 export {
   checkScreenDimension,
   defaultScreen,
@@ -180,6 +208,7 @@ export {
 } from './speaker-specs'
 export {
   FRONT_STAGE_WALL_DISTANCE,
+  FURNITURE,
   HEADROOM_STATUS,
   LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,

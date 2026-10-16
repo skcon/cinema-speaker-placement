@@ -4,8 +4,9 @@
  * docs/research/multi-subwoofer-placement.md,
  * docs/research/low-frequency-response.md,
  * docs/research/crossover-enclosure-boundaries.md,
- * docs/research/reference-level-headroom.md and
- * docs/research/screen-and-front-stage.md.
+ * docs/research/reference-level-headroom.md,
+ * docs/research/screen-and-front-stage.md and
+ * docs/research/room-openings-and-furniture.md.
  */
 
 /**
@@ -22,6 +23,33 @@ export type SourceKey =
   | BassSourceKey
   | HeadroomSourceKey
   | ScreenSourceKey
+  | RoomObjectSourceKey
+
+/**
+ * docs/research/room-openings-and-furniture.md, section 1 (its KUTTRUFF and
+ * MHA are the books LowFrequencySourceKey already names).
+ */
+type RoomObjectSourceKey =
+  | 'TOOLE-SR'
+  | 'TOOLE-2006'
+  | 'EBU-3276'
+  | 'EBU-3276-S1'
+  | 'BS1116'
+  | 'RP22'
+  | 'ODEON-2025'
+  | 'MAGALOTTI'
+  | 'MALUSKI-2004'
+  | 'SCHULTZ-1964'
+  | 'COUPLED-ARXIV'
+  | 'GEN-8030A'
+  | 'GEN-8430A'
+  | 'GEN-1237A'
+  | 'LINKWITZ-EDN'
+  | 'C-AVS-OPEN'
+  | 'C-AH-DOOR'
+  | 'C-GS-GLASS'
+  | 'C-SN-WINDOW'
+  | 'C-OHM-REAR'
 
 /** docs/research/screen-and-front-stage.md, section 1. */
 type ScreenSourceKey = 'CEPRO-H' | 'SV-AT' | 'ELITE-AT' | 'AVS-AT'
@@ -98,13 +126,14 @@ export type Citation =
 export type Source = { readonly title: string; readonly url: string }
 
 /**
- * The titles and URLs of the sources the app shows with its grades,
- * copied from the sources tables in section 1 of
- * docs/research/dolby-speaker-placement.md and
- * docs/research/multi-subwoofer-placement.md. The Dolby table writes the
+ * The titles and URLs of the sources the app shows with its grades and
+ * placement warnings, copied from the sources tables in section 1 of
+ * docs/research/dolby-speaker-placement.md,
+ * docs/research/multi-subwoofer-placement.md and
+ * docs/research/room-openings-and-furniture.md. The Dolby table writes the
  * per-layout sheets' shared title prefix as "..."; it is spelled out here.
- * Only keys that the placement ranges or the subwoofers' "not graded"
- * reason cite are listed.
+ * Only keys that the placement ranges, the subwoofers' "not graded"
+ * reason or PLACEMENT_WARNINGS cite are listed.
  */
 export const SOURCES = {
   IG: {
@@ -177,6 +206,24 @@ export const SOURCES = {
     title:
       'T. Welti (Harman International), "Subwoofers: Optimum Number and Locations", Harman white paper (slides with notes, 80 slides on 30 pages)',
     url: 'https://www.harman.com/Documents/multsubs.pdf',
+  },
+  'EBU-3276': {
+    title:
+      'EBU Tech 3276, Listening conditions for the assessment of sound programme material: monophonic and two-channel stereophonic (2nd ed., 1998)',
+    url: 'https://tech.ebu.ch/docs/tech/tech3276.pdf',
+  },
+  'GEN-8030A': {
+    title: 'Genelec 8030A Quick Setup Guide (third-party copy)',
+    url: 'https://tgm-wiki.jade-hs.de/_media/inventar_specs/qs8030a.pdf',
+  },
+  'GEN-8430A': {
+    title: 'Genelec 8430A Operating Manual (third-party copy)',
+    url: 'https://www.fullcompass.com/common/files/27953-Genelec8430AOperatingManual.pdf',
+  },
+  'C-OHM-REAR': {
+    title:
+      'Ohm Speakers, "No Cost Sound Improvement – Move Your Seat" (community practice: a manufacturer\'s marketing blog)',
+    url: 'https://ohmspeaker.com/news/no-cost-sound-improvement-move-your-seat-get-better-sound/',
   },
 } as const satisfies Partial<Record<SourceKey, Source>>
 
@@ -683,6 +730,130 @@ export const SCREEN = {
   note: string
   citations: readonly Citation[]
 }
+
+/**
+ * Furniture boxes (GLOSSARY.md): cabinets, tables, shelves and the like as
+ * boxes on the floor plan, room objects that are drawn and warned about but
+ * never part of the estimated response (ADR 0006). Everything here is our
+ * product choice, not a cited value
+ * (docs/research/room-openings-and-furniture.md section 4 gives no sizes):
+ *
+ * - **maxCount**: ADR 0006's limit, so the worst-case share link stays
+ *   within the URL budget (the codec tests check it).
+ * - **nameMaxLength** and the name's characters (furniture.ts): short
+ *   names in Western European letters, which a share link carries cheaply;
+ *   the worst-case link has eight of them.
+ * - **limits**: catch typos, as the screen's do; each box also stays
+ *   inside the Room.
+ * - **presets**: the boxes the sidebar adds, typical sizes of a TV cabinet,
+ *   a coffee table and a bookshelf.
+ */
+export const FURNITURE = {
+  maxCount: 8,
+  nameMaxLength: 12,
+  limits: {
+    width: { min: 0.1, max: 8 },
+    depth: { min: 0.1, max: 8 },
+    height: { min: 0.1, max: 5 },
+  },
+  presets: {
+    cabinet: { name: 'Cabinet', width: 1.6, depth: 0.45, height: 0.5 },
+    table: { name: 'Table', width: 1.2, depth: 0.6, height: 0.45 },
+    shelf: { name: 'Shelf', width: 0.8, depth: 0.3, height: 1.8 },
+  },
+  note:
+    'Product choices for a room object, not cited values (ADR 0006; ' +
+    'docs/research/room-openings-and-furniture.md section 4).',
+} as const satisfies {
+  maxCount: number
+  nameMaxLength: number
+  limits: Record<'width' | 'depth' | 'height', { min: number; max: number }>
+  presets: Record<
+    string,
+    { name: string; width: number; depth: number; height: number }
+  >
+  note: string
+}
+
+/**
+ * Where a placement warning's rule comes from (GLOSSARY.md, "Placement
+ * warning"; CLAUDE.md principle 7): a standard, a manufacturer's own
+ * documents, community practice (forums and blogs, labelled as such) or
+ * our own assumption.
+ */
+export type SourceClass = 'standard' | 'manufacturer' | 'community' | 'ours'
+
+/**
+ * The placement warnings' rules, by their number in section 6 of
+ * docs/research/room-openings-and-furniture.md (ADR 0006): where each
+ * comes from, and the distances that are ours. Every source there was read
+ * through search summaries only (UNVERIFIED against the full text). W1,
+ * W2, W3 and W5 (doors and windows, #57) join here.
+ *
+ * - **W4**: furniture between a speaker and the MLP blocks its direct
+ *   sound (EBU-3276; GEN-8030A "do not place the monitors ... behind
+ *   objects"). Subwoofers are exempt: EBU-3276 says obstacles matter little
+ *   below 150 Hz. Checked from the speaker's acoustic centre to the MLP's
+ *   ear point; that straight line is ours.
+ * - **W6**: a speaker just above a cabinet or desk top, with the box
+ *   between it and the MLP: the top reflects into the listening position
+ *   (GEN-8430A, GEN-8030A). The 0.3 m is ours.
+ * - **W7**: the MLP close to the back wall. The bass part (every
+ *   length mode at full strength there; KUTTRUFF ch. 3) is already in the
+ *   estimated response; the reflection right behind the head is community
+ *   practice (C-OHM-REAR), which gives no number we use. The 0.6 m is ours.
+ */
+export const PLACEMENT_WARNINGS = {
+  W4: {
+    sourceClass: 'standard',
+    note:
+      'Subwoofers are exempt: obstacles matter little below 150 Hz. ' +
+      'Read from search summaries of the sources only.',
+    citations: [
+      {
+        source: 'EBU-3276',
+        note: 'no obstacles in the direct sound; not so important below 150 Hz',
+      },
+      {
+        source: 'GEN-8030A',
+        note: 'do not place the monitors behind objects',
+      },
+    ],
+  },
+  W6: {
+    sourceClass: 'manufacturer',
+    meters: 0.3,
+    note:
+      'Genelec warns about reflections off desks and cabinets; the 0.3 m ' +
+      'is our assumption. Read from search summaries of the sources only.',
+    citations: [
+      { source: 'GEN-8430A', note: 'reflections off desks and cabinets' },
+      { source: 'GEN-8030A', note: 'reflections off nearby surfaces' },
+    ],
+  },
+  W7: {
+    sourceClass: 'community',
+    meters: 0.6,
+    note:
+      'The extra bass near the back wall is already in the estimated ' +
+      'response; the reflection behind your head is community practice, ' +
+      'and the 0.6 m is our assumption.',
+    citations: [
+      {
+        source: 'C-OHM-REAR',
+        note: 'a strong, early reflection from behind the seat',
+      },
+    ],
+  },
+} as const satisfies Record<
+  string,
+  {
+    sourceClass: SourceClass
+    meters?: number
+    note: string
+    citations: readonly Citation[]
+  }
+>
 
 /** The target curve's tolerance band: ± this many dB around the target. */
 export const TARGET_TOLERANCE = {

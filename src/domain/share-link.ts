@@ -289,6 +289,9 @@ export const SHORT_FIELD_NAMES = {
   kind: 'k',
   bottomEdge: 'be',
   standoff: 'so',
+  furniture: 'fu',
+  name: 'n',
+  rotation: 'rt',
 } as const satisfies FieldNames
 
 /** The first config schema version whose links use SHORT_FIELD_NAMES. */

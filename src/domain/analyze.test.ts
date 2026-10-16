@@ -46,7 +46,11 @@ describe('the default config', () => {
       crossoverHz: 80,
 
       manualPositions: {},
-      roomObjects: { seatRow: { width: 2, depth: 0.9 }, screen: null },
+      roomObjects: {
+        seatRow: { width: 2, depth: 0.9 },
+        screen: null,
+        furniture: [],
+      },
     })
   })
 })

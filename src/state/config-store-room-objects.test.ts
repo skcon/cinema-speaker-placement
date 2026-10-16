@@ -326,6 +326,10 @@ describe('the screen', () => {
     expect(screen(store)).toBeNull()
     expect(
       decodeConfig(V1_LINKS.imperialRoom.encoded).config.roomObjects,
-    ).toEqual({ seatRow: { width: 3.048, depth: 0.9 }, screen: null })
+    ).toEqual({
+      seatRow: { width: 3.048, depth: 0.9 },
+      screen: null,
+      furniture: [],
+    })
   })
 })

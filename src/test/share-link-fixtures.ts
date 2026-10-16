@@ -11,9 +11,10 @@
  * sensitivity for every speaker group, a 150 W amplifier, the house
  * curve, a 100 Hz crossover, a 12 x 3 ft seat row,
  * the Right Rear Surround and Subwoofer 2 moved by hand into the
- * back right corner, and a 9 x 5 ft acoustically transparent projection
+ * back right corner, a 9 x 5 ft acoustically transparent projection
  * screen 2 ft off the floor and 18 in in front of the front wall, moved
- * left of centre: nothing at its default.
+ * left of centre, and a 4 x 1 x 6 ft bookshelf turned against the left
+ * wall near the back: nothing at its default.
  */
 export const IMPERIAL_ROOM = {
   units: 'imperial',
@@ -59,6 +60,19 @@ export const IMPERIAL_ROOM = {
       x: -0.25,
       standoff: 0.4572,
     },
+    furniture: [
+      // To the millimeter, as share links store furniture. Turned, so its
+      // depth runs across: its back against the left wall.
+      {
+        name: 'Bookshelf',
+        width: 1.219,
+        depth: 0.305,
+        height: 1.829,
+        x: -2.347,
+        y: 6.5,
+        rotation: 90,
+      },
+    ],
   },
 } as const
 
@@ -215,11 +229,34 @@ export const V1_LINKS = {
 } as const
 
 /**
+ * Seven small furniture boxes in a row along the front of the largest
+ * room, each with a 12-character name, for its fixture's eight boxes.
+ */
+const FURNITURE_ROW = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
+  name: `Plant pot 0${n}`,
+  width: 0.4,
+  depth: 0.4,
+  height: 0.6,
+  x: -7 + n,
+  y: 1,
+  rotation: 0,
+})) as readonly {
+  name: string
+  width: number
+  depth: number
+  height: number
+  x: number
+  y: number
+  rotation: 0
+}[]
+
+/**
  * Version 2 share links as the app writes them today, with the config each
  * one holds: the version 1 links' configs as the migration to version 2
  * gives them (their seat row width as a 0.9 m deep seat row, and no other
  * room objects), except that the two on the edges of the ranges also have
- * a seat row depth and a screen on the edges of their ranges. Version 2 is not
+ * a seat row depth, a screen and furniture boxes on the edges of their
+ * ranges. Version 2 is not
  * released until v1.1.0 is tagged, so the 1.1.0 changes that extend it
  * regenerate these (ADR 0003); after that, never edit them.
  */
@@ -232,7 +269,7 @@ export const V2_LINKS = {
    */
   imperialRoom: {
     encoded:
-      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVyhAwFsAHAUwCcMBDAGxHktxAcgHYA6AZgEYBWOCADuUACyd+7IQAso0TuzHdoAX3h0AniwAmbEF16dojEAGd56kDkig0LM6RYAXQs6TCqps+SgBOAAZVKwQHJ1sQV0gQACMkJABrMxlyOnt4HygADizJYIzmCMcXQjjE5NT0819ILIA2fJBKCyLw0CjY+KSUtO8a+sakMId+-kaW0GKImpBSJEpnch1THWXIAJ5uAKFKUUgxfgD4Uj3AoPgkCZAAZTwYk2nCH3ollbWN6H4xJj3Po9m9ocgsErDQ9rxPvBnKFojIkHhMvAAB5DSAQ-7EXBWSioyZRUB7bicAJiLLwd6cPxWMwwlB4Oh0EFAA',
+      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVyhAwFsAHAUwCcMBDAGxHktxAcgHYA6AZgEYBWOCADuUACyd+7IQAso0TuzHdoAX3h0AniwAmbEF16dojEAGd56kDkig0LM6RYAXQs6TCqps+SgBOAAZVKwQHJ1sQV0gQACMkJABrMxlyOnt4HygADizJYIzmCMcXQjjE5NT0819ILIA2fJBKCyLw0CjY+KSUtO8a+sakMId+-kaW0GKImpBSJEpnch1THWXIAJ5uAKFKUUgxfgD4Uj3AoPgkCZAAZTwYk2nCH3ollbWN6H4xJj3Po9m9ocgsErDQ9rxPvBnKFojIkHhMvAAB5DSAQ-7EXBWSioyZRUB7bicAJiLLwd6cPxWMwwlB4Oh0eBoAiQADaAF0QUA',
     config: {
       units: 'imperial',
       room: { length: 7.3152, width: 4.572, height: 2.7432 },
@@ -264,7 +301,11 @@ export const V2_LINKS = {
       targetCurve: 'house',
       crossoverHz: 120,
       manualPositions: {},
-      roomObjects: { seatRow: { width: 3.048, depth: 0.9 }, screen: null },
+      roomObjects: {
+        seatRow: { width: 3.048, depth: 0.9 },
+        screen: null,
+        furniture: [],
+      },
     },
   },
   /**
@@ -273,12 +314,14 @@ export const V2_LINKS = {
    * sensitivity (70 dB) for every speaker group, a 1 W amplifier, the lowest
    * crossover accepted (40 Hz), the narrowest and shallowest seat row (0.5 x 0.5 m), and every
    * item moved by hand to the
-   * clearance lines, Left to the ceiling's and Right to the floor's, and
-   * the smallest screen at the floor and the left wall.
+   * clearance lines, Left to the ceiling's and Right to the floor's,
+   * the smallest screen at the floor and the left wall, and the smallest
+   * furniture box, with a one-letter name, turned three times into the
+   * back left corner.
    */
   smallestRoom: {
     encoded:
-      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVyhAFsBTAFwCcMER4LcQAbKOEAdxfgAsWBfeRgE8GAE2aQQ0AHQBGWiADOUGfxA5IoNAwUAHBmUIAjJEgDWCriUZb4CklADsABl6qaGxXo8GJxsxasbRXtIZ1dbeg9dfSMTc0treTtHF1UKJSivUB8QP3jApJCw1SRtLOCU8MUyhhDggENGEhF5ERbIJ1kAVmgAZgBOQaHhwYAOOg5IGSd4HUnpkozgV1V6+fgydxA0RnqDeAAPUsgAFhniBgAZBgOoAFpOh3hhDqle+AAvZSkHVQAlG5QR7Pb5PEBfV69VQAZTwhjkHlurzBL0673BQLeqgAspcAAqAyAPH4gqYkjFk6BVCjHUAKHygSadLrwdrM1QKdygUyEMgQeBMqQskA8SHwQwhc5I4kOYUKY4oPCMRgrXhAA',
+      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVyhAFsBTAFwCcMER4LcQAbKOEAdxfgAsWBfeRgE8GAE2aQQ0AHQBGWiADOUGfxA5IoNAwUAHBmUIAjJEgDWCriUZb4CklADsABl6qaGxXo8GJxsxasbRXtIZ1dbeg9dfSMTc0treTtHF1UKJSivUB8QP3jApJCw1SRtLOCU8MUyhhDggENGEhF5ERbIJ1kAVmgAZgBOQaHhwYAOOg5IGSd4HUnpkozgV1V6+fgydxA0RnqDeAAPUsgAFhniBgAZBgOoAFpOh3hhDqle+AAvZSkHVQAlG5QR7Pb5PEBfV69VQAZTwhjkHlurzBL0673BQLeqgAspcAAqAyAPH4gqYkjFk6BVCjHUAKHygSadLrwdrM1QKdygUyEMgQeBMqQskA8SHwQwhc5I4kOYUKY4oPCMRiqNAESAAbVAKEIAEF5IKZKzMUaRSbDvdOv1hS8ZFJrXQfNAwgBdFZAA',
     config: {
       units: 'metric',
       room: { length: 2, width: 2, height: 2 },
@@ -309,8 +352,9 @@ export const V2_LINKS = {
         Sub1: { x: 0.7, y: 0.3, z: 0.3 },
         MLP: { x: -0.7, y: 1.7, z: 1.2 },
       },
-      // The narrowest and shallowest seat row, and the smallest screen, a
-      // TV on the floor against the left wall.
+      // The narrowest and shallowest seat row, the smallest screen, a TV
+      // on the floor against the left wall, and the smallest furniture box
+      // in the back left corner.
       roomObjects: {
         seatRow: { width: 0.5, depth: 0.5 },
         screen: {
@@ -321,6 +365,17 @@ export const V2_LINKS = {
           x: -0.75,
           standoff: null,
         },
+        furniture: [
+          {
+            name: 'A',
+            width: 0.1,
+            depth: 0.1,
+            height: 0.1,
+            x: -0.95,
+            y: 1.95,
+            rotation: 270,
+          },
+        ],
       },
     },
   },
@@ -331,12 +386,14 @@ export const V2_LINKS = {
    * every group, a 5,000 W amplifier, the house curve, the highest
    * crossover accepted (200 Hz), the widest and deepest seat row (8 x 2 m), and Right (at
    * the ceiling clearance), Right Top Rear (on the ceiling), Subwoofer 4
-   * and the MLP moved by hand into the corners, and the largest screen at
-   * the ceiling and the right wall.
+   * and the MLP moved by hand into the corners, the largest screen at
+   * the ceiling and the right wall, and the most furniture boxes, each
+   * with the longest name, the first one the largest box, in the back
+   * right corner.
    */
   largestRoom: {
     encoded:
-      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVyhAFsBTAFwCcMER4LcQAbKARgFZ4B3VjkACyhsAvvEYBPBgBNmkEAHYAdCwUAWWiADOUFSJA5IoNAw0AHBmUJkknEvXgaSrFgAYhumgc1nPF2VZt2mo6QLC5u9vSepuaW1rbqDk6uuhRaUd6gviD+8fbBocnwSMYZQUnhmiUMwSAmSBRkJJLqks2QzgoAbM4AnGw9A4NDA3TcIc4TzvAmY9CTrkVpoADKeABGap41DgCGjE0tbR3dfcNnPaOs89Oz824VO2Nsk-BkHvxIeInwAB7FMBN4EQGAAlBg-KCKOAgCQhFQKOTwABe2gRuhBlHBkIU0NhLHhiJAKMgwngqw2WMgAFoofA8QTkVAOgBmXQAWQAMgAFSk0nF0pkKZmMkI4ioUf6gDS+UBjAAc8Da0F0Gg8oAA1oQTBKAFYkBBkDCodTy+ACSAqeBrfK-KDMhS8DT-ZTCe5AA',
+      'N4IgbiBcBMA0IGMD2A7AZgSwOZVAVyhAFsBTAFwCcMER4LcQAbKARgFZ4B3VjkACyhsAvvEYBPBgBNmkEAHYAdCwUAWWiADOUFSJA5IoNAw0AHBmUJkknEvXgaSrFgAYhumgc1nPF2VZt2mo6QLC5u9vSepuaW1rbqDk6uuhRaUd6gviD+8fbBocnwSMYZQUnhmiUMwSAmSBRkJJLqks2QzgoAbM4AnGw9A4NDA3TcIc4TzvAmY9CTrkVpoADKeABGap41DgCGjE0tbR3dfcNnPaOs89Oz824VO2Nsk-BkHvxIeInwAB7FMBN4EQGAAlBg-KCKOAgCQhFQKOTwABe2gRuhBlHBkIU0NhLHhiJAKMgwngqw2WMgAFoofA8QTkVAOgBmXQAWQAMgAFSk0nF0pkKZmMkI4ioUf6gDS+UBjAAc8Da0F0Gg8oAA1oQTBKAFYkBBkDCodTy+ACSAqeBrfK-KDMhS8DT-ZSkkBoAiQADaoBQhAA6ntGAACDR8EiMMAkLRcKAKkBtOPm3gQyD23h4lh0XwLH2ELmMHYoMhBurF5wsE2Cy3xqtmwWdW3Uhsw1hZpkiXOyfOF4uloPOaCV9qqRW1-j1xtU9OtkANduwTsgbtFktIMvMocdatHEfj4fNlNU6t4tvtDsgX1dgsrvvONQx4fbsfm46T4UtkKnnMXvPX3tr-s2E3Xcd2rF8uknXEZznM8Fx-K8e1XMtOmAp9HzrfdJ0zD9sJg79LyXP8kP7ORUNHdC91fEAUymHCvyEABde4gA',
     config: {
       units: 'metric',
       room: { length: 15, width: 15, height: 5 },
@@ -375,9 +432,10 @@ export const V2_LINKS = {
         Sub4: { x: -7.2, y: 14.7, z: 0.3 },
         MLP: { x: -7.2, y: 0.3, z: 1.2 },
       },
-      // The widest and deepest seat row, and the largest screen,
+      // The widest and deepest seat row, the largest screen,
       // acoustically transparent at the largest standoff, up to the
-      // ceiling against the right wall.
+      // ceiling against the right wall, and eight furniture boxes with
+      // 12-character names, the first the largest in the back right corner.
       roomObjects: {
         seatRow: { width: 8, depth: 2 },
         screen: {
@@ -388,6 +446,18 @@ export const V2_LINKS = {
           x: 3.5,
           standoff: 1.5,
         },
+        furniture: [
+          {
+            name: 'Wall shelves',
+            width: 8,
+            depth: 8,
+            height: 5,
+            x: 3.5,
+            y: 11,
+            rotation: 0,
+          },
+          ...FURNITURE_ROW,
+        ],
       },
     },
   },

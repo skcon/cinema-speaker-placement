@@ -46,6 +46,7 @@ import { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 import { seatRowFootprint, type SeatRowFootprint } from './seat-row'
 import { responseNotes, type ResponseNotes } from './response-notes'
 import { suggestsAtmosEnabledSpeakers } from './atmos-enabled'
+import { placementWarnings, type PlacementWarning } from './placement-warnings'
 
 /** A listener-level speaker of the layout, placed and checked. */
 export type PlacedSpeaker = {
@@ -153,6 +154,11 @@ export type RoomAnalysis = {
    * Atmos-enabled speakers instead of the layout's overheads.
    */
   suggestsAtmosEnabledSpeakers: boolean
+  /**
+   * Hints where a room object makes a speaker or the MLP worse off (ADR
+   * 0006): never a block, and not part of the estimated response.
+   */
+  placementWarnings: readonly PlacementWarning[]
 }
 
 /** The domain entry point: derive the room plan from a config. */
@@ -255,11 +261,12 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     enclosures: subwoofers.map(({ specs }) => specs.enclosure),
   })
   const layoutSummary = summarizeLayout(layout)
+  const speakers = heardSpeakers.map(({ speaker }) => speaker)
   const headroom = estimateHeadroom({
     mlp,
     speakerGroups,
     amplifierWatts,
-    speakers: [...heardSpeakers.map(({ speaker }) => speaker), ...overheads],
+    speakers: [...speakers, ...overheads],
     groups: speakerGroupsIn(layout),
     subwoofers,
   })
@@ -270,7 +277,7 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     seatRow: seatRowFootprint(config.room, mlp, config.roomObjects.seatRow),
     seatRuleOfThumb: seatRuleOfThumb(config.room),
     mlpFrontWallFraction: frontWallFraction(config.room, mlp),
-    speakers: heardSpeakers.map(({ speaker }) => speaker),
+    speakers,
     overheads,
     subwoofers,
     response: {
@@ -285,5 +292,13 @@ export function analyzeRoom(config: Config): RoomAnalysis {
       config.room,
       layout,
     ),
+    placementWarnings: placementWarnings({
+      room: config.room,
+      roomObjects: config.roomObjects,
+      mlp,
+      speakers,
+      overheads,
+      subwoofers,
+    }),
   }
 }

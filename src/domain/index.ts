@@ -24,6 +24,12 @@ export type {
   ResponseWeakness,
 } from './response-notes'
 export type { Surface } from './boundary-interference'
+export {
+  warningsAbout,
+  type PlacementWarning,
+  type PlacementWarningId,
+  type WarnedItem,
+} from './placement-warnings'
 export type { RoomMode, RoomModeKind } from './room-modes'
 export {
   recommendSeat,
@@ -219,6 +225,7 @@ export {
   TARGET_TOLERANCE,
   type Citation,
   type Source,
+  type SourceClass,
 } from './reference'
 export {
   TARGET_CURVE_KINDS,

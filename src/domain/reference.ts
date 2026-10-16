@@ -52,7 +52,8 @@ type RoomObjectSourceKey =
   | 'C-OHM-REAR'
 
 /** docs/research/screen-and-front-stage.md, section 1. */
-type ScreenSourceKey = 'CEPRO-H' | 'SV-AT' | 'ELITE-AT' | 'AVS-AT'
+type ScreenSourceKey =
+  'CEPRO-H' | 'SV-AT' | 'ELITE-AT' | 'AVS-AT' | 'ITU-775' | 'AF-LAYOUT'
 
 /** docs/research/reference-level-headroom.md, section 1. */
 type HeadroomSourceKey = 'ATSC-A52' | 'FLORIAN-2000'
@@ -751,6 +752,63 @@ export const SCREEN = {
   defaultTv: { width: number; height: number }
   defaultStandoff: number
   eyeLineFraction: number
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * How auto-place fits the front stage (Left, Center and Right) to the
+ * Screen (#58, ADR 0005 amendment). Dolby's azimuth ranges always win over
+ * these: they only choose a point inside the ranges, and the Center's
+ * height.
+ *
+ * - **edgeClearance**: how far outside a TV's or solid screen's edge
+ *   (inside an acoustically transparent screen's edge) L and R stand, as
+ *   seen from the MLP: from the image edge to the speaker's acoustic
+ *   center, about half a 0.2-0.25 m wide cabinet plus a small gap, so the
+ *   cabinet clears the image. The sources say "just outside" or "just
+ *   inside" without a number (AF-LAYOUT; research section 3.1).
+ * - **centerClearance**: how far below or above a TV's or solid screen's
+ *   image the Center's acoustic center sits, as seen from the MLP: about
+ *   half a 0.2 m tall center cabinet plus a small gap. ITU-R BS.775 and
+ *   Dolby say "just above or below" without a number (research section 4).
+ *   It is also how far the Center stays above the floor and below the
+ *   ceiling.
+ * - **behindScreenGap**: the gap between a speaker's acoustic center and
+ *   an acoustically transparent screen in front of it. SV-AT measured
+ *   about 4 in (0.1 m) for a woven screen; the sources run from 1 in to
+ *   12 in and are product-specific (research section 5).
+ */
+export const SCREEN_FRONT_STAGE = {
+  edgeClearance: 0.15,
+  centerClearance: 0.15,
+  behindScreenGap: 0.1,
+  note:
+    'All three distances are ours, not Dolby: Dolby relates no speaker to ' +
+    'a screen edge. The sources give the rules (L/R just outside a screen, ' +
+    'just inside an acoustically transparent one; C just above or below a ' +
+    'solid screen, behind a transparent one) but no distances ' +
+    '(docs/research/screen-and-front-stage.md sections 3-5; ADR 0005 ' +
+    'amendment).',
+  citations: [
+    {
+      source: 'AF-LAYOUT',
+      note: 'L/R just inside the edges of an acoustically transparent screen (excerpt, practitioner)',
+    },
+    {
+      source: 'ITU-775',
+      note: 'C immediately above or below a picture that is not acoustically transparent (excerpt)',
+    },
+    { source: 'WEB101', note: 'C just above or below the TV' },
+    {
+      source: 'SV-AT',
+      note: 'about 4 in (woven) behind an acoustically transparent screen (excerpt)',
+    },
+  ],
+} as const satisfies {
+  edgeClearance: number
+  centerClearance: number
+  behindScreenGap: number
   note: string
   citations: readonly Citation[]
 }

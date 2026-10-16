@@ -146,6 +146,7 @@ export {
   type ScreenKind,
   type ScreenSurface,
 } from './screen'
+export type { ScreenRelation } from './placement'
 export {
   MLP_ID,
   type ManualPositions,
@@ -250,6 +251,7 @@ export {
   LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,
   SCREEN,
+  SCREEN_FRONT_STAGE,
   SEAT_SCORE,
   sourceOf,
   SPEAKER_TYPE_GEOMETRY,

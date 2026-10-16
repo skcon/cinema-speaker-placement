@@ -1,7 +1,8 @@
 /**
  * Where every item of the layout is: its manual position when it has one,
  * else its auto-placed one. Auto speakers are placed around the MLP where
- * it is, manual or auto.
+ * it is, manual or auto, and L, C and R fit the Screen when the Room has
+ * one (placement.ts, rule 6).
  */
 import type { Config } from './config'
 import {
@@ -12,7 +13,11 @@ import {
 import { MLP_ID, type PlaceableId, type Placement } from './manual-positions'
 import { defaultMlp } from './mlp'
 import { autoPlaceOverhead, layoutWidth } from './overhead-placement'
-import { autoPlaceSpeaker } from './placement'
+import {
+  autoPlaceSpeakerAtScreen,
+  manualScreenRelation,
+  type ScreenRelation,
+} from './placement'
 import { nearestWall, type RoomPoint, type Wall } from './room'
 import type { SubwooferId } from './subwoofer-arrangements'
 import { autoPlaceSubwoofers } from './subwoofer-placement'
@@ -25,9 +30,14 @@ export type Placed = {
 
 export type Placements = {
   readonly mlp: Placed
-  /** The listener-level channels, in Dolby's channel order. */
+  /**
+   * The listener-level channels, in Dolby's channel order, each with how
+   * it relates to the Screen (null without one, or for a channel other
+   * than L, C and R).
+   */
   readonly speakers: readonly (Placed & {
     readonly reference: ChannelReference
+    readonly screenRelation: ScreenRelation | null
   })[]
   /**
    * The overhead channels, in Dolby's channel order. Auto ones are placed
@@ -47,6 +57,7 @@ export function placeAll({
   room,
   layout,
   manualPositions,
+  roomObjects: { screen },
 }: Config): Placements {
   const placed = (id: PlaceableId, auto: () => RoomPoint): Placed => {
     const manual = manualPositions[id]
@@ -56,12 +67,25 @@ export function placeAll({
   }
   const mlp = placed(MLP_ID, () => defaultMlp(room))
   const speakers = DOLBY_LAYOUTS[layout.dolbyLayout].channels.map(
-    (reference) => ({
-      reference,
-      ...placed(reference.channel, () =>
-        autoPlaceSpeaker(room, mlp.position, reference),
-      ),
-    }),
+    (reference) => {
+      const { channel } = reference
+      const manual = manualPositions[channel]
+      if (manual) {
+        return {
+          reference,
+          position: manual,
+          placement: 'manual' as const,
+          screenRelation: manualScreenRelation(channel, screen),
+        }
+      }
+      const auto = autoPlaceSpeakerAtScreen(
+        room,
+        mlp.position,
+        reference,
+        screen,
+      )
+      return { reference, ...auto, placement: 'auto' as const }
+    },
   )
   const { overheadChannels } = DOLBY_LAYOUTS[layout.dolbyLayout]
   const width = layoutWidth(speakers.map(({ position }) => position))

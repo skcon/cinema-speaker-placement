@@ -6,6 +6,7 @@ import { RoomView } from '@/scene/RoomView'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { HistoryButtons } from '@/ui/HistoryButtons'
 import { PositionsForm } from '@/ui/PositionsForm'
+import { RoomObjectsForm } from '@/ui/RoomObjectsForm'
 import { SelectedItemPanel } from '@/ui/SelectedItemPanel'
 
 // jsdom has no WebGL: pretend it has, and stand in for the Three.js scene
@@ -288,5 +289,32 @@ describe('the Selected item', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
 
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
+  it('says how Left relates to the screen, live as the screen is resized', async () => {
+    render(
+      <ConfigStoreProvider>
+        <SelectedItemPanel />
+        <PositionsForm />
+        <RoomObjectsForm />
+      </ConfigStoreProvider>,
+    )
+    openPositionRow('Left')
+    await within(panel()).findByRole('heading', { name: 'Left' })
+    expect(panel()).not.toHaveTextContent(/Screen/)
+
+    // The default 65 in TV is narrower than Dolby's 22°: Left is kept at 22°.
+    fireEvent.click(screen.getByRole('button', { name: 'Add a screen' }))
+    expect(panel()).toHaveTextContent(
+      /Screen\s*Kept inside Dolby's range: .* so Left sits at 22°, beside the screen\./,
+    )
+
+    const width = within(
+      screen.getByRole('group', { name: 'Screen width' }),
+    ).getByRole('textbox', { name: 'm' })
+    fireEvent.change(width, { target: { value: '2' } })
+    expect(panel()).toHaveTextContent(
+      /Screen\s*Left sits just outside the screen's edge, as seen from the MLP\./,
+    )
   })
 })

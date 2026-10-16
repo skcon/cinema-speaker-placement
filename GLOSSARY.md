@@ -29,7 +29,7 @@ Something in the Room besides speakers and the MLP that the user places, moves a
 _Avoid_: Prop, item (for these alone), obstacle
 
 **Screen**:
-The TV or projection screen on the front wall: its width, height and bottom-edge height, where it is along the wall (centred by default), and whether it is acoustically transparent (a projection screen standing off the wall with the front speakers behind it; the gap is its **standoff**).
+The TV or projection screen on the front wall: its width, height and bottom-edge height, where it is along the wall (centred by default), and whether it is acoustically transparent (a projection screen standing off the wall with the front speakers behind it; the gap is its **standoff**). Auto-place fits L, C and R to it inside Dolby's ranges (ADR 0005 amendment).
 _Avoid_: Display, panel, TV area
 
 **Furniture box**:

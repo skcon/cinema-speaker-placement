@@ -99,6 +99,11 @@ const LAYER = {
   walls: 0.01,
   screen: 0.011,
   recommended: 0.012,
+  /**
+   * A room object's grab area: under the items' grab discs, so where the
+   * two overlap (a speaker in front of the screen) the item is picked up.
+   */
+  objectGrab: 0.013,
   grab: 0.015,
 } as const
 
@@ -332,8 +337,9 @@ type DraggableProps = {
   id: DragTarget
   at: RoomPoint
   /**
-   * The marker's own size, in meters: the radius of a round grab area, or
-   * the width (along x) and depth (along y) of a rectangular one.
+   * The marker's own size, in meters: the radius of an item's round grab
+   * area, or the width (along x) and depth (along y) of a room object's
+   * rectangular one (which items' grab areas win over).
    */
   grab: { radius: number } | { width: number; depth: number }
   children: ReactNode
@@ -417,7 +423,10 @@ function DraggableGroup({
           marker, so a marker is easy to pick up with a finger; markers
           drawn above it win. */}
       <mesh
-        position={toScenePosition({ ...at, z: LAYER.grab })}
+        position={toScenePosition({
+          ...at,
+          z: 'radius' in grab ? LAYER.grab : LAYER.objectGrab,
+        })}
         rotation={FLAT_ON_FLOOR}
       >
         {'radius' in grab ? (

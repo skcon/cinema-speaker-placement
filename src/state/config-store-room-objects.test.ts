@@ -1,13 +1,34 @@
+/**
+ * The store's room-object actions: what they add to the domain's Room
+ * objects module (room-objects.test.ts tests the changes themselves) is
+ * undo and redo, drags as one undo step, the analysis following, and the
+ * share link.
+ */
 import { describe, expect, it } from 'vitest'
 import {
   analyzeRoom,
   decodeConfig,
   DEFAULT_CONFIG,
   encodeConfig,
+  furnitureTurned,
   recommendSeat,
   SCREEN_ID,
   SEAT_ROW_ID,
+  withAcousticTransparency,
+  withFurnitureDimension,
+  withFurnitureName,
+  withOpeningDimension,
+  withOpeningWall,
+  withScreenDimension,
+  withScreenKind,
+  withSeatRowDimension,
   type Config,
+  type FurnitureDimension,
+  type FurnitureId,
+  type OpeningDimension,
+  type OpeningId,
+  type ScreenDimension,
+  type SeatRowDimension,
 } from '@/domain'
 import { createConfigStore, type ConfigStore } from '@/state/config-store'
 import { V1_LINKS } from '@/test/share-link-fixtures'
@@ -40,6 +61,43 @@ function analysis(store: ConfigStore) {
 
 function seatRowSize(store: ConfigStore) {
   return store.getState().config.roomObjects.seatRow
+}
+
+function setSeatRowDimension(
+  store: ConfigStore,
+  dimension: SeatRowDimension,
+  meters: number,
+) {
+  store
+    .getState()
+    .editRoomObject(SEAT_ROW_ID, (_, seatRow) =>
+      withSeatRowDimension(seatRow, dimension, meters),
+    )
+}
+
+function setScreenDimension(
+  store: ConfigStore,
+  dimension: ScreenDimension,
+  meters: number,
+) {
+  store
+    .getState()
+    .editRoomObject(SCREEN_ID, (room, current) =>
+      withScreenDimension(room, current, dimension, meters),
+    )
+}
+
+function makeAcousticallyTransparentProjection(store: ConfigStore) {
+  store
+    .getState()
+    .editRoomObject(SCREEN_ID, (_, current) =>
+      withScreenKind(current, 'projection'),
+    )
+  store
+    .getState()
+    .editRoomObject(SCREEN_ID, (_, current) =>
+      withAcousticTransparency(current, true),
+    )
 }
 
 describe('the seat row', () => {
@@ -87,16 +145,6 @@ describe('the seat row', () => {
     expect(store.getState().history.canUndo).toBe(false)
   })
 
-  it('keeps the MLP inside its wall clearances when dragged into a wall', () => {
-    const store = createConfigStore()
-
-    store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0, y: 9 })
-
-    // The 6 m room's back wall, less the MLP's clearance.
-    expect(analysis(store).mlp.y).toBeLessThan(6)
-    expect(analysis(store).seatRow.center.y).toBeLessThan(6)
-  })
-
   it('goes back with the MLP on Auto-place, and undo restores both', () => {
     const store = createConfigStore()
     store.getState().moveRoomObject(SEAT_ROW_ID, { x: 0.4, y: 3.1 })
@@ -129,14 +177,13 @@ describe('the seat row', () => {
     expect(analysis(store).seatRow.center.x).toBeCloseTo(0, 9)
   })
 
-  it('is resized within its ranges, each change one undo step, and rejects a size outside them', () => {
+  it('is resized, each change one undo step, and a rejected size is no step', () => {
     const store = createConfigStore()
 
-    store.getState().setSeatRowDimension('width', 3.2)
-    store.getState().setSeatRowDimension('depth', 1.1)
-    store.getState().setSeatRowDimension('width', 8.5)
-    store.getState().setSeatRowDimension('depth', 0.3)
-    store.getState().setSeatRowDimension('depth', Number.NaN)
+    setSeatRowDimension(store, 'width', 3.2)
+    setSeatRowDimension(store, 'depth', 1.1)
+    setSeatRowDimension(store, 'width', 8.5)
+    setSeatRowDimension(store, 'depth', Number.NaN)
 
     expect(seatRowSize(store)).toEqual({ width: 3.2, depth: 1.1 })
     // A deeper couch reaches further forward; its back stays behind the MLP.
@@ -150,7 +197,7 @@ describe('the seat row', () => {
   it('records nothing for a size it already has', () => {
     const store = createConfigStore()
 
-    store.getState().setSeatRowDimension('width', 2)
+    setSeatRowDimension(store, 'width', 2)
 
     expect(store.getState().config).toBe(DEFAULT_CONFIG)
     expect(store.getState().history.canUndo).toBe(false)
@@ -159,7 +206,7 @@ describe('the seat row', () => {
   it('round-trips through the share link, moved and resized', () => {
     const store = createConfigStore()
     store.getState().moveRoomObject(SEAT_ROW_ID, { x: -0.31234, y: 3.45678 })
-    store.getState().setSeatRowDimension('depth', 1.3)
+    setSeatRowDimension(store, 'depth', 1.3)
     const config: Config = store.getState().config
 
     const reopened = createConfigStore()
@@ -192,7 +239,7 @@ describe('the screen', () => {
   it('is added as a 65 in TV centred on the front wall, as one undo step', () => {
     const store = createConfigStore()
 
-    store.getState().addScreen()
+    store.getState().addRoomObject({ kind: 'screen' })
 
     expect(screen(store)).toEqual(TV)
     store.getState().undo()
@@ -201,10 +248,10 @@ describe('the screen', () => {
     expect(screen(store)).toEqual(TV)
   })
 
-  it('is added only once', () => {
+  it('is added only once: a second add is no undo step', () => {
     const store = storeWithTv()
 
-    store.getState().addScreen()
+    store.getState().addRoomObject({ kind: 'screen' })
 
     expect(store.getState().history.canUndo).toBe(false)
   })
@@ -212,68 +259,36 @@ describe('the screen', () => {
   it('is removed, and undo brings it back', () => {
     const store = storeWithTv()
 
-    store.getState().removeScreen()
+    store.getState().removeRoomObject(SCREEN_ID)
 
     expect(screen(store)).toBeNull()
     store.getState().undo()
     expect(screen(store)).toEqual(TV)
   })
 
-  it('is resized within its ranges, and rejects a size outside them', () => {
+  it('is resized, each change one undo step', () => {
     const store = storeWithTv()
 
-    store.getState().setScreenDimension('width', 2)
-    store.getState().setScreenDimension('height', 1.1)
-    store.getState().setScreenDimension('bottomEdge', 0.7)
-    // Wider than the 4.5 m front wall, then through the 2.6 m ceiling.
-    store.getState().setScreenDimension('width', 5)
-    store.getState().setScreenDimension('bottomEdge', 2)
+    setScreenDimension(store, 'height', 1.1)
+    setScreenDimension(store, 'bottomEdge', 0.7)
+    // Through the 2.6 m ceiling: rejected, no step.
+    setScreenDimension(store, 'bottomEdge', 2)
 
-    expect(screen(store)).toEqual({
-      ...TV,
-      width: 2,
-      height: 1.1,
-      bottomEdge: 0.7,
-    })
+    expect(screen(store)).toEqual({ ...TV, height: 1.1, bottomEdge: 0.7 })
     store.getState().undo()
     expect(screen(store)).toMatchObject({ height: 1.1, bottomEdge: 0.93 })
   })
 
-  it('changes nothing without a screen', () => {
+  it('makes no undo step for an edit, a removal or a drag without a screen', () => {
     const store = createConfigStore()
 
-    store.getState().setScreenDimension('width', 2)
-    store.getState().setScreenKind('projection')
-    store.getState().setScreenAcousticallyTransparent(true)
+    setScreenDimension(store, 'width', 2)
+    makeAcousticallyTransparentProjection(store)
     store.getState().moveRoomObject(SCREEN_ID, { x: 1, y: 0 })
-    store.getState().removeScreen()
+    store.getState().removeRoomObject(SCREEN_ID)
 
     expect(store.getState().config).toBe(DEFAULT_CONFIG)
     expect(store.getState().history.canUndo).toBe(false)
-  })
-
-  it('becomes an acoustically transparent projection screen, with a standoff to edit', () => {
-    const store = storeWithTv()
-
-    store.getState().setScreenKind('projection')
-    store.getState().setScreenAcousticallyTransparent(true)
-    store.getState().setScreenDimension('standoff', 0.6)
-
-    expect(screen(store)).toEqual({
-      ...TV,
-      kind: 'projection',
-      standoff: 0.6,
-    })
-  })
-
-  it('drops its standoff when it becomes a TV', () => {
-    const store = storeWithTv()
-    store.getState().setScreenKind('projection')
-    store.getState().setScreenAcousticallyTransparent(true)
-
-    store.getState().setScreenKind('tv')
-
-    expect(screen(store)).toEqual(TV)
   })
 
   it('is dragged along the front wall as one undo step, stopping at a side wall', () => {
@@ -291,7 +306,7 @@ describe('the screen', () => {
 
   it('shrinks with the room, and undo gives both back', () => {
     const store = storeWithTv()
-    store.getState().setScreenDimension('width', 4)
+    setScreenDimension(store, 'width', 4)
 
     store.getState().setRoomDimension('width', 3)
 
@@ -303,8 +318,7 @@ describe('the screen', () => {
 
   it('round-trips through the share link', () => {
     const store = storeWithTv()
-    store.getState().setScreenKind('projection')
-    store.getState().setScreenAcousticallyTransparent(true)
+    makeAcousticallyTransparentProjection(store)
     store.getState().moveRoomObject(SCREEN_ID, { x: -0.4567, y: 0 })
     const config: Config = store.getState().config
 
@@ -342,8 +356,21 @@ function furniture(store: ConfigStore) {
 /** A store with the default room and a cabinet against the front wall. */
 function storeWithCabinet(): ConfigStore {
   const store = createConfigStore()
-  store.getState().addFurniture('cabinet')
+  store.getState().addRoomObject({ kind: 'furniture', preset: 'cabinet' })
   return store
+}
+
+function setFurnitureDimension(
+  store: ConfigStore,
+  id: FurnitureId,
+  dimension: FurnitureDimension,
+  meters: number,
+) {
+  store
+    .getState()
+    .editRoomObject(id, (room, box) =>
+      withFurnitureDimension(room, box, dimension, meters),
+    )
 }
 
 describe('furniture boxes', () => {
@@ -354,23 +381,15 @@ describe('furniture boxes', () => {
     expect(furniture(store)).toEqual([])
   })
 
-  it('are added from a preset against the middle of the front wall, each as one undo step', () => {
+  it('are added from a preset, each as one undo step', () => {
     const store = createConfigStore()
 
-    store.getState().addFurniture('cabinet')
-    store.getState().addFurniture('shelf')
+    store.getState().addRoomObject({ kind: 'furniture', preset: 'cabinet' })
+    store.getState().addRoomObject({ kind: 'furniture', preset: 'shelf' })
 
-    expect(furniture(store)).toEqual([
-      {
-        name: 'Cabinet',
-        width: 1.6,
-        depth: 0.45,
-        height: 0.5,
-        x: 0,
-        y: 0.225,
-        rotation: 0,
-      },
-      expect.objectContaining({ name: 'Shelf', height: 1.8, y: 0.15 }),
+    expect(furniture(store).map(({ name }) => name)).toEqual([
+      'Cabinet',
+      'Shelf',
     ])
     store.getState().undo()
     expect(furniture(store).map(({ name }) => name)).toEqual(['Cabinet'])
@@ -378,51 +397,24 @@ describe('furniture boxes', () => {
     expect(furniture(store)).toHaveLength(2)
   })
 
-  it('stop at eight', () => {
-    const store = createConfigStore()
-    for (let added = 0; added < 9; added += 1) {
-      store.getState().addFurniture('table')
-    }
-
-    expect(furniture(store)).toHaveLength(8)
-  })
-
-  it('are renamed, trimmed, and keep their name for one that is rejected', () => {
+  it('are renamed and turned, each as one undo step, and a rejected name is no step', () => {
     const store = storeWithCabinet()
 
-    store.getState().setFurnitureName('furniture-1', ' TV-bänk ')
-    store.getState().setFurnitureName('furniture-1', 'A very long name')
-    store.getState().setFurnitureName('furniture-1', '')
+    store
+      .getState()
+      .editRoomObject('furniture-1', (_, box) =>
+        withFurnitureName(box, ' TV-bänk '),
+      )
+    store
+      .getState()
+      .editRoomObject('furniture-1', (_, box) => withFurnitureName(box, ''))
+    store.getState().editRoomObject('furniture-1', furnitureTurned)
 
-    expect(furniture(store)[0]?.name).toBe('TV-bänk')
+    expect(furniture(store)[0]).toMatchObject({ name: 'TV-bänk', rotation: 90 })
+    store.getState().undo()
+    expect(furniture(store)[0]).toMatchObject({ name: 'TV-bänk', rotation: 0 })
     store.getState().undo()
     expect(furniture(store)[0]?.name).toBe('Cabinet')
-  })
-
-  it('are resized and moved from the walls within their ranges', () => {
-    const store = storeWithCabinet()
-
-    store.getState().setFurnitureDimension('furniture-1', 'height', 0.8)
-    store.getState().setFurnitureDimension('furniture-1', 'fromFrontWall', 1)
-    store.getState().setFurnitureDimension('furniture-1', 'width', 9)
-
-    expect(furniture(store)[0]).toMatchObject({
-      height: 0.8,
-      width: 1.6,
-      y: 1.225,
-    })
-  })
-
-  it('are turned a quarter turn at a time, as undo steps', () => {
-    const store = storeWithCabinet()
-
-    store.getState().turnFurniture('furniture-1')
-    store.getState().turnFurniture('furniture-1')
-
-    // Turned once against the front wall it moved in to 0.8 m.
-    expect(furniture(store)[0]).toMatchObject({ rotation: 180, y: 0.8 })
-    store.getState().undo()
-    expect(furniture(store)[0]?.rotation).toBe(90)
   })
 
   it('are dragged as one undo step, stopping at the walls', () => {
@@ -440,9 +432,9 @@ describe('furniture boxes', () => {
 
   it('are removed, the next one moving up, and undo brings it back', () => {
     const store = storeWithCabinet()
-    store.getState().addFurniture('shelf')
+    store.getState().addRoomObject({ kind: 'furniture', preset: 'shelf' })
 
-    store.getState().removeFurniture('furniture-1')
+    store.getState().removeRoomObject('furniture-1')
 
     expect(furniture(store).map(({ name }) => name)).toEqual(['Shelf'])
     store.getState().undo()
@@ -452,20 +444,22 @@ describe('furniture boxes', () => {
     ])
   })
 
-  it('change nothing for a box that is not there', () => {
+  it('make no undo step for a box that is not there', () => {
     const store = storeWithCabinet()
     const before = store.getState().config
 
-    store.getState().removeFurniture('furniture-2')
-    store.getState().turnFurniture('furniture-3')
+    store.getState().removeRoomObject('furniture-2')
+    store.getState().editRoomObject('furniture-3', furnitureTurned)
     store.getState().moveRoomObject('furniture-2', { x: 1, y: 1 })
 
     expect(store.getState().config).toBe(before)
+    store.getState().undo()
+    expect(furniture(store)).toEqual([])
   })
 
   it('shrink with the room, and undo gives both back', () => {
     const store = storeWithCabinet()
-    store.getState().setFurnitureDimension('furniture-1', 'width', 4)
+    setFurnitureDimension(store, 'furniture-1', 'width', 4)
 
     store.getState().setRoomDimension('width', 3)
 
@@ -477,8 +471,8 @@ describe('furniture boxes', () => {
   it('give placement warnings in the analysis, and leave the estimate as it is', () => {
     const store = storeWithCabinet()
     const before = analysis(store).response
-    store.getState().setFurnitureDimension('furniture-1', 'height', 2)
-    store.getState().setFurnitureDimension('furniture-1', 'fromFrontWall', 1)
+    setFurnitureDimension(store, 'furniture-1', 'height', 2)
+    setFurnitureDimension(store, 'furniture-1', 'fromFrontWall', 1)
 
     expect(
       analysis(store).placementWarnings.map(({ id, items }) => [id, ...items]),
@@ -488,8 +482,12 @@ describe('furniture boxes', () => {
 
   it('round-trip through the share link to the millimeter', () => {
     const store = storeWithCabinet()
-    store.getState().setFurnitureName('furniture-1', 'Hylla för CD')
-    store.getState().turnFurniture('furniture-1')
+    store
+      .getState()
+      .editRoomObject('furniture-1', (_, box) =>
+        withFurnitureName(box, 'Hylla för CD'),
+      )
+    store.getState().editRoomObject('furniture-1', furnitureTurned)
     store.getState().moveRoomObject('furniture-1', { x: -1.23456, y: 3.21 })
     const config: Config = store.getState().config
 
@@ -509,8 +507,21 @@ function openings(store: ConfigStore) {
 /** A store with the default room and a door in the middle of the back wall. */
 function storeWithDoor(): ConfigStore {
   const store = createConfigStore()
-  store.getState().addOpening('door')
+  store.getState().addRoomObject({ kind: 'opening', preset: 'door' })
   return store
+}
+
+function setOpeningDimension(
+  store: ConfigStore,
+  id: OpeningId,
+  dimension: OpeningDimension,
+  meters: number,
+) {
+  store
+    .getState()
+    .editRoomObject(id, (room, opening) =>
+      withOpeningDimension(room, opening, dimension, meters),
+    )
 }
 
 /** The default door: 0.9 m, in the middle of the default room's back wall. */
@@ -524,46 +535,31 @@ describe('doors and windows', () => {
     expect(openings(store)).toEqual([])
   })
 
-  it('are added, a door on the back wall and a window on the right wall, each as one undo step', () => {
+  it('are added, each as one undo step', () => {
     const store = createConfigStore()
 
-    store.getState().addOpening('door')
-    store.getState().addOpening('window')
+    store.getState().addRoomObject({ kind: 'opening', preset: 'door' })
+    store.getState().addRoomObject({ kind: 'opening', preset: 'window' })
 
-    expect(openings(store)).toEqual([
-      DOOR,
-      {
-        kind: 'window',
-        wall: 'right',
-        position: 3,
-        width: 1.2,
-        sill: 0.9,
-        height: 1.2,
-      },
-    ])
+    expect(openings(store).map(({ kind }) => kind)).toEqual(['door', 'window'])
     store.getState().undo()
     expect(openings(store)).toEqual([DOOR])
     store.getState().redo()
     expect(openings(store)).toHaveLength(2)
   })
 
-  it('stop at six', () => {
-    const store = createConfigStore()
-    for (let added = 0; added < 7; added += 1) {
-      store.getState().addOpening('window')
-    }
-
-    expect(openings(store)).toHaveLength(6)
-  })
-
-  it('move to another wall, and are resized and moved along it within their ranges', () => {
+  it('move to another wall and are resized, each as one undo step', () => {
     const store = storeWithDoor()
 
-    store.getState().setOpeningWall('opening-1', 'left')
-    store.getState().setOpeningDimension('opening-1', 'fromCorner', 1)
-    store.getState().setOpeningDimension('opening-1', 'width', 0.8)
-    store.getState().setOpeningDimension('opening-1', 'width', 0.1)
-    store.getState().setOpeningDimension('opening-1', 'sill', 0.5)
+    store
+      .getState()
+      .editRoomObject('opening-1', (room, opening) =>
+        withOpeningWall(room, opening, 'left'),
+      )
+    setOpeningDimension(store, 'opening-1', 'fromCorner', 1)
+    setOpeningDimension(store, 'opening-1', 'width', 0.8)
+    // A door has no sill to set: no step.
+    setOpeningDimension(store, 'opening-1', 'sill', 0.5)
 
     expect(openings(store)).toEqual([
       { ...DOOR, wall: 'left', position: 1.45, width: 0.8 },
@@ -587,24 +583,13 @@ describe('doors and windows', () => {
 
   it('are removed, the next one moving up, and undo brings it back', () => {
     const store = storeWithDoor()
-    store.getState().addOpening('window')
+    store.getState().addRoomObject({ kind: 'opening', preset: 'window' })
 
-    store.getState().removeOpening('opening-1')
+    store.getState().removeRoomObject('opening-1')
 
     expect(openings(store).map(({ kind }) => kind)).toEqual(['window'])
     store.getState().undo()
     expect(openings(store).map(({ kind }) => kind)).toEqual(['door', 'window'])
-  })
-
-  it('change nothing for an opening that is not there', () => {
-    const store = storeWithDoor()
-    const before = store.getState().config
-
-    store.getState().removeOpening('opening-2')
-    store.getState().setOpeningWall('opening-2', 'front')
-    store.getState().moveRoomObject('opening-3', { x: 1, y: 1 })
-
-    expect(store.getState().config).toBe(before)
   })
 
   it('stay on their wall when the room shrinks, and undo gives both back', () => {
@@ -635,7 +620,7 @@ describe('doors and windows', () => {
 
   it('leave the estimated response as it is', () => {
     const store = storeWithDoor()
-    store.getState().addOpening('window')
+    store.getState().addRoomObject({ kind: 'opening', preset: 'window' })
 
     expect(analysis(store).response).toEqual(
       analyzeRoom(DEFAULT_CONFIG).response,
@@ -644,8 +629,8 @@ describe('doors and windows', () => {
 
   it('round-trip through the share link to the millimeter', () => {
     const store = storeWithDoor()
-    store.getState().addOpening('window')
-    store.getState().setOpeningDimension('opening-2', 'width', 36 * 0.0254)
+    store.getState().addRoomObject({ kind: 'opening', preset: 'window' })
+    setOpeningDimension(store, 'opening-2', 'width', 36 * 0.0254)
     store.getState().moveRoomObject('opening-1', { x: -1.23456, y: 6 })
     const config: Config = store.getState().config
 

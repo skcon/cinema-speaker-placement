@@ -132,7 +132,7 @@ export type RoomAnalysis = {
   mlp: RoomPoint
   /** Whether the MLP is auto-placed or left by the user where it is. */
   mlpPlacement: Placement
-  /** The Seat row drawn around the MLP (a visual cue, not analyzed). */
+  /** The Seat row the MLP sits on (a room object, not analyzed). */
   seatRow: SeatRowFootprint
   /** Where the informal "38% rule" puts the seat: a reference only. */
   seatRuleOfThumb: SeatRuleOfThumb
@@ -267,7 +267,7 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     layout: layoutSummary,
     mlp,
     mlpPlacement: placements.mlp.placement,
-    seatRow: seatRowFootprint(config.room, mlp, config.seatRowWidth),
+    seatRow: seatRowFootprint(config.room, mlp, config.roomObjects.seatRow),
     seatRuleOfThumb: seatRuleOfThumb(config.room),
     mlpFrontWallFraction: frontWallFraction(config.room, mlp),
     speakers: heardSpeakers.map(({ speaker }) => speaker),

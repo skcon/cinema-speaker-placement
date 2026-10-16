@@ -9,7 +9,7 @@ import {
   type OverheadChannelId,
 } from '@/domain'
 import { createConfigStore, type ConfigStore } from '@/state/config-store'
-import { IMPERIAL_ROOM, V1_LINKS } from '@/test/share-link-fixtures'
+import { IMPERIAL_ROOM, V2_LINKS } from '@/test/share-link-fixtures'
 
 /** The default room (6 x 4.5 x 2.6 m, 5.1.2) with this layout. */
 function inLayout(dolbyLayout: Config['layout']['dolbyLayout']): Config {
@@ -140,7 +140,7 @@ describe('auto and manual items', () => {
   it('leave the MLP auto on Auto-place when the 38% seed is already the recommended seat', () => {
     // In the 24 x 15 ft 7.2.2 room no seat is meaningfully better than
     // the seed (see the seat score tests).
-    const config = { ...V1_LINKS.imperialRoom.config } as Config
+    const config = { ...V2_LINKS.imperialRoom.config } as Config
     const store = createConfigStore({
       ...config,
       manualPositions: { L: { x: -1, y: 1, z: 1.2 } },

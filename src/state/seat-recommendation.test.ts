@@ -5,9 +5,36 @@ import { seatScoreKey } from '@/state/seat-recommendation'
 describe('the seat score memo key', () => {
   const key = seatScoreKey(DEFAULT_CONFIG)
 
-  it('ignores the units and the seat row width, which the score does not depend on', () => {
+  it('ignores the units and the seat row size, which the score does not depend on', () => {
     expect(seatScoreKey({ ...DEFAULT_CONFIG, units: 'imperial' })).toBe(key)
-    expect(seatScoreKey({ ...DEFAULT_CONFIG, seatRowWidth: 3 })).toBe(key)
+    expect(
+      seatScoreKey({
+        ...DEFAULT_CONFIG,
+        roomObjects: {
+          ...DEFAULT_CONFIG.roomObjects,
+          seatRow: { width: 3, depth: 1.2 },
+        },
+      }),
+    ).toBe(key)
+  })
+
+  it('changes with another room object, which a later auto-place may use', () => {
+    const withScreen: Config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        ...DEFAULT_CONFIG.roomObjects,
+        screen: {
+          kind: 'tv',
+          width: 1.44,
+          height: 0.81,
+          bottomEdge: 0.93,
+          x: 0,
+          standoff: null,
+        },
+      },
+    }
+
+    expect(seatScoreKey(withScreen)).not.toBe(key)
   })
 
   it.each([

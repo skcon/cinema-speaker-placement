@@ -585,26 +585,39 @@ export const SEAT_SCORE = {
 }
 
 /**
- * The Seat row (GLOSSARY.md): a couch or row of seats drawn centered on
- * the MLP, a visual cue only. Its width is in the config; its depth is
- * fixed. The default (about a three-seat couch), the limits (one seat to
- * a long row) and the depth are product choices, not cited values.
+ * The Seat row (GLOSSARY.md): the couch or row of seats the MLP sits on,
+ * a room object that is drawn but never part of the estimated response
+ * (ADR 0006). Its width and depth are in the config; where it is follows
+ * the MLP. The defaults, the limits and the head offset are product
+ * choices, not cited values (docs/research/seating-and-mlp.md section 2):
+ *
+ * - **defaultWidth**: about a three-seat couch (retail 1.83-2.44 m).
+ * - **widthLimits**: one seat to a long row; kept from v1.0.0.
+ * - **defaultDepth**: inside the retail overall depth of 0.81-1.02 m.
+ * - **depthLimits**: ours, to catch typos. The retail 0.81-1.02 m sits well
+ *   inside; the minimum keeps the MLP on the couch (deeper than
+ *   headOffset), the maximum leaves room for a chaise or a reclined seat.
+ * - **headOffset**: how far the couch's back edge is behind the MLP.
  */
 export const SEAT_ROW = {
   defaultWidth: 2,
-  limits: { min: 0.5, max: 8 },
-  depth: 0.9,
+  widthLimits: { min: 0.5, max: 8 },
+  defaultDepth: 0.9,
+  depthLimits: { min: 0.5, max: 2 },
   headOffset: 0.35,
   note:
-    'Product choices for a visual cue, not cited values. headOffset is how ' +
+    'Product choices for a room object, not cited values. headOffset is how ' +
     "far the couch's back edge is behind the MLP (the listener's head): our " +
     'estimate, UNVERIFIED, from couch back thickness (0.25–0.45 m) plus about ' +
     '0.1 m from the back of the head to the ears; no source gives it ' +
-    '(docs/research/seating-and-mlp.md, section 2 and its table; range 0.3–0.5 m).',
+    '(docs/research/seating-and-mlp.md, section 2 and its table; range 0.3–0.5 m). ' +
+    'The depth limits are ours; the retail overall depth (0.81–1.02 m, ' +
+    'UNVERIFIED) sits inside them.',
 } as const satisfies {
   defaultWidth: number
-  limits: { min: number; max: number }
-  depth: number
+  widthLimits: { min: number; max: number }
+  defaultDepth: number
+  depthLimits: { min: number; max: number }
   headOffset: number
   note: string
 }

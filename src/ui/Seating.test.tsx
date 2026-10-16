@@ -48,17 +48,4 @@ describe('seating in the sidebar', () => {
       /Reference only.*not a standard.*not part of the recommendation/,
     )
   })
-
-  it('takes a seat row width', () => {
-    const seating = renderSeating()
-    const width = within(
-      within(seating).getByRole('group', { name: /^Seat row width/ }),
-    ).getByRole('textbox', { name: 'm' })
-
-    fireEvent.focus(width)
-    fireEvent.change(width, { target: { value: '3.5' } })
-    fireEvent.blur(width)
-
-    expect(width).toHaveValue('3.5')
-  })
 })

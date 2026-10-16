@@ -8,7 +8,7 @@ import {
   DEFAULT_CONFIG,
   decodeConfig,
   encodeConfig,
-  NO_ROOM_OBJECTS,
+  DEFAULT_ROOM_OBJECTS,
   TARGET_CURVE_KINDS,
   UNIT_SYSTEM_NAMES,
   V1_DOLBY_LAYOUTS,
@@ -32,23 +32,34 @@ function encodedHolding(json: unknown): string {
 
 const FALLBACK = { config: DEFAULT_CONFIG, problem: 'unreadable' }
 
-/** A config in version 1's shape: without room objects. */
+/**
+ * A config in version 1's shape: without room objects, the seat row's
+ * width a field of its own.
+ */
 function inVersion1({ roomObjects, ...config }: Config): ConfigV1 {
-  void roomObjects
-  return config
+  return { ...config, seatRowWidth: roomObjects.seatRow.width }
 }
 
 /** The default config as a version 1 link holds it. */
 const DEFAULT_V1 = inVersion1(DEFAULT_CONFIG)
 
 /**
- * A config of version 1's shape as a version 2 link would hold it: with
- * no room objects (anything that is not an object stays as it is).
+ * A config of version 1's shape as a version 2 link would hold it: its
+ * seat row width as the default room objects' seat row, 0.9 m deep as
+ * version 1 drew it (anything that is not an object stays as it is).
  */
 function inVersion2(config: unknown): unknown {
-  return typeof config === 'object' && config !== null && !Array.isArray(config)
-    ? { ...config, roomObjects: NO_ROOM_OBJECTS }
-    : config
+  if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+    return config
+  }
+  const { seatRowWidth, ...rest } = config as Record<string, unknown>
+  return {
+    ...rest,
+    roomObjects: {
+      ...DEFAULT_ROOM_OBJECTS,
+      seatRow: { width: seatRowWidth, depth: 0.9 },
+    },
+  }
 }
 
 /** Two subwoofer models that differ from the defaults in every spec. */
@@ -368,32 +379,83 @@ const TV = {
   standoff: null,
 } as const
 
+/** The default seat row, as the broken room objects below have it. */
+const COUCH = { width: 2, depth: 0.9 } as const
+
 /** Room objects that break the rules of version 2, in the default room. */
 const BROKEN_ROOM_OBJECTS: [string, unknown][] = [
   ['room objects that are null', null],
-  ['no screen field', {}],
-  ['an unknown room object', { screen: null, piano: true }],
-  ['an unknown kind of screen', { screen: { ...TV, kind: 'laser' } }],
-  ['a screen narrower than 0.5 m', { screen: { ...TV, width: 0.4 } }],
+  ['no screen field', { seatRow: COUCH }],
+  ['an unknown room object', { seatRow: COUCH, screen: null, piano: true }],
+  [
+    'an unknown kind of screen',
+    { seatRow: COUCH, screen: { ...TV, kind: 'laser' } },
+  ],
+  [
+    'a screen narrower than 0.5 m',
+    { seatRow: COUCH, screen: { ...TV, width: 0.4 } },
+  ],
   // The default room is 4.5 m wide.
-  ['a screen wider than the front wall', { screen: { ...TV, width: 4.6 } }],
-  ['a screen past a side wall', { screen: { ...TV, x: 1.6 } }],
+  [
+    'a screen wider than the front wall',
+    { seatRow: COUCH, screen: { ...TV, width: 4.6 } },
+  ],
+  ['a screen past a side wall', { seatRow: COUCH, screen: { ...TV, x: 1.6 } }],
   // The default room is 2.6 m high.
-  ['a screen through the ceiling', { screen: { ...TV, bottomEdge: 2 } }],
-  ['a screen below the floor', { screen: { ...TV, bottomEdge: -0.1 } }],
-  ['a TV with a standoff', { screen: { ...TV, standoff: 0.5 } }],
+  [
+    'a screen through the ceiling',
+    { seatRow: COUCH, screen: { ...TV, bottomEdge: 2 } },
+  ],
+  [
+    'a screen below the floor',
+    { seatRow: COUCH, screen: { ...TV, bottomEdge: -0.1 } },
+  ],
+  [
+    'a TV with a standoff',
+    { seatRow: COUCH, screen: { ...TV, standoff: 0.5 } },
+  ],
   [
     'a standoff above 1.5 m',
-    { screen: { ...TV, kind: 'projection', standoff: 1.6 } },
+    { seatRow: COUCH, screen: { ...TV, kind: 'projection', standoff: 1.6 } },
   ],
-  ['a screen width that is text', { screen: { ...TV, width: '1.44' } }],
+  [
+    'a screen width that is text',
+    { seatRow: COUCH, screen: { ...TV, width: '1.44' } },
+  ],
   [
     'a screen without a standoff field',
     {
+      seatRow: COUCH,
       screen: { kind: 'tv', width: 1.44, height: 0.81, bottomEdge: 0.93, x: 0 },
     },
   ],
-  ['a screen with an unknown field', { screen: { ...TV, diagonal: 65 } }],
+  [
+    'a screen with an unknown field',
+    { seatRow: COUCH, screen: { ...TV, diagonal: 65 } },
+  ],
+  ['no seat row field', { screen: null }],
+  ['a seat row that is null', { seatRow: null, screen: null }],
+  [
+    'a seat row narrower than one seat',
+    { seatRow: { ...COUCH, width: 0.4 }, screen: null },
+  ],
+  [
+    'a seat row shallower than 0.5 m',
+    { seatRow: { ...COUCH, depth: 0.4 }, screen: null },
+  ],
+  [
+    'a seat row deeper than 2 m',
+    { seatRow: { ...COUCH, depth: 2.1 }, screen: null },
+  ],
+  [
+    'a seat row depth that is text',
+    { seatRow: { ...COUCH, depth: '0.9' }, screen: null },
+  ],
+  ['a seat row without a depth', { seatRow: { width: 2 }, screen: null }],
+  [
+    'a seat row with a position of its own',
+    { seatRow: { ...COUCH, x: 0, y: 3 }, screen: null },
+  ],
 ]
 
 describe('share link codec', () => {
@@ -501,8 +563,16 @@ describe('share link codec', () => {
     })
   })
 
-  it.each([0.5, 2, 3.6576, 8])('rebuilds a %d m seat row', (seatRowWidth) => {
-    const config: Config = { ...DEFAULT_CONFIG, seatRowWidth }
+  it.each([
+    [0.5, 0.5],
+    [2, 0.9],
+    [3.6576, 0.9144],
+    [8, 2],
+  ])('rebuilds a %d m wide, %d m deep seat row', (width, depth) => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: { ...DEFAULT_ROOM_OBJECTS, seatRow: { width, depth } },
+    }
 
     expect(decodeConfig(encodeConfig(config))).toEqual({
       config,
@@ -556,11 +626,12 @@ describe('share link codec', () => {
   })
 
   it.each([
-    ['no screen', NO_ROOM_OBJECTS],
-    ['a TV on the wall', { screen: TV }],
+    ['no screen', DEFAULT_ROOM_OBJECTS],
+    ['a TV on the wall', { ...DEFAULT_ROOM_OBJECTS, screen: TV }],
     [
       'an acoustically transparent projection screen',
       {
+        ...DEFAULT_ROOM_OBJECTS,
         screen: {
           ...TV,
           kind: 'projection',
@@ -582,11 +653,14 @@ describe('share link codec', () => {
   it('rebuilds where a screen was dragged to the nearest millimeter', () => {
     const config: Config = {
       ...DEFAULT_CONFIG,
-      roomObjects: { screen: { ...TV, x: -0.98765 } },
+      roomObjects: { ...DEFAULT_ROOM_OBJECTS, screen: { ...TV, x: -0.98765 } },
     }
 
     expect(decodeConfig(encodeConfig(config))).toEqual({
-      config: { ...config, roomObjects: { screen: { ...TV, x: -0.988 } } },
+      config: {
+        ...config,
+        roomObjects: { ...DEFAULT_ROOM_OBJECTS, screen: { ...TV, x: -0.988 } },
+      },
       problem: null,
     })
   })
@@ -594,10 +668,19 @@ describe('share link codec', () => {
   it('rebuilds a screen dragged against a side wall, rounded half a millimeter past it', () => {
     // 4.5 m wall, 1.4428 m screen: its middle stops 1.5286 m off centre.
     const screen = { ...TV, width: 1.4428, x: (4.5 - 1.4428) / 2 }
-    const config: Config = { ...DEFAULT_CONFIG, roomObjects: { screen } }
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: { ...DEFAULT_ROOM_OBJECTS, screen },
+    }
 
     expect(decodeConfig(encodeConfig(config))).toEqual({
-      config: { ...config, roomObjects: { screen: { ...screen, x: 1.529 } } },
+      config: {
+        ...config,
+        roomObjects: {
+          ...DEFAULT_ROOM_OBJECTS,
+          screen: { ...screen, x: 1.529 },
+        },
+      },
       problem: null,
     })
   })
@@ -706,7 +789,7 @@ const codecV1 = createConfigCodec({
   version: 1,
   schema: configSchemaV1,
   migrations: {},
-  fallback: DEFAULT_CONFIG,
+  fallback: DEFAULT_V1,
 })
 
 describe('released share links', () => {
@@ -714,10 +797,17 @@ describe('released share links', () => {
   const links: Record<string, { encoded: string; config: ConfigV1 }> = V1_LINKS
 
   it.each(Object.entries(links))(
-    'keep opening as the same room, without room objects: %s',
+    'keep opening as the same room, their seat row width a 0.9 m deep seat row and no other room objects: %s',
     (_, { encoded, config }) => {
+      const { seatRowWidth, ...rest } = config
       expect(decodeConfig(encoded)).toEqual({
-        config: { ...config, roomObjects: NO_ROOM_OBJECTS },
+        config: {
+          ...rest,
+          roomObjects: {
+            seatRow: { width: seatRowWidth, depth: 0.9 },
+            screen: null,
+          },
+        },
         problem: null,
       })
     },
@@ -734,7 +824,10 @@ describe('released share links', () => {
   it.each(BROKEN_CONFIGS)(
     'fall back with the frozen version 1 schema alone, for a config with %s',
     (_, config) => {
-      expect(codecV1.decode(encodedHolding({ v: 1, config }))).toEqual(FALLBACK)
+      expect(codecV1.decode(encodedHolding({ v: 1, config }))).toEqual({
+        config: DEFAULT_V1,
+        problem: 'unreadable',
+      })
     },
   )
 })
@@ -810,8 +903,6 @@ const WORST_CASE_CONFIG: Config = {
   targetCurve: 'house',
   // All 17 significant digits.
   crossoverHz: 199 - 1 / 7,
-  // All 17 significant digits, as a converted feet + inches value can have.
-  seatRowWidth: 8 - 1 / 7,
   // Every listener-level speaker, every overhead (on the ceiling, stored to
   // the millimeter as the link writes it), every
   // subwoofer (at subwoofer height) and the MLP (at ear height) moved by
@@ -834,10 +925,12 @@ const WORST_CASE_CONFIG: Config = {
     Sub4: longestPosition(10, 0.3),
     MLP: longestPosition(11, 1.2),
   },
-  // The longer kind with a standoff, every length with all 17 significant
-  // digits a converted feet + inches value can have, and the position
-  // negative and to the millimeter, as a dragged screen is stored.
+  // The seat row's lengths with all 17 significant digits a converted
+  // feet + inches value can have. The screen of the longer kind with a
+  // standoff, every length with all 17 significant digits, and the
+  // position negative and to the millimeter, as a dragged screen is stored.
   roomObjects: {
+    seatRow: { width: 8 - 1 / 7, depth: 2 - 1 / 7 },
     screen: {
       kind: 'projection',
       width: 8 - 1 / 7,

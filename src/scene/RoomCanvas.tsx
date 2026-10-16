@@ -38,6 +38,7 @@ import {
   type RoomPoint,
   type RoomScreen,
   SCREEN_ID,
+  SEAT_ROW_ID,
   type SeatHeatmap,
   type SeatRowFootprint,
   type UnitSystem,
@@ -245,7 +246,7 @@ export function RoomCanvas({
         )}
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
-        <SeatRow footprint={seatRow} />
+        <SeatRow footprint={seatRow} mlp={mlp} markerDrag={markerDrag} />
         <RuleOfThumbLine room={room} fromFrontWall={ruleOfThumbFromFrontWall} />
         {heatmap && heatmap.cells.length > 0 && (
           // Remounted when the number of cells changes: an instanced
@@ -339,9 +340,11 @@ type DraggableProps = {
   /**
    * The marker's own size, in meters: the radius of an item's round grab
    * area, or the width (along x) and depth (along y) of a room object's
-   * rectangular one (which items' grab areas win over).
+   * rectangular one (which items' grab areas win over), centred on `at`
+   * unless `center` says where (the Seat row is dragged by the MLP on it).
    */
-  grab: { radius: number } | { width: number; depth: number }
+  grab:
+    { radius: number } | { width: number; depth: number; center?: FloorPoint }
   children: ReactNode
 }
 
@@ -423,10 +426,11 @@ function DraggableGroup({
           marker, so a marker is easy to pick up with a finger; markers
           drawn above it win. */}
       <mesh
-        position={toScenePosition({
-          ...at,
-          z: 'radius' in grab ? LAYER.grab : LAYER.objectGrab,
-        })}
+        position={toScenePosition(
+          'radius' in grab
+            ? { ...at, z: LAYER.grab }
+            : { ...(grab.center ?? at), z: LAYER.objectGrab },
+        )}
         rotation={FLAT_ON_FLOOR}
       >
         {'radius' in grab ? (
@@ -644,17 +648,36 @@ function FloorLine({
   )
 }
 
-/** The Seat row: a pale rectangle on the floor around the MLP, drawn only. */
-function SeatRow({ footprint }: { footprint: SeatRowFootprint }) {
+/**
+ * The Seat row: a pale rectangle on the floor with the MLP near its back.
+ * Seen from above it is dragged by the MLP on it, which the store moves
+ * (and makes manual), so the couch and the MLP move together.
+ */
+function SeatRow({
+  footprint,
+  mlp,
+  markerDrag,
+}: {
+  footprint: SeatRowFootprint
+  mlp: RoomPoint
+  markerDrag: MarkerDrag | null
+}) {
   const { center, width, depth } = footprint
   return (
-    <mesh
-      position={toScenePosition({ ...center, z: LAYER.seatRow })}
-      rotation={FLAT_ON_FLOOR}
+    <Draggable
+      id={SEAT_ROW_ID}
+      at={mlp}
+      grab={{ width, depth, center }}
+      markerDrag={markerDrag}
     >
-      <planeGeometry args={[width, depth]} />
-      <meshBasicMaterial color={SCENE_COLORS.seatRow} />
-    </mesh>
+      <mesh
+        position={toScenePosition({ ...center, z: LAYER.seatRow })}
+        rotation={FLAT_ON_FLOOR}
+      >
+        <planeGeometry args={[width, depth]} />
+        <meshBasicMaterial color={SCENE_COLORS.seatRow} />
+      </mesh>
+    </Draggable>
   )
 }
 

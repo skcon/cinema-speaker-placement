@@ -6,7 +6,7 @@ import {
   scoreSeat,
   type Config,
 } from '@/domain'
-import { V1_LINKS } from '@/test/share-link-fixtures'
+import { V2_LINKS } from '@/test/share-link-fixtures'
 
 /** The default room with the front speakers left by hand where auto-place puts them today. */
 function withManualFront(): Config {
@@ -105,7 +105,7 @@ describe('recommended seat', () => {
   it('keeps the MLP when no seat is better by more than the model’s precision', () => {
     // The 24 x 15 ft 7.2.2 room of the share-link fixtures: the best seat
     // of the grid is only about a point better than the 38% MLP.
-    const config = V1_LINKS.imperialRoom.config as Config
+    const config = V2_LINKS.imperialRoom.config as Config
     const { recommended, current, candidates, mlpIsRecommended } =
       recommendSeat(config)
     const best = Math.max(...candidates.map((seat) => seat.score))

@@ -19,9 +19,11 @@ import {
   areValidRoomObjects,
   keepRoomObjectsInRoom,
   roomObjectsMoved,
+  SEAT_ROW_ID,
   type RoomObjectId,
   type RoomObjects,
 } from './room-objects'
+import { withSeatRowDimension, type SeatRowDimension } from './seat-row'
 import { recommendSeat } from './seat-score'
 import type { RoomScreen } from './screen'
 import {
@@ -109,15 +111,39 @@ export function withRoomObjects(
   return { ...config, roomObjects }
 }
 
-/** Room object `id` dragged on the floor plan to `to` (see roomObjectsMoved). */
+/**
+ * Room object `id` dragged on the floor plan to `to` (see
+ * roomObjectsMoved). The Seat row is where the MLP is, so dragging it
+ * moves the MLP: `to` is where the MLP goes, which makes it manual and
+ * keeps it inside its wall clearances, as dragging the MLP itself does.
+ */
 export function withRoomObjectMoved(
   config: Config,
   id: RoomObjectId,
   to: FloorPoint,
 ): Config {
+  if (id === SEAT_ROW_ID) {
+    const moved = placeManually(config, MLP_ID, { x: to.x, y: to.y })
+    return samePositions(moved, config) ? config : moved
+  }
   return withRoomObjects(config, (room, objects) =>
     roomObjectsMoved(room, objects, id, to),
   )
+}
+
+/**
+ * The config with one of the Seat row's lengths changed. Comes back as it
+ * was when the length is not accepted or doesn't change.
+ */
+export function withSeatRowSize(
+  config: Config,
+  dimension: SeatRowDimension,
+  meters: number,
+): Config {
+  return withRoomObjects(config, (_, objects) => {
+    const seatRow = withSeatRowDimension(objects.seatRow, dimension, meters)
+    return seatRow ? { ...objects, seatRow } : objects
+  })
 }
 
 /**

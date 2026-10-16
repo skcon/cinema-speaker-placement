@@ -57,7 +57,7 @@ import { z } from 'zod'
 import { configSchema, DEFAULT_CONFIG, type Config } from './config'
 import { configSchemaV1 } from './config-v1'
 import { roundToMillimeter } from './manual-positions'
-import { NO_ROOM_OBJECTS, roundRoomObjectsForLink } from './room-objects'
+import { DEFAULT_ROOM_OBJECTS, roundRoomObjectsForLink } from './room-objects'
 
 /**
  * Why a share link could not be opened: it is damaged or not a share link
@@ -162,13 +162,25 @@ export type EncodedConfig = string & { readonly __brand: 'EncodedConfig' }
 /** The current config schema version: the `v` that new share links get. */
 const CONFIG_VERSION = 2
 
+/**
+ * How deep v1.0.0 drew every Seat row, in meters: version 1 stored only
+ * its width. A fact about that release, so not SEAT_ROW's (changeable)
+ * default.
+ */
+const V1_SEAT_ROW_DEPTH = 0.9
+
 /** Migrations from each earlier schema version to the next. */
 const CONFIG_MIGRATIONS: Readonly<Record<number, Migration>> = {
   // The 1.1.0 tickets that extend version 2 give their new fields the
-  // value a version 1 link means here. Version 1 had no room objects.
-  1: migrateFrom(configSchemaV1, (config) => ({
+  // value a version 1 link means here. Version 1 had no room objects
+  // except the seat row, whose width was a field of its own and whose
+  // position (then as now) follows the MLP.
+  1: migrateFrom(configSchemaV1, ({ seatRowWidth, ...config }) => ({
     ...config,
-    roomObjects: NO_ROOM_OBJECTS,
+    roomObjects: {
+      ...DEFAULT_ROOM_OBJECTS,
+      seatRow: { width: seatRowWidth, depth: V1_SEAT_ROW_DEPTH },
+    },
   })),
 }
 

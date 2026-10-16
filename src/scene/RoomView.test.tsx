@@ -182,11 +182,26 @@ describe('overhead speakers in the room view', () => {
   })
 })
 
+describe('the seat row in the room view', () => {
+  it('is described for screen readers as a room object the MLP sits on, and can be dragged', async () => {
+    renderRoomView()
+
+    expect(scene()).toHaveAccessibleName(
+      /A seat row 2 m wide and 0\.9 m deep, with the MLP 0\.35 m in front of its back; dragging it moves the MLP\. Room objects are drawn and used for placement warnings, not part of the estimated response\./,
+    )
+    expect(await screen.findByText('top-down camera')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Drag the seat row to move it with the MLP\./),
+    ).toBeVisible()
+  })
+})
+
 describe('the screen in the room view', () => {
   function renderWithScreen() {
     const config = {
       ...DEFAULT_CONFIG,
       roomObjects: {
+        ...DEFAULT_CONFIG.roomObjects,
         screen: {
           kind: 'tv',
           width: 1.44,

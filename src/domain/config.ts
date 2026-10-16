@@ -11,11 +11,11 @@ import {
 } from './manual-positions'
 import {
   areValidRoomObjects,
-  NO_ROOM_OBJECTS,
+  DEFAULT_ROOM_OBJECTS,
   type RoomObjects,
 } from './room-objects'
 import { SCREEN_KINDS, type RoomScreen } from './screen'
-import { checkSeatRowWidth, DEFAULT_SEAT_ROW_WIDTH } from './seat-row'
+import type { SeatRow } from './seat-row'
 import {
   checkRoomDimension,
   DEFAULT_ROOM,
@@ -88,6 +88,15 @@ const screenSchema = z.strictObject({
 }) satisfies z.ZodType<RoomScreen>
 
 /**
+ * The Seat row's size, in meters; its limits are checked with the other
+ * room objects. It stores no position: it sits where the MLP is.
+ */
+const seatRowSchema = z.strictObject({
+  width: z.number(),
+  depth: z.number(),
+}) satisfies z.ZodType<SeatRow>
+
+/**
  * The config's shape and rules: a config that passes it is one the store
  * accepts, and share links store configs in this shape. Strict: every field
  * is required and unknown fields are rejected, so a share link that doesn't
@@ -129,18 +138,16 @@ export const configSchema = z
     targetCurve: z.enum(TARGET_CURVE_KINDS),
     // The crossover between the Speakers and the Subwoofers, in Hz.
     crossoverHz: z.number().refine((hz) => checkCrossover(hz) === null),
-    // The Seat row's width in meters: drawn only, not analyzed.
-    seatRowWidth: z
-      .number()
-      .refine((meters) => checkSeatRowWidth(meters) === null),
     // Keyed by channel, subwoofer id or MLP; an item without one is auto.
     manualPositions: z.partialRecord(
       z.enum(PLACEABLE_IDS),
       roomPointSchema,
     ) satisfies z.ZodType<ManualPositions>,
     // Room objects (ADR 0006): drawn, never part of the estimate. A Room
-    // without any (every version 1 link) has NO_ROOM_OBJECTS.
+    // starts with DEFAULT_ROOM_OBJECTS; a version 1 link with those and its
+    // seat row width.
     roomObjects: z.strictObject({
+      seatRow: seatRowSchema,
       screen: screenSchema.nullable(),
     }) satisfies z.ZodType<RoomObjects>,
   })
@@ -178,7 +185,6 @@ export const DEFAULT_CONFIG: Config = {
   amplifierWatts: DEFAULT_AMPLIFIER_WATTS,
   targetCurve: 'flat',
   crossoverHz: DEFAULT_CROSSOVER_HZ,
-  seatRowWidth: DEFAULT_SEAT_ROW_WIDTH,
   manualPositions: {},
-  roomObjects: NO_ROOM_OBJECTS,
+  roomObjects: DEFAULT_ROOM_OBJECTS,
 }

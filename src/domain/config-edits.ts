@@ -15,14 +15,9 @@ import {
   type PlaceableId,
 } from './manual-positions'
 import { positionOf } from './placements'
-import {
-  keepRoomObjectsInRoom,
-  SEAT_ROW_ID,
-  withRoomObjectMoved,
-  type RoomObjectId,
-} from './room-objects'
+import { keepRoomObjectsInRoom } from './room-objects'
 import { recommendSeat } from './seat-score'
-import type { FloorPoint, Room, RoomPoint, Wall } from './room'
+import type { Room, RoomPoint, Wall } from './room'
 import { atDistanceFromWall } from './wall-frame'
 
 /**
@@ -83,24 +78,6 @@ export function withRoom(config: Config, room: Room): Config {
 }
 
 /**
- * What a drag of room object `id` on the floor plan to `to` does (see
- * withRoomObjectMoved). The Seat row is where the MLP is, so dragging it
- * moves the MLP: `to` is where the MLP goes, which makes it manual and
- * keeps it inside its wall clearances, as dragging the MLP itself does.
- */
-export function withRoomObjectDragged(
-  config: Config,
-  id: RoomObjectId,
-  to: FloorPoint,
-): Config {
-  if (id === SEAT_ROW_ID) {
-    const moved = placeManually(config, MLP_ID, { x: to.x, y: to.y })
-    return samePositions(moved, config) ? config : moved
-  }
-  return withRoomObjectMoved(config, id, to)
-}
-
-/**
  * The config with another layout: items both layouts have keep their
  * manual positions, items only the old one had lose theirs, and new items
  * are auto.
@@ -145,6 +122,6 @@ export function withAutoPlacement(config: Config): Config {
 }
 
 /** Whether two configs have the same manual positions. */
-function samePositions(a: Config, b: Config): boolean {
+export function samePositions(a: Config, b: Config): boolean {
   return JSON.stringify(a.manualPositions) === JSON.stringify(b.manualPositions)
 }

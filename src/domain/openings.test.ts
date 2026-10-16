@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { checkLength, withLength } from './object-lengths'
 import {
-  checkOpeningDimension,
   fitOpeningToRoom,
   isValidOpening,
   newOpening,
-  openingDimension,
+  OPENING_LENGTHS,
   openingEnds,
   openingLabel,
   openingMovedTo,
   openingSpan,
   openingVerticalSpan,
-  withOpeningDimension,
   withOpeningWall,
   type Door,
   type Opening,
@@ -91,23 +90,25 @@ describe('where an opening is', () => {
 
 describe('editing an opening', () => {
   it('reads its distance from the corner as from its nearest edge', () => {
-    expect(openingDimension(DOOR, 'fromCorner')).toBeCloseTo(1.8, 12)
-    expect(openingDimension(WINDOW, 'sill')).toBe(0.9)
-    expect(openingDimension(DOOR, 'sill')).toBeNull()
+    expect(OPENING_LENGTHS.read(ROOM, DOOR, 'fromCorner')).toBeCloseTo(1.8, 12)
+    expect(OPENING_LENGTHS.read(ROOM, WINDOW, 'sill')).toBe(0.9)
+    expect(OPENING_LENGTHS.read(ROOM, DOOR, 'sill')).toBeNull()
   })
 
   it('moves it along its wall by its distance from the corner', () => {
-    expect(withOpeningDimension(ROOM, DOOR, 'fromCorner', 0)).toEqual({
+    expect(withLength(OPENING_LENGTHS, ROOM, DOOR, 'fromCorner', 0)).toEqual({
       ...DOOR,
       position: 0.45,
     })
-    expect(withOpeningDimension(ROOM, DOOR, 'fromCorner', 3.7)).toBeNull()
+    expect(
+      withLength(OPENING_LENGTHS, ROOM, DOOR, 'fromCorner', 3.7),
+    ).toBeNull()
   })
 
   it('widens it, moving it in from the corner it would pass', () => {
     const inCorner = { ...DOOR, position: 0.45 }
 
-    expect(withOpeningDimension(ROOM, inCorner, 'width', 1.5)).toEqual({
+    expect(withLength(OPENING_LENGTHS, ROOM, inCorner, 'width', 1.5)).toEqual({
       ...DOOR,
       position: 0.75,
       width: 1.5,
@@ -115,34 +116,42 @@ describe('editing an opening', () => {
   })
 
   it('rejects a width outside its limits or wider than the wall', () => {
-    expect(checkOpeningDimension(ROOM, DOOR, 'width', 0.2)).toMatchObject({
+    expect(
+      checkLength(OPENING_LENGTHS, ROOM, DOOR, 'width', 0.2),
+    ).toMatchObject({
       problem: 'too-small',
     })
-    expect(checkOpeningDimension(ROOM, DOOR, 'width', 4.6)).toMatchObject({
+    expect(
+      checkLength(OPENING_LENGTHS, ROOM, DOOR, 'width', 4.6),
+    ).toMatchObject({
       problem: 'too-large',
       max: 4.5,
     })
-    expect(checkOpeningDimension(ROOM, WINDOW, 'width', 6)).toBeNull()
+    expect(checkLength(OPENING_LENGTHS, ROOM, WINDOW, 'width', 6)).toBeNull()
   })
 
   it('keeps a window under the ceiling: sill plus height at most the room height', () => {
-    expect(checkOpeningDimension(ROOM, WINDOW, 'sill', 1.4)).toBeNull()
-    expect(checkOpeningDimension(ROOM, WINDOW, 'sill', 1.5)).toMatchObject({
+    expect(checkLength(OPENING_LENGTHS, ROOM, WINDOW, 'sill', 1.4)).toBeNull()
+    expect(
+      checkLength(OPENING_LENGTHS, ROOM, WINDOW, 'sill', 1.5),
+    ).toMatchObject({
       problem: 'too-large',
     })
-    expect(checkOpeningDimension(ROOM, WINDOW, 'height', 1.8)).toMatchObject({
+    expect(
+      checkLength(OPENING_LENGTHS, ROOM, WINDOW, 'height', 1.8),
+    ).toMatchObject({
       problem: 'too-large',
     })
-    expect(withOpeningDimension(ROOM, WINDOW, 'height', 1.7)).toEqual({
+    expect(withLength(OPENING_LENGTHS, ROOM, WINDOW, 'height', 1.7)).toEqual({
       ...WINDOW,
       height: 1.7,
     })
   })
 
   it('gives a door no sill or height to edit', () => {
-    expect(withOpeningDimension(ROOM, DOOR, 'sill', 0.5)).toBeNull()
-    expect(withOpeningDimension(ROOM, DOOR, 'height', 1)).toBeNull()
-    expect(openingDimension(DOOR, 'height')).toBeNull()
+    expect(withLength(OPENING_LENGTHS, ROOM, DOOR, 'sill', 0.5)).toBeNull()
+    expect(withLength(OPENING_LENGTHS, ROOM, DOOR, 'height', 1)).toBeNull()
+    expect(OPENING_LENGTHS.read(ROOM, DOOR, 'height')).toBeNull()
   })
 
   it('moves it to another wall, keeping where it is along it as far as it fits', () => {

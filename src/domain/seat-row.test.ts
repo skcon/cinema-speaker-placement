@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_ROOM, seatRowFootprint } from '@/domain'
-import {
-  checkSeatRowDimension,
-  DEFAULT_SEAT_ROW,
-  isValidSeatRow,
-  withSeatRowDimension,
-} from './seat-row'
+import { checkLength, withLength } from './object-lengths'
+import { DEFAULT_SEAT_ROW, isValidSeatRow, SEAT_ROW_LENGTHS } from './seat-row'
+
+/** The default room: the seat row's limits don't depend on it. */
+const ROOM = DEFAULT_ROOM
 
 describe('seat row footprint', () => {
   it('puts the MLP 0.35 m in front of the couch back, centered across, as wide and deep as set', () => {
@@ -55,7 +54,7 @@ describe('seat row footprint', () => {
 describe('seat row size', () => {
   it('starts as a three-seat couch, 2 m wide and 0.9 m deep', () => {
     expect(DEFAULT_SEAT_ROW).toEqual({ width: 2, depth: 0.9 })
-    expect(isValidSeatRow(DEFAULT_SEAT_ROW)).toBe(true)
+    expect(isValidSeatRow(ROOM, DEFAULT_SEAT_ROW)).toBe(true)
   })
 
   it.each([
@@ -69,25 +68,30 @@ describe('seat row size', () => {
     ['depth', 2.01, 'too-large'],
     ['depth', Number.NaN, 'not-a-number'],
   ] as const)('checks a %s of %d m: %s', (dimension, meters, problem) => {
-    expect(checkSeatRowDimension(dimension, meters)?.problem ?? null).toBe(
-      problem,
-    )
+    expect(
+      checkLength(SEAT_ROW_LENGTHS, ROOM, DEFAULT_SEAT_ROW, dimension, meters)
+        ?.problem ?? null,
+    ).toBe(problem)
   })
 
   it('is valid only with both lengths in range', () => {
-    expect(isValidSeatRow({ width: 3, depth: 1.2 })).toBe(true)
-    expect(isValidSeatRow({ width: 0.4, depth: 0.9 })).toBe(false)
-    expect(isValidSeatRow({ width: 2, depth: 2.5 })).toBe(false)
+    expect(isValidSeatRow(ROOM, { width: 3, depth: 1.2 })).toBe(true)
+    expect(isValidSeatRow(ROOM, { width: 0.4, depth: 0.9 })).toBe(false)
+    expect(isValidSeatRow(ROOM, { width: 2, depth: 2.5 })).toBe(false)
   })
 
   it('changes one length, or gives null for a length out of range', () => {
-    expect(withSeatRowDimension(DEFAULT_SEAT_ROW, 'depth', 1.1)).toEqual({
+    expect(
+      withLength(SEAT_ROW_LENGTHS, ROOM, DEFAULT_SEAT_ROW, 'depth', 1.1),
+    ).toEqual({
       width: 2,
       depth: 1.1,
     })
-    expect(withSeatRowDimension(DEFAULT_SEAT_ROW, 'width', 9)).toBeNull()
     expect(
-      withSeatRowDimension(DEFAULT_SEAT_ROW, 'width', Number.NaN),
+      withLength(SEAT_ROW_LENGTHS, ROOM, DEFAULT_SEAT_ROW, 'width', 9),
+    ).toBeNull()
+    expect(
+      withLength(SEAT_ROW_LENGTHS, ROOM, DEFAULT_SEAT_ROW, 'width', Number.NaN),
     ).toBeNull()
   })
 })

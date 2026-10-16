@@ -27,6 +27,7 @@ import {
   Vector3,
 } from 'three'
 import {
+  type DragTarget,
   floorCorners,
   MLP_ID,
   type Opening,
@@ -71,7 +72,6 @@ import {
   createDragController,
   type DragCallbacks,
   type DragController,
-  type DragTarget,
 } from '@/scene/drag'
 import {
   doorSwing,
@@ -171,6 +171,7 @@ export function RoomCanvas({
   ruleOfThumbFromFrontWall,
   view,
   units,
+  dragAnchors,
   selection,
   onSelect,
   onDeselect,
@@ -205,11 +206,17 @@ export function RoomCanvas({
   ruleOfThumbFromFrontWall: number
   /** How the room's measurements are written. */
   units: UnitSystem
+  /**
+   * Where each drag target is grabbed from (see dragAnchors in the
+   * domain): a drag moves its anchor, keeping the grab offset. A marker
+   * without one is only drawn.
+   */
+  dragAnchors: ReadonlyMap<DragTarget, FloorPoint>
   /** The Selected item, highlighted with its Dimension lines, or null. */
   selection: SelectionDimensions | null
   /**
-   * Pressing an item or room object in the top-down view: selects an
-   * item.
+   * Pressing a drag target in the top-down view (pressSelects in the
+   * domain says what that selects).
    */
   onSelect: (id: DragTarget) => void
   /** Clear the selection: a click on the empty floor in the top-down view does. */
@@ -240,7 +247,7 @@ export function RoomCanvas({
   }, [controller, view])
   const dragging = view === 'top-down'
   const markerDrag: MarkerDrag | null = dragging
-    ? { room, controller, setCursor, onSelect }
+    ? { room, anchors: dragAnchors, controller, setCursor, onSelect }
     : null
   return (
     <div
@@ -270,7 +277,7 @@ export function RoomCanvas({
         )}
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
-        <SeatRow footprint={seatRow} mlp={mlp} markerDrag={markerDrag} />
+        <SeatRow footprint={seatRow} markerDrag={markerDrag} />
         <RuleOfThumbLine room={room} fromFrontWall={ruleOfThumbFromFrontWall} />
         {heatmap && heatmap.cells.length > 0 && (
           // Remounted when the number of cells changes: an instanced
@@ -341,11 +348,13 @@ type LabelLayer = RefObject<HTMLDivElement>
 type DragCursor = 'auto' | 'grab' | 'grabbing'
 
 /**
- * What a draggable marker needs: the Room, the drag controller, the
- * cursor, and the selection, which pressing a marker sets.
+ * What a draggable marker needs: the Room, where each drag target is
+ * grabbed from, the drag controller, the cursor, and the selection, which
+ * pressing a marker sets.
  */
 type MarkerDrag = {
   room: Room
+  anchors: ReadonlyMap<DragTarget, FloorPoint>
   controller: DragController
   setCursor: (cursor: DragCursor) => void
   onSelect: (id: DragTarget) => void
@@ -378,31 +387,34 @@ function leaveTextField() {
 
 type DraggableProps = {
   id: DragTarget
-  at: RoomPoint
   /**
-   * The marker's own size, in meters: the radius of an item's round grab
-   * area, or the width (along x) and depth (along y) of a room object's
-   * rectangular one (which items' grab areas win over), centred on `at`
-   * unless `center` says where (the Seat row is dragged by the MLP on it).
+   * The area that picks the marker up, where the marker is drawn, in
+   * meters: an item's round one (`radius`), or a room object's
+   * rectangular one, `width` along x and `depth` along y (which items'
+   * grab areas win over).
    */
   grab:
-    { radius: number } | { width: number; depth: number; center?: FloorPoint }
+    | { center: FloorPoint; radius: number }
+    | { center: FloorPoint; width: number; depth: number }
   children: ReactNode
 }
 
 /**
- * Makes its markers draggable on the floor plan as item `id`, which is at
- * `at`. Pressing on a marker (or within a touch target of its center, see
- * grabRadius) selects it and picks it up; it follows the pointer, keeping
- * where it was grabbed, until released. The store keeps it inside the Room. Without
- * `markerDrag` (the 3D view) the markers are only drawn, with no grab area.
+ * Makes its markers draggable on the floor plan as drag target `id`.
+ * Pressing on a marker (or within a touch target of its center, see
+ * grabRadius) tells onSelect and picks the target up by its anchor (see
+ * dragAnchors); the anchor follows the pointer, keeping where it was
+ * grabbed, until released, and the store keeps the target where it may
+ * go. Without `markerDrag` (the 3D view), or without an anchor, the
+ * markers are only drawn, with no grab area.
  */
 function Draggable({
   markerDrag,
   ...props
 }: DraggableProps & { markerDrag: MarkerDrag | null }) {
-  if (!markerDrag) return props.children
-  return <DraggableGroup markerDrag={markerDrag} {...props} />
+  const at = markerDrag?.anchors.get(props.id)
+  if (!markerDrag || !at) return props.children
+  return <DraggableGroup markerDrag={markerDrag} at={at} {...props} />
 }
 
 function DraggableGroup({
@@ -411,7 +423,7 @@ function DraggableGroup({
   grab,
   markerDrag: { room, controller, setCursor, onSelect },
   children,
-}: DraggableProps & { markerDrag: MarkerDrag }) {
+}: DraggableProps & { at: FloorPoint; markerDrag: MarkerDrag }) {
   const size = useThree((state) => state.size)
   const zoom = topDownCamera(room, size).zoom
   const hit = new Vector3()
@@ -468,11 +480,11 @@ function DraggableGroup({
           marker, so a marker is easy to pick up with a finger; markers
           drawn above it win. */}
       <mesh
-        position={toScenePosition(
-          'radius' in grab
-            ? { ...at, z: LAYER.grab }
-            : { ...(grab.center ?? at), z: LAYER.objectGrab },
-        )}
+        position={toScenePosition({
+          x: grab.center.x,
+          y: grab.center.y,
+          z: 'radius' in grab ? LAYER.grab : LAYER.objectGrab,
+        })}
         rotation={FLAT_ON_FLOOR}
       >
         {'radius' in grab ? (
@@ -692,24 +704,21 @@ function FloorLine({
 
 /**
  * The Seat row: a pale rectangle on the floor with the MLP near its back.
- * Seen from above it is dragged by the MLP on it, which the store moves
- * (and makes manual), so the couch and the MLP move together.
+ * Seen from above it is dragged like the other markers; dragging it moves
+ * the MLP (see withDragged), so the couch and the MLP move together.
  */
 function SeatRow({
   footprint,
-  mlp,
   markerDrag,
 }: {
   footprint: SeatRowFootprint
-  mlp: RoomPoint
   markerDrag: MarkerDrag | null
 }) {
   const { center, width, depth } = footprint
   return (
     <Draggable
       id={SEAT_ROW_ID}
-      at={mlp}
-      grab={{ width, depth, center }}
+      grab={{ center, width, depth }}
       markerDrag={markerDrag}
     >
       <mesh
@@ -739,8 +748,7 @@ function ScreenBar({
   return (
     <Draggable
       id={SCREEN_ID}
-      at={center}
-      grab={{ width, depth }}
+      grab={{ center, width, depth }}
       markerDrag={markerDrag}
     >
       <mesh
@@ -775,8 +783,7 @@ function FurniturePlans({
         // Keyed by place: the room view names a box by it (roomObjectId).
         key={index}
         id={roomObjectId('furniture', index)}
-        at={center}
-        grab={{ width: size[0], depth: size[1] }}
+        grab={{ center, width: size[0], depth: size[1] }}
         markerDrag={markerDrag}
       >
         <mesh
@@ -856,8 +863,7 @@ function OpeningMarks({
         )}
         <Draggable
           id={roomObjectId('opening', index)}
-          at={center}
-          grab={{ width: size[0], depth: size[1] }}
+          grab={{ center, width: size[0], depth: size[1] }}
           markerDrag={markerDrag}
         >
           <mesh
@@ -1023,8 +1029,7 @@ function MlpMarker({
     <>
       <Draggable
         id={MLP_ID}
-        at={mlp}
-        grab={{ radius: MLP_MARKER_RADIUS }}
+        grab={{ center: mlp, radius: MLP_MARKER_RADIUS }}
         markerDrag={markerDrag}
       >
         <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
@@ -1061,8 +1066,10 @@ function SpeakerMarkers({
       <Fragment key={speaker.channel}>
         <Draggable
           id={speaker.channel}
-          at={speaker.position}
-          grab={{ radius: SPEAKER_FOOTPRINT.width / 2 }}
+          grab={{
+            center: speaker.position,
+            radius: SPEAKER_FOOTPRINT.width / 2,
+          }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
@@ -1112,8 +1119,7 @@ function OverheadMarkers({
       <Fragment key={overhead.channel}>
         <Draggable
           id={overhead.channel}
-          at={overhead.position}
-          grab={{ radius: OVERHEAD_MARKER_RADIUS }}
+          grab={{ center: overhead.position, radius: OVERHEAD_MARKER_RADIUS }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
@@ -1171,8 +1177,7 @@ function SubwooferMarkers({
       <Fragment key={subwoofer.id}>
         <Draggable
           id={subwoofer.id}
-          at={subwoofer.position}
-          grab={{ radius: SUBWOOFER_FOOTPRINT / 2 }}
+          grab={{ center: subwoofer.position, radius: SUBWOOFER_FOOTPRINT / 2 }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>

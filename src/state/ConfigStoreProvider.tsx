@@ -2,11 +2,18 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { PlaceableId } from '@/domain'
 import {
   ConfigStoreContext,
+  RoomAnalysisContext,
   SeatRecommendationContext,
+  useComputedRoomAnalysis,
   useComputedSeatRecommendation,
 } from './config-context'
 import { createConfigStore } from './config-store'
-import { SelectionContext, type Selection } from './selection-context'
+import {
+  SelectedItemContext,
+  SelectionContext,
+  useComputedSelectedItem,
+  type Selection,
+} from './selection-context'
 
 /**
  * Creates one config store for everything inside it, starting from the
@@ -28,11 +35,26 @@ export function ConfigStoreProvider({
   })
   return (
     <ConfigStoreContext value={store}>
-      <SeatRecommendationProvider>
-        <SelectionProvider>{children}</SelectionProvider>
-      </SeatRecommendationProvider>
+      <RoomAnalysisProvider>
+        <SeatRecommendationProvider>
+          <SelectionProvider>
+            <SelectedItemProvider>{children}</SelectedItemProvider>
+          </SelectionProvider>
+        </SeatRecommendationProvider>
+      </RoomAnalysisProvider>
     </ConfigStoreContext>
   )
+}
+
+/**
+ * Works the Room analysis out once per config change for everything inside
+ * it, so its cost does not grow with the number of sections, furniture
+ * boxes or openings that read it. Its children are passed in, so only the
+ * components that read the analysis re-render when it changes.
+ */
+function RoomAnalysisProvider({ children }: { children: ReactNode }) {
+  const analysis = useComputedRoomAnalysis()
+  return <RoomAnalysisContext value={analysis}>{children}</RoomAnalysisContext>
 }
 
 /**
@@ -62,4 +84,13 @@ function SelectionProvider({ children }: { children: ReactNode }) {
     [selected, clear],
   )
   return <SelectionContext value={selection}>{children}</SelectionContext>
+}
+
+/**
+ * Works the Selected item out once for everything inside it (the room view
+ * and the details panel both read it).
+ */
+function SelectedItemProvider({ children }: { children: ReactNode }) {
+  const item = useComputedSelectedItem()
+  return <SelectedItemContext value={item}>{children}</SelectedItemContext>
 }

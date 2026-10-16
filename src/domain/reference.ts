@@ -238,6 +238,21 @@ export const SPEAKER_WALL_CLEARANCE = {
 } as const satisfies { meters: number; note: string }
 
 /**
+ * How far from the front wall auto-place puts the front stage (Left,
+ * Center and Right, at their acoustic centers): close to the wall, where
+ * the manufacturers want monitors, and far enough that the first
+ * front-wall cancellation stays above the crossover (ADR 0005).
+ */
+export const FRONT_STAGE_WALL_DISTANCE = {
+  meters: 0.5,
+  note:
+    'Our choice, not Dolby: Dolby gives no distance from the front wall. ' +
+    'The sources disagree on one number (Genelec under about 0.6 m, ADAM ' +
+    'under 0.5 m, KEF 0.3-1 m), read from search extracts ' +
+    '(docs/research/real-room-placement.md section 2.1; ADR 0005).',
+} as const satisfies { meters: number; note: string }
+
+/**
  * How far a subwoofer's acoustic center stands off the wall it is placed
  * against. Auto-place keeps every subwoofer at least this far from every
  * wall.

@@ -231,15 +231,20 @@ describe('headroom at the MLP', () => {
     expect(overheads.status).toBe('tight')
   })
 
-  it('reads tight, not short, for the first-visit room', () => {
+  it('reads tight for the first-visit front stage and overheads, and short for the surrounds at the side walls', () => {
+    // 88 dB + 20 dB (100 W) − 20·log10(2.152) = 101.345 dB at the MLP:
+    // 0.655 dB short of 102 for the surrounds, 2.152 m away on the side
+    // walls (ADR 0005).
     const { groups } = analyzeRoom(DEFAULT_CONFIG).headroom
 
     expect(groups.map((g) => g.status)).toEqual([
       'tight',
       'tight',
-      'tight',
+      'short',
       'tight',
     ])
+    expect(groups[2]!.weakest.name).toBe('Left Surround')
+    expect(groups[2]!.headroomDb).toBeCloseTo(-0.655, 3)
   })
 })
 

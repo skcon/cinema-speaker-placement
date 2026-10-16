@@ -6,14 +6,14 @@ describe('distances of an item to the walls and the MLP', () => {
     // The default room is 6 m long and 4.5 m wide. The auto MLP is at 38%
     // of the length, y = 0.38 × 6 = 2.28 m, on the center line, at ear
     // height 1.2 m. Left is auto-placed at -26° (the middle of Dolby's
-    // 22°–30°) at the reference distance: the MLP to the front wall's
-    // 0.3 m clearance line, 2.28 − 0.3 = 1.98 m, also at ear height. So
-    //   x = −1.98 × sin 26° = −1.98 × 0.43837 = −0.86798 m
-    //   y = 2.28 − 1.98 × cos 26° = 2.28 − 1.98 × 0.89879 = 0.50039 m
+    // 22°–30°) where that angle meets the front-stage line 0.5 m from the
+    // front wall, 2.28 − 0.5 = 1.78 m ahead, also at ear height. So
+    //   x = −1.78 × tan 26° = −1.78 × 0.48773 = −0.86816 m
+    //   y = 0.5 m
     // and it is
-    //   0.50039 m from the front wall (nearer than the back wall, 5.49961 m),
-    //   2.25 − 0.86798 = 1.38202 m from the left wall (the right is 3.11798 m),
-    //   1.98 m from the MLP (the same height, so the reference distance).
+    //   0.5 m from the front wall (nearer than the back wall, 5.5 m),
+    //   2.25 − 0.86816 = 1.38184 m from the left wall (the right is 3.11816 m),
+    //   1.78 / cos 26° = 1.98043 m from the MLP (the same height).
     const { mlp, speakers } = analyzeRoom(DEFAULT_CONFIG)
     const left = speakers.find(({ channel }) => channel === 'L')!
 
@@ -21,10 +21,10 @@ describe('distances of an item to the walls and the MLP', () => {
 
     const [along, across] = distances.walls
     expect(along.wall).toBe('front')
-    expect(along.meters).toBeCloseTo(0.50039, 4)
+    expect(along.meters).toBeCloseTo(0.5, 4)
     expect(across.wall).toBe('left')
-    expect(across.meters).toBeCloseTo(1.38202, 4)
-    expect(distances.mlp?.meters).toBeCloseTo(1.98, 4)
+    expect(across.meters).toBeCloseTo(1.38184, 4)
+    expect(distances.mlp?.meters).toBeCloseTo(1.98043, 4)
   })
 
   it('draws each wall line straight to its wall, and the MLP line to the MLP', () => {

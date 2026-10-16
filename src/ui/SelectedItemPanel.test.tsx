@@ -90,8 +90,8 @@ describe('the Selected item', () => {
 
     openPositionRow('Left')
 
-    // Hand-computed in src/domain/item-distances.test.ts: 0.50039 m from
-    // the front wall, 1.38202 m from the left wall, 1.98 m from the MLP.
+    // Hand-computed in src/domain/item-distances.test.ts: 0.5 m from the
+    // front wall, 1.38184 m from the left wall, 1.98043 m from the MLP.
     expect(
       await within(panel()).findByRole('heading', { name: 'Left' }),
     ).toBeInTheDocument()

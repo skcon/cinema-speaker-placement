@@ -15,7 +15,7 @@ See [CLAUDE.md](CLAUDE.md) for the project brief and architecture, [GLOSSARY.md]
   - layouts 2.1, 3.1, 5.1, 7.1, 5.1.2, 5.1.4, 7.1.2 and 7.1.4
   - 1–4 subwoofers (for example `7.2.4`)
 - **Auto-place from Dolby's guidelines**:
-  - listener-level speakers at Dolby's azimuth ranges
+  - listener-level speakers at Dolby's azimuth ranges: the front stage near the front wall, the surrounds at the side or back walls, with the receiver's distance setting evening out the arrival times
   - overhead speakers at Dolby's elevation angles and spacing
   - subwoofers in published multi-subwoofer arrangements
   - every range cites its source

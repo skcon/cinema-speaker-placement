@@ -68,29 +68,65 @@ describe('auto-placed listener-level speakers', () => {
     expect(yaw('Rs')).toBeCloseTo(-65, 9)
   })
 
-  it('put the Center on the center line, 0.3 m from the front wall (our wall clearance)', () => {
-    const { position } = speaker(analyzeRoom(DEFAULT_CONFIG), 'C')
+  it('put the front stage on its angles, 0.5 m from the front wall (our front-stage distance)', () => {
+    // Default room: MLP 2.28 m from the front wall, so the Center is 1.78 m
+    // away and Left at -26° is 1.78 / cos 26° = 1.980 m away.
+    const analysis = analyzeRoom(DEFAULT_CONFIG)
+    const center = speaker(analysis, 'C')
+    const left = speaker(analysis, 'L')
+    const right = speaker(analysis, 'R')
 
-    expect(position.x).toBeCloseTo(0, 9)
-    expect(position.y).toBeCloseTo(0.3, 9)
+    expect(center.position.x).toBeCloseTo(0, 9)
+    expect(center.position.y).toBeCloseTo(0.5, 9)
+    expect(left.position.y).toBeCloseTo(0.5, 9)
+    expect(right.position.y).toBeCloseTo(0.5, 9)
+    expect(left.position.x).toBeCloseTo(
+      -1.78 * Math.tan((26 * Math.PI) / 180),
+      9,
+    )
+    expect(right.position.x).toBeCloseTo(-left.position.x, 9)
+    expect(horizontalDistance(left.position, analysis.mlp)).toBeCloseTo(1.98, 2)
   })
 
-  it('put every speaker the Center’s distance from the MLP when the walls allow it', () => {
-    // Default room: MLP 2.28 m from the front wall, so the Center is 1.98 m away.
+  it('put the surrounds on their angles at the side walls, not on a circle around the MLP', () => {
+    // Default room 4.5 m wide: the side clearance lines are 1.95 m from the
+    // center line. Ls at -115° meets its line 1.95 / sin 115° = 2.152 m
+    // from the MLP, 0.909 m behind it.
     const analysis = analyzeRoom(config(DEFAULT_CONFIG.room, FIVE_ONE))
+    const ls = speaker(analysis, 'Ls')
+    const rs = speaker(analysis, 'Rs')
 
-    for (const { position } of analysis.speakers) {
-      expect(horizontalDistance(position, analysis.mlp)).toBeCloseTo(1.98, 9)
-    }
-    // Left at -26°, 1.98 m: x = -1.98 sin 26°, y = 2.28 - 1.98 cos 26°
-    expect(speaker(analysis, 'L').position.x).toBeCloseTo(-0.868, 3)
-    expect(speaker(analysis, 'L').position.y).toBeCloseTo(0.5, 3)
+    expect(ls.position.x).toBeCloseTo(-1.95, 9)
+    expect(rs.position.x).toBeCloseTo(1.95, 9)
+    expect(ls.position.y).toBeCloseTo(3.189, 3)
+    expect(horizontalDistance(ls.position, analysis.mlp)).toBeCloseTo(2.152, 3)
   })
 
-  it('bring a speaker closer along its angle when a wall is in the way', () => {
+  it('put the rear surrounds at the side or back wall, whichever their angle reaches first', () => {
+    // 7.1 Lrs at -143°. Default room: the side line is 1.95 / sin 143° =
+    // 3.240 m away, the back line (5.7 m) 3.42 / cos 37° = 4.282 m: the side
+    // wall comes first, 2.588 m behind the MLP. In a 10 m wide, 4 m long
+    // room the back line comes first: Lrs sits 0.3 m from the back wall.
+    const inDefault = speaker(
+      analyzeRoom(config(DEFAULT_CONFIG.room, SEVEN_ONE)),
+      'Lrs',
+    )
+    const wide = speaker(
+      analyzeRoom(config({ length: 4, width: 10, height: 2.6 }, SEVEN_ONE)),
+      'Lrs',
+    )
+
+    expect(inDefault.position.x).toBeCloseTo(-1.95, 9)
+    expect(inDefault.position.y).toBeCloseTo(4.868, 3)
+    expect(wide.position.y).toBeCloseTo(3.7, 9)
+    expect(wide.position.x).toBeGreaterThan(-4.7)
+    expect(wide.placementRange.azimuth.degrees).toBeCloseTo(-143, 9)
+  })
+
+  it('bring a front speaker closer along its angle when a side wall comes before the front-stage line', () => {
     // 2 m wide: 0.7 m from the center line to the side clearance. Left at
-    // -26° meets it 0.7 / sin 26° = 1.597 m from the MLP, before the 5.4 m
-    // the Center is away.
+    // -26° meets it 0.7 / sin 26° = 1.597 m from the MLP, long before the
+    // front-stage line 5.2 m ahead.
     const analysis = analyzeRoom(config({ length: 15, width: 2, height: 2.4 }))
     const left = speaker(analysis, 'L')
 
@@ -100,6 +136,15 @@ describe('auto-placed listener-level speakers', () => {
       3,
     )
     expect(left.placementRange.azimuth.degrees).toBeCloseTo(-26, 9)
+    expect(speaker(analysis, 'C').position.y).toBeCloseTo(0.5, 9)
+  })
+
+  it('fall back to the wall clearance for the front stage when the MLP is nearer the front wall than 0.5 m', () => {
+    const analysis = analyzeRoom({
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0, y: 0.4, z: 1.2 } },
+    })
+
     expect(speaker(analysis, 'C').position.y).toBeCloseTo(0.3, 9)
   })
 })

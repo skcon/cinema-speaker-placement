@@ -1,5 +1,6 @@
 import {
   formatLength,
+  FRONT_STAGE_WALL_DISTANCE,
   MLP_ID,
   wallDistances,
   type PlaceableId,
@@ -24,6 +25,7 @@ import { SidebarSubsection } from '@/ui/SidebarSection'
 export function PositionsForm() {
   const { mlp, mlpPlacement, speakers, overheads, subwoofers } =
     useRoomAnalysis()
+  const units = useConfig((state) => state.config.units)
 
   return (
     <SidebarSubsection title="Positions">
@@ -33,6 +35,15 @@ export function PositionsForm() {
         are manual and stay where you put them; auto items follow the room and
         the MLP. Auto-place puts everything back to auto and the MLP at the
         recommended seat.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Auto-place keeps Dolby&rsquo;s angles and puts Left, Center and Right{' '}
+        {formatLength(FRONT_STAGE_WALL_DISTANCE.meters, units)} from the front
+        wall and the other speakers at the walls, as most home theaters do. So
+        they aren&rsquo;t all the same distance from the MLP: set each
+        speaker&rsquo;s distance in your receiver (its distance or delay
+        setting, which room calibration usually does). That evens out when their
+        sound arrives, exactly at the MLP and less so at other seats.
       </p>
       <ul className="flex flex-col">
         {speakers.map(({ channel, name, position, placement }) => (

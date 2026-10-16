@@ -149,6 +149,7 @@ export {
   type SubwooferSpecs,
 } from './speaker-specs'
 export {
+  FRONT_STAGE_WALL_DISTANCE,
   HEADROOM_STATUS,
   LOW_CEILING_FOR_OVERHEADS,
   REFERENCE_LEVEL,

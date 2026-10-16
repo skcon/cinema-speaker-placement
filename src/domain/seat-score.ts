@@ -102,9 +102,10 @@ export type OffCenterLine = {
   /**
    * The width mode that most likely makes the bass smoother off the
    * center line, in the model: one the subwoofers excite, up to the
-   * crossover and in the reliable rows, at whose frequency the recommended seat is nearest the target
-   * compared with the center-line seat. Undefined when the bass is not
-   * smoother off the center line, or no width mode is nearer there.
+   * crossover and in the reliable rows, at whose frequency the recommended
+   * seat is nearest the target compared with the center-line seat.
+   * Undefined when the bass is not smoother off the center line, or no
+   * width mode is nearer the target there.
    */
   readonly widthMode: CenterLineWidthMode | undefined
 }

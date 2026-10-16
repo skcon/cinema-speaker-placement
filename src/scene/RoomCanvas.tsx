@@ -30,6 +30,8 @@ import {
   floorCorners,
   furnitureId,
   MLP_ID,
+  openingId,
+  type Opening,
   type FloorPoint,
   type FurnitureBox,
   wallBases,
@@ -73,8 +75,11 @@ import {
   type DragTarget,
 } from '@/scene/drag'
 import {
+  doorSwing,
   furnitureBlock,
   furniturePlan,
+  openingMark,
+  openingPanel,
   screenBar,
   screenPanel,
 } from '@/scene/room-objects'
@@ -104,9 +109,11 @@ const LAYER = {
   seatRow: 0.007,
   ruleOfThumb: 0.008,
   heatmap: 0.009,
+  doorSwing: 0.0092,
   furniture: 0.0094,
   furnitureFront: 0.0097,
   walls: 0.01,
+  opening: 0.0105,
   screen: 0.011,
   recommended: 0.012,
   /**
@@ -157,6 +164,7 @@ export function RoomCanvas({
   subwoofers,
   screen,
   furniture,
+  openings,
   gridSpacing,
   seatRow,
   recommendedSeat,
@@ -181,6 +189,11 @@ export function RoomCanvas({
   screen: RoomScreen | null
   /** The furniture boxes, in the config's order: drawn, and dragged from above. */
   furniture: readonly FurnitureBox[]
+  /**
+   * The doors and windows, in the config's order: drawn on their walls,
+   * and dragged along them from above.
+   */
+  openings: readonly Opening[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
   /** The Seat row around the MLP. */
@@ -275,6 +288,15 @@ export function RoomCanvas({
           />
         )}
         <Walls room={room} labelLayer={labelLayer} />
+        {view === '3d' ? (
+          <OpeningPanels room={room} openings={openings} />
+        ) : (
+          <OpeningMarks
+            room={room}
+            openings={openings}
+            markerDrag={markerDrag}
+          />
+        )}
         {screen &&
           (view === '3d' ? (
             <ScreenPanel screen={screen} />
@@ -798,6 +820,78 @@ function FurnitureBlocks({
           color={SCENE_COLORS.furniture}
           transparent
           opacity={0.85}
+        />
+      </mesh>
+    )
+  })
+}
+
+/**
+ * The doors and windows seen from above: each a mark along the inside of
+ * its wall, dragged along the wall like the other markers (the store keeps
+ * it on its wall), and a door's swing as a pale square in front of it.
+ */
+function OpeningMarks({
+  room,
+  openings,
+  markerDrag,
+}: {
+  room: Room
+  openings: readonly Opening[]
+  markerDrag: MarkerDrag | null
+}) {
+  return openings.map((opening, index) => {
+    const { center, size } = openingMark(room, opening)
+    const swing = opening.kind === 'door' && doorSwing(room, opening)
+    return (
+      // Keyed by place: the room view names an opening by it (openingId).
+      <group key={index}>
+        {swing && (
+          <mesh
+            position={toScenePosition({ ...swing.center, z: LAYER.doorSwing })}
+            rotation={FLAT_ON_FLOOR}
+          >
+            <planeGeometry args={swing.size} />
+            <meshBasicMaterial color={SCENE_COLORS.doorSwing} />
+          </mesh>
+        )}
+        <Draggable
+          id={openingId(index)}
+          at={center}
+          grab={{ width: size[0], depth: size[1] }}
+          markerDrag={markerDrag}
+        >
+          <mesh
+            position={toScenePosition({ ...center, z: LAYER.opening })}
+            rotation={FLAT_ON_FLOOR}
+          >
+            <planeGeometry args={size} />
+            <meshBasicMaterial color={SCENE_COLORS[opening.kind]} />
+          </mesh>
+        </Draggable>
+      </group>
+    )
+  })
+}
+
+/** The doors and windows in 3D: panels on their walls, at their height. */
+function OpeningPanels({
+  room,
+  openings,
+}: {
+  room: Room
+  openings: readonly Opening[]
+}) {
+  return openings.map((opening, index) => {
+    const { position, size, rotation } = openingPanel(room, opening)
+    return (
+      <mesh key={index} position={position} rotation={rotation}>
+        <planeGeometry args={size} />
+        <meshBasicMaterial
+          color={SCENE_COLORS[opening.kind]}
+          side={DoubleSide}
+          transparent
+          opacity={0.6}
         />
       </mesh>
     )

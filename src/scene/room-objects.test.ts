@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import type { FurnitureBox, RoomScreen } from '@/domain'
+import {
+  DEFAULT_ROOM,
+  type FurnitureBox,
+  type Opening,
+  type RoomScreen,
+} from '@/domain'
 import {
   describeFurniture,
+  describeOpenings,
+  doorSwing,
+  OPENING_MARK_DEPTH,
+  openingMark,
+  openingPanel,
   describeScreen,
   furnitureBlock,
   furniturePlan,
@@ -173,5 +183,69 @@ describe('furniture in words', () => {
 
   it('is empty without furniture', () => {
     expect(describeFurniture([], 'metric')).toBe('')
+  })
+})
+
+/** A 0.9 m door in the middle of the default room's back wall. */
+const DOOR: Opening = { kind: 'door', wall: 'back', position: 2.25, width: 0.9 }
+
+/** A 1.2 m window on the default room's left wall, 1 m to 2.2 m back. */
+const WINDOW: Opening = {
+  kind: 'window',
+  wall: 'left',
+  position: 1.6,
+  width: 1.2,
+  sill: 0.9,
+  height: 1.2,
+}
+
+describe('openings from above', () => {
+  it('are a mark along the inside of their wall, as wide as they are', () => {
+    const door = openingMark(DEFAULT_ROOM, DOOR)
+    expect(door.center.x).toBeCloseTo(0, 12)
+    expect(door.center.y).toBeCloseTo(6 - OPENING_MARK_DEPTH / 2, 12)
+    expect(door.size).toEqual([0.9, OPENING_MARK_DEPTH])
+
+    const window = openingMark(DEFAULT_ROOM, WINDOW)
+    expect(window.center.x).toBeCloseTo(-2.25 + OPENING_MARK_DEPTH / 2, 12)
+    expect(window.center.y).toBeCloseTo(1.6, 12)
+    expect(window.size).toEqual([OPENING_MARK_DEPTH, 1.2])
+  })
+
+  it('show where a door swings: a square as deep as the door is wide', () => {
+    const swing = doorSwing(DEFAULT_ROOM, DOOR)
+    expect(swing.center.x).toBeCloseTo(0, 12)
+    expect(swing.center.y).toBeCloseTo(5.55, 12)
+    expect(swing.size).toEqual([0.9, 0.9])
+  })
+})
+
+describe('openings in 3D', () => {
+  it('are panels on their wall, a door from the floor to 2 m', () => {
+    const { position, size, rotation } = openingPanel(DEFAULT_ROOM, DOOR)
+    expect(position[0]).toBeCloseTo(0, 12)
+    expect(position[1]).toBeCloseTo(1, 12)
+    expect(size).toEqual([0.9, 2])
+    expect(rotation).toEqual([0, Math.PI, 0])
+  })
+
+  it('are panels on their wall, a window from its sill to its top, turned to face the room', () => {
+    const { position, size, rotation } = openingPanel(DEFAULT_ROOM, WINDOW)
+    expect(position[1]).toBeCloseTo(1.5, 12)
+    expect(position[2]).toBeCloseTo(1.6, 12)
+    expect(size[0]).toBe(1.2)
+    expect(size[1]).toBeCloseTo(1.2, 12)
+    expect(rotation).toEqual([0, Math.PI / 2, 0])
+  })
+})
+
+describe('openings in words', () => {
+  it('name each, its wall, its size and where it is along the wall', () => {
+    expect(describeOpenings([DOOR, WINDOW], 'metric')).toBe(
+      'Doors and windows: Door (opening 1) on the back wall, 0.9 m wide, ' +
+        '1.8 m from the left wall; Window (opening 2) on the left wall, ' +
+        '1.2 m wide and 1.2 m high, its sill 0.9 m up, 1 m from the front wall.',
+    )
+    expect(describeOpenings([], 'metric')).toBe('')
   })
 })

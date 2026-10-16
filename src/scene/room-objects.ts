@@ -2,6 +2,13 @@ import {
   formatLength,
   furnitureFootprint,
   furnitureLabel,
+  openingLabel,
+  openingSpan,
+  openingVerticalSpan,
+  pointOnWall,
+  type Opening,
+  type Room,
+  type Wall,
   screenSurface,
   SEAT_ROW_HEAD_OFFSET,
   type FurnitureBox,
@@ -190,4 +197,125 @@ export function describeFurniture(
       `${length(box.depth)} deep and ${length(box.height)} high`,
   )
   return `Furniture: ${boxes.join('; ')}.`
+}
+
+/**
+ * How deep an opening's mark is drawn seen from above, in meters: a
+ * drawing size only, deep enough to see and grab, along the inside of its
+ * wall.
+ */
+export const OPENING_MARK_DEPTH = 0.1
+
+/**
+ * How far in front of its wall the 3D panel is drawn, in meters, so it
+ * doesn't z-fight with the wall: a drawing offset only.
+ */
+const OPENING_PANEL_OFFSET = 0.01
+
+/** Which way is into the room from each wall, on the floor plan. */
+const INWARD = {
+  front: { x: 0, y: 1 },
+  back: { x: 0, y: -1 },
+  left: { x: 1, y: 0 },
+  right: { x: -1, y: 0 },
+} as const satisfies Record<Wall, { x: number; y: number }>
+
+/** A rectangle on the floor plan: its middle and its size along x and y. */
+export type FloorRect = {
+  center: RoomPoint
+  size: [alongX: number, alongY: number]
+}
+
+/**
+ * A rectangle against the inside of the opening's wall, as wide as the
+ * opening and `depth` deep into the room.
+ */
+function againstWall(room: Room, opening: Opening, depth: number): FloorRect {
+  const middle = pointOnWall(room, opening.wall, opening.position)
+  const inward = INWARD[opening.wall]
+  const alongX = opening.wall === 'front' || opening.wall === 'back'
+  return {
+    center: {
+      x: middle.x + (inward.x * depth) / 2,
+      y: middle.y + (inward.y * depth) / 2,
+      z: 0,
+    },
+    size: alongX ? [opening.width, depth] : [depth, opening.width],
+  }
+}
+
+/** An opening from above: a mark OPENING_MARK_DEPTH deep along its wall. */
+export function openingMark(room: Room, opening: Opening): FloorRect {
+  return againstWall(room, opening, OPENING_MARK_DEPTH)
+}
+
+/**
+ * Where a door swings, from above: a square in front of it, as deep as
+ * the door is wide. W1 warns about a speaker in it.
+ */
+export function doorSwing(room: Room, door: Opening): FloorRect {
+  return againstWall(room, door, door.width)
+}
+
+/** How each wall's 3D panel is turned to face into the room (about y). */
+const PANEL_TURN = {
+  front: 0,
+  back: Math.PI,
+  left: Math.PI / 2,
+  right: -Math.PI / 2,
+} as const satisfies Record<Wall, number>
+
+/**
+ * An opening in 3D: an upright panel in Three.js coordinates on the inside
+ * of its wall, from its bottom to its top (a door from the floor), turned
+ * to face into the room (a Three.js plane faces +z, which is room +y).
+ */
+export function openingPanel(
+  room: Room,
+  opening: Opening,
+): { position: Vec3; size: [width: number, height: number]; rotation: Vec3 } {
+  const { bottom, top } = openingVerticalSpan(room, opening)
+  const middle = pointOnWall(room, opening.wall, opening.position)
+  const inward = INWARD[opening.wall]
+  return {
+    position: toScenePosition({
+      x: middle.x + inward.x * OPENING_PANEL_OFFSET,
+      y: middle.y + inward.y * OPENING_PANEL_OFFSET,
+      z: (bottom + top) / 2,
+    }),
+    size: [opening.width, top - bottom],
+    rotation: [0, PANEL_TURN[opening.wall], 0],
+  }
+}
+
+/** Where along each wall an opening is measured from, in words. */
+const MEASURED_FROM = {
+  front: 'the left wall',
+  back: 'the left wall',
+  left: 'the front wall',
+  right: 'the front wall',
+} as const satisfies Record<Wall, string>
+
+/**
+ * The openings in words, for the room view's screen-reader description,
+ * for example "Doors and windows: Door (opening 1) on the back wall, 0.9 m
+ * wide, 1.8 m from the left wall." Empty without openings.
+ */
+export function describeOpenings(
+  openings: readonly Opening[],
+  units: UnitSystem,
+): string {
+  if (openings.length === 0) return ''
+  const length = (meters: number) => formatLength(meters, units)
+  const described = openings.map((opening, index) => {
+    const size =
+      opening.kind === 'window'
+        ? `${length(opening.width)} wide and ${length(opening.height)} high, its sill ${length(opening.sill)} up`
+        : `${length(opening.width)} wide`
+    return (
+      `${openingLabel(opening, index)} on the ${opening.wall} wall, ${size}, ` +
+      `${length(openingSpan(opening).start)} from ${MEASURED_FROM[opening.wall]}`
+    )
+  })
+  return `Doors and windows: ${described.join('; ')}.`
 }

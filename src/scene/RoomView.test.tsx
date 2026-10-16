@@ -283,3 +283,55 @@ describe('furniture boxes in the room view', () => {
     expect(screen.queryByText(/^Furniture box/)).toBeNull()
   })
 })
+
+describe('doors and windows in the room view', () => {
+  it('are described for screen readers and named in the legend as drawn and warned about, not in the estimate', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        ...DEFAULT_CONFIG.roomObjects,
+        openings: [
+          { kind: 'door', wall: 'back', position: 2.25, width: 0.9 },
+          {
+            kind: 'window',
+            wall: 'right',
+            position: 3,
+            width: 1.2,
+            sill: 0.9,
+            height: 1.2,
+          },
+        ],
+      },
+    } as const
+    render(
+      <ConfigStoreProvider initialEncodedConfig={encodeConfig(config)}>
+        <RoomView />
+      </ConfigStoreProvider>,
+    )
+
+    expect(scene()).toHaveAccessibleName(
+      /Doors and windows: Door \(opening 1\) on the back wall, 0\.9 m wide, 1\.8 m from the left wall; Window \(opening 2\) on the right wall, 1\.2 m wide and 1\.2 m high, its sill 0\.9 m up, 2\.4 m from the front wall\. Room objects are drawn and used for placement warnings, not part of the estimated response\./,
+    )
+    expect(
+      screen.getByText(
+        /^Door and where it swings \(drawn and warned about, not in the estimate\)/,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /^Window \(drawn and warned about, not in the estimate\)/,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Drag doors and windows along their wall\./),
+    ).toBeInTheDocument()
+  })
+
+  it('are not mentioned in a room without any', () => {
+    renderRoomView()
+
+    expect(scene()).not.toHaveAccessibleName(/Doors and windows/)
+    expect(screen.queryByText(/^Door and where it swings/)).toBeNull()
+    expect(screen.queryByText(/^Window \(/)).toBeNull()
+  })
+})

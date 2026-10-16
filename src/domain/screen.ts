@@ -107,15 +107,29 @@ export function checkScreenDimension(
 }
 
 /**
+ * How far past the ceiling a screen's top edge may be, in meters: float
+ * noise only, so a screen sized to fit (fitScreenToRoom, or a height or
+ * bottom edge at its limit) always passes.
+ */
+const FIT_TOLERANCE = 1e-9
+
+/**
  * Whether the screen is one a config may hold in `room`: every dimension
- * in range, a standoff only on a projection screen, and its middle on the
- * front wall to the millimeter (share links round it, see
- * roundScreenForLink).
+ * in range, its top edge under the ceiling, a standoff only on a
+ * projection screen, and its middle on the front wall to the millimeter
+ * (share links round it, see roundScreenForLink).
  */
 export function isValidScreen(room: Room, screen: RoomScreen): boolean {
-  const limits = screenLimits(room, screen)
-  const inRange = (dimension: 'width' | 'height' | 'bottomEdge') =>
-    checkRange(screen[dimension], limits[dimension]) === null
+  const { limits } = SCREEN
+  const fitsAcross =
+    checkRange(screen.width, {
+      min: limits.width.min,
+      max: Math.min(limits.width.max, room.width),
+    }) === null
+  const fitsUp =
+    checkRange(screen.height, limits.height) === null &&
+    checkRange(screen.bottomEdge, limits.bottomEdge) === null &&
+    screen.bottomEdge + screen.height <= room.height + FIT_TOLERANCE
   const along = alongWall(room, screen.width)
   const onWall =
     checkRange(screen.x, {
@@ -126,13 +140,7 @@ export function isValidScreen(room: Room, screen: RoomScreen): boolean {
     screen.standoff === null ||
     (screen.kind === 'projection' &&
       checkRange(screen.standoff, limits.standoff) === null)
-  return (
-    inRange('width') &&
-    inRange('height') &&
-    inRange('bottomEdge') &&
-    onWall &&
-    standoff
-  )
+  return fitsAcross && fitsUp && onWall && standoff
 }
 
 /**

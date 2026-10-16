@@ -223,6 +223,15 @@ describe('the kind of screen', () => {
 })
 
 describe('fitting a screen into a smaller room', () => {
+  it('always gives a valid screen, whatever the floating-point sums', () => {
+    for (const height of [2.1, 2.3, 2.37, 2.71, 3.3, 4.9]) {
+      const tall = { ...AT_SCREEN, height: 1.73, bottomEdge: 1.1 }
+      const room = { ...ROOM, height, width: 2.3 }
+
+      expect(isValidScreen(room, fitScreenToRoom(room, tall))).toBe(true)
+    }
+  })
+
   it('leaves a screen that fits as it is', () => {
     expect(fitScreenToRoom(ROOM, AT_SCREEN)).toBe(AT_SCREEN)
   })

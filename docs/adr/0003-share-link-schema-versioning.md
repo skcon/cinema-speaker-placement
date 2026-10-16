@@ -30,3 +30,17 @@ The worst-case link grew past the URL budget once 1.1.0 added room objects (eigh
 - Decoding spells the names out before the migrations and the strict schema check. A version 2 link with a field name spelled out was not written by the app, so it is unreadable, as any other hand-edited link.
 - Version 1 links keep their spelled-out names: the frozen fixtures stay byte-identical.
 - Considered: rounding the speaker specs in the link (it drops digits a user typed, which the codec tests rule out), and a fixed tuple layout per object (shorter still, but every field becomes a position to keep in step). Short names keep the config's shape and save about 400 characters on the worst case.
+
+## Amendment (1.1.0): openings packed as tuples in version 2 links
+
+Even with short field names, six doors and windows written as objects would cost about 285 characters, and the worst-case link with eight furniture boxes had only about 160 left (ADR 0006). So a version 2 link writes each opening (`roomObjects.openings`) as a tuple of whole numbers instead of an object (#57):
+
+    door:   [code, position, width]
+    window: [code, position, width, sill, height]
+
+`code` folds the kind and the wall into one digit (`OPENING_WIRE_CODES` in `src/domain/share-link.ts`: doors 0–3 and windows 4–7 on the front, right, back and left walls), and every length is in whole millimeters, the precision a link stores them in anyway. The worst-case link with eight furniture boxes and six openings is 1,978 of 2,000 characters, without changing ADR 0006's limits.
+
+- The codes and the order of the fields are part of the wire format: never change or reuse a code or a place, only add one.
+- Decoding unpacks the tuples after spelling the field names out, before the migrations and the strict schema check. Anything else where a tuple belongs (an object, an unknown code, a fraction of a millimeter, the wrong number of fields) makes the link unreadable, as any other hand-edited link.
+- The config itself keeps its readable shape (`{ kind, wall, position, width, ... }`); only the link packs it.
+- Considered: rounding openings to the centimeter (it would change a typed imperial size by more than the 0.1 in the app shows) and packing every room object this way (it saves more, but the earlier amendment's reasons for keeping the config's shape still hold where the budget allows it).

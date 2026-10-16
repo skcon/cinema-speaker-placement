@@ -16,6 +16,14 @@ export const SCREEN_COLOR = '#0891b2'
 export const FURNITURE_COLOR = '#d6d3d1'
 export const FURNITURE_FRONT_COLOR = '#78716c'
 
+/**
+ * Openings in the room view and its legend: a door brown, a window sky
+ * blue, colors no grade or item uses; a door's swing a pale shade of it.
+ */
+export const DOOR_COLOR = '#92400e'
+export const DOOR_SWING_COLOR = '#fef3c7'
+export const WINDOW_COLOR = '#38bdf8'
+
 /** The "38% rule" reference line in the room view and its legend. */
 export const RULE_OF_THUMB_COLOR = '#a3a3a3'
 
@@ -35,6 +43,9 @@ export const SCENE_COLORS = {
   screen: SCREEN_COLOR,
   furniture: FURNITURE_COLOR,
   furnitureFront: FURNITURE_FRONT_COLOR,
+  door: DOOR_COLOR,
+  doorSwing: DOOR_SWING_COLOR,
+  window: WINDOW_COLOR,
   ruleOfThumb: RULE_OF_THUMB_COLOR,
   recommended: RECOMMENDED_SEAT_COLOR,
   /** The Selected item's ring and Dimension lines. */

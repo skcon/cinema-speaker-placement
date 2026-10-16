@@ -16,10 +16,12 @@ import {
 } from './room-objects'
 import { FURNITURE_ROTATIONS, type FurnitureBox } from './furniture'
 import { SCREEN_KINDS, type RoomScreen } from './screen'
+import type { Door, Opening, WindowOpening } from './openings'
 import type { SeatRow } from './seat-row'
 import {
   checkRoomDimension,
   DEFAULT_ROOM,
+  WALLS,
   type Room,
   type RoomDimension,
   type RoomPoint,
@@ -103,6 +105,27 @@ const furnitureBoxSchema = z.strictObject({
 }) satisfies z.ZodType<FurnitureBox>
 
 /**
+ * A door or a window on a wall, in meters; whether it fits its wall and
+ * how many there are is checked with the whole config.
+ */
+const openingSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('door'),
+    wall: z.enum(WALLS),
+    position: z.number(),
+    width: z.number(),
+  }) satisfies z.ZodType<Door>,
+  z.strictObject({
+    kind: z.literal('window'),
+    wall: z.enum(WALLS),
+    position: z.number(),
+    width: z.number(),
+    sill: z.number(),
+    height: z.number(),
+  }) satisfies z.ZodType<WindowOpening>,
+]) satisfies z.ZodType<Opening>
+
+/**
  * The Seat row's size, in meters; its limits are checked with the other
  * room objects. It stores no position: it sits where the MLP is.
  */
@@ -165,6 +188,7 @@ export const configSchema = z
       seatRow: seatRowSchema,
       screen: screenSchema.nullable(),
       furniture: z.array(furnitureBoxSchema).readonly(),
+      openings: z.array(openingSchema).readonly(),
     }) satisfies z.ZodType<RoomObjects>,
   })
   // The subwoofer count lives in the layout: own specs only for its subwoofers.

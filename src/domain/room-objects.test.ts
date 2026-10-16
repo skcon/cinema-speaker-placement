@@ -8,11 +8,13 @@ import {
   roundRoomObjectsForLink,
   SCREEN_ID,
   withFurnitureBox,
+  withOpening,
   SEAT_ROW_ID,
   type RoomObjects,
 } from './room-objects'
 import { DEFAULT_ROOM } from './room'
 import { newFurnitureBox } from './furniture'
+import { newOpening } from './openings'
 import { defaultScreen } from './screen'
 import { DEFAULT_SEAT_ROW } from './seat-row'
 
@@ -30,12 +32,22 @@ const WITH_TV: RoomObjects = {
   screen: defaultScreen(DEFAULT_ROOM),
 }
 
+/** The default door, in the middle of the default room's back wall. */
+const DOOR = newOpening(DEFAULT_ROOM, 'door')
+
+/** The default room objects with the default door and window. */
+const WITH_OPENINGS: RoomObjects = {
+  ...DEFAULT_ROOM_OBJECTS,
+  openings: [DOOR, newOpening(DEFAULT_ROOM, 'window')],
+}
+
 describe('room objects', () => {
   it('start as the default seat row and no screen, and that is valid', () => {
     expect(DEFAULT_ROOM_OBJECTS).toEqual({
       seatRow: DEFAULT_SEAT_ROW,
       screen: null,
       furniture: [],
+      openings: [],
     })
     expect(areValidRoomObjects(DEFAULT_ROOM, DEFAULT_ROOM_OBJECTS)).toBe(true)
   })
@@ -192,15 +204,81 @@ describe('room objects', () => {
       seatRow: { width: 3.6576, depth: 0.9144 },
       screen: { ...defaultScreen(DEFAULT_ROOM), x: 0.123456789 },
       furniture: [],
+      openings: [{ ...newOpening(DEFAULT_ROOM, 'door'), position: 1.23456 }],
     }
 
     expect(roundRoomObjectsForLink(dragged)).toEqual({
       seatRow: { width: 3.6576, depth: 0.9144 },
       screen: { ...dragged.screen, x: 0.123 },
       furniture: [],
+      openings: [{ ...newOpening(DEFAULT_ROOM, 'door'), position: 1.235 }],
     })
     expect(roundRoomObjectsForLink(DEFAULT_ROOM_OBJECTS)).toEqual(
       DEFAULT_ROOM_OBJECTS,
+    )
+  })
+
+  it('name each opening by its place in the list', () => {
+    expect(isRoomObjectId('opening-1')).toBe(true)
+    expect(isRoomObjectId('opening-6')).toBe(true)
+    expect(isRoomObjectId('opening')).toBe(false)
+  })
+
+  it('are valid with up to six openings on their walls, and not with one past a corner', () => {
+    expect(areValidRoomObjects(DEFAULT_ROOM, WITH_OPENINGS)).toBe(true)
+    expect(
+      areValidRoomObjects(DEFAULT_ROOM, {
+        ...WITH_OPENINGS,
+        openings: [{ ...DOOR, position: 4.3 }],
+      }),
+    ).toBe(false)
+    expect(
+      areValidRoomObjects(DEFAULT_ROOM, {
+        ...WITH_OPENINGS,
+        openings: Array.from({ length: 7 }, () => DOOR),
+      }),
+    ).toBe(false)
+  })
+
+  it('drag an opening along its own wall, stopping at a corner, and leave the others', () => {
+    const moved = roomObjectsMoved(DEFAULT_ROOM, WITH_OPENINGS, 'opening-1', {
+      x: 3,
+      y: 1,
+    })
+
+    // The 0.9 m door stops with its edge in the back right corner.
+    expect(moved.openings[0]).toEqual({ ...DOOR, position: 4.05 })
+    expect(moved.openings[1]).toBe(WITH_OPENINGS.openings[1])
+    expect(
+      roomObjectsMoved(DEFAULT_ROOM, WITH_OPENINGS, 'opening-3', {
+        x: 1,
+        y: 1,
+      }),
+    ).toBe(WITH_OPENINGS)
+  })
+
+  it('change one opening, or come back as they were when the change is rejected', () => {
+    const wider = withOpening(WITH_OPENINGS, 'opening-1', (door) => ({
+      ...door,
+      width: 1.2,
+    }))
+    expect(wider.openings[0]).toEqual({ ...DOOR, width: 1.2 })
+    expect(withOpening(WITH_OPENINGS, 'opening-1', () => null)).toBe(
+      WITH_OPENINGS,
+    )
+  })
+
+  it('move and lower openings into a room too small for them, and keep the rest', () => {
+    const small = { length: 3, width: 2, height: 2 }
+    const kept = keepRoomObjectsInRoom(small, WITH_OPENINGS)
+
+    // The 0.9 m door into the back right corner of the 2 m back wall, the
+    // window into the back of the 3 m right wall and down from the ceiling.
+    expect(kept.openings[0]?.position).toBeCloseTo(1.55, 12)
+    expect(kept.openings[1]).toMatchObject({ position: 2.4, sill: 0.8 })
+    expect(areValidRoomObjects(small, kept)).toBe(true)
+    expect(keepRoomObjectsInRoom(DEFAULT_ROOM, WITH_OPENINGS)).toBe(
+      WITH_OPENINGS,
     )
   })
 })

@@ -22,6 +22,11 @@ import {
   withFurnitureEdit,
   withFurnitureName,
   withFurnitureRemoved,
+  withOpeningAdded,
+  withOpeningDimension,
+  withOpeningEdit,
+  withOpeningRemoved,
+  withOpeningWall,
   withRoom,
   withRoomObjectMoved,
   withRoomObjects,
@@ -35,6 +40,9 @@ import {
   type FurnitureDimension,
   type FurnitureId,
   type FurniturePreset,
+  type OpeningDimension,
+  type OpeningId,
+  type OpeningKind,
   type PlaceableId,
   type RoomPoint,
   type RoomDimension,
@@ -211,9 +219,33 @@ export type ConfigState = {
    */
   turnFurniture: (id: FurnitureId) => void
   /**
+   * Add a door (in the middle of the back wall) or a window (in the middle
+   * of the right wall), see OPENINGS in the domain's reference data.
+   * Ignored when the Room has MAX_OPENINGS.
+   */
+  addOpening: (kind: OpeningKind) => void
+  /** Take opening `id` away; the openings after it move up a place. */
+  removeOpening: (id: OpeningId) => void
+  /**
+   * Move opening `id` to another wall, as far along it as it was, moved in
+   * from a corner (and narrowed) to fit it.
+   */
+  setOpeningWall: (id: OpeningId, wall: Wall) => void
+  /**
+   * Set one of opening `id`'s lengths, or where it is from the wall's
+   * start, in meters. Values outside its range in this Room, and a door's
+   * sill or height, are ignored; a wider opening moves in from a corner.
+   */
+  setOpeningDimension: (
+    id: OpeningId,
+    dimension: OpeningDimension,
+    meters: number,
+  ) => void
+  /**
    * Move a room object on the floor plan (a drag); a furniture box goes
    * with its middle to `to`, stopping at the walls, and the Screen slides
-   * along the front wall, stopping at the side walls. The Seat row is
+   * along the front wall, stopping at the side walls, and an opening along
+   * its own wall, stopping at the corners. The Seat row is
    * dragged by the MLP on it: `to` is where the MLP goes, made manual, and
    * the seat row comes with it.
    */
@@ -510,6 +542,22 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           turnFurniture: (id) =>
             setConfigIfChanged((config) =>
               withFurnitureEdit(config, id, furnitureTurned),
+            ),
+          addOpening: (kind) =>
+            setConfigIfChanged((config) => withOpeningAdded(config, kind)),
+          removeOpening: (id) =>
+            setConfigIfChanged((config) => withOpeningRemoved(config, id)),
+          setOpeningWall: (id, wall) =>
+            setConfigIfChanged((config) =>
+              withOpeningEdit(config, id, (room, opening) =>
+                withOpeningWall(room, opening, wall),
+              ),
+            ),
+          setOpeningDimension: (id, dimension, meters) =>
+            setConfigIfChanged((config) =>
+              withOpeningEdit(config, id, (room, opening) =>
+                withOpeningDimension(room, opening, dimension, meters),
+              ),
             ),
           moveRoomObject: (id, to) =>
             setConfigIfChanged((config) => withRoomObjectMoved(config, id, to)),

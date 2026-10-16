@@ -25,15 +25,19 @@ import {
   UNGRADED_STYLE,
 } from '@/scene/speakers'
 import {
+  DOOR_COLOR,
+  DOOR_SWING_COLOR,
   FURNITURE_COLOR,
   FURNITURE_FRONT_COLOR,
   RECOMMENDED_SEAT_COLOR,
   RULE_OF_THUMB_COLOR,
   SCREEN_COLOR,
+  WINDOW_COLOR,
 } from '@/scene/palette'
 import type { DragTarget } from '@/scene/drag'
 import {
   describeFurniture,
+  describeOpenings,
   describeScreen,
   describeSeatRow,
 } from '@/scene/room-objects'
@@ -66,6 +70,7 @@ export function RoomView() {
   const { room, units } = useConfig((state) => state.config)
   const screen = useConfig((state) => state.config.roomObjects.screen)
   const furniture = useConfig((state) => state.config.roomObjects.furniture)
+  const openings = useConfig((state) => state.config.roomObjects.openings)
   const seatRowSize = useConfig((state) => state.config.roomObjects.seatRow)
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveItem = useConfig((state) => state.moveItem)
@@ -130,6 +135,7 @@ export function RoomView() {
     describeSeatRow(seatRowSize, units),
     screen && describeScreen(screen, units),
     describeFurniture(furniture, units),
+    describeOpenings(openings, units),
     ROOM_OBJECTS_NOTE,
   ]
     .filter(Boolean)
@@ -187,6 +193,7 @@ export function RoomView() {
             subwoofers={subwoofers}
             screen={screen}
             furniture={furniture}
+            openings={openings}
             gridSpacing={baseUnit.meters}
             seatRow={seatRow}
             recommendedSeat={recommendation?.recommended.position ?? null}
@@ -223,6 +230,7 @@ export function RoomView() {
             distances. Drag the seat row to move it with the MLP.
             {screen && ' Drag the screen along the front wall.'}
             {furniture.length > 0 && ' Drag the furniture boxes to move them.'}
+            {openings.length > 0 && ' Drag doors and windows along their wall.'}
           </p>
         )}
         <div className="flex items-center gap-2">
@@ -319,6 +327,30 @@ export function RoomView() {
               />
               Furniture box, front edge darker (drawn and warned about, not in
               the estimate)
+            </p>
+          )}
+          {openings.some(({ kind }) => kind === 'door') && (
+            <p className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="h-2.5 w-3 rounded-xs border-t-2"
+                style={{
+                  backgroundColor: DOOR_SWING_COLOR,
+                  borderColor: DOOR_COLOR,
+                }}
+              />
+              Door and where it swings (drawn and warned about, not in the
+              estimate)
+            </p>
+          )}
+          {openings.some(({ kind }) => kind === 'window') && (
+            <p className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="h-1 w-3 rounded-xs"
+                style={{ backgroundColor: WINDOW_COLOR }}
+              />
+              Window (drawn and warned about, not in the estimate)
             </p>
           )}
         </div>

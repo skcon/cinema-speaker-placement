@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import {
   checkFurnitureDimension,
   checkFurnitureName,
+  checkOpeningDimension,
   checkScreenDimension,
   checkSeatRowDimension,
   formatLength,
@@ -11,6 +12,11 @@ import {
   furnitureId,
   furnitureLabel,
   MAX_FURNITURE,
+  MAX_OPENINGS,
+  OPENING_KINDS,
+  openingDimension,
+  openingId,
+  openingLabel,
   screenDimension,
   SEAT_ROW_HEAD_OFFSET,
   warningsAbout,
@@ -19,10 +25,15 @@ import {
   type FurnitureId,
   type FurnitureNameProblem,
   type FurniturePreset,
+  type Opening,
+  type OpeningDimension,
+  type OpeningId,
+  type OpeningKind,
   type RoomScreen,
   type ScreenDimension,
   type ScreenKind,
   type SeatRowDimension,
+  type Wall,
 } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { Input } from '@/ui/components/input'
@@ -36,9 +47,8 @@ import { SidebarSection, SidebarSubsection } from '@/ui/SidebarSection'
 
 /**
  * Room objects in the sidebar (ADR 0006): things in the room besides the
- * speakers and the MLP. So far the Seat row, the Screen and furniture
- * boxes, then every placement warning; openings join this section as a
- * subsection.
+ * speakers and the MLP: the Seat row, the Screen, furniture boxes and
+ * doors and windows, then every placement warning.
  */
 export function RoomObjectsForm() {
   return (
@@ -55,6 +65,9 @@ export function RoomObjectsForm() {
       </SidebarSubsection>
       <SidebarSubsection title="Furniture">
         <FurnitureForm />
+      </SidebarSubsection>
+      <SidebarSubsection title="Doors and windows">
+        <OpeningsForm />
       </SidebarSubsection>
       <SidebarSubsection title="Placement warnings">
         <AllPlacementWarnings />
@@ -508,6 +521,173 @@ function FurnitureDimensionField({
         lengthErrorMessage(noun, label, problem, units)
       }
       onChange={(value) => setFurnitureDimension(id, dimension, value)}
+    />
+  )
+}
+
+/** How each kind's add button reads. */
+const OPENING_BUTTONS = {
+  door: 'Add a door',
+  window: 'Add a window',
+} as const satisfies Record<OpeningKind, string>
+
+/**
+ * Doors and windows: added (a door in the middle of the back wall, a
+ * window in the middle of the right wall), then moved to their wall, sized
+ * and moved along it, or removed. Up to MAX_OPENINGS of them.
+ */
+function OpeningsForm() {
+  const openings = useConfig((state) => state.config.roomObjects.openings)
+  const addOpening = useConfig((state) => state.addOpening)
+  const full = openings.length >= MAX_OPENINGS
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted-foreground">
+        Doors and windows on the walls. Drawn in the room view and used for
+        placement warnings, but not modelled: the estimated response still
+        assumes closed, solid walls. Drag them along their wall in the top-down
+        view; distances are to an opening&rsquo;s nearest edge.
+      </p>
+      {openings.map((opening, index) => (
+        <OpeningForm
+          // Keyed by place: the room view names an opening by it (openingId).
+          key={index}
+          id={openingId(index)}
+          opening={opening}
+          label={openingLabel(opening, index)}
+        />
+      ))}
+      <div className="flex flex-wrap gap-2">
+        {OPENING_KINDS.map((kind) => (
+          <Button
+            key={kind}
+            variant="outline"
+            className="max-lg:h-11"
+            disabled={full}
+            onClick={() => addOpening(kind)}
+          >
+            {OPENING_BUTTONS[kind]}
+          </Button>
+        ))}
+      </div>
+      {full && (
+        <p className="text-xs text-muted-foreground">
+          A room holds up to {MAX_OPENINGS} doors and windows, so its share link
+          stays short enough to send.
+        </p>
+      )}
+    </div>
+  )
+}
+
+const WALL_OPTIONS = [
+  { value: 'front', label: 'Front wall' },
+  { value: 'right', label: 'Right wall' },
+  { value: 'back', label: 'Back wall' },
+  { value: 'left', label: 'Left wall' },
+] as const satisfies readonly { value: Wall; label: string }[]
+
+/** Where along each wall an opening is measured from. */
+const FROM_CORNER_LABELS = {
+  front: 'From the left wall',
+  back: 'From the left wall',
+  left: 'From the front wall',
+  right: 'From the front wall',
+} as const satisfies Record<Wall, string>
+
+/** How each of an opening's lengths is labelled, and named in its errors. */
+const OPENING_FIELDS = {
+  width: { label: 'Opening width', noun: 'opening width' },
+  fromCorner: { label: 'From the corner', noun: 'distance' },
+  sill: { label: 'Sill height', noun: 'sill height' },
+  height: { label: 'Window height', noun: 'window height' },
+} as const satisfies Record<OpeningDimension, { label: string; noun: string }>
+
+/** One door or window: its wall, size, place, warnings and removal. */
+function OpeningForm({
+  id,
+  opening,
+  label,
+}: {
+  id: OpeningId
+  opening: Opening
+  label: string
+}) {
+  const headingId = useId()
+  const setOpeningWall = useConfig((state) => state.setOpeningWall)
+  const removeOpening = useConfig((state) => state.removeOpening)
+  const warnings = warningsAbout(useRoomAnalysis().placementWarnings, id)
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-3 rounded-md border p-2"
+    >
+      <h4 id={headingId} className="text-sm font-medium">
+        {label}
+      </h4>
+      <OptionPicker
+        label="Wall"
+        value={opening.wall}
+        options={WALL_OPTIONS}
+        onChange={(wall) => setOpeningWall(id, wall)}
+      />
+      <OpeningDimensionField id={id} opening={opening} dimension="width" />
+      <OpeningDimensionField id={id} opening={opening} dimension="fromCorner" />
+      {opening.kind === 'window' && (
+        <>
+          <OpeningDimensionField id={id} opening={opening} dimension="sill" />
+          <OpeningDimensionField id={id} opening={opening} dimension="height" />
+        </>
+      )}
+      <PlacementWarningList
+        warnings={warnings}
+        label={`Placement warnings for ${label}`}
+      />
+      <Button
+        variant="outline"
+        className="self-start max-lg:h-11"
+        aria-label={`Remove ${label}`}
+        onClick={() => removeOpening(id)}
+      >
+        Remove
+      </Button>
+    </section>
+  )
+}
+
+/** One of an opening's lengths, or where it is along its wall, checked. */
+function OpeningDimensionField({
+  id,
+  opening,
+  dimension,
+}: {
+  id: OpeningId
+  opening: Opening
+  dimension: OpeningDimension
+}) {
+  const room = useConfig((state) => state.config.room)
+  const units = useConfig((state) => state.config.units)
+  const setOpeningDimension = useConfig((state) => state.setOpeningDimension)
+  const meters = openingDimension(opening, dimension)
+  if (meters === null) return null
+  const { noun } = OPENING_FIELDS[dimension]
+  const label =
+    dimension === 'fromCorner'
+      ? FROM_CORNER_LABELS[opening.wall]
+      : OPENING_FIELDS[dimension].label
+
+  return (
+    <CheckedLengthField
+      label={label}
+      meters={meters}
+      units={units}
+      check={(value) => checkOpeningDimension(room, opening, dimension, value)}
+      errorMessage={(problem) =>
+        lengthErrorMessage(noun, label, problem, units)
+      }
+      onChange={(value) => setOpeningDimension(id, dimension, value)}
     />
   )
 }

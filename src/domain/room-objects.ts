@@ -24,7 +24,6 @@ import {
   furnitureMovedTo,
   isValidFurnitureBox,
   newFurnitureBox,
-  roundFurnitureForLink,
   type FurnitureBox,
   type FurniturePreset,
 } from './furniture'
@@ -33,7 +32,6 @@ import {
   isValidOpening,
   newOpening,
   openingMovedTo,
-  roundOpeningForLink,
   type Opening,
   type OpeningKind,
 } from './openings'
@@ -43,7 +41,6 @@ import {
   defaultScreen,
   fitScreenToRoom,
   isValidScreen,
-  roundScreenForLink,
   screenMovedTo,
   type RoomScreen,
 } from './screen'
@@ -470,25 +467,4 @@ export function withRoomObjectMoved<C extends RoomWithObjects>(
   return withRoomObjectEdited(config, id, (room, object) =>
     rules.movedTo(room, object, to),
   )
-}
-
-/**
- * The room objects as a share link stores them: positions to the
- * millimeter. The seat row's and the screen's sizes are typed, not
- * dragged, so they stay as they are; furniture boxes and openings are
- * stored to the millimeter, sizes too (see roundFurnitureForLink and
- * roundOpeningForLink).
- */
-export function roundRoomObjectsForLink({
-  seatRow,
-  screen,
-  furniture,
-  openings,
-}: RoomObjects): RoomObjects {
-  return {
-    seatRow,
-    screen: screen && roundScreenForLink(screen),
-    furniture: furniture.map(roundFurnitureForLink),
-    openings: openings.map(roundOpeningForLink),
-  }
 }

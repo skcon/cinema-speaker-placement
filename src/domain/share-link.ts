@@ -24,9 +24,16 @@
  *     window: [code, position, width, sill, height]
  *
  * `code` folds the kind and the wall into one digit, and every length is
- * in millimeters, which is how a link stores them anyway
- * (roundOpeningForLink). Decoding unpacks them after spelling the names
- * out; anything else in their place makes the link unreadable.
+ * in millimeters, which is how a link stores them anyway. Decoding unpacks
+ * them after spelling the names out; anything else in their place makes
+ * the link unreadable.
+ *
+ * Some lengths are stored to the millimeter (manual positions, where the
+ * screen was dragged to, furniture boxes and openings), as
+ * LINK_MILLIMETER_LENGTHS lists them (link-precision.ts); every other
+ * value comes back to its last digit. The table is frozen with each
+ * released version, as SHORT_FIELD_NAMES and the opening packing are:
+ * validity's slack for those lengths follows from it.
  *
  * ## Changing the config schema (ADR 0003)
  *
@@ -75,7 +82,12 @@ import {
 import { z } from 'zod'
 import { configSchema, DEFAULT_CONFIG, type Config } from './config'
 import { configSchemaV1 } from './config-v1'
-import { roundToMillimeter } from './manual-positions'
+import {
+  LINK_MILLIMETER_LENGTHS,
+  MILLIMETERS_PER_METER,
+  toMillimeter,
+} from './link-precision'
+import { entries, type ManualPositions } from './manual-positions'
 import {
   OPENING_KINDS,
   type Door,
@@ -83,7 +95,7 @@ import {
   type OpeningKind,
   type WindowOpening,
 } from './openings'
-import { DEFAULT_ROOM_OBJECTS, roundRoomObjectsForLink } from './room-objects'
+import { DEFAULT_ROOM_OBJECTS, type RoomObjects } from './room-objects'
 import { WALLS, type Wall } from './room'
 
 /**
@@ -361,8 +373,6 @@ const OPENING_WIRE_FIELDS = {
   window: readonly (keyof WindowOpening)[]
 }
 
-const MILLIMETERS_PER_METER = 1000
-
 /** The kind and wall that `code` stands for, or null for no code. */
 function fromWireCode(code: unknown): { kind: OpeningKind; wall: Wall } | null {
   for (const kind of OPENING_KINDS) {
@@ -492,18 +502,69 @@ const configCodec = createConfigCodec({
   packedForm: PACKED_OPENINGS,
 })
 
+/** `item` with its `lengths` (those it has) to the nearest millimeter. */
+function withLengthsRounded<T extends object>(
+  item: T,
+  lengths: readonly string[],
+): T {
+  const values = item as Readonly<Record<string, unknown>>
+  return {
+    ...item,
+    ...Object.fromEntries(
+      lengths
+        .filter((length) => typeof values[length] === 'number')
+        .map((length) => [length, toMillimeter(values[length] as number)]),
+    ),
+  }
+}
+
+/**
+ * The manual positions as a link stores them: in PLACEABLE_IDS order, each
+ * point's coordinates to the millimeter.
+ */
+function manualPositionsForLink(positions: ManualPositions): ManualPositions {
+  const { lengths } = LINK_MILLIMETER_LENGTHS.manualPositions
+  return Object.fromEntries(
+    entries(positions).map(([id, point]) => [
+      id,
+      Object.fromEntries(
+        lengths.map((axis) => [axis, toMillimeter(point[axis])]),
+      ),
+    ]),
+  )
+}
+
+/** The room objects as a link stores them (see LINK_MILLIMETER_LENGTHS). */
+function roomObjectsForLink({
+  seatRow,
+  screen,
+  furniture,
+  openings,
+}: RoomObjects): RoomObjects {
+  const table = LINK_MILLIMETER_LENGTHS
+  return {
+    seatRow,
+    screen: screen && withLengthsRounded(screen, table.screen.lengths),
+    furniture: furniture.map((box) =>
+      withLengthsRounded(box, table.furniture.lengths),
+    ),
+    // Packed as whole millimeters after this (PACKED_OPENINGS).
+    openings: openings.map((opening) =>
+      withLengthsRounded(opening, table.openings.lengths),
+    ),
+  }
+}
+
 /**
  * The config as an encoded config: the URL-safe text a share link carries
- * in its `config` search param. Manual positions, and where a room object
- * was dragged to, are written to the nearest millimeter, which keeps links
- * short: a drag gives 17 significant digits, and nobody mounts a speaker
- * more precisely than that.
+ * in its `config` search param, with the lengths LINK_MILLIMETER_LENGTHS
+ * lists to the nearest millimeter, which keeps links short.
  */
 export function encodeConfig(config: Config): EncodedConfig {
   return configCodec.encode({
     ...config,
-    manualPositions: roundToMillimeter(config.manualPositions),
-    roomObjects: roundRoomObjectsForLink(config.roomObjects),
+    manualPositions: manualPositionsForLink(config.manualPositions),
+    roomObjects: roomObjectsForLink(config.roomObjects),
   }) as EncodedConfig
 }
 

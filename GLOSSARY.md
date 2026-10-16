@@ -37,7 +37,7 @@ A piece of furniture as a box (width, depth, height) on the floor plan, such as 
 _Avoid_: Obstacle, block
 
 **Opening**:
-A door or window on a wall: where along the wall, how wide, and for a window its sill and height.
+A door or window on a wall: where along the wall (from the left wall on the front and back walls, from the front wall on the side walls), how wide, and for a window its sill and height. A door is drawn 2 m high, our assumption (ADR 0006).
 _Avoid_: Gap, hole, aperture
 
 **Placement warning**:

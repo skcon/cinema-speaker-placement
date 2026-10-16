@@ -33,7 +33,17 @@ Warnings are hints, never blocks. A speaker may overlap furniture; the warning s
 
 At most **8 furniture boxes** and **6 openings** per Room, so the worst-case share link stays within the URL budget (ADR 0003). These are our choices; the budget test checks them.
 
-A furniture box name is at most 12 characters of Western European letters (Latin-1), digits, spaces and `' & ( ) . , / -`, and a link stores furniture lengths and positions to the millimeter (#56): eight free-text names of any Unicode characters would not fit the budget. With eight such boxes the worst-case link is 1,836 of 2,000 characters, which leaves openings (#57) about 160.
+A furniture box name is at most 12 characters of Western European letters (Latin-1), digits, spaces and `' & ( ) . , / -`, and a link stores furniture lengths and positions to the millimeter (#56): eight free-text names of any Unicode characters would not fit the budget. With eight such boxes the worst-case link is 1,836 of 2,000 characters, which leaves openings (#57) about 160. A link packs each opening as a tuple of a kind-and-wall code and millimeters (ADR 0003, third 1.1.0 amendment), so with eight boxes and six openings the worst case is 1,978.
+
+## Openings (#57)
+
+A door has a wall, a position along it and a width; a window also has a sill height and a window height. Where along the wall is measured from the left wall on the front and back walls, and from the front wall on the side walls. Our choices, in `OPENINGS` and `PLACEMENT_WARNINGS` (reference.ts):
+
+- A door is drawn, and checked for W5, 2 m high (a typical interior door), or up to a lower ceiling. Doors have no open or closed state: W3 treats every door as a possible doorway.
+- W1's swing zone is as wide as the door and as deep as it is wide, assuming it opens into the room.
+- W2 counts a listener-level speaker within the window's width, at its height (tweeter or woofer) and within 1 m of its wall.
+- W3 counts a subwoofer within 0.5 m of the door on the floor plan.
+- W5 checks the first-order reflection (image source) off each side wall for the L/R, Ls/Rs and Lrs/Rrs pairs, both off a speaker's own side and off the far side.
 
 ## Considered Options
 

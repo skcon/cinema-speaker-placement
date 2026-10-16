@@ -32,7 +32,9 @@ function WarningItem({ warning }: { warning: PlacementWarning }) {
         {message}
       </p>
       <p className="opacity-80">
-        {id}, {sourceClass}:{' '}
+        {id}, {sourceClass}
+        {/* A rule that is our own assumption may cite no source. */}
+        {sources.length > 0 && ': '}
         {sources.map(({ title, url, detail }, at) => (
           <span key={at}>
             {at > 0 && '; '}

@@ -1,6 +1,10 @@
+import { formatHz } from '@/charts/format'
+import { modeName } from '@/charts/notes-text'
 import {
   formatLength,
+  SEAT_SCORE,
   wallDistances,
+  type OffCenterLine,
   type Room,
   type ScoredSeat,
   type UnitSystem,
@@ -29,6 +33,11 @@ export function RecommendedSeat() {
               {describeSeat(recommendation.recommended, room, units)}, seat
               score {outOf100(recommendation.recommended)}.
             </p>
+            {recommendation.offCenterLine && (
+              <p className="text-muted-foreground">
+                {offCenterLineText(recommendation.offCenterLine, units)}
+              </p>
+            )}
             <p className="text-muted-foreground">
               {recommendation.mlpIsRecommended
                 ? 'Your MLP is at the recommended seat: no seat scores meaningfully better.'
@@ -56,8 +65,10 @@ export function RecommendedSeat() {
         An estimate from a simplified model, never a measurement: a grid of
         seats scored on bass smoothness (the estimated response against the
         target) and on the listener-level speakers&rsquo; Dolby placement
-        ranges, with the receiver calibrated at the MLP. Moving the MLP makes it
-        manual; undo takes it back. Auto-place also puts the MLP here.
+        ranges, with the receiver calibrated at the MLP. The best seat on the
+        center line is preferred, as in published practice, unless a seat off it
+        scores meaningfully better. Moving the MLP makes it manual; undo takes
+        it back. Auto-place also puts the MLP here.
       </p>
     </div>
   )
@@ -74,6 +85,29 @@ function describeSeat(
     `${formatLength(position.y, units)} from the front wall and ` +
     `${formatLength(across.meters, units)} from the ${across.wall} wall`
   )
+}
+
+/**
+ * Why the recommended seat is off the center line: by how much it beats
+ * the best center-line seat, and the width mode behind it, if any.
+ */
+function offCenterLineText(
+  { centerLine, margin, widthMode }: OffCenterLine,
+  units: UnitSystem,
+): string {
+  // One decimal: the margin is only just over the precision (2 points).
+  const points = (margin * 100).toFixed(1)
+  const beats =
+    `It is off the center line: it scores ${points} points more than the ` +
+    `best seat on the center line (${formatLength(centerLine.position.y, units)} ` +
+    `from the front wall, ${outOf100(centerLine)}), more than the ` +
+    `${Math.round(SEAT_SCORE.meaningfulDifference * 100)} points the ` +
+    `simplified model can tell apart.`
+  if (!widthMode) return beats
+  const mode = `${modeName(widthMode.mode)} (${formatHz(widthMode.mode.frequency)})`
+  return widthMode.atCenterLine === 'null'
+    ? `${beats} The bass is smoother off it: the center line sits on a null of the ${mode}.`
+    : `${beats} The bass is smoother off it: the ${mode} is strongest on the center line.`
 }
 
 /** A seat score as a whole number out of 100. */

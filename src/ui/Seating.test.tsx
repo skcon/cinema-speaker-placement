@@ -39,6 +39,17 @@ describe('seating in the sidebar', () => {
     ).toBeDisabled()
   })
 
+  it('says why the recommended seat is off the center line', async () => {
+    const seating = renderSeating()
+
+    // The default room's best seat beats the center line by about 2 points.
+    expect(
+      await within(seating).findByText(/off the center line/),
+    ).toHaveTextContent(
+      /scores 2\.3 points more than the best seat on the center line \(4\.54 m from the front wall, 83\/100\), more than the 2 points.*second width mode \(76\.2 Hz\) is strongest on the center line/,
+    )
+  })
+
   it('shows the 38% rule of thumb as a reference only', () => {
     const seating = renderSeating()
 

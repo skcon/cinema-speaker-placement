@@ -1,10 +1,13 @@
-import type { FloorPoint, PlaceableId } from '@/domain'
+import type { FloorPoint, PlaceableId, RoomObjectId } from '@/domain'
 import { draggedTo, grabOffset } from '@/scene/top-down'
+
+/** What can be dragged in the room view: a placeable item or a room object. */
+export type DragTarget = PlaceableId | RoomObjectId
 
 /** What a drag tells the store: start, moves, end (one undo step). */
 export type DragCallbacks = {
   onDragStart: () => void
-  onDragMove: (id: PlaceableId, to: FloorPoint) => void
+  onDragMove: (id: DragTarget, to: FloorPoint) => void
   onDragEnd: () => void
 }
 
@@ -18,7 +21,7 @@ export type DragCallbacks = {
 export function createDragController(callbacks: DragCallbacks) {
   let active: {
     pointerId: number
-    id: PlaceableId
+    id: DragTarget
     offset: FloorPoint
   } | null = null
 
@@ -31,7 +34,7 @@ export function createDragController(callbacks: DragCallbacks) {
      */
     press(
       pointerId: number,
-      id: PlaceableId,
+      id: DragTarget,
       at: FloorPoint,
       pointer: FloorPoint,
     ): boolean {

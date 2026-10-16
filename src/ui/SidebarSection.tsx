@@ -4,11 +4,11 @@ import { useCollapsedSections } from '@/state/collapsed-sections-context'
 
 /** The sidebar's top-level sections, by the id their collapsed state is kept under. */
 export type SidebarSectionId =
-  'room' | 'layout' | 'speakers' | 'seating' | 'results'
+  'room' | 'layout' | 'speakers' | 'seating' | 'roomObjects' | 'results'
 
 /**
  * One of the sidebar's top-level sections (Room, Layout, Speakers, Seating,
- * Results), with a heading and a one-line explanation of what it does.
+ * Room objects, Results), with a heading and a one-line explanation of what it does.
  * The button in the heading collapses and expands it; this browser
  * remembers which sections are collapsed, when it can.
  */

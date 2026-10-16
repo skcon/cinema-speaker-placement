@@ -42,9 +42,13 @@ export type RoomScreen = {
   standoff: number | null
 }
 
-/** A screen's dimensions that are edited as lengths. */
+/**
+ * A screen's dimensions that are edited as lengths. Where it is along the
+ * front wall is edited as `fromLeftWall`: from the left wall to its left
+ * edge, which is never negative.
+ */
 export type ScreenDimension =
-  'width' | 'height' | 'bottomEdge' | 'x' | 'standoff'
+  'width' | 'height' | 'bottomEdge' | 'fromLeftWall' | 'standoff'
 
 /**
  * The accepted range of each of a screen's dimensions in `room`, given
@@ -68,7 +72,7 @@ export function screenLimits(
       min: bottomEdge.min,
       max: Math.min(bottomEdge.max, room.height - screen.height),
     },
-    x: { min: -along, max: along },
+    fromLeftWall: { min: 0, max: 2 * along },
     standoff,
   }
 }
@@ -76,6 +80,20 @@ export function screenLimits(
 /** How far a screen `width` wide may move its middle off the centre line. */
 function alongWall(room: Room, width: number): number {
   return Math.max(0, (room.width - width) / 2)
+}
+
+/**
+ * One of the screen's dimensions in `room`, in meters: null for the
+ * standoff of a screen on the wall.
+ */
+export function screenDimension(
+  room: Room,
+  screen: RoomScreen,
+  dimension: ScreenDimension,
+): number | null {
+  return dimension === 'fromLeftWall'
+    ? screen.x - screen.width / 2 + room.width / 2
+    : screen[dimension]
 }
 
 /** `null` when `meters` is an accepted `dimension` for the screen in this room. */
@@ -98,10 +116,11 @@ export function isValidScreen(room: Room, screen: RoomScreen): boolean {
   const limits = screenLimits(room, screen)
   const inRange = (dimension: 'width' | 'height' | 'bottomEdge') =>
     checkRange(screen[dimension], limits[dimension]) === null
+  const along = alongWall(room, screen.width)
   const onWall =
     checkRange(screen.x, {
-      min: limits.x.min - ROUNDING_SLACK,
-      max: limits.x.max + ROUNDING_SLACK,
+      min: -along - ROUNDING_SLACK,
+      max: along + ROUNDING_SLACK,
     }) === null
   const standoff =
     screen.standoff === null ||
@@ -150,9 +169,16 @@ export function withScreenDimension(
   if (checkScreenDimension(room, screen, dimension, meters) !== null) {
     return null
   }
-  if (dimension === 'standoff' && screen.standoff === null) return null
-  const changed = { ...screen, [dimension]: meters }
-  return dimension === 'width' ? keepOnWall(room, changed) : changed
+  switch (dimension) {
+    case 'standoff':
+      return screen.standoff === null ? null : { ...screen, standoff: meters }
+    case 'fromLeftWall':
+      return { ...screen, x: meters + screen.width / 2 - room.width / 2 }
+    case 'width':
+      return keepOnWall(room, { ...screen, width: meters })
+    default:
+      return { ...screen, [dimension]: meters }
+  }
 }
 
 /** The screen dragged along the front wall to `x`, stopped at the side walls. */

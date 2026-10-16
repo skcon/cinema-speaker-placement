@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_CONFIG,
+  encodeConfig,
   recommendSeat,
   type SeatRecommendation,
 } from '@/domain'
@@ -178,5 +179,46 @@ describe('overhead speakers in the room view', () => {
         '83° (ideal), Right Top Middle elevation 83° (ideal).',
     )
     expect(screen.getByText('Overhead speaker (ring)')).toBeInTheDocument()
+  })
+})
+
+describe('the screen in the room view', () => {
+  function renderWithScreen() {
+    const config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        screen: {
+          kind: 'tv',
+          width: 1.44,
+          height: 0.81,
+          bottomEdge: 0.93,
+          x: -0.25,
+          standoff: null,
+        },
+      },
+    } as const
+    render(
+      <ConfigStoreProvider initialEncodedConfig={encodeConfig(config)}>
+        <RoomView />
+      </ConfigStoreProvider>,
+    )
+  }
+
+  it('is described for screen readers, as drawn only and not in the estimate', () => {
+    renderWithScreen()
+
+    expect(scene()).toHaveAccessibleName(
+      /A TV on the front wall, 1\.44 m wide and 0\.81 m high, its bottom edge 0\.93 m above the floor, its middle 0\.25 m left of centre\. Room objects are drawn and used for placement warnings, not part of the estimated response\./,
+    )
+    expect(
+      screen.getByText('Screen (drawn only, not in the estimate)'),
+    ).toBeInTheDocument()
+  })
+
+  it('is not mentioned in a room without one', () => {
+    renderRoomView()
+
+    expect(scene()).not.toHaveAccessibleName(/screen|TV/)
+    expect(screen.queryByText(/^Screen \(drawn only/)).toBeNull()
   })
 })

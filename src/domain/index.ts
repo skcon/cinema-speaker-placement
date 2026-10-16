@@ -68,6 +68,7 @@ export {
   checkScreenDimension,
   defaultScreen,
   SCREEN_KINDS,
+  screenDimension,
   screenSurface,
   withAcousticTransparency,
   withScreenDimension,

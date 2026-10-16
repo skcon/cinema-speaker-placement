@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect, useId, useState } from 'react'
-import { formatLength, UNIT_SYSTEMS } from '@/domain'
+import {
+  formatLength,
+  isRoomObjectId,
+  UNIT_SYSTEMS,
+  type FloorPoint,
+} from '@/domain'
 import {
   useConfig,
   useRoomAnalysis,
@@ -19,7 +24,13 @@ import {
   GRADE_STYLES,
   UNGRADED_STYLE,
 } from '@/scene/speakers'
-import { RECOMMENDED_SEAT_COLOR, RULE_OF_THUMB_COLOR } from '@/scene/palette'
+import {
+  RECOMMENDED_SEAT_COLOR,
+  RULE_OF_THUMB_COLOR,
+  SCREEN_COLOR,
+} from '@/scene/palette'
+import type { DragTarget } from '@/scene/drag'
+import { describeScreen } from '@/scene/room-objects'
 import { canUseWebGL } from '@/scene/webgl'
 import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
@@ -47,8 +58,10 @@ const RoomCanvas = lazy(() =>
 export function RoomView() {
   const [webGL] = useState(canUseWebGL)
   const { room, units } = useConfig((state) => state.config)
+  const screen = useConfig((state) => state.config.roomObjects.screen)
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveItem = useConfig((state) => state.moveItem)
+  const moveRoomObject = useConfig((state) => state.moveRoomObject)
   const endGesture = useConfig((state) => state.endGesture)
   const {
     layout,
@@ -61,6 +74,12 @@ export function RoomView() {
   } = useRoomAnalysis()
   const recommendation = useSeatRecommendation()
   const { select, clear } = useSelection()
+  // A drag moves an item or a room object; pressing an item selects it,
+  // and pressing a room object (not a Selected item) clears the selection.
+  const dragMove = (target: DragTarget, to: FloorPoint) =>
+    isRoomObjectId(target) ? moveRoomObject(target, to) : moveItem(target, to)
+  const press = (target: DragTarget) =>
+    isRoomObjectId(target) ? clear() : select(target)
   const selectedItem = useSelectedItem()
   const selection = selectedItem && selectionDimensions(selectedItem, units)
   useClearSelectionOnEscape(selectedItem !== null, clear)
@@ -99,6 +118,9 @@ export function RoomView() {
         `elevation from the MLP and Dolby placement-range grade: ` +
         `${overheads.map(describeOverhead).join(', ')}.`
       : ''
+  const screenDescription = screen
+    ? `${describeScreen(screen, units)} ${ROOM_OBJECTS_NOTE}`
+    : ''
   const subwoofersDescription =
     `${subwoofers.length} ${subwoofers.length === 1 ? 'subwoofer' : 'subwoofers'}, ` +
     `not graded as Dolby gives subwoofers no placement range: ` +
@@ -111,6 +133,7 @@ export function RoomView() {
         <p>{speakersDescription}</p>
         {overheadsDescription && <p>{overheadsDescription}</p>}
         <p>{subwoofersDescription}</p>
+        {screenDescription && <p>{screenDescription}</p>}
         {seatDescription && <p>{seatDescription}</p>}
         <p>This browser can&rsquo;t draw the room view (no WebGL 2).</p>
       </div>
@@ -126,6 +149,7 @@ export function RoomView() {
           speakersDescription,
           overheadsDescription,
           subwoofersDescription,
+          screenDescription,
           seatDescription,
           describeHeatmap(heatmap, units),
         ]
@@ -148,6 +172,7 @@ export function RoomView() {
             speakers={speakers}
             overheads={overheads}
             subwoofers={subwoofers}
+            screen={screen}
             gridSpacing={baseUnit.meters}
             seatRow={seatRow}
             recommendedSeat={recommendation?.recommended.position ?? null}
@@ -156,10 +181,10 @@ export function RoomView() {
             view={view}
             units={units}
             onDragStart={beginGesture}
-            onDragMove={moveItem}
+            onDragMove={dragMove}
             onDragEnd={endGesture}
             selection={selection}
-            onSelect={select}
+            onSelect={press}
             onDeselect={clear}
           />
         </Suspense>
@@ -181,7 +206,7 @@ export function RoomView() {
           <p>
             To scale, seen from above. Grid squares are 1 {baseUnit.unit}. Drag
             the speakers and the MLP to move them; click or tap one to see its
-            distances.
+            distances.{screen && ' Drag the screen along the front wall.'}
           </p>
         )}
         <div className="flex items-center gap-2">
@@ -256,11 +281,27 @@ export function RoomView() {
             />
             Subwoofer: {UNGRADED_STYLE.label}
           </p>
+          {screen && (
+            <p className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="h-1 w-3 rounded-xs"
+                style={{ backgroundColor: SCREEN_COLOR }}
+              />
+              Screen (drawn only, not in the estimate)
+            </p>
+          )}
         </div>
       </div>
     </div>
   )
 }
+
+/**
+ * What the room view says wherever it lists room objects (ADR 0006).
+ */
+const ROOM_OBJECTS_NOTE =
+  'Room objects are drawn and used for placement warnings, not part of the estimated response.'
 
 /**
  * Clears the selection when Escape is pressed anywhere on the page while

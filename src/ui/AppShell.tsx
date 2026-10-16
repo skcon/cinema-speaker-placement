@@ -14,6 +14,7 @@ import { RecentRooms } from '@/ui/RecentRooms'
 import { Seating } from '@/ui/Seating'
 import { SelectedItemPanel } from '@/ui/SelectedItemPanel'
 import { RoomForm } from '@/ui/RoomForm'
+import { RoomObjectsForm } from '@/ui/RoomObjectsForm'
 import { SidebarSection, SidebarSubsection } from '@/ui/SidebarSection'
 import { SpeakerList } from '@/ui/SpeakerList'
 import { SpeakerSpecsForm } from '@/ui/SpeakerSpecsForm'
@@ -61,7 +62,7 @@ export function AppShell({
             </SidebarSubsection>
           </SidebarSection>
           <Seating />
-          {/* Room objects (issue #52) get their section here once they land. */}
+          <RoomObjectsForm />
           <SidebarSection
             id="results"
             title="Results"

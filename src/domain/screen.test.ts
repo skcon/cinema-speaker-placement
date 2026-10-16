@@ -5,6 +5,7 @@ import {
   defaultScreen,
   fitScreenToRoom,
   isValidScreen,
+  screenDimension,
   screenMovedTo,
   screenSurface,
   withAcousticTransparency,
@@ -101,10 +102,12 @@ describe('checking one dimension of a screen', () => {
     })
   })
 
-  it('keeps the screen on the front wall', () => {
-    expect(checkScreenDimension(ROOM, TV, 'x', -1.53)).toBeNull()
-    expect(checkScreenDimension(ROOM, TV, 'x', -1.6)).toMatchObject({
-      problem: 'too-small',
+  it('keeps the screen on the front wall, measured from the left wall to its left edge', () => {
+    expect(checkScreenDimension(ROOM, TV, 'fromLeftWall', 0)).toBeNull()
+    expect(checkScreenDimension(ROOM, TV, 'fromLeftWall', 3.07)).toEqual({
+      problem: 'too-large',
+      min: 0,
+      max: 4.5 - 1.44,
     })
   })
 
@@ -117,7 +120,33 @@ describe('checking one dimension of a screen', () => {
   })
 })
 
+describe('reading one dimension of a screen', () => {
+  it('gives its lengths as stored', () => {
+    expect(screenDimension(ROOM, AT_SCREEN, 'width')).toBe(2.66)
+    expect(screenDimension(ROOM, AT_SCREEN, 'standoff')).toBe(0.75)
+  })
+
+  it('measures from the left wall to its left edge', () => {
+    expect(screenDimension(ROOM, TV, 'fromLeftWall')).toBeCloseTo(1.53, 9)
+    expect(screenDimension(ROOM, AT_SCREEN, 'fromLeftWall')).toBeCloseTo(
+      2.25 + 0.5 - 1.33,
+      9,
+    )
+  })
+
+  it('gives no standoff for a screen on the wall', () => {
+    expect(screenDimension(ROOM, TV, 'standoff')).toBeNull()
+  })
+})
+
 describe('changing one dimension of a screen', () => {
+  it('moves it along the wall by its distance from the left wall', () => {
+    expect(withScreenDimension(ROOM, TV, 'fromLeftWall', 0.5)).toEqual({
+      ...TV,
+      x: 0.5 + 0.72 - 2.25,
+    })
+  })
+
   it('sets an accepted value', () => {
     expect(withScreenDimension(ROOM, TV, 'height', 1)).toEqual({
       ...TV,

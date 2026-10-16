@@ -31,12 +31,13 @@ import {
   MLP_ID,
   type FloorPoint,
   wallBases,
-  type PlaceableId,
   type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
   type Room,
   type RoomPoint,
+  type RoomScreen,
+  SCREEN_ID,
   type SeatHeatmap,
   type SeatRowFootprint,
   type UnitSystem,
@@ -66,11 +67,14 @@ import {
   createDragController,
   type DragCallbacks,
   type DragController,
+  type DragTarget,
 } from '@/scene/drag'
+import { screenBar, screenPanel } from '@/scene/room-objects'
 import {
   FLAT_ON_FLOOR,
   floorGrid,
   floorPlane,
+  grabLength,
   grabRadius,
   toFloorPoint,
   toScenePosition,
@@ -93,6 +97,7 @@ const LAYER = {
   ruleOfThumb: 0.008,
   heatmap: 0.009,
   walls: 0.01,
+  screen: 0.011,
   recommended: 0.012,
   grab: 0.015,
 } as const
@@ -135,6 +140,7 @@ export function RoomCanvas({
   speakers,
   overheads,
   subwoofers,
+  screen,
   gridSpacing,
   seatRow,
   recommendedSeat,
@@ -155,6 +161,8 @@ export function RoomCanvas({
   /** On the ceiling: drawn over everything else from straight above. */
   overheads: readonly PlacedOverhead[]
   subwoofers: readonly PlacedSubwoofer[]
+  /** The Screen on the front wall, or null: drawn only. */
+  screen: RoomScreen | null
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
   /** The Seat row around the MLP. */
@@ -169,8 +177,11 @@ export function RoomCanvas({
   units: UnitSystem
   /** The Selected item, highlighted with its Dimension lines, or null. */
   selection: SelectionDimensions | null
-  /** Select an item: pressing it in the top-down view does. */
-  onSelect: (id: PlaceableId) => void
+  /**
+   * Pressing an item or room object in the top-down view: selects an
+   * item.
+   */
+  onSelect: (id: DragTarget) => void
   /** Clear the selection: a click on the empty floor in the top-down view does. */
   onDeselect: () => void
 } & DragCallbacks) {
@@ -237,6 +248,12 @@ export function RoomCanvas({
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
         )}
         <Walls room={room} labelLayer={labelLayer} />
+        {screen &&
+          (view === '3d' ? (
+            <ScreenPanel screen={screen} />
+          ) : (
+            <ScreenBar screen={screen} markerDrag={markerDrag} />
+          ))}
         <RoomDimensionLabels
           room={room}
           units={units}
@@ -283,7 +300,7 @@ type MarkerDrag = {
   room: Room
   controller: DragController
   setCursor: (cursor: DragCursor) => void
-  onSelect: (id: PlaceableId) => void
+  onSelect: (id: DragTarget) => void
 }
 
 /**
@@ -312,10 +329,13 @@ function leaveTextField() {
 }
 
 type DraggableProps = {
-  id: PlaceableId
+  id: DragTarget
   at: RoomPoint
-  /** The marker's own radius, in meters. */
-  radius: number
+  /**
+   * The marker's own size, in meters: the radius of a round grab area, or
+   * the width (along x) and depth (along y) of a rectangular one.
+   */
+  grab: { radius: number } | { width: number; depth: number }
   children: ReactNode
 }
 
@@ -337,7 +357,7 @@ function Draggable({
 function DraggableGroup({
   id,
   at,
-  radius,
+  grab,
   markerDrag: { room, controller, setCursor, onSelect },
   children,
 }: DraggableProps & { markerDrag: MarkerDrag }) {
@@ -393,13 +413,20 @@ function DraggableGroup({
       }}
     >
       {children}
-      {/* An invisible disc on the floor, under every marker, so a marker
-          is easy to pick up with a finger; markers drawn above it win. */}
+      {/* An invisible disc (or rectangle) on the floor, under every
+          marker, so a marker is easy to pick up with a finger; markers
+          drawn above it win. */}
       <mesh
         position={toScenePosition({ ...at, z: LAYER.grab })}
         rotation={FLAT_ON_FLOOR}
       >
-        <circleGeometry args={[grabRadius(radius, zoom), 32]} />
+        {'radius' in grab ? (
+          <circleGeometry args={[grabRadius(grab.radius, zoom), 32]} />
+        ) : (
+          <planeGeometry
+            args={[grabLength(grab.width, zoom), grabLength(grab.depth, zoom)]}
+          />
+        )}
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
     </group>
@@ -623,6 +650,48 @@ function SeatRow({ footprint }: { footprint: SeatRowFootprint }) {
 }
 
 /**
+ * The Screen seen from above: a bar along the front wall (see screenBar),
+ * dragged along the wall like the other markers; the store keeps it on the
+ * wall.
+ */
+function ScreenBar({
+  screen,
+  markerDrag,
+}: {
+  screen: RoomScreen
+  markerDrag: MarkerDrag | null
+}) {
+  const { center, width, depth } = screenBar(screen)
+  return (
+    <Draggable
+      id={SCREEN_ID}
+      at={center}
+      grab={{ width, depth }}
+      markerDrag={markerDrag}
+    >
+      <mesh
+        position={toScenePosition({ ...center, z: LAYER.screen })}
+        rotation={FLAT_ON_FLOOR}
+      >
+        <planeGeometry args={[width, depth]} />
+        <meshBasicMaterial color={SCENE_COLORS.screen} />
+      </mesh>
+    </Draggable>
+  )
+}
+
+/** The Screen in 3D: an upright panel at its height on the front wall. */
+function ScreenPanel({ screen }: { screen: RoomScreen }) {
+  const { position, size } = screenPanel(screen)
+  return (
+    <mesh position={position}>
+      <planeGeometry args={size} />
+      <meshBasicMaterial color={SCENE_COLORS.screen} side={DoubleSide} />
+    </mesh>
+  )
+}
+
+/**
  * The informal "38% rule" as a faint dashed line across the room: a
  * reference only. It has no label in the scene, where one would run into
  * the speaker labels on a narrow screen; the legend names it.
@@ -738,7 +807,7 @@ function MlpMarker({
       <Draggable
         id={MLP_ID}
         at={mlp}
-        radius={MLP_MARKER_RADIUS}
+        grab={{ radius: MLP_MARKER_RADIUS }}
         markerDrag={markerDrag}
       >
         <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
@@ -776,7 +845,7 @@ function SpeakerMarkers({
         <Draggable
           id={speaker.channel}
           at={speaker.position}
-          radius={SPEAKER_FOOTPRINT.width / 2}
+          grab={{ radius: SPEAKER_FOOTPRINT.width / 2 }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
@@ -827,7 +896,7 @@ function OverheadMarkers({
         <Draggable
           id={overhead.channel}
           at={overhead.position}
-          radius={OVERHEAD_MARKER_RADIUS}
+          grab={{ radius: OVERHEAD_MARKER_RADIUS }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>
@@ -886,7 +955,7 @@ function SubwooferMarkers({
         <Draggable
           id={subwoofer.id}
           at={subwoofer.position}
-          radius={SUBWOOFER_FOOTPRINT / 2}
+          grab={{ radius: SUBWOOFER_FOOTPRINT / 2 }}
           markerDrag={markerDrag}
         >
           <mesh position={position} rotation={rotation}>

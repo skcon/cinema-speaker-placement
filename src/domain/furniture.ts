@@ -2,7 +2,8 @@
  * Furniture boxes (GLOSSARY.md): a cabinet, table, shelf or anything else
  * as a box on the floor plan, a room object. They are drawn and give
  * placement warnings (W4 and W6), and are never part of the estimated
- * response (ADR 0006). A Room has up to FURNITURE.maxCount of them.
+ * response (ADR 0006). A Room has up to FURNITURE.maxCount of them, and
+ * room-objects.ts keeps their list and ids.
  *
  * A box stands on the floor. `x` and `y` are its middle on the floor plan,
  * and it turns in 90° steps: at rotation 0 its width runs across the room
@@ -47,9 +48,6 @@ export type FurnitureBox = {
 export const FURNITURE_PRESETS = ['cabinet', 'table', 'shelf'] as const
 
 export type FurniturePreset = (typeof FURNITURE_PRESETS)[number]
-
-/** The most furniture boxes a Room has (ADR 0006). */
-export const MAX_FURNITURE: number = FURNITURE.maxCount
 
 /** The longest name a box may have, in characters. */
 export const FURNITURE_NAME_MAX_LENGTH: number = FURNITURE.nameMaxLength
@@ -236,17 +234,6 @@ export function isValidFurnitureBox(room: Room, box: FurnitureBox): boolean {
   )
 }
 
-/** Whether every box fits `room` and there are no more than MAX_FURNITURE. */
-export function isValidFurniture(
-  room: Room,
-  furniture: readonly FurnitureBox[],
-): boolean {
-  return (
-    furniture.length <= MAX_FURNITURE &&
-    furniture.every((box) => isValidFurnitureBox(room, box))
-  )
-}
-
 /**
  * The box a Room gets for `preset`: FURNITURE's name and size for it,
  * unturned, its back against the middle of the front wall (where a TV
@@ -354,27 +341,6 @@ export type FurnitureSolid = FurnitureFootprint & {
 /** Where the box is in the Room. */
 export function furnitureSolid(box: FurnitureBox): FurnitureSolid {
   return { ...furnitureFootprint(box), top: box.height }
-}
-
-/** The id the room view drags furniture box `index` (from 0) by. */
-export type FurnitureId = `furniture-${number}`
-
-/** The room view's id for the box at `index` in the config's list. */
-export function furnitureId(index: number): FurnitureId {
-  return `furniture-${index + 1}`
-}
-
-const FURNITURE_ID = /^furniture-([1-9]\d*)$/
-
-/** The index in the config's list that `id` names, or null for another id. */
-export function furnitureIndex(id: string): number | null {
-  const match = FURNITURE_ID.exec(id)
-  return match ? Number(match[1]) - 1 : null
-}
-
-/** Whether `id` names a furniture box (it may not be in the Room). */
-export function isFurnitureId(id: string): id is FurnitureId {
-  return furnitureIndex(id) !== null
 }
 
 /**

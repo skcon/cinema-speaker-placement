@@ -5,14 +5,10 @@ import {
   fitFurnitureToRoom,
   furnitureDimension,
   furnitureFootprint,
-  furnitureId,
-  furnitureIndex,
   furnitureLabel,
   furnitureMovedTo,
   furnitureSolid,
   furnitureTurned,
-  isFurnitureId,
-  isValidFurniture,
   isValidFurnitureBox,
   newFurnitureBox,
   roundFurnitureForLink,
@@ -279,13 +275,6 @@ describe('a furniture box', () => {
       expect(isValidFurnitureBox(ROOM, { ...CABINET, name: ' TV' })).toBe(false)
       expect(isValidFurnitureBox(ROOM, { ...CABINET, name: '' })).toBe(false)
     })
-
-    it('allows at most eight boxes', () => {
-      const boxes = (count: number) =>
-        Array.from({ length: count }, () => CABINET)
-      expect(isValidFurniture(ROOM, boxes(8))).toBe(true)
-      expect(isValidFurniture(ROOM, boxes(9))).toBe(false)
-    })
   })
 
   describe('in a smaller room', () => {
@@ -313,13 +302,7 @@ describe('a furniture box', () => {
     ).toEqual({ ...CABINET, width: 1.252, x: -0.988, y: 2 })
   })
 
-  it('is named by its place in the list, from 1', () => {
-    expect(furnitureId(0)).toBe('furniture-1')
-    expect(furnitureIndex('furniture-8')).toBe(7)
-    expect(furnitureIndex('furniture-0')).toBeNull()
-    expect(furnitureIndex('screen')).toBeNull()
-    expect(isFurnitureId('furniture-3')).toBe(true)
-    expect(isFurnitureId('MLP')).toBe(false)
+  it('is named in words by its name and its place in the list, from 1', () => {
     expect(furnitureLabel(CABINET, 1)).toBe('Cabinet (box 2)')
   })
 })

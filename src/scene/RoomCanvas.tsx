@@ -28,9 +28,7 @@ import {
 } from 'three'
 import {
   floorCorners,
-  furnitureId,
   MLP_ID,
-  openingId,
   type Opening,
   type FloorPoint,
   type FurnitureBox,
@@ -41,6 +39,7 @@ import {
   type Room,
   type RoomPoint,
   type RoomScreen,
+  roomObjectId,
   SCREEN_ID,
   SEAT_ROW_ID,
   type SeatHeatmap,
@@ -773,9 +772,9 @@ function FurniturePlans({
     const { center, size, front } = furniturePlan(box)
     return (
       <Draggable
-        // Keyed by place: the room view names a box by it (furnitureId).
+        // Keyed by place: the room view names a box by it (roomObjectId).
         key={index}
-        id={furnitureId(index)}
+        id={roomObjectId('furniture', index)}
         at={center}
         grab={{ width: size[0], depth: size[1] }}
         markerDrag={markerDrag}
@@ -844,7 +843,7 @@ function OpeningMarks({
     const { center, size } = openingMark(room, opening)
     const swing = opening.kind === 'door' && doorSwing(room, opening)
     return (
-      // Keyed by place: the room view names an opening by it (openingId).
+      // Keyed by place: the room view names an opening by it (roomObjectId).
       <group key={index}>
         {swing && (
           <mesh
@@ -856,7 +855,7 @@ function OpeningMarks({
           </mesh>
         )}
         <Draggable
-          id={openingId(index)}
+          id={roomObjectId('opening', index)}
           at={center}
           grab={{ width: size[0], depth: size[1] }}
           markerDrag={markerDrag}

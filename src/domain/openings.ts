@@ -3,7 +3,7 @@
  * objects. They are drawn and give placement warnings (W1, W2, W3 and
  * W5), and are never part of the estimated response (ADR 0006): the
  * low-frequency model still assumes closed, rigid walls. A Room has up to
- * OPENINGS.maxCount of them.
+ * OPENINGS.maxCount of them, and room-objects.ts keeps their list and ids.
  *
  * An opening sits on one wall. `position` is where its middle is along
  * that wall, from the wall's start: the left wall for the front and back
@@ -58,9 +58,6 @@ export type WindowOpening = {
 }
 
 export type Opening = Door | WindowOpening
-
-/** The most openings a Room has (ADR 0006). */
-export const MAX_OPENINGS: number = OPENINGS.maxCount
 
 /**
  * An opening's lengths as they are edited: its width, where it is as
@@ -391,17 +388,6 @@ export function isValidOpening(room: Room, opening: Opening): boolean {
   )
 }
 
-/** Whether every opening fits `room` and there are no more than MAX_OPENINGS. */
-export function isValidOpenings(
-  room: Room,
-  openings: readonly Opening[],
-): boolean {
-  return (
-    openings.length <= MAX_OPENINGS &&
-    openings.every((opening) => isValidOpening(room, opening))
-  )
-}
-
 /**
  * The opening a Room gets for `kind`: OPENINGS' preset, a door in the
  * middle of the back wall (behind the seats, away from the front stage),
@@ -444,27 +430,6 @@ export function roundOpeningForLink(opening: Opening): Opening {
         sill: toMillimeter(opening.sill),
         height: toMillimeter(opening.height),
       }
-}
-
-/** The id the room view drags opening `index` (from 0) by. */
-export type OpeningId = `opening-${number}`
-
-/** The room view's id for the opening at `index` in the config's list. */
-export function openingId(index: number): OpeningId {
-  return `opening-${index + 1}`
-}
-
-const OPENING_ID = /^opening-([1-9]\d*)$/
-
-/** The index in the config's list that `id` names, or null for another id. */
-export function openingIndex(id: string): number | null {
-  const match = OPENING_ID.exec(id)
-  return match ? Number(match[1]) - 1 : null
-}
-
-/** Whether `id` names an opening (it may not be in the Room). */
-export function isOpeningId(id: string): id is OpeningId {
-  return openingIndex(id) !== null
 }
 
 /** How the app names each kind of opening. */

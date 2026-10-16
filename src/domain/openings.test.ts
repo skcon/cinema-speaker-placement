@@ -2,15 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   checkOpeningDimension,
   fitOpeningToRoom,
-  isOpeningId,
   isValidOpening,
-  isValidOpenings,
-  MAX_OPENINGS,
   newOpening,
   openingDimension,
   openingEnds,
-  openingId,
-  openingIndex,
   openingLabel,
   openingMovedTo,
   openingSpan,
@@ -258,22 +253,6 @@ describe('openings stay on their wall and inside it', () => {
   it('accept one a share link rounded half a millimeter past its wall end', () => {
     expect(isValidOpening(ROOM, { ...DOOR, position: 0.4495 })).toBe(true)
   })
-
-  it(`hold at most ${MAX_OPENINGS}`, () => {
-    expect(MAX_OPENINGS).toBe(6)
-    expect(
-      isValidOpenings(
-        ROOM,
-        Array.from({ length: 6 }, () => DOOR),
-      ),
-    ).toBe(true)
-    expect(
-      isValidOpenings(
-        ROOM,
-        Array.from({ length: 7 }, () => DOOR),
-      ),
-    ).toBe(false)
-  })
 })
 
 describe('an opening in a share link', () => {
@@ -296,15 +275,7 @@ describe('an opening in a share link', () => {
   })
 })
 
-describe('opening ids and labels', () => {
-  it('number openings from 1 in the order they were added', () => {
-    expect(openingId(0)).toBe('opening-1')
-    expect(openingIndex('opening-3')).toBe(2)
-    expect(openingIndex('opening-0')).toBeNull()
-    expect(openingIndex('furniture-1')).toBeNull()
-    expect(isOpeningId('opening-12')).toBe(true)
-  })
-
+describe('opening labels', () => {
   it('name each by its kind and number', () => {
     expect(openingLabel(DOOR, 0)).toBe('Door (opening 1)')
     expect(openingLabel(WINDOW, 1)).toBe('Window (opening 2)')

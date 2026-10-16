@@ -13,18 +13,12 @@
  */
 import { segmentHitsBox, type AxisBox } from './box-geometry'
 import type { ChannelId, OverheadChannelId } from './dolby-layouts'
-import {
-  furnitureId,
-  furnitureLabel,
-  furnitureSolid,
-  type FurnitureBox,
-} from './furniture'
+import { furnitureLabel, furnitureSolid, type FurnitureBox } from './furniture'
 import { MLP_ID, type PlaceableId } from './manual-positions'
 import {
   floorDistanceToOpening,
   isInFrontOfOpening,
   isInOpening,
-  openingId,
   openingLabel,
   wallReflectionPoint,
   type Opening,
@@ -34,7 +28,11 @@ import {
   type Citation,
   type SourceClass,
 } from './reference'
-import type { RoomObjectId, RoomObjects } from './room-objects'
+import {
+  roomObjectId,
+  type RoomObjectId,
+  type RoomObjects,
+} from './room-objects'
 import type { Room, RoomPoint, Wall } from './room'
 import type { SubwooferId } from './subwoofer-arrangements'
 
@@ -102,7 +100,13 @@ function openingsOf(
 ): { opening: Opening; id: WarnedItem; label: string }[] {
   return openings.flatMap((opening, index) =>
     kind === undefined || opening.kind === kind
-      ? [{ opening, id: openingId(index), label: openingLabel(opening, index) }]
+      ? [
+          {
+            opening,
+            id: roomObjectId('opening', index),
+            label: openingLabel(opening, index),
+          },
+        ]
       : [],
   )
 }
@@ -282,7 +286,7 @@ const furnitureBlocksDirectSound: WarningRule = ({
         ? [
             warning(
               'W4',
-              [channel, furnitureId(index)],
+              [channel, roomObjectId('furniture', index)],
               `${furnitureLabel(box, index)} blocks the direct sound from ${name} to the MLP.`,
             ),
           ]
@@ -310,7 +314,7 @@ const speakerJustAboveFurniture: WarningRule = ({
         ? [
             warning(
               'W6',
-              [channel, furnitureId(index)],
+              [channel, roomObjectId('furniture', index)],
               `${name} is just above the top of ${furnitureLabel(box, index)}, which reflects its sound to the MLP.`,
             ),
           ]

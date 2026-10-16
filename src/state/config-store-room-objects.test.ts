@@ -15,13 +15,9 @@ import {
   SCREEN_ID,
   SEAT_ROW_ID,
   withAcousticTransparency,
-  withFurnitureDimension,
   withFurnitureName,
-  withOpeningDimension,
   withOpeningWall,
-  withScreenDimension,
   withScreenKind,
-  withSeatRowDimension,
   type Config,
   type FurnitureDimension,
   type FurnitureId,
@@ -68,11 +64,7 @@ function setSeatRowDimension(
   dimension: SeatRowDimension,
   meters: number,
 ) {
-  store
-    .getState()
-    .editRoomObject(SEAT_ROW_ID, (_, seatRow) =>
-      withSeatRowDimension(seatRow, dimension, meters),
-    )
+  store.getState().setRoomObjectDimension(SEAT_ROW_ID, dimension, meters)
 }
 
 function setScreenDimension(
@@ -80,11 +72,7 @@ function setScreenDimension(
   dimension: ScreenDimension,
   meters: number,
 ) {
-  store
-    .getState()
-    .editRoomObject(SCREEN_ID, (room, current) =>
-      withScreenDimension(room, current, dimension, meters),
-    )
+  store.getState().setRoomObjectDimension(SCREEN_ID, dimension, meters)
 }
 
 function makeAcousticallyTransparentProjection(store: ConfigStore) {
@@ -366,11 +354,7 @@ function setFurnitureDimension(
   dimension: FurnitureDimension,
   meters: number,
 ) {
-  store
-    .getState()
-    .editRoomObject(id, (room, box) =>
-      withFurnitureDimension(room, box, dimension, meters),
-    )
+  store.getState().setRoomObjectDimension(id, dimension, meters)
 }
 
 describe('furniture boxes', () => {
@@ -517,11 +501,7 @@ function setOpeningDimension(
   dimension: OpeningDimension,
   meters: number,
 ) {
-  store
-    .getState()
-    .editRoomObject(id, (room, opening) =>
-      withOpeningDimension(room, opening, dimension, meters),
-    )
+  store.getState().setRoomObjectDimension(id, dimension, meters)
 }
 
 /** The default door: 0.9 m, in the middle of the default room's back wall. */

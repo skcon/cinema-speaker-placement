@@ -43,9 +43,9 @@ export type RoomScreen = {
 }
 
 /**
- * A screen's dimensions that are edited as lengths (see SCREEN_LENGTHS). Where it is along the
- * front wall is edited as `fromLeftWall`: from the left wall to its left
- * edge, which is never negative.
+ * A screen's dimensions that are edited as lengths (see SCREEN_LENGTHS).
+ * Where it is along the front wall is edited as `fromLeftWall`: from the
+ * left wall to its left edge, which is never negative.
  */
 export type ScreenDimension =
   'width' | 'height' | 'bottomEdge' | 'fromLeftWall' | 'standoff'

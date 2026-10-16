@@ -19,12 +19,8 @@ import {
   withOpeningWall,
   withScreenKind,
   type Config,
-  type FurnitureDimension,
-  type FurnitureId,
-  type OpeningDimension,
-  type OpeningId,
-  type ScreenDimension,
-  type SeatRowDimension,
+  type RoomObjectDimension,
+  type RoomObjectId,
 } from '@/domain'
 import { createConfigStore, type ConfigStore } from '@/state/config-store'
 import { V1_LINKS } from '@/test/share-link-fixtures'
@@ -59,20 +55,14 @@ function seatRowSize(store: ConfigStore) {
   return store.getState().config.roomObjects.seatRow
 }
 
-function setSeatRowDimension(
+/** Type `meters` into one of room object `id`'s length fields. */
+function setLength<I extends RoomObjectId>(
   store: ConfigStore,
-  dimension: SeatRowDimension,
+  id: I,
+  dimension: RoomObjectDimension<I>,
   meters: number,
 ) {
-  store.getState().setRoomObjectDimension(SEAT_ROW_ID, dimension, meters)
-}
-
-function setScreenDimension(
-  store: ConfigStore,
-  dimension: ScreenDimension,
-  meters: number,
-) {
-  store.getState().setRoomObjectDimension(SCREEN_ID, dimension, meters)
+  store.getState().setRoomObjectDimension(id, dimension, meters)
 }
 
 function makeAcousticallyTransparentProjection(store: ConfigStore) {
@@ -168,10 +158,10 @@ describe('the seat row', () => {
   it('is resized, each change one undo step, and a rejected size is no step', () => {
     const store = createConfigStore()
 
-    setSeatRowDimension(store, 'width', 3.2)
-    setSeatRowDimension(store, 'depth', 1.1)
-    setSeatRowDimension(store, 'width', 8.5)
-    setSeatRowDimension(store, 'depth', Number.NaN)
+    setLength(store, SEAT_ROW_ID, 'width', 3.2)
+    setLength(store, SEAT_ROW_ID, 'depth', 1.1)
+    setLength(store, SEAT_ROW_ID, 'width', 8.5)
+    setLength(store, SEAT_ROW_ID, 'depth', Number.NaN)
 
     expect(seatRowSize(store)).toEqual({ width: 3.2, depth: 1.1 })
     // A deeper couch reaches further forward; its back stays behind the MLP.
@@ -185,7 +175,7 @@ describe('the seat row', () => {
   it('records nothing for a size it already has', () => {
     const store = createConfigStore()
 
-    setSeatRowDimension(store, 'width', 2)
+    setLength(store, SEAT_ROW_ID, 'width', 2)
 
     expect(store.getState().config).toBe(DEFAULT_CONFIG)
     expect(store.getState().history.canUndo).toBe(false)
@@ -194,7 +184,7 @@ describe('the seat row', () => {
   it('round-trips through the share link, moved and resized', () => {
     const store = createConfigStore()
     store.getState().moveRoomObject(SEAT_ROW_ID, { x: -0.31234, y: 3.45678 })
-    setSeatRowDimension(store, 'depth', 1.3)
+    setLength(store, SEAT_ROW_ID, 'depth', 1.3)
     const config: Config = store.getState().config
 
     const reopened = createConfigStore()
@@ -257,10 +247,10 @@ describe('the screen', () => {
   it('is resized, each change one undo step', () => {
     const store = storeWithTv()
 
-    setScreenDimension(store, 'height', 1.1)
-    setScreenDimension(store, 'bottomEdge', 0.7)
+    setLength(store, SCREEN_ID, 'height', 1.1)
+    setLength(store, SCREEN_ID, 'bottomEdge', 0.7)
     // Through the 2.6 m ceiling: rejected, no step.
-    setScreenDimension(store, 'bottomEdge', 2)
+    setLength(store, SCREEN_ID, 'bottomEdge', 2)
 
     expect(screen(store)).toEqual({ ...TV, height: 1.1, bottomEdge: 0.7 })
     store.getState().undo()
@@ -270,7 +260,7 @@ describe('the screen', () => {
   it('makes no undo step for an edit, a removal or a drag without a screen', () => {
     const store = createConfigStore()
 
-    setScreenDimension(store, 'width', 2)
+    setLength(store, SCREEN_ID, 'width', 2)
     makeAcousticallyTransparentProjection(store)
     store.getState().moveRoomObject(SCREEN_ID, { x: 1, y: 0 })
     store.getState().removeRoomObject(SCREEN_ID)
@@ -294,7 +284,7 @@ describe('the screen', () => {
 
   it('shrinks with the room, and undo gives both back', () => {
     const store = storeWithTv()
-    setScreenDimension(store, 'width', 4)
+    setLength(store, SCREEN_ID, 'width', 4)
 
     store.getState().setRoomDimension('width', 3)
 
@@ -346,15 +336,6 @@ function storeWithCabinet(): ConfigStore {
   const store = createConfigStore()
   store.getState().addRoomObject({ kind: 'furniture', preset: 'cabinet' })
   return store
-}
-
-function setFurnitureDimension(
-  store: ConfigStore,
-  id: FurnitureId,
-  dimension: FurnitureDimension,
-  meters: number,
-) {
-  store.getState().setRoomObjectDimension(id, dimension, meters)
 }
 
 describe('furniture boxes', () => {
@@ -443,7 +424,7 @@ describe('furniture boxes', () => {
 
   it('shrink with the room, and undo gives both back', () => {
     const store = storeWithCabinet()
-    setFurnitureDimension(store, 'furniture-1', 'width', 4)
+    setLength(store, 'furniture-1', 'width', 4)
 
     store.getState().setRoomDimension('width', 3)
 
@@ -455,8 +436,8 @@ describe('furniture boxes', () => {
   it('give placement warnings in the analysis, and leave the estimate as it is', () => {
     const store = storeWithCabinet()
     const before = analysis(store).response
-    setFurnitureDimension(store, 'furniture-1', 'height', 2)
-    setFurnitureDimension(store, 'furniture-1', 'fromFrontWall', 1)
+    setLength(store, 'furniture-1', 'height', 2)
+    setLength(store, 'furniture-1', 'fromFrontWall', 1)
 
     expect(
       analysis(store).placementWarnings.map(({ id, items }) => [id, ...items]),
@@ -495,15 +476,6 @@ function storeWithDoor(): ConfigStore {
   return store
 }
 
-function setOpeningDimension(
-  store: ConfigStore,
-  id: OpeningId,
-  dimension: OpeningDimension,
-  meters: number,
-) {
-  store.getState().setRoomObjectDimension(id, dimension, meters)
-}
-
 /** The default door: 0.9 m, in the middle of the default room's back wall. */
 const DOOR = { kind: 'door', wall: 'back', position: 2.25, width: 0.9 }
 
@@ -536,10 +508,10 @@ describe('doors and windows', () => {
       .editRoomObject('opening-1', (room, opening) =>
         withOpeningWall(room, opening, 'left'),
       )
-    setOpeningDimension(store, 'opening-1', 'fromCorner', 1)
-    setOpeningDimension(store, 'opening-1', 'width', 0.8)
+    setLength(store, 'opening-1', 'fromCorner', 1)
+    setLength(store, 'opening-1', 'width', 0.8)
     // A door has no sill to set: no step.
-    setOpeningDimension(store, 'opening-1', 'sill', 0.5)
+    setLength(store, 'opening-1', 'sill', 0.5)
 
     expect(openings(store)).toEqual([
       { ...DOOR, wall: 'left', position: 1.45, width: 0.8 },
@@ -610,7 +582,7 @@ describe('doors and windows', () => {
   it('round-trip through the share link to the millimeter', () => {
     const store = storeWithDoor()
     store.getState().addRoomObject({ kind: 'opening', preset: 'window' })
-    setOpeningDimension(store, 'opening-2', 'width', 36 * 0.0254)
+    setLength(store, 'opening-2', 'width', 36 * 0.0254)
     store.getState().moveRoomObject('opening-1', { x: -1.23456, y: 6 })
     const config: Config = store.getState().config
 

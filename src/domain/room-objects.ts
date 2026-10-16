@@ -6,14 +6,16 @@
  *
  * This module owns the Room's room objects as a whole: their lists, their
  * ids and how many of each a Room may have, adding, removing and editing
- * one by id, fitting them into a resized Room, and whether they are valid.
- * Each kind's own module (seat-row.ts, screen.ts, furniture.ts,
- * openings.ts) only knows one object of its kind: its geometry, its
- * lengths and their limits (object-lengths.ts) and how it moves. Inside this module, a new kind of room object
- * is a field in RoomObjects, a line in RoomObjectKinds, its id and its
- * addition, its list in objectsOf and withObjectsOf, and an entry in
- * KIND_RULES; adding, removing, editing, setting a length, moving, fitting
- * and validity are the same code for every kind.
+ * one by id, setting one of its lengths, fitting them into a resized Room,
+ * and whether they are valid. Each kind's own module (seat-row.ts,
+ * screen.ts, furniture.ts, openings.ts) only knows one object of its kind:
+ * its geometry, its lengths and their limits (declared once, see
+ * object-lengths.ts) and how it moves. Inside this module, a new kind of
+ * room object is a field in RoomObjects, a line in RoomObjectKinds and
+ * RoomObjectDimensions, its id (and KindOf) and its addition, its list in
+ * objectsOf and withObjectsOf, and an entry in KIND_RULES; adding,
+ * removing, editing, setting a length, moving, fitting and validity are
+ * the same code for every kind.
  *
  * The config holds them all in one `roomObjects` value, which starts as
  * DEFAULT_ROOM_OBJECTS: the default Seat row and nothing else (version 1

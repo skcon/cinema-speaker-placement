@@ -60,9 +60,9 @@ export type WindowOpening = {
 export type Opening = Door | WindowOpening
 
 /**
- * An opening's lengths as they are edited (see OPENING_LENGTHS): its width, where it is as
- * `fromCorner` (from the wall's start to its nearest edge), and for a
- * window its sill and height.
+ * An opening's lengths as they are edited (see OPENING_LENGTHS): its
+ * width, where it is as `fromCorner` (from the wall's start to its nearest
+ * edge), and for a window its sill and height.
  */
 export type OpeningDimension = 'width' | 'fromCorner' | 'sill' | 'height'
 

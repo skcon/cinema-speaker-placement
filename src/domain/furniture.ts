@@ -77,9 +77,10 @@ export function checkFurnitureName(name: string): FurnitureNameProblem | null {
 }
 
 /**
- * The box's lengths edited as lengths (see FURNITURE_LENGTHS). Where it is is edited as
- * `fromLeftWall` and `fromFrontWall`: from the left wall to its left side,
- * and from the front wall to its side nearest it, as it is turned.
+ * The box's lengths edited as lengths (see FURNITURE_LENGTHS). Where it
+ * is is edited as `fromLeftWall` and `fromFrontWall`: from the left wall
+ * to its left side, and from the front wall to its side nearest it, as it
+ * is turned.
  */
 export type FurnitureDimension =
   'width' | 'depth' | 'height' | 'fromLeftWall' | 'fromFrontWall'

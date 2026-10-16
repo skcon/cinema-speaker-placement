@@ -18,12 +18,13 @@ import {
 } from '@/domain'
 import { IMPERIAL_ROOM, V1_LINKS, V2_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
+import { WALLS } from './room'
 import { configSchemaV1, type ConfigV1 } from './config-v1'
 import {
   createConfigCodec,
   migrateFrom,
   SHORT_FIELD_NAMES,
-  shortenFieldNames,
+  writtenAsVersion2,
 } from './share-link'
 
 /**
@@ -36,7 +37,7 @@ function encodedHolding(json: unknown): string {
   const envelope = json as { v?: unknown; config?: unknown } | null
   const short =
     typeof envelope?.v === 'number' && envelope.v >= 2 && 'config' in envelope
-      ? { ...envelope, config: shortenFieldNames(envelope.config) }
+      ? { ...envelope, config: writtenAsVersion2(envelope.config) }
       : json
   return compressToEncodedURIComponent(JSON.stringify(short))
 }
@@ -411,8 +412,13 @@ const TV = {
 /** The default seat row, as the broken room objects below have it. */
 const COUCH = { width: 2, depth: 0.9 } as const
 
-/** The default seat row with no screen and no furniture. */
-const NO_OBJECTS = { seatRow: COUCH, screen: null, furniture: [] } as const
+/** The default seat row with no screen, no furniture and no openings. */
+const NO_OBJECTS = {
+  seatRow: COUCH,
+  screen: null,
+  furniture: [],
+  openings: [],
+} as const
 
 /** A 1.6 m TV cabinet against the middle of the default room's front wall. */
 const CABINET = {
@@ -430,11 +436,34 @@ function withBox(box: unknown) {
   return { ...NO_OBJECTS, furniture: [box] }
 }
 
+/** A 0.9 m door in the middle of the default room's back wall. */
+const DOOR = { kind: 'door', wall: 'back', position: 2.25, width: 0.9 } as const
+
+/** A 1.2 m window 0.9 m up the default room's right wall. */
+const WINDOW = {
+  kind: 'window',
+  wall: 'right',
+  position: 3,
+  width: 1.2,
+  sill: 0.9,
+  height: 1.2,
+} as const
+
+/**
+ * The default room objects with this one opening: an object is packed as
+ * a link packs it, when it has an opening's exact shape; a tuple is written
+ * as it is.
+ */
+function withOpening(opening: unknown) {
+  return { ...NO_OBJECTS, openings: [opening] }
+}
+
 /** Room objects that break the rules of version 2, in the default room. */
 const BROKEN_ROOM_OBJECTS: [string, unknown][] = [
   ['room objects that are null', null],
-  ['no screen field', { seatRow: COUCH, furniture: [] }],
-  ['no furniture field', { seatRow: COUCH, screen: null }],
+  ['no screen field', { seatRow: COUCH, furniture: [], openings: [] }],
+  ['no furniture field', { seatRow: COUCH, screen: null, openings: [] }],
+  ['no openings field', { seatRow: COUCH, screen: null, furniture: [] }],
   ['an unknown room object', { ...NO_OBJECTS, piano: true }],
   [
     'an unknown kind of screen',
@@ -510,31 +539,79 @@ const BROKEN_ROOM_OBJECTS: [string, unknown][] = [
   ['a box width that is text', withBox({ ...CABINET, width: '1.6' })],
   ['a box without a rotation', withBox({ ...CABINET, rotation: undefined })],
   ['a box with an unknown field', withBox({ ...CABINET, color: 'oak' })],
-  ['no seat row field', { screen: null, furniture: [] }],
-  ['a seat row that is null', { seatRow: null, screen: null, furniture: [] }],
+  ['openings that are null', { ...NO_OBJECTS, openings: null }],
+  [
+    'seven openings',
+    { ...NO_OBJECTS, openings: Array.from({ length: 7 }, () => DOOR) },
+  ],
+  ['a door past a corner', withOpening({ ...DOOR, position: 0.4 })],
+  ['a door wider than its wall', withOpening({ ...DOOR, width: 4.6 })],
+  ['a door narrower than 0.3 m', withOpening({ ...DOOR, width: 0.2 })],
+  ['a window through the ceiling', withOpening({ ...WINDOW, sill: 1.5 })],
+  ['a door with a sill', withOpening({ ...DOOR, sill: 0 })],
+  ['a window without a sill', withOpening({ ...WINDOW, sill: undefined })],
+  ['an opening on no wall', withOpening({ ...DOOR, wall: 'ceiling' })],
+  ['an unknown kind of opening', withOpening({ ...DOOR, kind: 'arch' })],
+  ['an opening width that is text', withOpening({ ...DOOR, width: '0.9' })],
+  ['a packed opening with an unknown code', withOpening([8, 2250, 900])],
+  ['a packed opening with part of a millimeter', withOpening([2, 2250.5, 900])],
+  ['a packed door with a sill and height', withOpening([2, 2250, 900, 0, 900])],
+  ['a packed window without its height', withOpening([5, 3000, 1200, 900])],
+  ['a packed opening with text', withOpening([2, '2250', 900])],
+  ['a packed opening that is empty', withOpening([])],
+  ['no seat row field', { screen: null, furniture: [], openings: [] }],
+  [
+    'a seat row that is null',
+    { seatRow: null, screen: null, furniture: [], openings: [] },
+  ],
   [
     'a seat row narrower than one seat',
-    { seatRow: { ...COUCH, width: 0.4 }, screen: null, furniture: [] },
+    {
+      seatRow: { ...COUCH, width: 0.4 },
+      screen: null,
+      furniture: [],
+      openings: [],
+    },
   ],
   [
     'a seat row shallower than 0.5 m',
-    { seatRow: { ...COUCH, depth: 0.4 }, screen: null, furniture: [] },
+    {
+      seatRow: { ...COUCH, depth: 0.4 },
+      screen: null,
+      furniture: [],
+      openings: [],
+    },
   ],
   [
     'a seat row deeper than 2 m',
-    { seatRow: { ...COUCH, depth: 2.1 }, screen: null, furniture: [] },
+    {
+      seatRow: { ...COUCH, depth: 2.1 },
+      screen: null,
+      furniture: [],
+      openings: [],
+    },
   ],
   [
     'a seat row depth that is text',
-    { seatRow: { ...COUCH, depth: '0.9' }, screen: null, furniture: [] },
+    {
+      seatRow: { ...COUCH, depth: '0.9' },
+      screen: null,
+      furniture: [],
+      openings: [],
+    },
   ],
   [
     'a seat row without a depth',
-    { seatRow: { width: 2 }, screen: null, furniture: [] },
+    { seatRow: { width: 2 }, screen: null, furniture: [], openings: [] },
   ],
   [
     'a seat row with a position of its own',
-    { seatRow: { ...COUCH, x: 0, y: 3 }, screen: null, furniture: [] },
+    {
+      seatRow: { ...COUCH, x: 0, y: 3 },
+      screen: null,
+      furniture: [],
+      openings: [],
+    },
   ],
 ]
 
@@ -780,6 +857,82 @@ describe('share link codec', () => {
     })
   })
 
+  it('rebuilds doors and windows, every length to the nearest millimeter', () => {
+    // 3 ft wide, 3 ft 1.3 in up, dragged along the left wall.
+    const window = {
+      ...WINDOW,
+      wall: 'left',
+      position: 2.0498765,
+      width: 36 * 0.0254,
+      sill: (37 + 0.3) * 0.0254,
+    } as const
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: { ...DEFAULT_ROOM_OBJECTS, openings: [DOOR, window] },
+    }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config: {
+        ...config,
+        roomObjects: {
+          ...DEFAULT_ROOM_OBJECTS,
+          openings: [
+            DOOR,
+            { ...window, position: 2.05, width: 0.914, sill: 0.947 },
+          ],
+        },
+      },
+      problem: null,
+    })
+  })
+
+  it.each([
+    ['door', 'front', 0],
+    ['door', 'right', 1],
+    ['door', 'back', 2],
+    ['door', 'left', 3],
+    ['window', 'front', 4],
+    ['window', 'right', 5],
+    ['window', 'back', 6],
+    ['window', 'left', 7],
+  ] as const)(
+    'packs a %s on the %s wall as a tuple of millimeters with code %i',
+    (kind, wall, code) => {
+      const opening = { ...(kind === 'door' ? DOOR : WINDOW), wall }
+      const config: Config = {
+        ...DEFAULT_CONFIG,
+        roomObjects: { ...DEFAULT_ROOM_OBJECTS, openings: [opening] },
+      }
+      const lengths = kind === 'door' ? [2250, 900] : [3000, 1200, 900, 1200]
+
+      expect(envelopeOf(encodeConfig(config)).config).toMatchObject({
+        ro: { op: [[code, ...lengths]] },
+      })
+      expect(decodeConfig(encodeConfig(config))).toEqual({
+        config,
+        problem: null,
+      })
+    },
+  )
+
+  it('falls back for a version 2 link with an opening written out instead of packed', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: { ...DEFAULT_ROOM_OBJECTS, openings: [DOOR] },
+    }
+    const { v, config: written } = envelopeOf(encodeConfig(config))
+    const unpacked = {
+      ...(written as { ro: object }),
+      ro: { ...(written as { ro: object }).ro, op: [DOOR] },
+    }
+
+    expect(
+      decodeConfig(
+        compressToEncodedURIComponent(JSON.stringify({ v, config: unpacked })),
+      ),
+    ).toEqual(FALLBACK)
+  })
+
   it('rebuilds where a screen was dragged to the nearest millimeter', () => {
     const config: Config = {
       ...DEFAULT_CONFIG,
@@ -937,6 +1090,7 @@ describe('released share links', () => {
             seatRow: { width: seatRowWidth, depth: 0.9 },
             screen: null,
             furniture: [],
+            openings: [],
           },
         },
         problem: null,
@@ -1032,6 +1186,25 @@ function longestFurniture(n: number) {
 }
 
 /**
+ * Opening `n` (from 0) as long as a share link stores one: a window (the
+ * longer tuple), every length to the millimeter with as many digits as it
+ * can have (its position over 10 m, so five), none alike, on the walls in
+ * turn, in the worst-case room (about 15 m square and 5 m high).
+ */
+function longestOpening(n: number) {
+  const mm = (meters: number) => Math.round(meters * 1000) / 1000
+  const width = mm(7.987 - n * 0.0537)
+  return {
+    kind: 'window',
+    wall: WALLS[n % WALLS.length] ?? 'front',
+    position: mm(14.8 - width / 2 - n * 0.0913),
+    width,
+    sill: mm(1.093 + n * 0.0371),
+    height: mm(3.789 - n * 0.0419),
+  } as const
+}
+
+/**
  * The largest config a share link has to carry, for the size budget: the
  * largest real config today. Grow it with the config: the compiler asks for
  * every new field, and each one should take its longest value.
@@ -1094,7 +1267,8 @@ const WORST_CASE_CONFIG: Config = {
   // feet + inches value can have. The screen of the longer kind with a
   // standoff, every length with all 17 significant digits, and the
   // position negative and to the millimeter, as a dragged screen is stored.
-  // The most furniture boxes, each as long as a link stores it.
+  // The most furniture boxes and the most openings, each as long as a
+  // link stores it.
   roomObjects: {
     seatRow: { width: 8 - 1 / 7, depth: 2 - 1 / 7 },
     screen: {
@@ -1106,6 +1280,7 @@ const WORST_CASE_CONFIG: Config = {
       standoff: 1.5 - 1 / 7,
     },
     furniture: Array.from({ length: 8 }, (_, n) => longestFurniture(n)),
+    openings: Array.from({ length: 6 }, (_, n) => longestOpening(n)),
   },
 }
 
@@ -1122,18 +1297,22 @@ const PRODUCTION_PAGE = 'https://skcon.github.io/cinema-speaker-placement/'
 const URL_BUDGET = 2000
 
 describe('short field names', () => {
-  it('cover every field of the worst-case config', () => {
+  it('cover every field the worst-case config is written with', () => {
     // Record keys (channel and subwoofer ids, MLP) are not field names.
     const recordKeys = new Set([
       ...Object.keys(WORST_CASE_CONFIG.manualPositions),
       ...Object.keys(WORST_CASE_CONFIG.speakerGroups.subwoofers.ownSpecs),
     ])
     const short = new Set(['x', 'y', 'z'])
-    const unnamed = keysIn(WORST_CASE_CONFIG).filter(
-      (key) => !recordKeys.has(key) && !short.has(key),
-    )
+    const shortNames = new Set<string>(Object.values(SHORT_FIELD_NAMES))
+    const written = keysIn(envelopeOf(encodeConfig(WORST_CASE_CONFIG)).config)
 
-    expect(unnamed.filter((key) => !(key in SHORT_FIELD_NAMES))).toEqual([])
+    expect(
+      written.filter(
+        (key) =>
+          !recordKeys.has(key) && !short.has(key) && !shortNames.has(key),
+      ),
+    ).toEqual([])
   })
 
   it('are not record keys, so a link can always be spelled out again', () => {

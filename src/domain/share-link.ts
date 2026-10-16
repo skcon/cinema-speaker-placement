@@ -16,7 +16,17 @@
  * the worst-case link inside the URL budget without dropping a digit
  * (ADR 0003, second 1.1.0 amendment). Version 1 links spell them out.
  * Record keys (channel ids, subwoofer ids, "MLP") and values stay as they
- * are.
+ * are, but for one: a version 2 link writes each opening (a door or
+ * window, `roomObjects.openings`) as a tuple of whole numbers, packed by
+ * OPENING_WIRE_CODES (ADR 0003, third 1.1.0 amendment):
+ *
+ *     door:   [code, position, width]
+ *     window: [code, position, width, sill, height]
+ *
+ * `code` folds the kind and the wall into one digit, and every length is
+ * in millimeters, which is how a link stores them anyway
+ * (roundOpeningForLink). Decoding unpacks them after spelling the names
+ * out; anything else in their place makes the link unreadable.
  *
  * ## Changing the config schema (ADR 0003)
  *
@@ -32,7 +42,8 @@
  * 2. In the migration to it, CONFIG_MIGRATIONS[CONFIG_VERSION - 1], give
  *    each new field the value an older link means (usually its default),
  *    so links from the version before still open as the same room.
- * 3. Give each new field name a short name in SHORT_FIELD_NAMES.
+ * 3. Give each new field name a short name in SHORT_FIELD_NAMES (or, for
+ *    an opening's fields, a place in its packed tuple).
  * 4. Regenerate its fixtures (V<n>_LINKS in src/test/share-link-fixtures.ts)
  *    and grow the worst-case config of the URL budget test.
  *
@@ -65,7 +76,15 @@ import { z } from 'zod'
 import { configSchema, DEFAULT_CONFIG, type Config } from './config'
 import { configSchemaV1 } from './config-v1'
 import { roundToMillimeter } from './manual-positions'
+import {
+  OPENING_KINDS,
+  type Door,
+  type Opening,
+  type OpeningKind,
+  type WindowOpening,
+} from './openings'
 import { DEFAULT_ROOM_OBJECTS, roundRoomObjectsForLink } from './room-objects'
+import { WALLS, type Wall } from './room'
 
 /**
  * Why a share link could not be opened: it is damaged or not a share link
@@ -151,6 +170,18 @@ function fieldRenamer(names: FieldNames) {
   }
 }
 
+/**
+ * A part of the config that links from version `since` on write in a
+ * packed form: `pack` turns a config (its field names spelled out) into
+ * that form, and `unpack` turns it back, throwing on anything `pack` never
+ * writes.
+ */
+export type PackedForm = {
+  since: number
+  pack: (config: unknown) => unknown
+  unpack: (config: unknown) => unknown
+}
+
 /** Encodes and decodes configs of one config schema. */
 export type ConfigCodec<C> = {
   encode: (config: C) => string
@@ -173,6 +204,7 @@ export function createConfigCodec<C>({
   migrations,
   fallback,
   shortFieldNames,
+  packedForm,
 }: {
   version: number
   schema: z.ZodType<C>
@@ -183,6 +215,8 @@ export function createConfigCodec<C>({
    * by `names`; older ones spell them out.
    */
   shortFieldNames?: { since: number; names: FieldNames }
+  /** Links from version `packedForm.since` on pack part of the config. */
+  packedForm?: PackedForm
 }): ConfigCodec<C> {
   const steps = Array.from({ length: version - 1 }, (_, index) => {
     const from = index + 1
@@ -196,15 +230,25 @@ export function createConfigCodec<C>({
   const renamer = shortFieldNames && fieldRenamer(shortFieldNames.names)
   const isShort = (v: number) =>
     shortFieldNames !== undefined && v >= shortFieldNames.since
+  const isPacked = (v: number) =>
+    packedForm !== undefined && v >= packedForm.since
+  const write = (config: C): unknown => {
+    const packed =
+      packedForm && isPacked(version) ? packedForm.pack(config) : config
+    return renamer && isShort(version) ? renamer.shorten(packed) : packed
+  }
+  const read = (v: number, written: unknown): unknown => {
+    const spelledOut =
+      renamer && isShort(v) ? renamer.spellOut(written) : written
+    return packedForm && isPacked(v)
+      ? packedForm.unpack(spelledOut)
+      : spelledOut
+  }
 
   return {
     encode: (config) =>
       compressToEncodedURIComponent(
-        JSON.stringify({
-          v: version,
-          config:
-            renamer && isShort(version) ? renamer.shorten(config) : config,
-        }),
+        JSON.stringify({ v: version, config: write(config) }),
       ),
     decode: (encoded) => {
       try {
@@ -214,8 +258,7 @@ export function createConfigCodec<C>({
         if (!envelope.success) return unreadable
         const { v, config: written } = envelope.data
         if (v > version) return { config: fallback, problem: 'newer-version' }
-        const config =
-          renamer && isShort(v) ? renamer.spellOut(written) : written
+        const config = read(v, written)
         const migrated = steps
           .slice(v - 1)
           .reduce((old, migrate) => migrate(old), config)
@@ -225,7 +268,8 @@ export function createConfigCodec<C>({
           : unreadable
       } catch {
         // Not compressed, not JSON, a field name spelled out where the
-        // link spells them short, or an old config its migration rejects.
+        // link spells them short, a packed value that was not packed by
+        // the app, or an old config its migration rejects.
         return unreadable
       }
     },
@@ -292,10 +336,127 @@ export const SHORT_FIELD_NAMES = {
   furniture: 'fu',
   name: 'n',
   rotation: 'rt',
+  openings: 'op',
 } as const satisfies FieldNames
 
 /** The first config schema version whose links use SHORT_FIELD_NAMES. */
 const SHORT_FIELD_NAMES_SINCE = 2
+
+/**
+ * The first digit of an opening's tuple in a version 2 link (see the wire
+ * format above): its kind and its wall in one. Released links depend on
+ * them: never change or reuse a code, only add one.
+ */
+const OPENING_WIRE_CODES = {
+  door: { front: 0, right: 1, back: 2, left: 3 },
+  window: { front: 4, right: 5, back: 6, left: 7 },
+} as const satisfies Record<OpeningKind, Record<Wall, number>>
+
+/** Each opening's fields after its code, in their order in its tuple. */
+const OPENING_WIRE_FIELDS = {
+  door: ['position', 'width'],
+  window: ['position', 'width', 'sill', 'height'],
+} as const satisfies {
+  door: readonly (keyof Door)[]
+  window: readonly (keyof WindowOpening)[]
+}
+
+const MILLIMETERS_PER_METER = 1000
+
+/** The kind and wall that `code` stands for, or null for no code. */
+function fromWireCode(code: unknown): { kind: OpeningKind; wall: Wall } | null {
+  for (const kind of OPENING_KINDS) {
+    for (const wall of WALLS) {
+      if (OPENING_WIRE_CODES[kind][wall] === code) return { kind, wall }
+    }
+  }
+  return null
+}
+
+/**
+ * An opening as a version 2 link writes it: a tuple (see above). Anything
+ * that is not an opening of the config's exact shape stays as it is, for
+ * the decoder to reject.
+ */
+function packOpening(opening: unknown): unknown {
+  if (typeof opening !== 'object' || opening === null) return opening
+  const { kind, wall } = opening as { kind?: unknown; wall?: unknown }
+  if (kind !== 'door' && kind !== 'window') return opening
+  const codes: Readonly<Record<string, number>> = OPENING_WIRE_CODES[kind]
+  const code = typeof wall === 'string' ? codes[wall] : undefined
+  const fields: readonly string[] = OPENING_WIRE_FIELDS[kind]
+  const keys = Object.keys(opening)
+  if (
+    code === undefined ||
+    keys.length !== fields.length + 2 ||
+    !fields.every((field) => keys.includes(field))
+  ) {
+    return opening
+  }
+  const values = opening as Readonly<Record<string, unknown>>
+  return [
+    code,
+    ...fields.map((field) => {
+      const meters = values[field]
+      return typeof meters === 'number'
+        ? Math.round(meters * MILLIMETERS_PER_METER)
+        : meters
+    }),
+  ]
+}
+
+/** An opening's tuple back as the opening. Throws on anything else. */
+function unpackOpening(packed: unknown): Opening {
+  const [code, ...millimeters] = Array.isArray(packed)
+    ? (packed as unknown[])
+    : []
+  const opening = fromWireCode(code)
+  const fields: readonly string[] = opening
+    ? OPENING_WIRE_FIELDS[opening.kind]
+    : []
+  if (
+    !opening ||
+    millimeters.length !== fields.length ||
+    !millimeters.every((value) => Number.isSafeInteger(value))
+  ) {
+    throw new Error('Not a packed opening')
+  }
+  return {
+    ...opening,
+    ...Object.fromEntries(
+      fields.map((field, at) => [
+        field,
+        (millimeters[at] as number) / MILLIMETERS_PER_METER,
+      ]),
+    ),
+  } as Opening
+}
+
+/**
+ * `config` (its field names spelled out) with its openings changed by
+ * `change`; anything without a list of openings stays as it is.
+ */
+function withWireOpenings(
+  config: unknown,
+  change: (opening: unknown) => unknown,
+): unknown {
+  if (typeof config !== 'object' || config === null) return config
+  const { roomObjects } = config as { roomObjects?: unknown }
+  if (typeof roomObjects !== 'object' || roomObjects === null) return config
+  const { openings } = roomObjects as { openings?: unknown }
+  if (!Array.isArray(openings)) return config
+  return {
+    ...config,
+    roomObjects: { ...roomObjects, openings: openings.map(change) },
+  }
+}
+
+/** Openings packed as tuples in version 2 links on (see above). */
+const PACKED_OPENINGS: PackedForm = {
+  since: 2,
+  pack: (config) => withWireOpenings(config, packOpening),
+  unpack: (config) => withWireOpenings(config, unpackOpening),
+}
 
 /** Migrations from each earlier schema version to the next. */
 const CONFIG_MIGRATIONS: Readonly<Record<number, Migration>> = {
@@ -313,11 +474,13 @@ const CONFIG_MIGRATIONS: Readonly<Record<number, Migration>> = {
 }
 
 /**
- * A config with its field names as a version 2 link spells them (see
- * SHORT_FIELD_NAMES), for tests that write links by hand.
+ * A config as a version 2 link writes it, its openings packed and its
+ * field names short (see the wire format above), for tests that write
+ * links by hand. An opening that is not of the config's exact shape stays
+ * as it is.
  */
-export function shortenFieldNames(config: unknown): unknown {
-  return fieldRenamer(SHORT_FIELD_NAMES).shorten(config)
+export function writtenAsVersion2(config: unknown): unknown {
+  return fieldRenamer(SHORT_FIELD_NAMES).shorten(PACKED_OPENINGS.pack(config))
 }
 
 const configCodec = createConfigCodec({
@@ -326,6 +489,7 @@ const configCodec = createConfigCodec({
   migrations: CONFIG_MIGRATIONS,
   fallback: DEFAULT_CONFIG,
   shortFieldNames: { since: SHORT_FIELD_NAMES_SINCE, names: SHORT_FIELD_NAMES },
+  packedForm: PACKED_OPENINGS,
 })
 
 /**

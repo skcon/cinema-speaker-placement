@@ -220,6 +220,30 @@ export const SOURCES = {
     title: 'Genelec 8430A Operating Manual (third-party copy)',
     url: 'https://www.fullcompass.com/common/files/27953-Genelec8430AOperatingManual.pdf',
   },
+  'EBU-3276-S1': {
+    title:
+      'EBU Tech 3276, Supplement 1: Listening conditions for the assessment of sound programme material: multichannel sound',
+    url: 'https://tech.ebu.ch/docs/tech/tech3276s1.pdf',
+  },
+  'GEN-1237A': {
+    title: 'Genelec 1237A manual (third-party copy)',
+    url: 'https://www.notice-facile.com/en/manual/813295/genelec+1237a',
+  },
+  'C-AH-DOOR': {
+    title:
+      'Audioholics forum, "Building home theater: open entrance to theater or door?" (community practice: a forum thread)',
+    url: 'https://forums.audioholics.com/forums/threads/building-home-theater-open-entrance-to-theater-or-door.107437/post-1187651',
+  },
+  'C-GS-GLASS': {
+    title:
+      'Gearspace forum, "Glass walls" (community practice: a forum thread)',
+    url: 'https://gearspace.com/threads/glass-walls.685260/',
+  },
+  'C-SN-WINDOW': {
+    title:
+      'StereoNET forum, "Room with a large window behind the speakers" (community practice: a forum thread)',
+    url: 'https://stereonet.com/forums/topic/614116-room-with-a-large-window-behind-the-speakers',
+  },
   'C-OHM-REAR': {
     title:
       'Ohm Speakers, "No Cost Sound Improvement – Move Your Seat" (community practice: a manufacturer\'s marketing blog)',
@@ -776,6 +800,48 @@ export const FURNITURE = {
 }
 
 /**
+ * Openings (GLOSSARY.md): doors and windows on the walls, room objects that
+ * are drawn and warned about but never part of the estimated response
+ * (ADR 0006). Everything here is our product choice, not a cited value
+ * (docs/research/room-openings-and-furniture.md gives no sizes):
+ *
+ * - **maxCount**: ADR 0006's limit, so the worst-case share link stays
+ *   within the URL budget (the codec tests check it).
+ * - **doorHeight**: a door has only a width (ADR 0006); it is drawn, and
+ *   checked for W5, this high (a typical interior door), or up to the
+ *   ceiling in a lower room.
+ * - **limits**: catch typos, as the furniture's do; each opening also
+ *   stays on its wall, between the floor and the ceiling.
+ * - **presets**: what "Add a door" and "Add a window" give: a typical
+ *   interior door and a typical window.
+ */
+export const OPENINGS = {
+  maxCount: 6,
+  doorHeight: 2,
+  limits: {
+    width: { min: 0.3, max: 8 },
+    sill: { min: 0, max: 4.5 },
+    height: { min: 0.2, max: 5 },
+  },
+  presets: {
+    door: { width: 0.9 },
+    window: { width: 1.2, sill: 0.9, height: 1.2 },
+  },
+  note:
+    'Product choices for a room object, not cited values (ADR 0006; ' +
+    'docs/research/room-openings-and-furniture.md section 2).',
+} as const satisfies {
+  maxCount: number
+  doorHeight: number
+  limits: Record<'width' | 'sill' | 'height', { min: number; max: number }>
+  presets: {
+    door: { width: number }
+    window: { width: number; sill: number; height: number }
+  }
+  note: string
+}
+
+/**
  * Where a placement warning's rule comes from (GLOSSARY.md, "Placement
  * warning"; CLAUDE.md principle 7): a standard, a manufacturer's own
  * documents, community practice (forums and blogs, labelled as such) or
@@ -787,9 +853,26 @@ export type SourceClass = 'standard' | 'manufacturer' | 'community' | 'ours'
  * The placement warnings' rules, by their number in section 6 of
  * docs/research/room-openings-and-furniture.md (ADR 0006): where each
  * comes from, and the distances that are ours. Every source there was read
- * through search summaries only (UNVERIFIED against the full text). W1,
- * W2, W3 and W5 (doors and windows, #57) join here.
+ * through search summaries only (UNVERIFIED against the full text).
  *
+ * - **W1**: a speaker or subwoofer in front of a door, where the door
+ *   swings. Not acoustic: the door has to open (ours). The swing zone is
+ *   ours too: as wide as the door and as deep as it is wide (the leaf's
+ *   reach), assuming it opens into the Room.
+ * - **W2**: a listener-level speaker in front of a window: the glass
+ *   reflects mids and treble and passes or absorbs bass unevenly, unlike
+ *   the wall beside it. Community practice only (C-SN-WINDOW, C-GS-GLASS),
+ *   labelled as such; no primary source. "In front of" (within the
+ *   window's width, at its height and within 1 m of its wall) is ours.
+ * - **W3**: a subwoofer in or near a doorway: bass may leak into the next
+ *   room (community practice, C-AH-DOOR), and the estimated response
+ *   assumes a closed, rigid wall there (the model's own assumption,
+ *   KUTTRUFF ch. 3, ADR 0002). The 0.5 m is ours.
+ * - **W5**: a door or window at one of a left/right pair's first side-wall
+ *   reflection points but not at the mirror one: the main loudspeakers
+ *   should be symmetrical about the listening axis (EBU-3276-S1), and so
+ *   should reflective objects near them (GEN-1237A). The reflection point
+ *   is the image-source one (speaker, wall, MLP's ears).
  * - **W4**: furniture between a speaker and the MLP blocks its direct
  *   sound (EBU-3276; GEN-8030A "do not place the monitors ... behind
  *   objects"). Subwoofers are exempt: EBU-3276 says obstacles matter little
@@ -804,6 +887,45 @@ export type SourceClass = 'standard' | 'manufacturer' | 'community' | 'ours'
  *   practice (C-OHM-REAR), which gives no number we use. The 0.6 m is ours.
  */
 export const PLACEMENT_WARNINGS = {
+  W1: {
+    sourceClass: 'ours',
+    note:
+      'Not acoustic: the door has to open. The rule, and its swing zone ' +
+      '(as deep as the door is wide, opening into the room), are our ' +
+      'assumption.',
+    citations: [],
+  },
+  W2: {
+    sourceClass: 'community',
+    meters: 1,
+    note:
+      'Common advice, not a rule: no standard or manufacturer source was ' +
+      'found. Within 1 m of the window is our assumption.',
+    citations: [
+      {
+        source: 'C-SN-WINDOW',
+        note: 'glass behind the speakers reflects mids and treble, unlike a wall',
+      },
+      {
+        source: 'C-GS-GLASS',
+        note: 'glass reflects mids and highs and lets more bass through',
+      },
+    ],
+  },
+  W3: {
+    sourceClass: 'community',
+    meters: 0.5,
+    note:
+      'Bass leaking through a doorway is community practice; the estimated ' +
+      "response assumes a closed wall there (the model's own " +
+      'assumption), and the 0.5 m is our assumption.',
+    citations: [
+      {
+        source: 'C-AH-DOOR',
+        note: 'less bass, and poor results with a subwoofer near an opening',
+      },
+    ],
+  },
   W4: {
     sourceClass: 'standard',
     note:
@@ -817,6 +939,22 @@ export const PLACEMENT_WARNINGS = {
       {
         source: 'GEN-8030A',
         note: 'do not place the monitors behind objects',
+      },
+    ],
+  },
+  W5: {
+    sourceClass: 'standard',
+    note:
+      'Informational: it asks for matching sides, not for removing ' +
+      'reflections. Read from search summaries of the sources only.',
+    citations: [
+      {
+        source: 'EBU-3276-S1',
+        note: 'main loudspeakers symmetrical about the listening axis',
+      },
+      {
+        source: 'GEN-1237A',
+        note: 'reflective objects near the monitors placed symmetrically',
       },
     ],
   },

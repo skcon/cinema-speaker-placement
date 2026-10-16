@@ -50,6 +50,7 @@ describe('the default config', () => {
         seatRow: { width: 2, depth: 0.9 },
         screen: null,
         furniture: [],
+        openings: [],
       },
     })
   })

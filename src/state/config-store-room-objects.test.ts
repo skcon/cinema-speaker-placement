@@ -330,6 +330,7 @@ describe('the screen', () => {
       seatRow: { width: 3.048, depth: 0.9 },
       screen: null,
       furniture: [],
+      openings: [],
     })
   })
 })

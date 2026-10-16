@@ -46,7 +46,7 @@ describe('seat score', () => {
     expect(tooClose.score).toBeLessThan(ideal.score)
   })
 
-  it('re-places auto speakers around each seat, so they stay inside their ranges', () => {
+  it('re-places auto speakers for each seat’s distance from the front wall, so they stay inside their ranges from a center-line seat', () => {
     expect(scoreSeat(DEFAULT_CONFIG, { x: 0, y: 1, z: 1.2 }).placementFit).toBe(
       1,
     )

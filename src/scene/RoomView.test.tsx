@@ -237,3 +237,49 @@ describe('the screen in the room view', () => {
     expect(screen.queryByText(/^Screen \(drawn only/)).toBeNull()
   })
 })
+
+describe('furniture boxes in the room view', () => {
+  it('are described for screen readers and named in the legend as drawn and warned about, not in the estimate', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        ...DEFAULT_CONFIG.roomObjects,
+        furniture: [
+          {
+            name: 'Cabinet',
+            width: 1.6,
+            depth: 0.45,
+            height: 0.5,
+            x: 0,
+            y: 0.225,
+            rotation: 0,
+          },
+        ],
+      },
+    } as const
+    render(
+      <ConfigStoreProvider initialEncodedConfig={encodeConfig(config)}>
+        <RoomView />
+      </ConfigStoreProvider>,
+    )
+
+    expect(scene()).toHaveAccessibleName(
+      /Furniture: Cabinet \(box 1\), 1\.6 m wide, 0\.45 m deep and 0\.5 m high\. Room objects are drawn and used for placement warnings, not part of the estimated response\./,
+    )
+    expect(
+      screen.getByText(
+        /^Furniture box, front edge darker \(drawn and warned about, not in the estimate\)/,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Drag the furniture boxes to move them\./),
+    ).toBeInTheDocument()
+  })
+
+  it('are not mentioned in a room without any', () => {
+    renderRoomView()
+
+    expect(scene()).not.toHaveAccessibleName(/Furniture/)
+    expect(screen.queryByText(/^Furniture box/)).toBeNull()
+  })
+})

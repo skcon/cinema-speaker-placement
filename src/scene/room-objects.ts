@@ -1,7 +1,10 @@
 import {
   formatLength,
+  furnitureFootprint,
+  furnitureLabel,
   screenSurface,
   SEAT_ROW_HEAD_OFFSET,
+  type FurnitureBox,
   type RoomPoint,
   type RoomScreen,
   type SeatRow,
@@ -111,4 +114,80 @@ export function describeScreen(screen: RoomScreen, units: UnitSystem): string {
     `high, its bottom edge ${length(screen.bottomEdge)} above the floor, ` +
     `${where}.`
   )
+}
+
+/**
+ * How deep the strip along a furniture box's front is drawn, in meters,
+ * at most: a drawing size only, so a turned box shows which way it faces.
+ */
+export const FURNITURE_FRONT_STRIP = 0.05
+
+/** A furniture box from above: a rectangle, with a strip along its front. */
+export type FurniturePlan = {
+  /** The middle of the box, on the floor. */
+  center: RoomPoint
+  /** Along room x and room y, as it is turned. */
+  size: [alongX: number, alongY: number]
+  /** The strip along its front, inside the rectangle. */
+  front: { center: RoomPoint; size: [alongX: number, alongY: number] }
+}
+
+/**
+ * A furniture box from above, as it is turned: unturned its front faces
+ * the back wall (room +y); each quarter turn clockwise turns it to the
+ * left wall, the front wall and the right wall.
+ */
+export function furniturePlan(box: FurnitureBox): FurniturePlan {
+  const { left, right, front, back } = furnitureFootprint(box)
+  const alongX = right - left
+  const alongY = back - front
+  const strip = Math.min(FURNITURE_FRONT_STRIP, alongX / 3, alongY / 3)
+  const center = { x: box.x, y: box.y, z: 0 }
+  const across = { alongX, alongY: strip }
+  const along = { alongX: strip, alongY }
+  const { at, size } = {
+    0: { at: { x: box.x, y: back - strip / 2 }, size: across },
+    90: { at: { x: left + strip / 2, y: box.y }, size: along },
+    180: { at: { x: box.x, y: front + strip / 2 }, size: across },
+    270: { at: { x: right - strip / 2, y: box.y }, size: along },
+  }[box.rotation]
+  return {
+    center,
+    size: [alongX, alongY],
+    front: { center: { ...at, z: 0 }, size: [size.alongX, size.alongY] },
+  }
+}
+
+/**
+ * A furniture box in 3D: a box in Three.js coordinates (y up), standing
+ * on the floor.
+ */
+export function furnitureBlock(box: FurnitureBox): {
+  position: Vec3
+  size: Vec3
+} {
+  const { size } = furniturePlan(box)
+  return {
+    position: toScenePosition({ x: box.x, y: box.y, z: box.height / 2 }),
+    size: [size[0], box.height, size[1]],
+  }
+}
+
+/**
+ * The furniture boxes in words, for the room view's screen-reader
+ * description, for example "Furniture: Cabinet (box 1), 1.6 m wide, 0.45 m
+ * deep and 0.5 m high." Empty without boxes.
+ */
+export function describeFurniture(
+  furniture: readonly FurnitureBox[],
+  units: UnitSystem,
+): string {
+  if (furniture.length === 0) return ''
+  const length = (meters: number) => formatLength(meters, units)
+  const boxes = furniture.map(
+    (box, index) =>
+      `${furnitureLabel(box, index)}, ${length(box.width)} wide, ` +
+      `${length(box.depth)} deep and ${length(box.height)} high`,
+  )
+  return `Furniture: ${boxes.join('; ')}.`
 }

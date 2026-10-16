@@ -28,8 +28,10 @@ import {
 } from 'three'
 import {
   floorCorners,
+  furnitureId,
   MLP_ID,
   type FloorPoint,
+  type FurnitureBox,
   wallBases,
   type PlacedOverhead,
   type PlacedSpeaker,
@@ -70,7 +72,12 @@ import {
   type DragController,
   type DragTarget,
 } from '@/scene/drag'
-import { screenBar, screenPanel } from '@/scene/room-objects'
+import {
+  furnitureBlock,
+  furniturePlan,
+  screenBar,
+  screenPanel,
+} from '@/scene/room-objects'
 import {
   FLAT_ON_FLOOR,
   floorGrid,
@@ -97,6 +104,8 @@ const LAYER = {
   seatRow: 0.007,
   ruleOfThumb: 0.008,
   heatmap: 0.009,
+  furniture: 0.0094,
+  furnitureFront: 0.0097,
   walls: 0.01,
   screen: 0.011,
   recommended: 0.012,
@@ -147,6 +156,7 @@ export function RoomCanvas({
   overheads,
   subwoofers,
   screen,
+  furniture,
   gridSpacing,
   seatRow,
   recommendedSeat,
@@ -169,6 +179,8 @@ export function RoomCanvas({
   subwoofers: readonly PlacedSubwoofer[]
   /** The Screen on the front wall, or null: drawn only. */
   screen: RoomScreen | null
+  /** The furniture boxes, in the config's order: drawn, and dragged from above. */
+  furniture: readonly FurnitureBox[]
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
   /** The Seat row around the MLP. */
@@ -252,6 +264,15 @@ export function RoomCanvas({
           // Remounted when the number of cells changes: an instanced
           // mesh's count is fixed.
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
+        )}
+        {view === '3d' ? (
+          <FurnitureBlocks furniture={furniture} />
+        ) : (
+          <FurniturePlans
+            furniture={furniture}
+            labelLayer={labelLayer}
+            markerDrag={markerDrag}
+          />
         )}
         <Walls room={room} labelLayer={labelLayer} />
         {screen &&
@@ -710,6 +731,77 @@ function ScreenBar({
       </mesh>
     </Draggable>
   )
+}
+
+/**
+ * The furniture boxes seen from above: each a rectangle with a darker
+ * strip along its front and its name, dragged by its middle like the
+ * other markers; the store keeps it inside the Room.
+ */
+function FurniturePlans({
+  furniture,
+  labelLayer,
+  markerDrag,
+}: {
+  furniture: readonly FurnitureBox[]
+  labelLayer: LabelLayer
+  markerDrag: MarkerDrag | null
+}) {
+  return furniture.map((box, index) => {
+    const { center, size, front } = furniturePlan(box)
+    return (
+      <Draggable
+        // Keyed by place: the room view names a box by it (furnitureId).
+        key={index}
+        id={furnitureId(index)}
+        at={center}
+        grab={{ width: size[0], depth: size[1] }}
+        markerDrag={markerDrag}
+      >
+        <mesh
+          position={toScenePosition({ ...center, z: LAYER.furniture })}
+          rotation={FLAT_ON_FLOOR}
+        >
+          <planeGeometry args={size} />
+          <meshBasicMaterial color={SCENE_COLORS.furniture} />
+        </mesh>
+        <mesh
+          position={toScenePosition({
+            ...front.center,
+            z: LAYER.furnitureFront,
+          })}
+          rotation={FLAT_ON_FLOOR}
+        >
+          <planeGeometry args={front.size} />
+          <meshBasicMaterial color={SCENE_COLORS.furnitureFront} />
+        </mesh>
+        <SceneLabel at={center} layer={labelLayer} tone="muted" className="">
+          {box.name}
+        </SceneLabel>
+      </Draggable>
+    )
+  })
+}
+
+/** The furniture boxes in 3D: solid boxes standing on the floor. */
+function FurnitureBlocks({
+  furniture,
+}: {
+  furniture: readonly FurnitureBox[]
+}) {
+  return furniture.map((box, index) => {
+    const { position, size } = furnitureBlock(box)
+    return (
+      <mesh key={index} position={position}>
+        <boxGeometry args={size} />
+        <meshBasicMaterial
+          color={SCENE_COLORS.furniture}
+          transparent
+          opacity={0.85}
+        />
+      </mesh>
+    )
+  })
 }
 
 /** The Screen in 3D: an upright panel at its height on the front wall. */

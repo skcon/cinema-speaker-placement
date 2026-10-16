@@ -18,14 +18,14 @@ vi.mock('@/domain', async (importOriginal) => {
 /** The share link of the default room with four furniture boxes and three openings. */
 function roomWithObjectsPath() {
   const store = createConfigStore()
-  const { addFurniture, addOpening } = store.getState()
-  addFurniture('cabinet')
-  addFurniture('table')
-  addFurniture('shelf')
-  addFurniture('cabinet')
-  addOpening('door')
-  addOpening('window')
-  addOpening('door')
+  const { addRoomObject } = store.getState()
+  addRoomObject({ kind: 'furniture', preset: 'cabinet' })
+  addRoomObject({ kind: 'furniture', preset: 'table' })
+  addRoomObject({ kind: 'furniture', preset: 'shelf' })
+  addRoomObject({ kind: 'furniture', preset: 'cabinet' })
+  addRoomObject({ kind: 'opening', preset: 'door' })
+  addRoomObject({ kind: 'opening', preset: 'window' })
+  addRoomObject({ kind: 'opening', preset: 'door' })
   const config = store.getState().config
   expect(config.roomObjects.furniture).toHaveLength(4)
   expect(config.roomObjects.openings).toHaveLength(3)

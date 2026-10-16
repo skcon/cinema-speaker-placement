@@ -18,7 +18,8 @@ import {
   manualScreenRelation,
   type ScreenRelation,
 } from './placement'
-import { nearestWall, type RoomPoint, type Wall } from './room'
+import type { RoomPoint, Wall } from './room'
+import { nearestWall } from './wall-frame'
 import type { SubwooferId } from './subwoofer-arrangements'
 import { autoPlaceSubwoofers } from './subwoofer-placement'
 

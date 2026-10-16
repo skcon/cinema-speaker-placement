@@ -6,9 +6,9 @@
  * OPENINGS.maxCount of them, and room-objects.ts keeps their list and ids.
  *
  * An opening sits on one wall. `position` is where its middle is along
- * that wall, from the wall's start: the left wall for the front and back
- * walls (so along room x, from -width / 2), the front wall for the left
- * and right walls (along room y). A door reaches from the floor to
+ * that wall, from the wall's start (`along` in the wall frame,
+ * wall-frame.ts): the left wall for the front and back walls, the front
+ * wall for the left and right walls. A door reaches from the floor to
  * OPENINGS.doorHeight (ours); a window from its sill to its top. Every
  * opening stays on its wall, between the corners, the floor and the
  * ceiling.
@@ -21,14 +21,13 @@ import {
   type RangeProblem,
 } from './range'
 import { OPENINGS } from './reference'
+import { WALLS, type FloorPoint, type Room, type Wall } from './room'
 import {
-  distanceToWall,
-  WALLS,
-  type FloorPoint,
-  type Room,
-  type RoomPoint,
-  type Wall,
-} from './room'
+  fromWallFrame,
+  toWallFrame,
+  wallLength,
+  type WallPoint,
+} from './wall-frame'
 
 /** What an opening is. */
 export const OPENING_KINDS = ['door', 'window'] as const
@@ -66,37 +65,11 @@ export type Opening = Door | WindowOpening
  */
 export type OpeningDimension = 'width' | 'fromCorner' | 'sill' | 'height'
 
-/** How long `wall` is, corner to corner, in meters. */
-export function wallLength(room: Room, wall: Wall): number {
-  return wall === 'front' || wall === 'back' ? room.width : room.length
-}
-
 /** Where an opening is along its wall: its two edges, from the wall's start. */
 export function openingSpan(opening: Opening): { start: number; end: number } {
   return {
     start: opening.position - opening.width / 2,
     end: opening.position + opening.width / 2,
-  }
-}
-
-/** Where a point on the floor plan is along `wall`, from the wall's start. */
-export function alongWall(room: Room, wall: Wall, point: FloorPoint): number {
-  return wall === 'front' || wall === 'back'
-    ? point.x + room.width / 2
-    : point.y
-}
-
-/** The point on `wall`'s base `along` meters from the wall's start. */
-export function pointOnWall(room: Room, wall: Wall, along: number): FloorPoint {
-  switch (wall) {
-    case 'front':
-      return { x: along - room.width / 2, y: 0 }
-    case 'back':
-      return { x: along - room.width / 2, y: room.length }
-    case 'left':
-      return { x: -room.width / 2, y: along }
-    case 'right':
-      return { x: room.width / 2, y: along }
   }
 }
 
@@ -107,8 +80,8 @@ export function openingEnds(
 ): [FloorPoint, FloorPoint] {
   const { start, end } = openingSpan(opening)
   return [
-    pointOnWall(room, opening.wall, start),
-    pointOnWall(room, opening.wall, end),
+    fromWallFrame(room, opening.wall, { along: start, out: 0 }),
+    fromWallFrame(room, opening.wall, { along: end, out: 0 }),
   ]
 }
 
@@ -125,9 +98,6 @@ export function openingVerticalSpan(
     ? { bottom: 0, top: Math.min(OPENINGS.doorHeight, room.height) }
     : { bottom: opening.sill, top: opening.sill + opening.height }
 }
-
-/** A point on a wall: how far along it (from its start) and how high. */
-export type WallPoint = { along: number; z: number }
 
 /** Whether `point` on `wall` is inside the opening (its edges count). */
 export function isInOpening(
@@ -159,8 +129,7 @@ export function isInFrontOfOpening(
   depth: number,
 ): boolean {
   const { start, end } = openingSpan(opening)
-  const along = alongWall(room, opening.wall, point)
-  const out = distanceToWall(room, { ...point, z: 0 }, opening.wall)
+  const { along, out } = toWallFrame(room, opening.wall, point)
   return along >= start && along <= end && out >= 0 && out <= depth
 }
 
@@ -174,37 +143,9 @@ export function floorDistanceToOpening(
   point: FloorPoint,
 ): number {
   const { start, end } = openingSpan(opening)
-  const along = alongWall(room, opening.wall, point)
+  const { along, out } = toWallFrame(room, opening.wall, point)
   const beside = along < start ? start - along : along > end ? along - end : 0
-  const out = distanceToWall(room, { ...point, z: 0 }, opening.wall)
   return Math.hypot(beside, out)
-}
-
-/**
- * Where on `wall` the first-order reflection from `source` to `listener`
- * hits it (the image-source point: the angle in equals the angle out), or
- * null when either is not inside the Room in front of the wall. The point
- * divides the way from source to listener in the ratio of their
- * distances to the wall.
- */
-export function wallReflectionPoint(
-  room: Room,
-  wall: Wall,
-  source: RoomPoint,
-  listener: RoomPoint,
-): WallPoint | null {
-  const fromSource = distanceToWall(room, source, wall)
-  const fromListener = distanceToWall(room, listener, wall)
-  if (fromSource < 0 || fromListener < 0 || fromSource + fromListener === 0) {
-    return null
-  }
-  const share = fromSource / (fromSource + fromListener)
-  const at = (axis: 'x' | 'y' | 'z') =>
-    source[axis] + (listener[axis] - source[axis]) * share
-  return {
-    along: alongWall(room, wall, { x: at('x'), y: at('y') }),
-    z: at('z'),
-  }
 }
 
 /**
@@ -316,7 +257,7 @@ export function openingMovedTo(
   if (!Number.isFinite(to.x) || !Number.isFinite(to.y)) return opening
   const moved = keepOnWall(room, {
     ...opening,
-    position: alongWall(room, opening.wall, to),
+    position: toWallFrame(room, opening.wall, to).along,
   })
   return moved.position === opening.position ? opening : moved
 }

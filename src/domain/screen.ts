@@ -17,6 +17,7 @@ import {
 } from './range'
 import { EAR_HEIGHT, SCREEN } from './reference'
 import type { Room } from './room'
+import { fromWallFrame, toWallFrame } from './wall-frame'
 
 /** What the screen is: a TV, or a screen a projector shines on. */
 export const SCREEN_KINDS = ['tv', 'projection'] as const
@@ -44,8 +45,9 @@ export type RoomScreen = {
 
 /**
  * A screen's dimensions that are edited as lengths. Where it is along the
- * front wall is edited as `fromLeftWall`: from the left wall to its left
- * edge, which is never negative.
+ * front wall is edited as `fromLeftWall`: from the left wall (the front
+ * wall's start in the wall frame, wall-frame.ts) to its left edge, which
+ * is never negative. It is stored as its centred `x`.
  */
 export type ScreenDimension =
   'width' | 'height' | 'bottomEdge' | 'fromLeftWall' | 'standoff'
@@ -61,7 +63,7 @@ export function screenLimits(
   screen: RoomScreen,
 ): Record<ScreenDimension, AcceptedRange> {
   const { width, height, bottomEdge, standoff } = SCREEN.limits
-  const along = alongWall(room, screen.width)
+  const reach = offCentreReach(room, screen.width)
   return {
     width: { min: width.min, max: Math.min(width.max, room.width) },
     height: {
@@ -72,14 +74,28 @@ export function screenLimits(
       min: bottomEdge.min,
       max: Math.min(bottomEdge.max, room.height - screen.height),
     },
-    fromLeftWall: { min: 0, max: 2 * along },
+    fromLeftWall: { min: 0, max: 2 * reach },
     standoff,
   }
 }
 
 /** How far a screen `width` wide may move its middle off the centre line. */
-function alongWall(room: Room, width: number): number {
+function offCentreReach(room: Room, width: number): number {
   return Math.max(0, (room.width - width) / 2)
+}
+
+/**
+ * Where the screen's left edge is along the front wall, from its start
+ * (the left wall), in the wall frame (wall-frame.ts).
+ */
+function leftEdgeAlongWall(room: Room, screen: RoomScreen): number {
+  const left = { x: screen.x - screen.width / 2, y: 0 }
+  return toWallFrame(room, 'front', left).along
+}
+
+/** The room x of a screen middle `along` meters along the front wall. */
+function middleAt(room: Room, along: number): number {
+  return fromWallFrame(room, 'front', { along, out: 0 }).x
 }
 
 /**
@@ -92,7 +108,7 @@ export function screenDimension(
   dimension: ScreenDimension,
 ): number | null {
   return dimension === 'fromLeftWall'
-    ? screen.x - screen.width / 2 + room.width / 2
+    ? leftEdgeAlongWall(room, screen)
     : screen[dimension]
 }
 
@@ -137,11 +153,11 @@ export function isValidScreen(room: Room, screen: RoomScreen): boolean {
     checkRange(screen.height, limits.height) === null &&
     checkRange(screen.bottomEdge, limits.bottomEdge) === null &&
     screen.bottomEdge + screen.height <= room.height + FIT_TOLERANCE
-  const along = alongWall(room, screen.width)
+  const reach = offCentreReach(room, screen.width)
   const onWall =
     checkRange(screen.x, {
-      min: -along - ROUNDING_SLACK,
-      max: along + ROUNDING_SLACK,
+      min: -reach - ROUNDING_SLACK,
+      max: reach + ROUNDING_SLACK,
     }) === null
   const standoff =
     screen.standoff === null ||
@@ -188,7 +204,7 @@ export function withScreenDimension(
     case 'standoff':
       return screen.standoff === null ? null : { ...screen, standoff: meters }
     case 'fromLeftWall':
-      return { ...screen, x: meters + screen.width / 2 - room.width / 2 }
+      return { ...screen, x: middleAt(room, meters + screen.width / 2) }
     case 'width':
       return keepOnWall(room, { ...screen, width: meters })
     default:
@@ -209,8 +225,8 @@ export function screenMovedTo(
 
 /** The screen's middle moved in, if needed, so it stays between the side walls. */
 function keepOnWall(room: Room, screen: RoomScreen): RoomScreen {
-  const along = alongWall(room, screen.width)
-  const x = clamp(screen.x, -along, along)
+  const reach = offCentreReach(room, screen.width)
+  const x = clamp(screen.x, -reach, reach)
   return x === screen.x ? screen : { ...screen, x }
 }
 

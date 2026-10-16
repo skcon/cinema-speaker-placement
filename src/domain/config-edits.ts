@@ -22,13 +22,8 @@ import {
   type RoomObjectId,
 } from './room-objects'
 import { recommendSeat } from './seat-score'
-import {
-  atDistanceFromWall,
-  type FloorPoint,
-  type Room,
-  type RoomPoint,
-  type Wall,
-} from './room'
+import type { FloorPoint, Room, RoomPoint, Wall } from './room'
+import { atDistanceFromWall } from './wall-frame'
 
 /**
  * Item `id` made manual at its current position with `change` applied, and

@@ -1,11 +1,5 @@
-import {
-  atDistanceFromWall,
-  distanceBetween,
-  wallDistances,
-  type Room,
-  type RoomPoint,
-  type Wall,
-} from './room'
+import { distanceBetween, type Room, type RoomPoint, type Wall } from './room'
+import { atDistanceFromWall, wallDistances } from './wall-frame'
 
 /** A measured straight line between two room points, in meters. */
 export type DimensionLine = {

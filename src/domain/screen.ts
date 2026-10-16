@@ -8,7 +8,7 @@
  * front speakers behind it. It stays inside the Room: on the front wall
  * between the side walls, and between the floor and the ceiling.
  */
-import { ROUNDING_SLACK, toMillimeter } from './manual-positions'
+import { linkSlack, toMillimeter } from './link-precision'
 import {
   checkRange,
   clamp,
@@ -114,10 +114,17 @@ export function checkScreenDimension(
 const FIT_TOLERANCE = 1e-9
 
 /**
+ * How far past a side wall the screen's middle may be, in meters: a share
+ * link writes it to the millimeter (link-precision.ts), which can put a
+ * screen against the wall half a millimeter past it.
+ */
+const ROUNDING_SLACK = linkSlack('screen')
+
+/**
  * Whether the screen is one a config may hold in `room`: every dimension
  * in range, its top edge under the ceiling, a standoff only on a
  * projection screen, and its middle on the front wall to the millimeter
- * (share links round it, see roundScreenForLink).
+ * (see ROUNDING_SLACK).
  */
 export function isValidScreen(room: Room, screen: RoomScreen): boolean {
   const { limits } = SCREEN
@@ -257,11 +264,6 @@ export function fitScreenToRoom(room: Room, screen: RoomScreen): RoomScreen {
       ? screen
       : { ...screen, width, height, bottomEdge }
   return keepOnWall(room, sized)
-}
-
-/** The screen as a share link stores it: its position to the millimeter. */
-export function roundScreenForLink(screen: RoomScreen): RoomScreen {
-  return { ...screen, x: toMillimeter(screen.x) }
 }
 
 /** Where the screen's image is, in room coordinates (meters). */

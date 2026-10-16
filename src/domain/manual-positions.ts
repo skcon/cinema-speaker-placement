@@ -34,6 +34,7 @@ import {
   OVERHEAD_CHANNEL_IDS,
 } from './dolby-layouts'
 import type { Layout } from './layout'
+import { linkSlack } from './link-precision'
 import { clamp } from './range'
 import {
   EAR_HEIGHT,
@@ -171,10 +172,10 @@ export function clampToRoom(
 
 /**
  * How far a stored coordinate may be from where the item may go: share
- * links round to the millimeter, which can put an item on the clearance
- * line up to half a millimeter past it.
+ * links store it to the millimeter, which can put an item on the clearance
+ * line up to half a millimeter past it (see link-precision.ts).
  */
-export const ROUNDING_SLACK = 0.0005
+const ROUNDING_SLACK = linkSlack('manualPositions')
 
 /** Whether item `id` may be at `point` (see above), to the millimeter. */
 export function mayBeAt(
@@ -205,25 +206,6 @@ export function keepInLayout(
   return Object.fromEntries(
     entries(positions).filter(([id]) => inLayout.includes(id)),
   )
-}
-
-/** Share links store positions to the nearest millimeter, to stay short. */
-const MILLIMETERS_PER_METER = 1000
-
-/** A length rounded to the nearest millimeter. */
-export function toMillimeter(meters: number): number {
-  // `+ 0` turns -0 into 0, so the JSON stays as short as it can be.
-  return Math.round(meters * MILLIMETERS_PER_METER) / MILLIMETERS_PER_METER + 0
-}
-
-/** Every coordinate rounded to the nearest millimeter. */
-export function roundToMillimeter(positions: ManualPositions): ManualPositions {
-  const round = toMillimeter
-  return mapPositions(positions, (_, { x, y, z }) => ({
-    x: round(x),
-    y: round(y),
-    z: round(z),
-  }))
 }
 
 /** The manual positions as [id, position] pairs, in PLACEABLE_IDS order. */

@@ -18,7 +18,6 @@ import {
   roomObjectAt,
   roomObjectId,
   roomObjectKind,
-  roundRoomObjectsForLink,
   SCREEN_ID,
   SEAT_ROW_ID,
   withRoomObjectAdded,
@@ -499,26 +498,5 @@ describe('room object validity', () => {
         openings: [{ ...DOOR, position: 4.3 }],
       }),
     ).toBe(false)
-  })
-})
-
-describe('room objects in a share link', () => {
-  it('have the screen and openings to the millimeter and the seat row as typed', () => {
-    const dragged: RoomObjects = {
-      seatRow: { width: 3.6576, depth: 0.9144 },
-      screen: { ...TV, x: 0.123456789 },
-      furniture: [],
-      openings: [{ ...DOOR, position: 1.23456 }],
-    }
-
-    expect(roundRoomObjectsForLink(dragged)).toEqual({
-      seatRow: { width: 3.6576, depth: 0.9144 },
-      screen: { ...TV, x: 0.123 },
-      furniture: [],
-      openings: [{ ...DOOR, position: 1.235 }],
-    })
-    expect(roundRoomObjectsForLink(DEFAULT_ROOM_OBJECTS)).toEqual(
-      DEFAULT_ROOM_OBJECTS,
-    )
   })
 })

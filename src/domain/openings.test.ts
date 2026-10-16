@@ -10,7 +10,6 @@ import {
   openingMovedTo,
   openingSpan,
   openingVerticalSpan,
-  roundOpeningForLink,
   withOpeningDimension,
   withOpeningWall,
   type Door,
@@ -252,26 +251,6 @@ describe('openings stay on their wall and inside it', () => {
 
   it('accept one a share link rounded half a millimeter past its wall end', () => {
     expect(isValidOpening(ROOM, { ...DOOR, position: 0.4495 })).toBe(true)
-  })
-})
-
-describe('an opening in a share link', () => {
-  it('has every length to the millimeter', () => {
-    expect(
-      roundOpeningForLink({
-        ...WINDOW,
-        position: 1.23456,
-        width: 36 * 0.0254,
-        sill: 0.90049,
-        height: 1.2000001,
-      }),
-    ).toEqual({
-      ...WINDOW,
-      position: 1.235,
-      width: 0.914,
-      sill: 0.9,
-      height: 1.2,
-    })
   })
 })
 

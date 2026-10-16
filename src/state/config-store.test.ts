@@ -84,18 +84,18 @@ describe('config store', () => {
   it('auto-place keeps the room and layout, puts every speaker at its auto-placed position and the MLP at the recommended seat', () => {
     const store = createConfigStore()
     store.getState().setLayout('7.1')
-    store.getState().setRoomDimension('width', 5)
+    store.getState().setRoomDimension('width', 4)
 
     store.getState().autoPlace()
 
-    const sevenOneInFiveMeters = {
+    const sevenOneInFourMeters = {
       ...DEFAULT_CONFIG,
-      room: { length: 6, width: 5, height: 2.6 },
+      room: { length: 6, width: 4, height: 2.6 },
       layout: { dolbyLayout: '7.1', subwoofers: 1 },
     } as const
-    const { recommended } = recommendSeat(sevenOneInFiveMeters)
+    const { recommended } = recommendSeat(sevenOneInFourMeters)
     const autoPlaced = {
-      ...sevenOneInFiveMeters,
+      ...sevenOneInFourMeters,
       manualPositions: { MLP: recommended.position },
     }
     expect(store.getState().config).toEqual(autoPlaced)

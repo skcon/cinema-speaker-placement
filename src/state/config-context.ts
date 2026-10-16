@@ -30,8 +30,34 @@ export function useConfig<T>(selector: (state: ConfigState) => T): T {
   return useStore(store, selector)
 }
 
-/** Everything the domain derives from the current config, recomputed only when it changes. */
+/**
+ * The Room analysis of the current config, shared by every component under
+ * the config store (ConfigStoreProvider provides it), so the room is
+ * analyzed once per change however many components read it. Tests can
+ * provide an analysis of their own. Undefined outside the provider.
+ */
+export const RoomAnalysisContext = createContext<RoomAnalysis | undefined>(
+  undefined,
+)
+
+/**
+ * Everything the domain derives from the current config: one shared
+ * analysis, worked out once per config change and followed live, so a drag
+ * updates it every frame.
+ */
 export function useRoomAnalysis(): RoomAnalysis {
+  const analysis = useContext(RoomAnalysisContext)
+  if (analysis === undefined) {
+    throw new Error('useRoomAnalysis must be used inside <ConfigStoreProvider>')
+  }
+  return analysis
+}
+
+/**
+ * Works the Room analysis out, for RoomAnalysisContext only: once per
+ * config change.
+ */
+export function useComputedRoomAnalysis(): RoomAnalysis {
   const config = useConfig((state) => state.config)
   return useMemo(() => analyzeRoom(config), [config])
 }

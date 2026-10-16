@@ -21,7 +21,7 @@ The one listening position that the layout is aimed at and that is analyzed and 
 _Avoid_: Sweet spot, best seat, primary seat
 
 **Seat row**:
-A couch or row of seats drawn around the MLP: centered across the room on it, with the MLP (the listener's head) near the couch's back and the rest of the couch in front; a visual cue, not analyzed.
+The couch or row of seats the MLP sits on, a room object with a width and depth: centered across the room on the MLP, with the MLP (the listener's head) near the couch's back and the rest of the couch in front. It has no position of its own: it goes where the MLP goes, so dragging it moves the MLP (making it manual), and Auto-place and "Move MLP here" move it with the MLP. Drawn, not analyzed.
 _Avoid_: Couch zone
 
 **Room object**:

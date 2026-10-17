@@ -1,13 +1,26 @@
 import { Box3, Mesh, OrthographicCamera, PlaneGeometry, Vector3 } from 'three'
 import { describe, expect, it } from 'vitest'
-import type { Room, RoomPoint } from '@/domain'
 import {
+  DEFAULT_CONFIG,
+  dragAnchors,
+  MLP_ID,
+  SEAT_ROW_ID,
+  seatRowFootprint,
+  type DragTarget,
+  type FloorPoint,
+  type Room,
+  type RoomPoint,
+} from '@/domain'
+import { OVERHEAD_MARKER_RADIUS } from '@/scene/speakers'
+import {
+  distanceToShape,
   floorGrid,
   floorPlane,
   draggedTo,
   grabOffset,
   grabLength,
   grabRadius,
+  pickGrab,
   toFloorPoint,
   toScenePosition,
   topDownCamera,
@@ -188,5 +201,97 @@ describe('the top-down camera', () => {
 
   it('falls back to a zoom of 1 before the panel has a size', () => {
     expect(topDownCamera(ROOM, { width: 0, height: 0 }).zoom).toBe(1)
+  })
+})
+
+describe('distanceToShape', () => {
+  it('is 0 on or inside a round marker, and the gap to its edge outside it', () => {
+    const disc = { center: { x: 1, y: 2 }, radius: 0.2 }
+    expect(distanceToShape(disc, { x: 1.1, y: 2 })).toBe(0)
+    expect(distanceToShape(disc, { x: 1.2, y: 2 })).toBe(0)
+    expect(distanceToShape(disc, { x: 1, y: 2.5 })).toBeCloseTo(0.3, 9)
+  })
+
+  it('is 0 on or inside a rectangle, and the gap to its nearest edge or corner outside it', () => {
+    const box = { center: { x: 0, y: 0 }, width: 2, depth: 1 }
+    expect(distanceToShape(box, { x: 0.9, y: -0.4 })).toBe(0)
+    expect(distanceToShape(box, { x: 1, y: 0.5 })).toBe(0)
+    expect(distanceToShape(box, { x: 1.3, y: 0 })).toBeCloseTo(0.3, 9)
+    expect(distanceToShape(box, { x: 0, y: -0.9 })).toBeCloseTo(0.4, 9)
+    // Off the corner (1, 0.5) by 0.3 and 0.4.
+    expect(distanceToShape(box, { x: 1.3, y: 0.9 })).toBeCloseTo(0.5, 9)
+  })
+})
+
+describe('pickGrab', () => {
+  // The default room (5.1.2) at 56 px per meter, a phone-sized view: the
+  // overheads' grab discs reach well past their markers, onto the couch.
+  const config = DEFAULT_CONFIG
+  const anchors = dragAnchors(config)
+  const anchor = (target: DragTarget): FloorPoint => {
+    const at = anchors.get(target)
+    if (!at) throw new Error(`${target} has no anchor`)
+    return at
+  }
+  const mlp = anchor(MLP_ID)
+  const rtm = anchor('Rtm')
+  const zoom = 56
+  const couch = seatRowFootprint(
+    config.room,
+    { ...mlp, z: 0 },
+    config.roomObjects.seatRow,
+  )
+  // In hit order, as the top-down view stacks the grab areas: item discs
+  // over room objects' rectangles.
+  const under = [
+    { target: 'Rtm', shape: { center: rtm, radius: OVERHEAD_MARKER_RADIUS } },
+    { target: MLP_ID, shape: { center: mlp, radius: 0.18 } },
+    { target: SEAT_ROW_ID, shape: couch },
+  ]
+  const touchReach = (center: FloorPoint, radius: number, point: FloorPoint) =>
+    Math.hypot(point.x - center.x, point.y - center.y) <=
+    grabRadius(radius, zoom)
+
+  it('picks the couch for a press on it beside the MLP, under an overhead grab disc but off its marker (#91)', () => {
+    const pressed = { x: rtm.x - OVERHEAD_MARKER_RADIUS - 0.1, y: rtm.y }
+    // The overlap the bug came from: the press is on the couch and inside
+    // the overhead's grab disc, but not on its drawn marker.
+    expect(distanceToShape(couch, pressed)).toBe(0)
+    expect(touchReach(rtm, OVERHEAD_MARKER_RADIUS, pressed)).toBe(true)
+
+    expect(pickGrab(pressed, under)).toBe(SEAT_ROW_ID)
+    // Nearer the MLP, where a zoomed-out view's touch targets of the MLP
+    // and the overhead both reach, but off both markers.
+    expect(pickGrab({ x: mlp.x + 0.45, y: rtm.y }, under)).toBe(SEAT_ROW_ID)
+  })
+
+  it('picks the overhead for a press on its marker, even where it overlaps the couch', () => {
+    expect(pickGrab(rtm, under)).toBe('Rtm')
+
+    // Dragged in over the couch's end, its marker drawn over the couch.
+    const over = { x: couch.center.x + couch.width / 2 - 0.1, y: rtm.y }
+    const overCouch = [
+      {
+        target: 'Rtm',
+        shape: { center: over, radius: OVERHEAD_MARKER_RADIUS },
+      },
+      ...under.slice(1),
+    ]
+    expect(distanceToShape(couch, over)).toBe(0)
+    expect(pickGrab(over, overCouch)).toBe('Rtm')
+  })
+
+  it('picks the MLP for a press on its marker on the couch', () => {
+    expect(pickGrab({ x: mlp.x + 0.1, y: mlp.y }, under)).toBe(MLP_ID)
+  })
+
+  it('picks the nearest marker for a press only inside touch targets', () => {
+    // Beside the couch, 0.1 m right of the overhead marker's edge.
+    const pressed = { x: rtm.x + OVERHEAD_MARKER_RADIUS + 0.1, y: rtm.y }
+    expect(pickGrab(pressed, under)).toBe('Rtm')
+  })
+
+  it('picks nothing when nothing is under the press', () => {
+    expect(pickGrab({ x: 0, y: 0 }, [])).toBeNull()
   })
 })

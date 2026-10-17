@@ -421,9 +421,9 @@ function grabsUnder(event: ThreeEvent<PointerEvent>): GrabUnder[] {
  * Pressing on a marker (or within a touch target of its center, see
  * grabRadius) tells onSelect and picks the target up by its anchor (see
  * dragAnchors), unless another target's marker is nearer the press (see
- * pickGrab), which then picks it up instead; the anchor follows the pointer, keeping where it was
- * grabbed, until released, and the store keeps the target where it may
- * go. Without `markerDrag` (the 3D view), or without an anchor, the
+ * pickGrab), which then picks it up instead; the anchor follows the
+ * pointer, keeping where it was grabbed, until released, and the store
+ * keeps the target where it may go. Without `markerDrag` (the 3D view), or without an anchor, the
  * markers are only drawn, with no grab area.
  */
 function Draggable({

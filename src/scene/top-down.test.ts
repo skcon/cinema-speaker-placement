@@ -6,6 +6,7 @@ import {
   MLP_ID,
   SEAT_ROW_ID,
   seatRowFootprint,
+  type DragTarget,
   type FloorPoint,
   type Room,
   type RoomPoint,
@@ -227,8 +228,8 @@ describe('pickGrab', () => {
   // overheads' grab discs reach well past their markers, onto the couch.
   const config = DEFAULT_CONFIG
   const anchors = dragAnchors(config)
-  const anchor = (target: string): FloorPoint => {
-    const at = anchors.get(target as never)
+  const anchor = (target: DragTarget): FloorPoint => {
+    const at = anchors.get(target)
     if (!at) throw new Error(`${target} has no anchor`)
     return at
   }
@@ -259,6 +260,9 @@ describe('pickGrab', () => {
     expect(touchReach(rtm, OVERHEAD_MARKER_RADIUS, pressed)).toBe(true)
 
     expect(pickGrab(pressed, under)).toBe(SEAT_ROW_ID)
+    // Nearer the MLP, where a zoomed-out view's touch targets of the MLP
+    // and the overhead both reach, but off both markers.
+    expect(pickGrab({ x: mlp.x + 0.45, y: rtm.y }, under)).toBe(SEAT_ROW_ID)
   })
 
   it('picks the overhead for a press on its marker, even where it overlaps the couch', () => {

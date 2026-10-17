@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId } from 'react'
 import {
   UNIT_SYSTEMS,
   type LengthUnit,
@@ -7,19 +7,16 @@ import {
 } from '@/domain'
 import { Input } from '@/ui/components/input'
 import { Label } from '@/ui/components/label'
-import {
-  draftFromMeters,
-  metersFromDraft,
-  type LengthDraft,
-} from '@/ui/lib/length-input'
+import { LENGTH_TEXT } from '@/ui/lib/length-input'
+import { useDraftField } from '@/ui/lib/use-draft-field'
 
 /**
  * A length in the chosen units (meters, or feet + inches) checked as it is
- * typed: every edit goes to `onChange` (the store ignores a rejected one),
- * and a value `check` rejects stays in the field with an inline error
- * while the stored length stays as it was. When the stored length or the
- * units change elsewhere (switching units, a share link, undo, a drag),
- * the field starts over from the stored length.
+ * typed (useDraftField): a length `check` accepts goes to `onChange`, and
+ * one it rejects stays in the field with an inline error while the stored
+ * length stays as it was. When the stored length or the units change
+ * elsewhere (switching units, a share link, undo, a drag), the field
+ * starts over from the stored length.
  */
 export function CheckedLengthField({
   label,
@@ -38,31 +35,18 @@ export function CheckedLengthField({
   errorMessage: (problem: RangeProblem) => string
   onChange: (meters: number) => void
 }) {
-  const [draft, setDraft] = useState(() => draftFromMeters(meters, units))
-  const [seenInStore, setSeenInStore] = useState({ meters, units })
+  const {
+    text: draft,
+    problem,
+    edit,
+  } = useDraftField({
+    value: meters,
+    codec: LENGTH_TEXT[units],
+    check,
+    onCommit: onChange,
+  })
   const errorId = useId()
-
-  // Adjust state while rendering (react.dev "You Might Not Need an Effect"):
-  // re-seed the text when the store moved away from what it describes. A
-  // valid edit from this field updates the store to exactly its own text,
-  // so what the user typed ("7.250") is kept.
-  if (seenInStore.meters !== meters || seenInStore.units !== units) {
-    setSeenInStore({ meters, units })
-    if (
-      seenInStore.units !== units ||
-      metersFromDraft(draft, units) !== meters
-    ) {
-      setDraft(draftFromMeters(meters, units))
-    }
-  }
-
-  const problem = check(metersFromDraft(draft, units))
   const error = problem && errorMessage(problem)
-
-  function update(next: LengthDraft) {
-    setDraft(next)
-    onChange(metersFromDraft(next, units))
-  }
 
   return (
     <fieldset className="flex flex-col gap-1.5">
@@ -73,7 +57,7 @@ export function CheckedLengthField({
             key={unit}
             unit={unit}
             value={draft[index] ?? ''}
-            onChange={(value) => update(draft.with(index, value))}
+            onChange={(value) => edit(draft.with(index, value))}
             invalid={problem !== null}
             errorId={errorId}
           />

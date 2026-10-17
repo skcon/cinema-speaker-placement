@@ -1,9 +1,6 @@
-import { useId, useState } from 'react'
 import { checkCrossover, type CrossoverProblem } from '@/domain'
 import { useConfig } from '@/state/config-context'
-import { Input } from '@/ui/components/input'
-import { Label } from '@/ui/components/label'
-import { parseDecimal } from '@/ui/lib/decimal'
+import { NumberField } from '@/ui/NumberField'
 
 /** The inline error for a rejected crossover frequency. */
 function crossoverErrorMessage(problem: CrossoverProblem): string {
@@ -22,43 +19,14 @@ function crossoverErrorMessage(problem: CrossoverProblem): string {
 export function CrossoverField() {
   const hz = useConfig((state) => state.config.crossoverHz)
   const setCrossover = useConfig((state) => state.setCrossover)
-  const [draft, setDraft] = useState(() => String(hz))
-  const [seenInStore, setSeenInStore] = useState(hz)
-  const id = useId()
-  const errorId = useId()
-  const noteId = useId()
-
-  // Adjust state while rendering, as RoomDimensionField does.
-  if (seenInStore !== hz) {
-    setSeenInStore(hz)
-    if (parseDecimal(draft) !== hz) setDraft(String(hz))
-  }
-
-  const problem = checkCrossover(parseDecimal(draft))
-
   return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>Crossover (Hz)</Label>
-      <Input
-        id={id}
-        inputMode="decimal"
-        autoComplete="off"
-        value={draft}
-        onChange={(event) => {
-          setDraft(event.target.value)
-          setCrossover(parseDecimal(event.target.value))
-        }}
-        aria-invalid={problem !== null}
-        aria-describedby={`${errorId} ${noteId}`}
-        className="max-w-36"
-      />
-      <p id={errorId} aria-live="polite" className="text-sm text-destructive">
-        {problem && crossoverErrorMessage(problem)}
-      </p>
-      <p id={noteId} className="text-xs text-muted-foreground">
-        Where your receiver hands the bass from the speakers to the subwoofers.
-        80 Hz is a common setting.
-      </p>
-    </div>
+    <NumberField
+      label="Crossover (Hz)"
+      value={hz}
+      check={checkCrossover}
+      onValid={setCrossover}
+      errorMessage={crossoverErrorMessage}
+      note="Where your receiver hands the bass from the speakers to the subwoofers. 80 Hz is a common setting."
+    />
   )
 }

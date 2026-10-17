@@ -7,6 +7,8 @@ import {
   type RoomPoint,
   type SubwooferCount,
 } from '@/domain'
+import { yardsticksFor } from '@/test/relative-speed'
+import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
 import {
   boundaryReflections,
   interferenceLevels,
@@ -406,56 +408,69 @@ describe('a room response prepared once', () => {
     expect(rows.map((r) => r.frequency)).toEqual(frequencies)
   })
 
-  it('scores a 20 x 20 grid of seats in the largest room with 4 subwoofers and 3 speakers quickly, for the seat score (#14)', () => {
-    // About 0.6 s under Vitest on a 2024 laptop; the bound only catches a
-    // regression to recomputing the room modes per seat.
-    const room = { length: 15, width: 15, height: 5 }
-    const frequencies = analyzeRoom(DEFAULT_CONFIG).response.estimated.rows.map(
-      (r) => r.frequency,
-    )
-    const target = targetCurve('flat', frequencies)
-    const front = [-1.5, 0, 1.5].map((x) => ({ x, y: 0.5, z: 1.2 }))
-    const levelsAt = (receiver: RoomPoint) =>
-      front.map((position) =>
-        interferenceLevels(
-          boundaryReflections(
-            room,
-            { position, aim: { yaw: bearingTo(position, receiver) } },
-            receiver,
+  it(
+    'scores a 20 x 20 grid of seats in the largest room with 4 subwoofers and 3 speakers quickly, for the seat score (#14)',
+    () => {
+      // About 15 yardsticks (0.6 s on a 2024 laptop). The bound, twice
+      // that, fails on a 3x slower modal sum (about 37) and on recomputing
+      // the room modes per seat (far more). Heavy: the work runs three
+      // times; the later runs reuse the memoized preparation, as dragging
+      // the MLP does.
+      const room = { length: 15, width: 15, height: 5 }
+      const frequencies = analyzeRoom(
+        DEFAULT_CONFIG,
+      ).response.estimated.rows.map((r) => r.frequency)
+      const target = targetCurve('flat', frequencies)
+      const front = [-1.5, 0, 1.5].map((x) => ({ x, y: 0.5, z: 1.2 }))
+      const levelsAt = (receiver: RoomPoint) =>
+        front.map((position) =>
+          interferenceLevels(
+            boundaryReflections(
+              room,
+              { position, aim: { yaw: bearingTo(position, receiver) } },
+              receiver,
+            ),
+            frequencies,
           ),
-          frequencies,
-        ),
-      )
-    const started = performance.now()
-    const prepared = prepareRoomResponse({
-      room,
-      subwoofers: [
-        { x: 0, y: 0.3, z: 0.3 },
-        { x: -7.2, y: 7.5, z: 0.3 },
-        { x: 7.2, y: 7.5, z: 0.3 },
-        { x: 0, y: 14.7, z: 0.3 },
-      ].map((position) => ({ position, enclosure: 'ported' as const })),
-      crossoverHz: 80,
-      frequencies,
-    })
-    const mlp = { x: 0, y: 5.7, z: 1.2 }
-    const calibration = calibrateResponse(
-      prepared,
-      { receiver: mlp, speakerLevels: levelsAt(mlp) },
-      target,
-    )
-    for (let i = 0; i < 20; i++) {
-      for (let j = 0; j < 20; j++) {
-        const receiver = { x: -7 + (14 * i) / 19, y: 1 + (13 * j) / 19, z: 1.2 }
-        responseDeviations(
-          prepared,
-          { receiver, speakerLevels: levelsAt(receiver) },
-          target,
-          calibration,
         )
+      const scoreGrid = () => {
+        const prepared = prepareRoomResponse({
+          room,
+          subwoofers: [
+            { x: 0, y: 0.3, z: 0.3 },
+            { x: -7.2, y: 7.5, z: 0.3 },
+            { x: 7.2, y: 7.5, z: 0.3 },
+            { x: 0, y: 14.7, z: 0.3 },
+          ].map((position) => ({ position, enclosure: 'ported' as const })),
+          crossoverHz: 80,
+          frequencies,
+        })
+        const mlp = { x: 0, y: 5.7, z: 1.2 }
+        const calibration = calibrateResponse(
+          prepared,
+          { receiver: mlp, speakerLevels: levelsAt(mlp) },
+          target,
+        )
+        for (let i = 0; i < 20; i++) {
+          for (let j = 0; j < 20; j++) {
+            const receiver = {
+              x: -7 + (14 * i) / 19,
+              y: 1 + (13 * j) / 19,
+              z: 1.2,
+            }
+            responseDeviations(
+              prepared,
+              { receiver, speakerLevels: levelsAt(receiver) },
+              target,
+              calibration,
+            )
+          }
+        }
       }
-    }
 
-    expect(performance.now() - started).toBeLessThan(3000)
-  })
+      const cost = yardsticksFor(scoreGrid)
+      expect(cost, 'yardsticks').toBeLessThan(30)
+    },
+    HEAVY_TEST_TIMEOUT_MS,
+  )
 })

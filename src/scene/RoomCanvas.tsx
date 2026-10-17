@@ -88,9 +88,11 @@ import {
   floorPlane,
   grabLength,
   grabRadius,
+  pickGrab,
   toFloorPoint,
   toScenePosition,
   topDownCamera,
+  type GrabShape,
 } from '@/scene/top-down'
 import {
   orbitCamera,
@@ -116,8 +118,9 @@ const LAYER = {
   screen: 0.011,
   recommended: 0.012,
   /**
-   * A room object's grab area: under the items' grab discs, so where the
-   * two overlap (a speaker in front of the screen) the item is picked up.
+   * A room object's grab area: under the items' grab discs, so where a
+   * press is on both markers (a speaker in front of the screen) the item
+   * is picked up; otherwise the nearer marker is (see pickGrab).
    */
   objectGrab: 0.013,
   grab: 0.015,
@@ -391,21 +394,36 @@ type DraggableProps = {
    * The area that picks the marker up, where the marker is drawn, in
    * meters: an item's round one (`radius`), or a room object's
    * rectangular one, `width` along x and `depth` along y (which items'
-   * grab areas win over).
+   * grab areas are stacked over).
    */
-  grab:
-    | { center: FloorPoint; radius: number }
-    | { center: FloorPoint; width: number; depth: number }
+  grab: GrabShape
   children: ReactNode
+}
+
+/** What a draggable group keeps in its userData: its target and grab shape. */
+type GrabUnder = { target: DragTarget; shape: GrabShape }
+
+/**
+ * The draggable groups under a pointer event, in hit order (top first),
+ * each once: what pickGrab picks from.
+ */
+function grabsUnder(event: ThreeEvent<PointerEvent>): GrabUnder[] {
+  const grabs = new Map<DragTarget, GrabUnder>()
+  for (const { eventObject } of event.intersections) {
+    const { grab } = eventObject.userData as { grab?: GrabUnder }
+    if (grab && !grabs.has(grab.target)) grabs.set(grab.target, grab)
+  }
+  return [...grabs.values()]
 }
 
 /**
  * Makes its markers draggable on the floor plan as drag target `id`.
  * Pressing on a marker (or within a touch target of its center, see
  * grabRadius) tells onSelect and picks the target up by its anchor (see
- * dragAnchors); the anchor follows the pointer, keeping where it was
- * grabbed, until released, and the store keeps the target where it may
- * go. Without `markerDrag` (the 3D view), or without an anchor, the
+ * dragAnchors), unless another target's marker is nearer the press (see
+ * pickGrab), which then picks it up instead; the anchor follows the
+ * pointer, keeping where it was grabbed, until released, and the store
+ * keeps the target where it may go. Without `markerDrag` (the 3D view), or without an anchor, the
  * markers are only drawn, with no grab area.
  */
 function Draggable({
@@ -446,9 +464,12 @@ function DraggableGroup({
 
   return (
     <group
+      userData={{ grab: { target: id, shape: grab } satisfies GrabUnder }}
       onPointerDown={(event) => {
         const pointer = floorPoint(event)
         if (!pointer || event.button !== 0) return
+        // Not ours: the event goes on to the target pickGrab picked.
+        if (pickGrab(pointer, grabsUnder(event)) !== id) return
         leaveTextField()
         if (!controller.press(event.pointerId, id, at, pointer)) return
         // A press selects the item, whether it then moves (a drag) or not.

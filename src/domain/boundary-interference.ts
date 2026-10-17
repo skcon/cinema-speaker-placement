@@ -14,7 +14,8 @@
 import { add, decibels, phasor, scale, type Complex } from './complex'
 import type { Aim } from './placement'
 import { BOUNDARY_INTERFERENCE, SPEED_OF_SOUND } from './reference'
-import { distanceBetween, type Room, type RoomPoint } from './room'
+import { distanceBetween, type Room, type RoomPoint, type Wall } from './room'
+import { distanceToWall } from './wall-frame'
 
 /** A surface of the Room that sound reflects off. */
 export type Surface =
@@ -48,17 +49,12 @@ export type BoundaryReflection = {
 /** How many of each reflection's notch frequencies are listed. */
 const NOTCHES_LISTED = 3
 
-/** Distance from a point to each wall, along the floor. */
-function wallDistances(
-  room: Room,
-  { x, y }: RoomPoint,
-): Record<WallSurface, number> {
-  return {
-    'front wall': y,
-    'back wall': room.length - y,
-    'left wall': x + room.width / 2,
-    'right wall': room.width / 2 - x,
-  }
+/** The wall of each wall Surface, in the order tied walls are listed. */
+const WALL_OF: Record<WallSurface, Wall> = {
+  'front wall': 'front',
+  'back wall': 'back',
+  'left wall': 'left',
+  'right wall': 'right',
 }
 
 /**
@@ -73,14 +69,16 @@ function wallBehind(
   // Yaw is clockwise from facing the front wall (−y), seen from above.
   const dx = Math.sin(radians)
   const dy = -Math.cos(radians)
-  const distances = wallDistances(room, position)
-  const along = (distance: number, step: number) =>
-    step > 1e-12 ? distance / step : Number.POSITIVE_INFINITY
+  // `+ 0` turns the −0 the wall frame gives on the back or right wall into 0.
+  const along = (wall: WallSurface, step: number) =>
+    step > 1e-12
+      ? (distanceToWall(room, position, WALL_OF[wall]) + 0) / step
+      : Number.POSITIVE_INFINITY
   const hits: [WallSurface, number][] = [
-    ['front wall', along(distances['front wall'], -dy)],
-    ['back wall', along(distances['back wall'], dy)],
-    ['left wall', along(distances['left wall'], -dx)],
-    ['right wall', along(distances['right wall'], dx)],
+    ['front wall', along('front wall', -dy)],
+    ['back wall', along('back wall', dy)],
+    ['left wall', along('left wall', -dx)],
+    ['right wall', along('right wall', dx)],
   ]
   return hits.reduce((nearest, hit) => (hit[1] < nearest[1] ? hit : nearest))[0]
 }
@@ -96,15 +94,15 @@ export function reflectingSurfaces(
   speaker: BoundarySource,
 ): Surface[] {
   const behind = wallBehind(room, speaker)
-  const distances = wallDistances(room, speaker.position)
-  const others = (Object.keys(distances) as WallSurface[]).filter(
+  const others = (Object.keys(WALL_OF) as WallSurface[]).filter(
     (wall) => wall !== behind,
   )
-  const nearest = Math.min(...others.map((wall) => distances[wall]))
+  // `+ 0` turns the −0 the wall frame gives on the back or right wall into 0.
+  const distance = (wall: WallSurface) =>
+    distanceToWall(room, speaker.position, WALL_OF[wall]) + 0
+  const nearest = Math.min(...others.map(distance))
   // Walls equally near (a speaker on the center line) all count.
-  const nearestOthers = others.filter(
-    (wall) => distances[wall] - nearest < TIED,
-  )
+  const nearestOthers = others.filter((wall) => distance(wall) - nearest < TIED)
   const { z } = speaker.position
   return [behind, ...nearestOthers, z <= room.height - z ? 'floor' : 'ceiling']
 }

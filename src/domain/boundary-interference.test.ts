@@ -53,6 +53,19 @@ describe('reflecting surfaces of a listener-level speaker', () => {
     ])
   })
 
+  it('takes the wall it stands on as behind it, and the wall beside it as nearest, in a back corner', () => {
+    // Exactly on the back and right walls, facing the front wall.
+    const speaker = {
+      position: { x: 2.25, y: 6, z: 1.2 },
+      aim: { yaw: 0 },
+    }
+    expect(reflectingSurfaces(ROOM, speaker)).toEqual([
+      'back wall',
+      'right wall',
+      'floor',
+    ])
+  })
+
   it('are the front wall, left wall and floor for the default Left speaker', () => {
     const { speakers } = analyzeRoom(DEFAULT_CONFIG)
     const left = speakers.find((s) => s.channel === 'L')!

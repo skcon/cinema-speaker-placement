@@ -264,14 +264,15 @@ const FURNITURE_ROW = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
 }[]
 
 /**
- * Version 2 share links as the app writes them today, with the config each
- * one holds: the version 1 links' configs as the migration to version 2
- * gives them (their seat row width as a 0.9 m deep seat row, and no other
- * room objects), except that the two on the edges of the ranges also have
- * a seat row depth, a screen, furniture boxes and openings on the edges of
- * their ranges. Version 2 is not
- * released until v1.1.0 is tagged, so the 1.1.0 changes that extend it
- * regenerate these (ADR 0003); after that, never edit them.
+ * Version 2 share links as v1.1.0 and v1.2.0 write them (their encoded
+ * configs), with the config each one holds: the version 1 links' configs
+ * as the migration to version 2 gives them (their seat row width as a
+ * 0.9 m deep seat row, and no other room objects), except that the two on
+ * the edges of the ranges also have a seat row depth, a screen, furniture
+ * boxes and openings on the edges of their ranges. Version 2 is released
+ * (v1.1.0), so never edit these: if one stops opening, links people
+ * already shared no longer open, and the schema change needs a new version
+ * and a migration (ADR 0003).
  */
 export const V2_LINKS = {
   /**

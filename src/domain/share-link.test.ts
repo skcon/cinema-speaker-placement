@@ -20,16 +20,20 @@ import { IMPERIAL_ROOM, V1_LINKS, V2_LINKS } from '@/test/share-link-fixtures'
 import { configSchema } from './config'
 import { WALLS } from './room'
 import { configSchemaV1, type ConfigV1 } from './config-v1'
+import { configSchemaV2 } from './config-v2'
 import {
   LINK_MILLIMETER_LENGTHS,
   linkSlack,
   type LinkPart,
 } from './link-precision'
 import {
+  CONFIG_VERSIONS,
+  configVersion,
   createConfigCodec,
-  migrateFrom,
   SHORT_FIELD_NAMES,
   writtenAsVersion2,
+  type ConfigVersion,
+  type WireForm,
 } from './share-link'
 
 /**
@@ -66,6 +70,13 @@ function keysIn(value: unknown): string[] {
 }
 
 const FALLBACK = { config: DEFAULT_CONFIG, problem: 'unreadable' }
+
+/** A wire form that writes the config as it is. */
+const PLAIN: WireForm = {
+  millimeterLengths: {},
+  fieldNames: null,
+  packing: null,
+}
 
 /**
  * A config in version 1's shape: without room objects, the seat row's
@@ -1060,7 +1071,8 @@ describe('version 2 share links', () => {
     expect(decodeConfig(encoded)).toEqual({ config, problem: null })
   })
 
-  // Until v1.1.0 is tagged, a change to version 2 regenerates these.
+  // Version 2 is released (v1.1.0): never regenerate these. A change to
+  // the config is a new version (ADR 0003).
   it.each(Object.entries(links))(
     'are what the app writes today: %s',
     (_, { encoded, config }) => {
@@ -1069,15 +1081,26 @@ describe('version 2 share links', () => {
   )
 })
 
+const [VERSION_1, VERSION_2] = CONFIG_VERSIONS as [ConfigVersion, ConfigVersion]
+
 /**
  * Version 1 as v1.0.0 read it: its frozen schema alone, without the
  * migration to today's version.
  */
 const codecV1 = createConfigCodec({
-  version: 1,
+  versions: [{ ...VERSION_1, up: null }],
   schema: configSchemaV1,
-  migrations: {},
   fallback: DEFAULT_V1,
+})
+
+/**
+ * Version 2 as its frozen schema reads it, without the live config
+ * schema: what decodeConfig must keep opening.
+ */
+const frozenCodecV2 = createConfigCodec({
+  versions: [VERSION_1, VERSION_2],
+  schema: configSchemaV2,
+  fallback: DEFAULT_CONFIG,
 })
 
 describe('released share links', () => {
@@ -1118,6 +1141,43 @@ describe('released share links', () => {
         config: DEFAULT_V1,
         problem: 'unreadable',
       })
+    },
+  )
+})
+
+describe('released version 2 share links', () => {
+  const links: Record<string, { encoded: string; config: Config }> = V2_LINKS
+
+  it.each(Object.entries(links))(
+    'open with the frozen version 2 schema alone: %s',
+    (_, { encoded, config }) => {
+      expect(frozenCodecV2.decode(encoded)).toEqual({ config, problem: null })
+    },
+  )
+
+  it.each(Object.entries(V1_LINKS))(
+    'open from version 1 with the frozen version 2 schema alone: %s',
+    (_, { encoded }) => {
+      expect(frozenCodecV2.decode(encoded)).toEqual(decodeConfig(encoded))
+    },
+  )
+
+  // Pins what version 2 rejects, whatever later versions change.
+  it.each([
+    ...BROKEN_CONFIGS.map(([name, config]): [string, unknown] => [
+      name,
+      inVersion2(config),
+    ]),
+    ...BROKEN_ROOM_OBJECTS.map(([name, roomObjects]): [string, unknown] => [
+      name,
+      { ...DEFAULT_CONFIG, roomObjects },
+    ]),
+  ])(
+    'fall back with the frozen version 2 schema alone, for a config with %s',
+    (_, config) => {
+      expect(frozenCodecV2.decode(encodedHolding({ v: 2, config }))).toEqual(
+        FALLBACK,
+      )
     },
   )
 })
@@ -1496,11 +1556,15 @@ describe('short field names', () => {
   it('must be unique', () => {
     expect(() =>
       createConfigCodec({
-        version: 1,
+        versions: [
+          configVersion({
+            schema: configSchema,
+            wire: { ...PLAIN, fieldNames: { width: 'w', weight: 'w' } },
+            up: null,
+          }),
+        ],
         schema: configSchema,
-        migrations: {},
         fallback: DEFAULT_CONFIG,
-        shortFieldNames: { since: 1, names: { width: 'w', weight: 'w' } },
       }),
     ).toThrow('Short field names must be unique and not field names')
   })
@@ -1524,7 +1588,7 @@ describe('share link size', () => {
 })
 
 /**
- * A made-up history, to prove the migration hook on its own: version 1 is
+ * A made-up history, to prove the version table on its own: version 1 is
  * today's real config schema, version 2 adds a required screen width (in
  * meters) and version 3 moves it into a screen object.
  */
@@ -1534,27 +1598,31 @@ const v3Schema = configSchema.extend({
 })
 type V3Config = z.infer<typeof v3Schema>
 
-const fromV1 = migrateFrom(configSchema, (config) => ({
-  ...config,
-  screenWidth: 1.8,
-}))
-const fromV2 = migrateFrom(v2Schema, ({ screenWidth, ...config }) => ({
-  ...config,
-  screen: { width: screenWidth },
-}))
+const madeUpV1 = configVersion({
+  schema: configSchema,
+  wire: PLAIN,
+  up: (config) => ({ ...config, screenWidth: 1.8 }),
+})
+const madeUpV2 = configVersion({
+  schema: v2Schema,
+  wire: PLAIN,
+  up: ({ screenWidth, ...config }) => ({
+    ...config,
+    screen: { width: screenWidth },
+  }),
+})
+const madeUpV3 = configVersion({ schema: v3Schema, wire: PLAIN, up: null })
 
 const V3_DEFAULT: V3Config = { ...DEFAULT_CONFIG, screen: { width: 1.8 } }
 
 const codecV2 = createConfigCodec({
-  version: 2,
+  versions: [madeUpV1, { ...madeUpV2, up: null }],
   schema: v2Schema,
-  migrations: { 1: fromV1 },
   fallback: { ...DEFAULT_CONFIG, screenWidth: 1.8 },
 })
 const codecV3 = createConfigCodec({
-  version: 3,
+  versions: [madeUpV1, madeUpV2, madeUpV3],
   schema: v3Schema,
-  migrations: { 1: fromV1, 2: fromV2 },
   fallback: V3_DEFAULT,
 })
 
@@ -1601,11 +1669,43 @@ describe('share links from older versions', () => {
   it('need a migration from every older version', () => {
     expect(() =>
       createConfigCodec({
-        version: 3,
+        versions: [madeUpV1, { ...madeUpV2, up: null }, madeUpV3],
         schema: v3Schema,
-        migrations: { 1: fromV1 },
         fallback: V3_DEFAULT,
       }),
     ).toThrow('No share-link migration from config version 2')
+  })
+
+  it('migrate no further than the current version', () => {
+    expect(() =>
+      createConfigCodec({
+        versions: [madeUpV1, madeUpV2],
+        schema: v2Schema,
+        fallback: { ...DEFAULT_CONFIG, screenWidth: 1.8 },
+      }),
+    ).toThrow('The current config version 2 has a migration')
+  })
+
+  it('fall back when the link breaks the rules of a version it migrates through', () => {
+    // Version 2 needs a positive screen width; this migration gives none.
+    const codec = createConfigCodec({
+      versions: [
+        {
+          ...madeUpV1,
+          up: (config) => ({ ...(config as object), screenWidth: 0 }),
+        },
+        madeUpV2,
+        madeUpV3,
+      ],
+      schema: v3Schema,
+      fallback: V3_DEFAULT,
+    })
+
+    expect(
+      codec.decode(encodedHolding({ v: 1, config: IMPERIAL_ROOM })),
+    ).toEqual({
+      config: V3_DEFAULT,
+      problem: 'unreadable',
+    })
   })
 })

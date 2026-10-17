@@ -24,8 +24,7 @@ import { estimateHeadroom, type HeadroomAnalysis } from './headroom'
 import { speakerGroupsIn, type SubwooferSpecs } from './speaker-specs'
 import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
 import {
-  estimateResponse,
-  responseFrequencies,
+  hearRoom,
   type EstimatedResponse,
   type ResponseRow,
 } from './estimated-response'
@@ -34,13 +33,8 @@ import {
   summarizeResponse,
   type ResponseSummary,
 } from './response-summary'
-import { targetCurve, type TargetCurveKind } from './target-curve'
-import {
-  hearSpeaker,
-  isCharted,
-  prepareConfigResponse,
-  subwooferSpecsOf,
-} from './listening'
+import type { TargetCurveKind } from './target-curve'
+import { hearSpeaker, isCharted, subwooferSpecsOf } from './listening'
 import { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 import { seatRowFootprint, type SeatRowFootprint } from './seat-row'
 import { responseNotes, type ResponseNotes } from './response-notes'
@@ -179,7 +173,10 @@ export function analyzeRoom(config: Config): RoomAnalysis {
   // else auto-placed (placements.ts). Everything below follows from them.
   const placements = placeAll(config)
   const mlp = placements.mlp.position
-  const frequencies = responseFrequencies()
+  // The room with the subwoofers where they are, heard at the MLP: the
+  // same heard room the seat score hears its candidate seats in.
+  const heardRoom = hearRoom(config, placements)
+  const { frequencies } = heardRoom
 
   // Each speaker is installed for and graded from the current MLP, and
   // faces it; its reflections follow from that aim and are worked out
@@ -236,16 +233,13 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     }),
   )
 
-  const prepared = prepareConfigResponse(config, placements, frequencies)
-  const estimated = estimateResponse(
-    prepared,
-    {
+  const estimated = heardRoom.estimateAt(
+    heardRoom.hear({
       receiver: mlp,
       speakerLevels: heardSpeakers
         .filter(({ charted }) => charted)
         .map(({ levels }) => levels),
-    },
-    targetCurve(targetCurveKind, frequencies),
+    }),
   )
   const summary = summarizeResponse(estimated.rows)
   const notes = responseNotes({

@@ -11,7 +11,7 @@
  * moving the MLP (by hand, Auto-place or "Move MLP here") moves the seat
  * row with it.
  */
-import { checkRange, type RangeProblem } from './range'
+import { hasValidLengths, type ObjectLengths } from './object-lengths'
 import { SEAT_ROW } from './reference'
 import type { FloorPoint, Room, RoomPoint } from './room'
 
@@ -40,31 +40,22 @@ const LIMITS = {
   depth: SEAT_ROW.depthLimits,
 } as const satisfies Record<SeatRowDimension, unknown>
 
-/** `null` when `meters` is an accepted seat row width or depth. */
-export function checkSeatRowDimension(
-  dimension: SeatRowDimension,
-  meters: number,
-): RangeProblem | null {
-  return checkRange(meters, LIMITS[dimension])
+/**
+ * The seat row's lengths: its width and depth, each within SEAT_ROW's
+ * limits whatever the Room (a seat row wider than the room is drawn cut
+ * off at the walls). A share link stores them as typed, so a config holds
+ * them to the same limits.
+ */
+export const SEAT_ROW_LENGTHS: ObjectLengths<SeatRow, SeatRowDimension> = {
+  dimensions: ['width', 'depth'],
+  limits: () => LIMITS,
+  read: (_, seatRow, dimension) => seatRow[dimension],
+  set: (_, seatRow, dimension, meters) => ({ ...seatRow, [dimension]: meters }),
 }
 
 /** Whether both of the seat row's lengths are accepted. */
-export function isValidSeatRow(seatRow: SeatRow): boolean {
-  return (
-    checkSeatRowDimension('width', seatRow.width) === null &&
-    checkSeatRowDimension('depth', seatRow.depth) === null
-  )
-}
-
-/** The seat row with one length changed, or null when it isn't accepted. */
-export function withSeatRowDimension(
-  seatRow: SeatRow,
-  dimension: SeatRowDimension,
-  meters: number,
-): SeatRow | null {
-  return checkSeatRowDimension(dimension, meters) === null
-    ? { ...seatRow, [dimension]: meters }
-    : null
+export function isValidSeatRow(room: Room, seatRow: SeatRow): boolean {
+  return hasValidLengths(SEAT_ROW_LENGTHS, room, seatRow)
 }
 
 /** Where the seat row is drawn on the floor plan, in meters. */

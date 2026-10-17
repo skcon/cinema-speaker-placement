@@ -237,6 +237,54 @@ describe('openings in 3D', () => {
     expect(size[1]).toBeCloseTo(1.2, 12)
     expect(rotation).toEqual([0, Math.PI / 2, 0])
   })
+
+  it.each([
+    ['front', [0.75 - 2.25, 1, 0.01], 0],
+    ['back', [0.75 - 2.25, 1, 6 - 0.01], Math.PI],
+    ['left', [-2.25 + 0.01, 1, 0.75], Math.PI / 2],
+    ['right', [2.25 - 0.01, 1, 0.75], -Math.PI / 2],
+  ] as const)(
+    'stand just inside the %s wall, turned to face into the room',
+    (wall, at, turn) => {
+      const door: Opening = { ...DOOR, wall, position: 0.75 }
+      const { position, rotation } = openingPanel(DEFAULT_ROOM, door)
+      position.forEach((value, axis) => {
+        expect(value).toBeCloseTo(at[axis] ?? NaN, 12)
+      })
+      expect(rotation).toEqual([0, turn, 0])
+    },
+  )
+})
+
+describe('opening marks on every wall', () => {
+  it.each([
+    [
+      'front',
+      { x: -1.5, y: OPENING_MARK_DEPTH / 2 },
+      [0.9, OPENING_MARK_DEPTH],
+    ],
+    [
+      'back',
+      { x: -1.5, y: 6 - OPENING_MARK_DEPTH / 2 },
+      [0.9, OPENING_MARK_DEPTH],
+    ],
+    [
+      'left',
+      { x: -2.25 + OPENING_MARK_DEPTH / 2, y: 0.75 },
+      [OPENING_MARK_DEPTH, 0.9],
+    ],
+    [
+      'right',
+      { x: 2.25 - OPENING_MARK_DEPTH / 2, y: 0.75 },
+      [OPENING_MARK_DEPTH, 0.9],
+    ],
+  ] as const)('lie along the inside of the %s wall', (wall, center, size) => {
+    const mark = openingMark(DEFAULT_ROOM, { ...DOOR, wall, position: 0.75 })
+    expect(mark.center.x).toBeCloseTo(center.x, 12)
+    expect(mark.center.y).toBeCloseTo(center.y, 12)
+    expect(mark.center.z).toBe(0)
+    expect(mark.size).toEqual(size)
+  })
 })
 
 describe('openings in words', () => {

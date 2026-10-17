@@ -18,7 +18,28 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['src/test/setup.ts'],
+    projects: [
+      {
+        extends: true,
+        // Domain and state logic: the default 5 s per test. A heavy sweep
+        // or speed check sets its own timeout, with a comment saying why.
+        test: { name: 'logic', include: ['src/**/*.test.ts'] },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'ui',
+          include: ['src/**/*.test.tsx'],
+          // Each test renders the app (or a form wired to the store) and
+          // types into it, which re-analyzes the room on every change:
+          // about 1-4.5 s alone, and several times that with the CPU busy
+          // (#93). The tests check behavior, not speed, so they get a
+          // budget that holds on a loaded 4-core machine; the domain's
+          // speed checks are what catch a slow analysis.
+          testTimeout: 20_000,
+        },
+      },
+    ],
   },
 }))

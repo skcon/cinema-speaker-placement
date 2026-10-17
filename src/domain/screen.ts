@@ -8,15 +8,16 @@
  * front speakers behind it. It stays inside the Room: on the front wall
  * between the side walls, and between the floor and the ceiling.
  */
-import { ROUNDING_SLACK, toMillimeter } from './manual-positions'
+import { linkSlack, toMillimeter } from './link-precision'
 import {
-  checkRange,
-  clamp,
-  type AcceptedRange,
-  type RangeProblem,
-} from './range'
+  hasValidLengths,
+  type LengthTolerance,
+  type ObjectLengths,
+} from './object-lengths'
+import { clamp, type AcceptedRange } from './range'
 import { EAR_HEIGHT, SCREEN } from './reference'
 import type { Room } from './room'
+import { fromWallFrame, toWallFrame } from './wall-frame'
 
 /** What the screen is: a TV, or a screen a projector shines on. */
 export const SCREEN_KINDS = ['tv', 'projection'] as const
@@ -43,104 +44,116 @@ export type RoomScreen = {
 }
 
 /**
- * A screen's dimensions that are edited as lengths. Where it is along the
- * front wall is edited as `fromLeftWall`: from the left wall to its left
- * edge, which is never negative.
+ * A screen's dimensions that are edited as lengths (see SCREEN_LENGTHS).
+ * Where it is along the front wall is edited as `fromLeftWall`: from the
+ * left wall (the front wall's start in the wall frame, wall-frame.ts) to
+ * its left edge, which is never negative. It is stored as its centred `x`.
  */
 export type ScreenDimension =
   'width' | 'height' | 'bottomEdge' | 'fromLeftWall' | 'standoff'
 
 /**
+ * How far past the ceiling a stored screen's top edge may be, in meters:
+ * float noise only, so a screen sized to fit (fitScreenToRoom, or a height
+ * or bottom edge at its limit) always passes.
+ */
+const FIT_TOLERANCE = 1e-9
+
+/**
+ * How far past a side wall a stored screen's middle may be, in meters: a
+ * share link writes it to the millimeter (link-precision.ts), which can put
+ * a screen against the wall half a millimeter past it.
+ */
+const ROUNDING_SLACK = linkSlack('screen')
+
+/**
  * The accepted range of each of a screen's dimensions in `room`, given
  * its other dimensions: SCREEN's limits, kept on the front wall and under
  * the ceiling. A wider screen moves in from a side wall instead (see
- * withScreenDimension), so its width is only limited by the front wall.
+ * SCREEN_LENGTHS.set), so its width is only limited by the front wall.
+ * Stored, its top edge may be FIT_TOLERANCE past the ceiling, and its
+ * middle ROUNDING_SLACK past where it meets a side wall (share links
+ * round it, see link-precision.ts); its sizes are stored as typed.
  */
-export function screenLimits(
+function screenLimits(
   room: Room,
   screen: RoomScreen,
+  tolerance: LengthTolerance,
 ): Record<ScreenDimension, AcceptedRange> {
   const { width, height, bottomEdge, standoff } = SCREEN.limits
-  const along = alongWall(room, screen.width)
+  const stored = tolerance === 'stored'
+  const ceiling = room.height + (stored ? FIT_TOLERANCE : 0)
+  const slack = stored ? ROUNDING_SLACK : 0
+  const reach = offCentreReach(room, screen.width)
   return {
     width: { min: width.min, max: Math.min(width.max, room.width) },
     height: {
       min: height.min,
-      max: Math.min(height.max, room.height - screen.bottomEdge),
+      max: Math.min(height.max, ceiling - screen.bottomEdge),
     },
     bottomEdge: {
       min: bottomEdge.min,
-      max: Math.min(bottomEdge.max, room.height - screen.height),
+      max: Math.min(bottomEdge.max, ceiling - screen.height),
     },
-    fromLeftWall: { min: 0, max: 2 * along },
+    // 0 - slack: +0 when typed, not -0.
+    fromLeftWall: { min: 0 - slack, max: 2 * reach + slack },
     standoff,
   }
 }
 
 /** How far a screen `width` wide may move its middle off the centre line. */
-function alongWall(room: Room, width: number): number {
+function offCentreReach(room: Room, width: number): number {
   return Math.max(0, (room.width - width) / 2)
 }
 
 /**
- * One of the screen's dimensions in `room`, in meters: null for the
- * standoff of a screen on the wall.
+ * Where the screen's left edge is along the front wall, from its start
+ * (the left wall), in the wall frame (wall-frame.ts).
  */
-export function screenDimension(
-  room: Room,
-  screen: RoomScreen,
-  dimension: ScreenDimension,
-): number | null {
-  return dimension === 'fromLeftWall'
-    ? screen.x - screen.width / 2 + room.width / 2
-    : screen[dimension]
+function leftEdgeAlongWall(room: Room, screen: RoomScreen): number {
+  const left = { x: screen.x - screen.width / 2, y: 0 }
+  return toWallFrame(room, 'front', left).along
 }
 
-/** `null` when `meters` is an accepted `dimension` for the screen in this room. */
-export function checkScreenDimension(
-  room: Room,
-  screen: RoomScreen,
-  dimension: ScreenDimension,
-  meters: number,
-): RangeProblem | null {
-  return checkRange(meters, screenLimits(room, screen)[dimension])
+/** The room x of a screen middle `along` meters along the front wall. */
+function middleAt(room: Room, along: number): number {
+  return fromWallFrame(room, 'front', { along, out: 0 }).x
 }
 
 /**
- * How far past the ceiling a screen's top edge may be, in meters: float
- * noise only, so a screen sized to fit (fitScreenToRoom, or a height or
- * bottom edge at its limit) always passes.
+ * The screen's lengths: its size, where it is along the front wall (from
+ * the left wall to its left edge) and, standing in front of the wall, its
+ * standoff. A wider screen moves in from a side wall it would cross.
  */
-const FIT_TOLERANCE = 1e-9
+export const SCREEN_LENGTHS: ObjectLengths<RoomScreen, ScreenDimension> = {
+  dimensions: ['width', 'height', 'bottomEdge', 'fromLeftWall', 'standoff'],
+  limits: screenLimits,
+  read: (room, screen, dimension) =>
+    dimension === 'fromLeftWall'
+      ? leftEdgeAlongWall(room, screen)
+      : screen[dimension],
+  set: (room, screen, dimension, meters) => {
+    switch (dimension) {
+      case 'fromLeftWall':
+        return { ...screen, x: middleAt(room, meters + screen.width / 2) }
+      case 'width':
+        return keepOnWall(room, { ...screen, width: meters })
+      default:
+        return { ...screen, [dimension]: meters }
+    }
+  },
+}
 
 /**
- * Whether the screen is one a config may hold in `room`: every dimension
- * in range, its top edge under the ceiling, a standoff only on a
- * projection screen, and its middle on the front wall to the millimeter
- * (share links round it, see roundScreenForLink).
+ * Whether the screen is one a config may hold in `room`: every length in
+ * its stored limits (so its top edge under the ceiling and its middle on
+ * the front wall), and a standoff only on a projection screen.
  */
 export function isValidScreen(room: Room, screen: RoomScreen): boolean {
-  const { limits } = SCREEN
-  const fitsAcross =
-    checkRange(screen.width, {
-      min: limits.width.min,
-      max: Math.min(limits.width.max, room.width),
-    }) === null
-  const fitsUp =
-    checkRange(screen.height, limits.height) === null &&
-    checkRange(screen.bottomEdge, limits.bottomEdge) === null &&
-    screen.bottomEdge + screen.height <= room.height + FIT_TOLERANCE
-  const along = alongWall(room, screen.width)
-  const onWall =
-    checkRange(screen.x, {
-      min: -along - ROUNDING_SLACK,
-      max: along + ROUNDING_SLACK,
-    }) === null
-  const standoff =
-    screen.standoff === null ||
-    (screen.kind === 'projection' &&
-      checkRange(screen.standoff, limits.standoff) === null)
-  return fitsAcross && fitsUp && onWall && standoff
+  return (
+    hasValidLengths(SCREEN_LENGTHS, room, screen) &&
+    (screen.standoff === null || screen.kind === 'projection')
+  )
 }
 
 /**
@@ -162,33 +175,6 @@ export function defaultScreen(room: Room): RoomScreen {
   })
 }
 
-/**
- * The screen with one dimension changed, or null when the value is
- * rejected (see checkScreenDimension). A wider screen moves in from a side
- * wall it would cross; a standoff is only set on an acoustically
- * transparent screen.
- */
-export function withScreenDimension(
-  room: Room,
-  screen: RoomScreen,
-  dimension: ScreenDimension,
-  meters: number,
-): RoomScreen | null {
-  if (checkScreenDimension(room, screen, dimension, meters) !== null) {
-    return null
-  }
-  switch (dimension) {
-    case 'standoff':
-      return screen.standoff === null ? null : { ...screen, standoff: meters }
-    case 'fromLeftWall':
-      return { ...screen, x: meters + screen.width / 2 - room.width / 2 }
-    case 'width':
-      return keepOnWall(room, { ...screen, width: meters })
-    default:
-      return { ...screen, [dimension]: meters }
-  }
-}
-
 /** The screen dragged along the front wall to `x`, stopped at the side walls. */
 export function screenMovedTo(
   room: Room,
@@ -202,8 +188,8 @@ export function screenMovedTo(
 
 /** The screen's middle moved in, if needed, so it stays between the side walls. */
 function keepOnWall(room: Room, screen: RoomScreen): RoomScreen {
-  const along = alongWall(room, screen.width)
-  const x = clamp(screen.x, -along, along)
+  const reach = offCentreReach(room, screen.width)
+  const x = clamp(screen.x, -reach, reach)
   return x === screen.x ? screen : { ...screen, x }
 }
 
@@ -257,11 +243,6 @@ export function fitScreenToRoom(room: Room, screen: RoomScreen): RoomScreen {
       ? screen
       : { ...screen, width, height, bottomEdge }
   return keepOnWall(room, sized)
-}
-
-/** The screen as a share link stores it: its position to the millimeter. */
-export function roundScreenForLink(screen: RoomScreen): RoomScreen {
-  return { ...screen, x: toMillimeter(screen.x) }
 }
 
 /** Where the screen's image is, in room coordinates (meters). */

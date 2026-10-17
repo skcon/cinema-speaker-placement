@@ -38,19 +38,44 @@ export function ShareLinkProvider({ children }: { children: ReactNode }) {
   })
   return (
     <ConfigStoreProvider initialEncodedConfig={configParam}>
-      <ShareLinkSync configParam={configParam} />
-      <RecentRoomSaver configParam={configParam} />
+      <ConfigParamSync configParam={configParam} />
       {children}
     </ConfigStoreProvider>
   )
 }
 
-function ShareLinkSync({ configParam }: { configParam: string | undefined }) {
-  const navigate = useNavigate()
+/**
+ * Encodes the store's config once per change, for both the address
+ * (ShareLinkSync) and the recent rooms (RecentRoomSaver).
+ */
+function ConfigParamSync({ configParam }: { configParam: string | undefined }) {
   const config = useConfig((state) => state.config)
+  const storeConfigParam = useMemo(() => encodeConfig(config), [config])
+  return (
+    <>
+      <ShareLinkSync
+        configParam={configParam}
+        storeConfigParam={storeConfigParam}
+      />
+      <RecentRoomSaver
+        configParam={configParam}
+        roomConfig={storeConfigParam}
+      />
+    </>
+  )
+}
+
+function ShareLinkSync({
+  configParam,
+  storeConfigParam,
+}: {
+  configParam: string | undefined
+  /** The store's config, encoded. */
+  storeConfigParam: EncodedConfig
+}) {
+  const navigate = useNavigate()
   const openEncodedConfig = useConfig((state) => state.openEncodedConfig)
   const showingLinkFallback = useConfig(isShowingLinkFallback)
-  const storeConfigParam = useMemo(() => encodeConfig(config), [config])
   // The config param as this component last opened or wrote it, so our own
   // writes aren't mistaken for an address changed from outside.
   const lastSyncedConfigParam = useRef(configParam)
@@ -91,12 +116,17 @@ function ShareLinkSync({ configParam }: { configParam: string | undefined }) {
  * their own, which later edits in this visit replace, so a room keeps one
  * entry however much it is edited.
  */
-function RecentRoomSaver({ configParam }: { configParam: string | undefined }) {
-  const config = useConfig((state) => state.config)
+function RecentRoomSaver({
+  configParam,
+  roomConfig,
+}: {
+  configParam: string | undefined
+  /** The store's config, encoded. */
+  roomConfig: EncodedConfig
+}) {
   const showingLinkFallback = useConfig(isShowingLinkFallback)
   const asOpened = useConfig(isUneditedSinceOpened)
   const save = useRecentRooms((state) => state.save)
-  const roomConfig = useMemo(() => encodeConfig(config), [config])
   const lastSavedEncoded = useRef<EncodedConfig | undefined>(undefined)
   // The entry of this visit's edits, which the next settled edit replaces.
   const editsEntry = useRef<EncodedConfig | undefined>(undefined)

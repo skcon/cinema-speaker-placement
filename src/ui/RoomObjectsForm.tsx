@@ -1,25 +1,26 @@
 import { useId, useState } from 'react'
 import {
-  checkFurnitureDimension,
   checkFurnitureName,
-  checkOpeningDimension,
-  checkScreenDimension,
-  checkSeatRowDimension,
+  checkRange,
   formatLength,
   FURNITURE_NAME_MAX_LENGTH,
   FURNITURE_PRESETS,
-  furnitureDimension,
-  furnitureId,
   furnitureLabel,
+  furnitureTurned,
   MAX_FURNITURE,
   MAX_OPENINGS,
   OPENING_KINDS,
-  openingDimension,
-  openingId,
   openingLabel,
-  screenDimension,
+  roomObjectId,
+  roomObjectLength,
+  SCREEN_ID,
   SEAT_ROW_HEAD_OFFSET,
+  SEAT_ROW_ID,
   warningsAbout,
+  withAcousticTransparency,
+  withFurnitureName,
+  withOpeningWall,
+  withScreenKind,
   type FurnitureBox,
   type FurnitureDimension,
   type FurnitureId,
@@ -29,7 +30,8 @@ import {
   type OpeningDimension,
   type OpeningId,
   type OpeningKind,
-  type RoomScreen,
+  type RoomObjectDimension,
+  type RoomObjectId,
   type ScreenDimension,
   type ScreenKind,
   type SeatRowDimension,
@@ -76,11 +78,14 @@ export function RoomObjectsForm() {
   )
 }
 
+/** How a length's field is labelled, and what its errors call it. */
+type LengthText = { readonly label: string; readonly noun: string }
+
 /** How each of the seat row's lengths is labelled, and named in its errors. */
 const SEAT_ROW_FIELDS = {
   width: { label: 'Seat row width', noun: 'seat row width' },
   depth: { label: 'Seat row depth', noun: 'seat row depth' },
-} as const satisfies Record<SeatRowDimension, { label: string; noun: string }>
+} as const satisfies Record<SeatRowDimension, LengthText>
 
 /**
  * The Seat row: the couch the MLP sits on. Every room has one; it moves
@@ -96,32 +101,8 @@ function SeatRowForm() {
         the seat row or the MLP in the top-down view to move both; Auto-place
         and &ldquo;Move MLP here&rdquo; move it too.
       </p>
-      <SeatRowDimensionField dimension="width" />
-      <SeatRowDimensionField dimension="depth" />
+      <LengthFields id={SEAT_ROW_ID} fields={SEAT_ROW_FIELDS} />
     </div>
-  )
-}
-
-/** One of the seat row's lengths, checked against its range. */
-function SeatRowDimensionField({ dimension }: { dimension: SeatRowDimension }) {
-  const units = useConfig((state) => state.config.units)
-  const meters = useConfig(
-    (state) => state.config.roomObjects.seatRow[dimension],
-  )
-  const setSeatRowDimension = useConfig((state) => state.setSeatRowDimension)
-  const { label, noun } = SEAT_ROW_FIELDS[dimension]
-
-  return (
-    <CheckedLengthField
-      label={label}
-      meters={meters}
-      units={units}
-      check={(value) => checkSeatRowDimension(dimension, value)}
-      errorMessage={(problem) =>
-        lengthErrorMessage(noun, label, problem, units)
-      }
-      onChange={(value) => setSeatRowDimension(dimension, value)}
-    />
   )
 }
 
@@ -154,7 +135,7 @@ const DIMENSION_FIELDS = {
     label: 'Standoff from the front wall',
     noun: 'standoff',
   },
-} as const satisfies Record<ScreenDimension, { label: string; noun: string }>
+} as const satisfies Record<ScreenDimension, LengthText>
 
 /**
  * The Screen: added on request (a room without one works as in v1.0.0),
@@ -162,8 +143,8 @@ const DIMENSION_FIELDS = {
  */
 function ScreenForm() {
   const screen = useConfig((state) => state.config.roomObjects.screen)
-  const addScreen = useConfig((state) => state.addScreen)
-  const removeScreen = useConfig((state) => state.removeScreen)
+  const addRoomObject = useConfig((state) => state.addRoomObject)
+  const removeRoomObject = useConfig((state) => state.removeRoomObject)
 
   if (!screen) {
     return (
@@ -172,7 +153,11 @@ function ScreenForm() {
           No screen. Add your TV or projection screen to see it on the front
           wall.
         </p>
-        <Button variant="outline" className="max-lg:h-11" onClick={addScreen}>
+        <Button
+          variant="outline"
+          className="max-lg:h-11"
+          onClick={() => addRoomObject({ kind: 'screen' })}
+        >
           Add a screen
         </Button>
       </div>
@@ -189,17 +174,11 @@ function ScreenForm() {
       {screen.kind === 'projection' && (
         <MountingPicker transparent={screen.standoff !== null} />
       )}
-      <ScreenDimensionField screen={screen} dimension="width" />
-      <ScreenDimensionField screen={screen} dimension="height" />
-      <ScreenDimensionField screen={screen} dimension="bottomEdge" />
-      <ScreenDimensionField screen={screen} dimension="fromLeftWall" />
-      {screen.standoff !== null && (
-        <ScreenDimensionField screen={screen} dimension="standoff" />
-      )}
+      <LengthFields id={SCREEN_ID} fields={DIMENSION_FIELDS} />
       <Button
         variant="outline"
         className="self-start max-lg:h-11"
-        onClick={removeScreen}
+        onClick={() => removeRoomObject(SCREEN_ID)}
       >
         Remove the screen
       </Button>
@@ -208,27 +187,31 @@ function ScreenForm() {
 }
 
 function KindPicker({ kind }: { kind: ScreenKind }) {
-  const setScreenKind = useConfig((state) => state.setScreenKind)
+  const editRoomObject = useConfig((state) => state.editRoomObject)
   return (
     <OptionPicker
       label="Kind"
       value={kind}
       options={KIND_OPTIONS}
-      onChange={setScreenKind}
+      onChange={(value) =>
+        editRoomObject(SCREEN_ID, (_, screen) => withScreenKind(screen, value))
+      }
     />
   )
 }
 
 function MountingPicker({ transparent }: { transparent: boolean }) {
-  const setTransparent = useConfig(
-    (state) => state.setScreenAcousticallyTransparent,
-  )
+  const editRoomObject = useConfig((state) => state.editRoomObject)
   return (
     <OptionPicker
       label="Mounting"
       value={transparent ? 'transparent' : 'wall'}
       options={MOUNTING_OPTIONS}
-      onChange={(value) => setTransparent(value === 'transparent')}
+      onChange={(value) =>
+        editRoomObject(SCREEN_ID, (_, screen) =>
+          withAcousticTransparency(screen, value === 'transparent'),
+        )
+      }
     />
   )
 }
@@ -280,35 +263,6 @@ function OptionPicker<V extends string>({
   )
 }
 
-/** One of the screen's lengths, checked against its range in this room. */
-function ScreenDimensionField({
-  screen,
-  dimension,
-}: {
-  screen: RoomScreen
-  dimension: ScreenDimension
-}) {
-  const room = useConfig((state) => state.config.room)
-  const units = useConfig((state) => state.config.units)
-  const setScreenDimension = useConfig((state) => state.setScreenDimension)
-  const { label, noun } = DIMENSION_FIELDS[dimension]
-  const meters = screenDimension(room, screen, dimension)
-  if (meters === null) return null
-
-  return (
-    <CheckedLengthField
-      label={label}
-      meters={meters}
-      units={units}
-      check={(value) => checkScreenDimension(room, screen, dimension, value)}
-      errorMessage={(problem) =>
-        lengthErrorMessage(noun, label, problem, units)
-      }
-      onChange={(value) => setScreenDimension(dimension, value)}
-    />
-  )
-}
-
 /** How each preset's add button reads. */
 const PRESET_BUTTONS = {
   cabinet: 'Add a cabinet',
@@ -323,7 +277,7 @@ const PRESET_BUTTONS = {
  */
 function FurnitureForm() {
   const furniture = useConfig((state) => state.config.roomObjects.furniture)
-  const addFurniture = useConfig((state) => state.addFurniture)
+  const addRoomObject = useConfig((state) => state.addRoomObject)
   const full = furniture.length >= MAX_FURNITURE
 
   return (
@@ -336,9 +290,9 @@ function FurnitureForm() {
       </p>
       {furniture.map((box, index) => (
         <FurnitureBoxForm
-          // Keyed by place: the room view names a box by it (furnitureId).
+          // Keyed by place: the room view names a box by it (roomObjectId).
           key={index}
-          id={furnitureId(index)}
+          id={roomObjectId('furniture', index)}
           box={box}
           label={furnitureLabel(box, index)}
         />
@@ -350,7 +304,7 @@ function FurnitureForm() {
             variant="outline"
             className="max-lg:h-11"
             disabled={full}
-            onClick={() => addFurniture(preset)}
+            onClick={() => addRoomObject({ kind: 'furniture', preset })}
           >
             {PRESET_BUTTONS[preset]}
           </Button>
@@ -373,7 +327,7 @@ const FURNITURE_FIELDS = {
   height: { label: 'Box height', noun: 'box height' },
   fromLeftWall: { label: 'Box from the left wall', noun: 'distance' },
   fromFrontWall: { label: 'Box from the front wall', noun: 'distance' },
-} as const satisfies Record<FurnitureDimension, { label: string; noun: string }>
+} as const satisfies Record<FurnitureDimension, LengthText>
 
 /** Which wall a box's front faces, by how it is turned (see furniture.ts). */
 const FRONT_FACES = {
@@ -394,8 +348,8 @@ function FurnitureBoxForm({
   label: string
 }) {
   const headingId = useId()
-  const turnFurniture = useConfig((state) => state.turnFurniture)
-  const removeFurniture = useConfig((state) => state.removeFurniture)
+  const editRoomObject = useConfig((state) => state.editRoomObject)
+  const removeRoomObject = useConfig((state) => state.removeRoomObject)
   const warnings = warningsAbout(useRoomAnalysis().placementWarnings, id)
 
   return (
@@ -407,11 +361,7 @@ function FurnitureBoxForm({
         {label}
       </h4>
       <FurnitureNameField id={id} name={box.name} />
-      <FurnitureDimensionField id={id} box={box} dimension="width" />
-      <FurnitureDimensionField id={id} box={box} dimension="depth" />
-      <FurnitureDimensionField id={id} box={box} dimension="height" />
-      <FurnitureDimensionField id={id} box={box} dimension="fromLeftWall" />
-      <FurnitureDimensionField id={id} box={box} dimension="fromFrontWall" />
+      <LengthFields id={id} fields={FURNITURE_FIELDS} />
       <p className="text-xs text-muted-foreground">
         Turned {box.rotation}°: its front faces {FRONT_FACES[box.rotation]}.
       </p>
@@ -424,7 +374,7 @@ function FurnitureBoxForm({
           variant="outline"
           className="max-lg:h-11"
           aria-label={`Turn ${label} 90°`}
-          onClick={() => turnFurniture(id)}
+          onClick={() => editRoomObject(id, furnitureTurned)}
         >
           Turn 90°
         </Button>
@@ -432,7 +382,7 @@ function FurnitureBoxForm({
           variant="outline"
           className="max-lg:h-11"
           aria-label={`Remove ${label}`}
-          onClick={() => removeFurniture(id)}
+          onClick={() => removeRoomObject(id)}
         >
           Remove
         </Button>
@@ -456,7 +406,7 @@ const NAME_ERRORS = {
  * over from it.
  */
 function FurnitureNameField({ id, name }: { id: FurnitureId; name: string }) {
-  const setFurnitureName = useConfig((state) => state.setFurnitureName)
+  const editRoomObject = useConfig((state) => state.editRoomObject)
   const [draft, setDraft] = useState(name)
   const [seenInStore, setSeenInStore] = useState(name)
   const inputId = useId()
@@ -480,7 +430,8 @@ function FurnitureNameField({ id, name }: { id: FurnitureId; name: string }) {
         onChange={(event) => {
           setDraft(event.target.value)
           if (checkFurnitureName(event.target.value) === null) {
-            setFurnitureName(id, event.target.value)
+            const name = event.target.value
+            editRoomObject(id, (_, box) => withFurnitureName(box, name))
           }
         }}
         aria-invalid={problem !== null}
@@ -491,37 +442,6 @@ function FurnitureNameField({ id, name }: { id: FurnitureId; name: string }) {
         {problem && NAME_ERRORS[problem]}
       </p>
     </div>
-  )
-}
-
-/** One of a box's lengths, or where it is, checked against its range. */
-function FurnitureDimensionField({
-  id,
-  box,
-  dimension,
-}: {
-  id: FurnitureId
-  box: FurnitureBox
-  dimension: FurnitureDimension
-}) {
-  const room = useConfig((state) => state.config.room)
-  const units = useConfig((state) => state.config.units)
-  const setFurnitureDimension = useConfig(
-    (state) => state.setFurnitureDimension,
-  )
-  const { label, noun } = FURNITURE_FIELDS[dimension]
-
-  return (
-    <CheckedLengthField
-      label={label}
-      meters={furnitureDimension(room, box, dimension)}
-      units={units}
-      check={(value) => checkFurnitureDimension(room, box, dimension, value)}
-      errorMessage={(problem) =>
-        lengthErrorMessage(noun, label, problem, units)
-      }
-      onChange={(value) => setFurnitureDimension(id, dimension, value)}
-    />
   )
 }
 
@@ -538,7 +458,7 @@ const OPENING_BUTTONS = {
  */
 function OpeningsForm() {
   const openings = useConfig((state) => state.config.roomObjects.openings)
-  const addOpening = useConfig((state) => state.addOpening)
+  const addRoomObject = useConfig((state) => state.addRoomObject)
   const full = openings.length >= MAX_OPENINGS
 
   return (
@@ -551,9 +471,9 @@ function OpeningsForm() {
       </p>
       {openings.map((opening, index) => (
         <OpeningForm
-          // Keyed by place: the room view names an opening by it (openingId).
+          // Keyed by place: the room view names an opening by it (roomObjectId).
           key={index}
-          id={openingId(index)}
+          id={roomObjectId('opening', index)}
           opening={opening}
           label={openingLabel(opening, index)}
         />
@@ -565,7 +485,7 @@ function OpeningsForm() {
             variant="outline"
             className="max-lg:h-11"
             disabled={full}
-            onClick={() => addOpening(kind)}
+            onClick={() => addRoomObject({ kind: 'opening', preset: kind })}
           >
             {OPENING_BUTTONS[kind]}
           </Button>
@@ -602,7 +522,7 @@ const OPENING_FIELDS = {
   fromCorner: { label: 'From the corner', noun: 'distance' },
   sill: { label: 'Sill height', noun: 'sill height' },
   height: { label: 'Window height', noun: 'window height' },
-} as const satisfies Record<OpeningDimension, { label: string; noun: string }>
+} as const satisfies Record<OpeningDimension, LengthText>
 
 /** One door or window: its wall, size, place, warnings and removal. */
 function OpeningForm({
@@ -615,8 +535,8 @@ function OpeningForm({
   label: string
 }) {
   const headingId = useId()
-  const setOpeningWall = useConfig((state) => state.setOpeningWall)
-  const removeOpening = useConfig((state) => state.removeOpening)
+  const editRoomObject = useConfig((state) => state.editRoomObject)
+  const removeRoomObject = useConfig((state) => state.removeRoomObject)
   const warnings = warningsAbout(useRoomAnalysis().placementWarnings, id)
 
   return (
@@ -631,16 +551,22 @@ function OpeningForm({
         label="Wall"
         value={opening.wall}
         options={WALL_OPTIONS}
-        onChange={(wall) => setOpeningWall(id, wall)}
+        onChange={(wall) =>
+          editRoomObject(id, (room, opening) =>
+            withOpeningWall(room, opening, wall),
+          )
+        }
       />
-      <OpeningDimensionField id={id} opening={opening} dimension="width" />
-      <OpeningDimensionField id={id} opening={opening} dimension="fromCorner" />
-      {opening.kind === 'window' && (
-        <>
-          <OpeningDimensionField id={id} opening={opening} dimension="sill" />
-          <OpeningDimensionField id={id} opening={opening} dimension="height" />
-        </>
-      )}
+      <LengthFields
+        id={id}
+        fields={{
+          ...OPENING_FIELDS,
+          fromCorner: {
+            ...OPENING_FIELDS.fromCorner,
+            label: FROM_CORNER_LABELS[opening.wall],
+          },
+        }}
+      />
       <PlacementWarningList
         warnings={warnings}
         label={`Placement warnings for ${label}`}
@@ -649,7 +575,7 @@ function OpeningForm({
         variant="outline"
         className="self-start max-lg:h-11"
         aria-label={`Remove ${label}`}
-        onClick={() => removeOpening(id)}
+        onClick={() => removeRoomObject(id)}
       >
         Remove
       </Button>
@@ -657,37 +583,62 @@ function OpeningForm({
   )
 }
 
-/** One of an opening's lengths, or where it is along its wall, checked. */
-function OpeningDimensionField({
+/**
+ * A field for each of room object `id`'s lengths in `fields`, in their
+ * order; a length the object doesn't have (a door's sill, the standoff of
+ * a screen on the wall) gets none.
+ */
+function LengthFields<I extends RoomObjectId>({
   id,
-  opening,
-  dimension,
+  fields,
 }: {
-  id: OpeningId
-  opening: Opening
-  dimension: OpeningDimension
+  id: I
+  fields: Record<RoomObjectDimension<I>, LengthText>
 }) {
+  const dimensions = Object.keys(fields) as RoomObjectDimension<I>[]
+  return dimensions.map((dimension) => (
+    <RoomObjectLengthField
+      key={dimension}
+      id={id}
+      dimension={dimension}
+      {...fields[dimension]}
+    />
+  ))
+}
+
+/**
+ * One of a room object's lengths, a size or a distance from a wall,
+ * checked against the limits the domain gives for it in this room (see
+ * roomObjectLength): every value it accepts gives a valid config.
+ */
+function RoomObjectLengthField<I extends RoomObjectId>({
+  id,
+  dimension,
+  label,
+  noun,
+}: {
+  id: I
+  dimension: RoomObjectDimension<I>
+} & LengthText) {
   const room = useConfig((state) => state.config.room)
+  const roomObjects = useConfig((state) => state.config.roomObjects)
   const units = useConfig((state) => state.config.units)
-  const setOpeningDimension = useConfig((state) => state.setOpeningDimension)
-  const meters = openingDimension(opening, dimension)
-  if (meters === null) return null
-  const { noun } = OPENING_FIELDS[dimension]
-  const label =
-    dimension === 'fromCorner'
-      ? FROM_CORNER_LABELS[opening.wall]
-      : OPENING_FIELDS[dimension].label
+  const setRoomObjectDimension = useConfig(
+    (state) => state.setRoomObjectDimension,
+  )
+  const length = roomObjectLength({ room, roomObjects }, id, dimension)
+  if (!length) return null
 
   return (
     <CheckedLengthField
       label={label}
-      meters={meters}
+      meters={length.meters}
       units={units}
-      check={(value) => checkOpeningDimension(room, opening, dimension, value)}
+      check={(value) => checkRange(value, length.limits)}
       errorMessage={(problem) =>
         lengthErrorMessage(noun, label, problem, units)
       }
-      onChange={(value) => setOpeningDimension(id, dimension, value)}
+      onChange={(value) => setRoomObjectDimension(id, dimension, value)}
     />
   )
 }

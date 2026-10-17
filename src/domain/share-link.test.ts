@@ -21,6 +21,11 @@ import { configSchema } from './config'
 import { WALLS } from './room'
 import { configSchemaV1, type ConfigV1 } from './config-v1'
 import {
+  LINK_MILLIMETER_LENGTHS,
+  linkSlack,
+  type LinkPart,
+} from './link-precision'
+import {
   createConfigCodec,
   migrateFrom,
   SHORT_FIELD_NAMES,
@@ -1295,6 +1300,172 @@ const PRODUCTION_PAGE = 'https://skcon.github.io/cinema-speaker-placement/'
  * such as GitHub Pages accept.
  */
 const URL_BUDGET = 2000
+
+describe('link precision', () => {
+  /** A config with one item of every part LINK_MILLIMETER_LENGTHS lists. */
+  const EVERY_PART: Config = {
+    ...DEFAULT_CONFIG,
+    manualPositions: { R: { x: 1.5, y: 1, z: 1.2 } },
+    roomObjects: {
+      ...DEFAULT_ROOM_OBJECTS,
+      screen: TV,
+      furniture: [CABINET],
+      openings: [DOOR, WINDOW],
+    },
+  }
+
+  /** Where each part's lengths are in a config, to nudge one by hand. */
+  const ITEMS_OF: Record<LinkPart, (config: Config) => readonly object[]> = {
+    manualPositions: (config) => Object.values(config.manualPositions),
+    screen: ({ roomObjects: { screen } }) => (screen ? [screen] : []),
+    furniture: ({ roomObjects }) => roomObjects.furniture,
+    openings: ({ roomObjects }) => roomObjects.openings,
+  }
+
+  const listed = Object.entries(LINK_MILLIMETER_LENGTHS).flatMap(
+    ([part, { lengths }]) =>
+      lengths.map((length) => [part as LinkPart, length] as const),
+  )
+
+  it('is a frozen part of the wire format: these lengths, to the millimeter', () => {
+    expect(LINK_MILLIMETER_LENGTHS).toEqual({
+      manualPositions: { lengths: ['x', 'y', 'z'], perEdge: 1 },
+      screen: { lengths: ['x'], perEdge: 1 },
+      furniture: {
+        lengths: ['width', 'depth', 'height', 'x', 'y'],
+        perEdge: 2,
+      },
+      openings: {
+        lengths: ['position', 'width', 'sill', 'height'],
+        perEdge: 2,
+      },
+    })
+  })
+
+  it.each(listed)('stores the %s %s to the millimeter', (part, length) => {
+    const nudged = structuredClone(EVERY_PART)
+    const items = ITEMS_OF[part](nudged).filter((item) => length in item)
+    for (const item of items) {
+      const lengths = item as Record<string, number>
+      lengths[length] = (lengths[length] ?? 0) + 0.0003
+    }
+
+    expect(items).not.toEqual([])
+    expect(decodeConfig(encodeConfig(nudged))).toEqual({
+      config: EVERY_PART,
+      problem: null,
+    })
+  })
+
+  it('keeps every other length as typed, to the last digit', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      roomObjects: {
+        ...DEFAULT_ROOM_OBJECTS,
+        seatRow: { width: 3.6576, depth: 0.9144 },
+        screen: {
+          kind: 'projection',
+          width: 2.6543219,
+          height: 1.2345678,
+          bottomEdge: 0.6543219,
+          x: 0,
+          standoff: 0.7512345,
+        },
+      },
+    }
+
+    expect(decodeConfig(encodeConfig(config))).toEqual({
+      config,
+      problem: null,
+    })
+  })
+
+  it.each([
+    ['manualPositions', 0.0005],
+    ['screen', 0.0005],
+    ['furniture', 0.001],
+    ['openings', 0.001],
+  ] as const)(
+    'lets a version 2 link put the %s up to %f m past where it may be, as v1.1.0 did',
+    (part, slack) => {
+      expect(linkSlack(part)).toBe(slack)
+    },
+  )
+
+  // Version 2 is released (v1.1.0): which links it opens never changes.
+  describe.each([
+    [
+      'a speaker',
+      (x: number) => ({
+        ...EVERY_PART,
+        manualPositions: { R: { x, y: 1, z: 1.2 } },
+      }),
+      // 0.3 m from the 4.5 m wide room's right wall.
+      1.95,
+      0.0005,
+    ],
+    [
+      'a screen',
+      (x: number) => ({
+        ...EVERY_PART,
+        roomObjects: { ...EVERY_PART.roomObjects, screen: { ...TV, x } },
+      }),
+      // Its 1.44 m image against the 4.5 m wide room's right wall.
+      1.53,
+      0.0005,
+    ],
+    [
+      'a furniture box',
+      (x: number) => ({
+        ...EVERY_PART,
+        roomObjects: {
+          ...EVERY_PART.roomObjects,
+          furniture: [{ ...CABINET, x }],
+        },
+      }),
+      // Its 1.6 m width against the 4.5 m wide room's right wall.
+      1.45,
+      0.001,
+    ],
+  ] as const)('a version 2 link with %s', (_, at, edge, slack) => {
+    it('opens up to its slack past the wall', () => {
+      const config = at(edge + slack - 0.000001)
+      expect(decodeConfig(encodedHolding({ v: 2, config }))).toEqual({
+        config,
+        problem: null,
+      })
+    })
+
+    it('falls back a micrometer past that', () => {
+      const config = at(edge + slack + 0.000001)
+      expect(decodeConfig(encodedHolding({ v: 2, config }))).toEqual(FALLBACK)
+    })
+  })
+
+  it.each([
+    ['a millimeter past its wall end, which it opens', 4.051, null],
+    [
+      'two millimeters past its wall end, which it falls back for',
+      4.052,
+      'unreadable',
+    ],
+  ] as const)(
+    'reads a version 2 link with a door %s',
+    (_, position, problem) => {
+      const config: Config = {
+        ...EVERY_PART,
+        roomObjects: {
+          ...EVERY_PART.roomObjects,
+          openings: [{ ...DOOR, position }],
+        },
+      }
+
+      expect(decodeConfig(encodedHolding({ v: 2, config })).problem).toBe(
+        problem,
+      )
+    },
+  )
+})
 
 describe('short field names', () => {
   it('cover every field the worst-case config is written with', () => {

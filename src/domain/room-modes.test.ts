@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Room, RoomPoint } from '@/domain'
+import { yardsticksFor } from '@/test/relative-speed'
+import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
 import { prepareModalResponse, roomModes } from './room-modes'
 
 /** The level of a complex pressure, in dB (re 1). */
@@ -230,39 +232,46 @@ describe('the pressure a source makes at a receiver through the room modes', () 
     expect(lowestExcitedMode?.frequency).toBeCloseTo(SECOND_LENGTH_MODE, 6)
   })
 
-  it('hears a 20 x 20 receiver grid in the largest room with 4 sources quickly, for the seat score (#14)', () => {
-    // About 0.45 s under Vitest on a 2024 laptop; the bound only catches a regression to
-    // recomputing everything per receiver (several seconds).
-    const room = { length: 15, width: 15, height: 5 }
-    const frequencies = Array.from(
-      { length: 161 },
-      (_, i) => 20 * 10 ** (i / 160),
-    )
-    const started = performance.now()
-    const sources = [
-      { x: 0, y: 0.3, z: 0.3 },
-      { x: -7.2, y: 7.5, z: 0.3 },
-      { x: 7.2, y: 7.5, z: 0.3 },
-      { x: 0, y: 14.7, z: 0.3 },
-    ]
-    const prepared = prepareModalResponse({
-      room,
-      sources,
-      sourceFilters: unfiltered(sources, frequencies),
-      frequencies,
-    })
-    for (let i = 0; i < 20; i++) {
-      for (let j = 0; j < 20; j++) {
-        prepared.pressureAt({
-          x: -7 + (14 * i) / 19,
-          y: 1 + (13 * j) / 19,
-          z: 1.2,
+  it(
+    'hears a 20 x 20 receiver grid in the largest room with 4 sources quickly, for the seat score (#14)',
+    () => {
+      // About 13 yardsticks (0.45 s on a 2024 laptop). The bound, twice
+      // that, fails on a 3x slower modal sum (about 34) and on recomputing
+      // everything per receiver (far more). Heavy: the work runs three times.
+      const room = { length: 15, width: 15, height: 5 }
+      const frequencies = Array.from(
+        { length: 161 },
+        (_, i) => 20 * 10 ** (i / 160),
+      )
+      const sources = [
+        { x: 0, y: 0.3, z: 0.3 },
+        { x: -7.2, y: 7.5, z: 0.3 },
+        { x: 7.2, y: 7.5, z: 0.3 },
+        { x: 0, y: 14.7, z: 0.3 },
+      ]
+      const hearGrid = () => {
+        const prepared = prepareModalResponse({
+          room,
+          sources,
+          sourceFilters: unfiltered(sources, frequencies),
+          frequencies,
         })
+        for (let i = 0; i < 20; i++) {
+          for (let j = 0; j < 20; j++) {
+            prepared.pressureAt({
+              x: -7 + (14 * i) / 19,
+              y: 1 + (13 * j) / 19,
+              z: 1.2,
+            })
+          }
+        }
       }
-    }
 
-    expect(performance.now() - started).toBeLessThan(3000)
-  })
+      const cost = yardsticksFor(hearGrid)
+      expect(cost, 'yardsticks').toBeLessThan(26)
+    },
+    HEAVY_TEST_TIMEOUT_MS,
+  )
 
   it('is the same with source and receiver swapped (reciprocity)', () => {
     const source = { x: -0.4, y: 2.1, z: 0.3 }

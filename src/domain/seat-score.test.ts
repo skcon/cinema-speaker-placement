@@ -7,6 +7,8 @@ import {
   type Config,
   type ScoredSeat,
 } from '@/domain'
+import { yardsticksFor } from '@/test/relative-speed'
+import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
 import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
 import { V2_LINKS } from '@/test/share-link-fixtures'
 
@@ -151,37 +153,47 @@ describe('recommended seat', () => {
     expect(candidates.length).toBeGreaterThan(100)
   })
 
-  it('has a column of candidates on the center line in any room width', () => {
-    // 2.8 m wide: 2.2 m between the side clearances, which 0.25 m steps
-    // would split into an even number of columns, none in the middle.
-    for (const width of [2, 2.8, 3.3, 4.5, 15]) {
-      const { candidates } = recommendSeat({
+  it(
+    'has a column of candidates on the center line in any room width',
+    () => {
+      // 2.8 m wide: 2.2 m between the side clearances, which 0.25 m steps
+      // would split into an even number of columns, none in the middle.
+      // Heavy: the 15 m wide room scores a grid of over a thousand seats.
+      for (const width of [2, 2.8, 3.3, 4.5, 15]) {
+        const { candidates } = recommendSeat({
+          ...DEFAULT_CONFIG,
+          room: { ...DEFAULT_CONFIG.room, width },
+        })
+        const across = [
+          ...new Set(candidates.map(({ position }) => position.x)),
+        ]
+
+        expect(across.filter((x) => x === 0)).toHaveLength(1)
+        expect(across.length % 2).toBe(1)
+      }
+    },
+    HEAVY_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'recommends a seat in the largest room with 4 subwoofers and 7 listener-level speakers quickly enough to run live',
+    () => {
+      // About 9 yardsticks (0.4 s on a 2024 laptop), and 0.1 s in the
+      // default room. The bound, twice that, fails on a 3x slower hot loop
+      // (about 22) and on hearing every seat per round or recomputing the
+      // room modes per seat (hundreds). Heavy: the work runs three times.
+      const config: Config = {
         ...DEFAULT_CONFIG,
-        room: { ...DEFAULT_CONFIG.room, width },
-      })
-      const across = [...new Set(candidates.map(({ position }) => position.x))]
+        room: { length: 15, width: 15, height: 5 },
+        layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
+      }
+      analyzeRoom(config)
 
-      expect(across.filter((x) => x === 0)).toHaveLength(1)
-      expect(across.length % 2).toBe(1)
-    }
-  })
-
-  it('recommends a seat in the largest room with 4 subwoofers and 7 listener-level speakers quickly enough to run live', () => {
-    // About 0.4 s under Vitest on a 2024 laptop, and 0.1 s in the default
-    // room; the bound only catches a regression to hearing every seat per
-    // round, or recomputing the room modes per seat.
-    const config: Config = {
-      ...DEFAULT_CONFIG,
-      room: { length: 15, width: 15, height: 5 },
-      layout: { dolbyLayout: '7.1.4', subwoofers: 4 },
-    }
-    analyzeRoom(config)
-    const started = performance.now()
-
-    recommendSeat(config)
-
-    expect(performance.now() - started).toBeLessThan(2000)
-  })
+      const cost = yardsticksFor(() => recommendSeat(config))
+      expect(cost, 'yardsticks').toBeLessThan(18)
+    },
+    HEAVY_TEST_TIMEOUT_MS,
+  )
 })
 
 describe('recommended seat on the center line (ADR 0005)', () => {
@@ -297,10 +309,18 @@ describe('recommended seat on the center line (ADR 0005)', () => {
     expect(offCenterLine?.widthMode?.atCenterLine).toBe('null')
   })
 
-  it('recommends a center-line seat in every symmetric 5.1.2 room tried, as the auto speakers stay symmetric to the room', () => {
-    for (const length of [5, 6, 7]) {
-      for (const width of [3.5, 4.5, 5.5]) {
-        for (const subwoofers of [1, 2] as const) {
+  it(
+    'recommends a center-line seat in every symmetric 5.1.2 room tried, as the auto speakers stay symmetric to the room',
+    () => {
+      // Every length with every width, the subwoofer count alternating like
+      // a checkerboard, so each length and each width is tried with one
+      // subwoofer and with two: half the seat grids of trying both counts
+      // in every room (#93). Heavy all the same: nine seat grids.
+      const lengths = [5, 6, 7]
+      const widths = [3.5, 4.5, 5.5]
+      lengths.forEach((length, i) =>
+        widths.forEach((width, j) => {
+          const subwoofers = (i + j) % 2 === 0 ? 1 : 2
           const { recommended } = recommendSeat({
             ...DEFAULT_CONFIG,
             room: { length, width, height: 2.6 },
@@ -308,10 +328,11 @@ describe('recommended seat on the center line (ADR 0005)', () => {
           })
 
           expect(recommended.position.x).toBe(0)
-        }
-      }
-    }
-  })
+        }),
+      )
+    },
+    HEAVY_TEST_TIMEOUT_MS,
+  )
 
   it('counts an MLP on the center line as a center-line seat, and keeps it when no seat beats it meaningfully', () => {
     // The 24 x 15 ft fixture room: its 38% MLP is on the center line and

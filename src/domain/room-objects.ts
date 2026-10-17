@@ -4,45 +4,63 @@
  * drawn and used for placement warnings, and never part of the estimated
  * response.
  *
+ * This module owns the Room's room objects as a whole: their lists, their
+ * ids and how many of each a Room may have, adding, removing and editing
+ * one by id, setting one of its lengths, fitting them into a resized Room,
+ * and whether they are valid. Each kind's own module (seat-row.ts,
+ * screen.ts, furniture.ts, openings.ts) only knows one object of its kind:
+ * its geometry, its lengths and their limits (declared once, see
+ * object-lengths.ts) and how it moves. Inside this module, a new kind of
+ * room object is a field in RoomObjects, a line in RoomObjectKinds and
+ * RoomObjectDimensions, its id (and KindOf) and its addition, its list in
+ * objectsOf and withObjectsOf, and an entry in KIND_RULES; adding,
+ * removing, editing, setting a length, moving, fitting and validity are
+ * the same code for every kind.
+ *
  * The config holds them all in one `roomObjects` value, which starts as
  * DEFAULT_ROOM_OBJECTS: the default Seat row and nothing else (version 1
- * share links migrate to it, with their seat row width). It holds the
- * Seat row (#54), the Screen (#55), furniture boxes (#56) and openings
- * (#57), each with its own module (seat-row.ts, screen.ts, furniture.ts,
- * openings.ts); a new kind of room object grows a line in each function
- * below.
+ * share links migrate to it, with their seat row width).
  */
 import {
   fitFurnitureToRoom,
-  furnitureId,
-  furnitureIndex,
+  FURNITURE_LENGTHS,
   furnitureMovedTo,
-  isFurnitureId,
-  isValidFurniture,
-  roundFurnitureForLink,
+  isValidFurnitureBox,
+  newFurnitureBox,
   type FurnitureBox,
-  type FurnitureId,
+  type FurnitureDimension,
+  type FurniturePreset,
 } from './furniture'
 import {
   fitOpeningToRoom,
-  isOpeningId,
-  isValidOpenings,
-  openingId,
-  openingIndex,
+  isValidOpening,
+  newOpening,
+  OPENING_LENGTHS,
   openingMovedTo,
-  roundOpeningForLink,
   type Opening,
-  type OpeningId,
+  type OpeningDimension,
+  type OpeningKind,
 } from './openings'
+import { withLength, type ObjectLengths } from './object-lengths'
+import type { AcceptedRange } from './range'
+import { FURNITURE, OPENINGS } from './reference'
 import type { FloorPoint, Room } from './room'
 import {
+  defaultScreen,
   fitScreenToRoom,
   isValidScreen,
-  roundScreenForLink,
+  SCREEN_LENGTHS,
   screenMovedTo,
   type RoomScreen,
+  type ScreenDimension,
 } from './screen'
-import { DEFAULT_SEAT_ROW, isValidSeatRow, type SeatRow } from './seat-row'
+import {
+  DEFAULT_SEAT_ROW,
+  isValidSeatRow,
+  SEAT_ROW_LENGTHS,
+  type SeatRow,
+  type SeatRowDimension,
+} from './seat-row'
 
 /** Every room object in a Room. */
 export type RoomObjects = {
@@ -55,13 +73,12 @@ export type RoomObjects = {
   screen: RoomScreen | null
   /**
    * The furniture boxes, at most MAX_FURNITURE, in the order they were
-   * added: the room view names each by its place here (furnitureId).
+   * added: each is named by its place here (see roomObjectId).
    */
   furniture: readonly FurnitureBox[]
   /**
    * The doors and windows on the walls, at most MAX_OPENINGS, in the order
-   * they were added: the room view names each by its place here
-   * (openingId).
+   * they were added: each is named by its place here (see roomObjectId).
    */
   openings: readonly Opening[]
 }
@@ -77,62 +94,292 @@ export const DEFAULT_ROOM_OBJECTS: RoomObjects = {
   openings: [],
 }
 
+/** What one room object of each kind is. */
+type RoomObjectKinds = {
+  seatRow: SeatRow
+  screen: RoomScreen
+  furniture: FurnitureBox
+  opening: Opening
+}
+
+/** A kind of room object. */
+export type RoomObjectKind = keyof RoomObjectKinds
+
+/** The lengths the user edits on a room object of each kind. */
+type RoomObjectDimensions = {
+  seatRow: SeatRowDimension
+  screen: ScreenDimension
+  furniture: FurnitureDimension
+  opening: OpeningDimension
+}
+
+/** The kinds a Room may have several of, each in a list. */
+export type ListedRoomObjectKind = 'furniture' | 'opening'
+
+/** The most furniture boxes a Room has (ADR 0006). */
+export const MAX_FURNITURE: number = FURNITURE.maxCount
+
+/** The most openings a Room has (ADR 0006). */
+export const MAX_OPENINGS: number = OPENINGS.maxCount
+
 /** The id the room view drags the Seat row by. */
 export const SEAT_ROW_ID = 'seatRow'
 
 /** The id the room view drags the Screen by. */
 export const SCREEN_ID = 'screen'
 
-/** The room objects the room view can drag that there is one of, by id. */
-export const ROOM_OBJECT_IDS = [SEAT_ROW_ID, SCREEN_ID] as const
+/** The id of furniture box `n` (from 1): its place in the list. */
+export type FurnitureId = `furniture-${number}`
+
+/** The id of opening `n` (from 1): its place in the list. */
+export type OpeningId = `opening-${number}`
 
 /**
- * A room object the room view can drag: the seat row, the screen, or a
- * furniture box or an opening by its place in its list (furnitureId,
- * openingId).
+ * A room object's id: the seat row's and the screen's are their kind (a
+ * Room has at most one), a furniture box's or an opening's is its kind and
+ * its place in its list, from 1 (see roomObjectId). An id may name an
+ * object the Room doesn't have.
  */
 export type RoomObjectId =
-  (typeof ROOM_OBJECT_IDS)[number] | FurnitureId | OpeningId
+  typeof SEAT_ROW_ID | typeof SCREEN_ID | FurnitureId | OpeningId
 
-/** Whether `id` names a room object (and not a speaker, subwoofer or the MLP). */
+/** The kind of room object an id of type `I` names. */
+type KindOf<I extends RoomObjectId> = I extends typeof SEAT_ROW_ID
+  ? 'seatRow'
+  : I extends typeof SCREEN_ID
+    ? 'screen'
+    : I extends FurnitureId
+      ? 'furniture'
+      : 'opening'
+
+/** The room object an id of type `I` names. */
+export type RoomObjectOf<I extends RoomObjectId> = RoomObjectKinds[KindOf<I>]
+
+/**
+ * A length the user edits on the room object an id of type `I` names, for
+ * example `'width'` or, for a furniture box, `'fromLeftWall'`.
+ */
+export type RoomObjectDimension<I extends RoomObjectId> =
+  RoomObjectDimensions[KindOf<I>]
+
+/** One of a room object's lengths as a field shows it. */
+export type RoomObjectLength = {
+  /** How long it is now. */
+  readonly meters: number
+  /** The values the field accepts: each gives a valid config. */
+  readonly limits: AcceptedRange
+}
+
+/**
+ * A change to room object `I`: gets the Room and the object, and returns
+ * the changed object, or null to reject the change. A kind module's
+ * `with...` functions are edits once the Room and the object are given.
+ */
+export type RoomObjectEdit<I extends RoomObjectId> = (
+  room: Room,
+  object: RoomObjectOf<I>,
+) => RoomObjectOf<I> | null
+
+/** A room object to add: what it is, and for a list kind which preset. */
+export type RoomObjectAddition =
+  | { kind: 'screen' }
+  | { kind: 'furniture'; preset: FurniturePreset }
+  | { kind: 'opening'; preset: OpeningKind }
+
+/**
+ * What the room objects module needs of a config: the Room and its room
+ * objects. Every change below takes and gives back the whole value, so it
+ * works on a Config and keeps its other fields.
+ */
+export type RoomWithObjects = {
+  readonly room: Room
+  readonly roomObjects: RoomObjects
+}
+
+/** What this module knows about each kind (each kind's module has the rest). */
+type KindRules<T, D extends string> = {
+  /** How many a Room has at least and at most. */
+  readonly count: { readonly min: number; readonly max: number }
+  /** The lengths the user edits on one (see object-lengths.ts). */
+  readonly lengths: ObjectLengths<T, D>
+  /** Whether one is one a config may hold in `room`. */
+  readonly isValid: (room: Room, object: T) => boolean
+  /** It moved and sized, if needed, to fit `room`; as it was if it fits. */
+  readonly fit: (room: Room, object: T) => T
+  /** It dragged on the floor plan to `to`; as it was if it doesn't move. */
+  readonly movedTo: (room: Room, object: T, to: FloorPoint) => T
+}
+
+const KIND_RULES: {
+  [K in RoomObjectKind]: KindRules<RoomObjectKinds[K], RoomObjectDimensions[K]>
+} = {
+  // Every Room has exactly one seat row. It keeps its size in a smaller
+  // Room (it is drawn cut off at the walls) and stores no position: it is
+  // where the MLP is, so a drag of it moves the MLP instead (see
+  // withDragged in drag-targets.ts).
+  seatRow: {
+    count: { min: 1, max: 1 },
+    lengths: SEAT_ROW_LENGTHS,
+    isValid: isValidSeatRow,
+    fit: (_, seatRow) => seatRow,
+    movedTo: (_, seatRow) => seatRow,
+  },
+  // The Screen only moves along the front wall, so only `to.x` counts.
+  screen: {
+    count: { min: 0, max: 1 },
+    lengths: SCREEN_LENGTHS,
+    isValid: isValidScreen,
+    fit: fitScreenToRoom,
+    movedTo: (room, screen, to) => screenMovedTo(room, screen, to.x),
+  },
+  furniture: {
+    count: { min: 0, max: MAX_FURNITURE },
+    lengths: FURNITURE_LENGTHS,
+    isValid: isValidFurnitureBox,
+    fit: fitFurnitureToRoom,
+    movedTo: furnitureMovedTo,
+  },
+  // An opening only moves along its own wall.
+  opening: {
+    count: { min: 0, max: MAX_OPENINGS },
+    lengths: OPENING_LENGTHS,
+    isValid: isValidOpening,
+    fit: fitOpeningToRoom,
+    movedTo: openingMovedTo,
+  },
+}
+
+const KINDS = Object.keys(KIND_RULES) as RoomObjectKind[]
+
+/** KIND_RULES for `kind`, for code that works the same for every kind. */
+function rulesOf(
+  kind: RoomObjectKind,
+): KindRules<RoomObjectKinds[RoomObjectKind], string> {
+  return KIND_RULES[kind] as KindRules<RoomObjectKinds[RoomObjectKind], string>
+}
+
+/** The room objects of `kind`, as a list (the seat row and screen too). */
+function objectsOf<K extends RoomObjectKind>(
+  objects: RoomObjects,
+  kind: K,
+): readonly RoomObjectKinds[K][] {
+  const lists: { [Kind in RoomObjectKind]: readonly RoomObjectKinds[Kind][] } =
+    {
+      seatRow: [objects.seatRow],
+      screen: objects.screen ? [objects.screen] : [],
+      furniture: objects.furniture,
+      opening: objects.openings,
+    }
+  return lists[kind]
+}
+
+/**
+ * The room objects with those of `kind` replaced by `list`, which has
+ * between KIND_RULES[kind].count.min and max of them.
+ */
+function withObjectsOf<K extends RoomObjectKind>(
+  objects: RoomObjects,
+  kind: K,
+  list: readonly RoomObjectKinds[K][],
+): RoomObjects {
+  const of = list as readonly RoomObjectKinds[RoomObjectKind][]
+  switch (kind) {
+    case 'seatRow':
+      return { ...objects, seatRow: of[0] as SeatRow }
+    case 'screen':
+      return { ...objects, screen: (of[0] as RoomScreen | undefined) ?? null }
+    case 'furniture':
+      return { ...objects, furniture: of as readonly FurnitureBox[] }
+    default:
+      return { ...objects, openings: of as readonly Opening[] }
+  }
+}
+
+/** Where a room object is: its kind and its place in that kind's list. */
+type RoomObjectPlace = { kind: RoomObjectKind; index: number }
+
+const LISTED_ID = /^(furniture|opening)-([1-9]\d*)$/
+
+/**
+ * The kind and place `id` names, or null when it is not a room object's
+ * id (a speaker's, a subwoofer's or the MLP's). The one parser of the
+ * format roomObjectId writes.
+ */
+function placeOf(id: string): RoomObjectPlace | null {
+  if (id === SEAT_ROW_ID || id === SCREEN_ID) return { kind: id, index: 0 }
+  const match = LISTED_ID.exec(id)
+  if (!match) return null
+  return {
+    kind: match[1] as ListedRoomObjectKind,
+    index: Number(match[2]) - 1,
+  }
+}
+
+/**
+ * The id of the room object of a list kind at `index` (from 0) in its
+ * list, for example `furniture-1` for the first furniture box: the room
+ * view, the sidebar and the placement warnings name it by this.
+ */
+export function roomObjectId(kind: 'furniture', index: number): FurnitureId
+export function roomObjectId(kind: 'opening', index: number): OpeningId
+export function roomObjectId(
+  kind: ListedRoomObjectKind,
+  index: number,
+): FurnitureId | OpeningId
+export function roomObjectId(
+  kind: ListedRoomObjectKind,
+  index: number,
+): FurnitureId | OpeningId {
+  return `${kind}-${index + 1}`
+}
+
+/**
+ * Whether `id` names a room object (and not a speaker, subwoofer or the
+ * MLP). The Room may not have it.
+ */
 export function isRoomObjectId(id: string): id is RoomObjectId {
-  return (
-    ROOM_OBJECT_IDS.some((objectId) => objectId === id) ||
-    isFurnitureId(id) ||
-    isOpeningId(id)
-  )
+  return placeOf(id) !== null
 }
 
-/** The room view's ids of the Room's furniture boxes, in their order. */
-export function furnitureIds(objects: RoomObjects): FurnitureId[] {
-  return objects.furniture.map((_, index) => furnitureId(index))
+/**
+ * The kind of room object `id` names, or null when it is not a room
+ * object's id.
+ */
+export function roomObjectKind(id: string): RoomObjectKind | null {
+  return placeOf(id)?.kind ?? null
 }
 
-/** The room view's ids of the Room's openings, in their order. */
-export function openingIds(objects: RoomObjects): OpeningId[] {
-  return objects.openings.map((_, index) => openingId(index))
+/** The room object `id` names, or null when the Room doesn't have it. */
+export function roomObjectAt<I extends RoomObjectId>(
+  objects: RoomObjects,
+  id: I,
+): RoomObjectOf<I> | null {
+  const place = placeOf(id)
+  if (!place) return null
+  const object = objectsOf(objects, place.kind)[place.index]
+  return (object ?? null) as RoomObjectOf<I> | null
 }
 
 /** Whether every room object is one a config may hold in `room`. */
-export function areValidRoomObjects(
-  room: Room,
-  { seatRow, screen, furniture, openings }: RoomObjects,
-): boolean {
-  return (
-    isValidSeatRow(seatRow) &&
-    (screen === null || isValidScreen(room, screen)) &&
-    isValidFurniture(room, furniture) &&
-    isValidOpenings(room, openings)
-  )
+export function areValidRoomObjects(room: Room, objects: RoomObjects): boolean {
+  return KINDS.every((kind) => {
+    const rules = rulesOf(kind)
+    const list = objectsOf(objects, kind)
+    return (
+      list.length >= rules.count.min &&
+      list.length <= rules.count.max &&
+      list.every((object) => rules.isValid(room, object))
+    )
+  })
 }
 
 /**
- * `items` each fitted by `fit`, or the same list when every item comes
+ * `items` each changed by `change`, or the same list when every item comes
  * back as it was.
  */
-function fitEach<T>(items: readonly T[], fit: (item: T) => T): readonly T[] {
-  const fitted = items.map(fit)
-  return fitted.every((item, index) => item === items[index]) ? items : fitted
+function mapEach<T>(items: readonly T[], change: (item: T) => T): readonly T[] {
+  const changed = items.map(change)
+  return changed.every((item, index) => item === items[index]) ? items : changed
 }
 
 /**
@@ -145,117 +392,178 @@ export function keepRoomObjectsInRoom(
   room: Room,
   objects: RoomObjects,
 ): RoomObjects {
-  const screen = objects.screen && fitScreenToRoom(room, objects.screen)
-  const furniture = fitEach(objects.furniture, (box) =>
-    fitFurnitureToRoom(room, box),
-  )
-  const openings = fitEach(objects.openings, (opening) =>
-    fitOpeningToRoom(room, opening),
-  )
-  return screen === objects.screen &&
-    furniture === objects.furniture &&
-    openings === objects.openings
-    ? objects
-    : { ...objects, screen, furniture, openings }
+  return KINDS.reduce((kept, kind) => {
+    const rules = rulesOf(kind)
+    const list = objectsOf(kept, kind)
+    const fitted = mapEach(list, (object) => rules.fit(room, object))
+    return fitted === list ? kept : withObjectsOf(kept, kind, fitted)
+  }, objects)
 }
 
 /**
- * Room object `id` dragged on the floor plan to `to`, its middle to `to`
- * (stopped at the walls). The Screen only
- * moves along the front wall, so only `to.x` counts, and an opening only
- * along its own wall. The Seat row stores
- * no position (it is where the MLP is), so a drag of it moves the MLP
- * instead (withRoomObjectMoved) and leaves these as they are. Comes back
- * as it was when there is no such object or it doesn't move.
+ * The config with `roomObjects`, or as it was when they are the same as
+ * its own or one doesn't fit its Room: so every change below gives a
+ * valid config, and an empty change makes no new one.
  */
-export function roomObjectsMoved(
+function settle<C extends RoomWithObjects>(
+  config: C,
+  roomObjects: RoomObjects,
+): C {
+  if (
+    roomObjects === config.roomObjects ||
+    JSON.stringify(roomObjects) === JSON.stringify(config.roomObjects) ||
+    !areValidRoomObjects(config.room, roomObjects)
+  ) {
+    return config
+  }
+  return { ...config, roomObjects }
+}
+
+/** The new room object `addition` asks for, made to fit `room`. */
+function newRoomObject(
   room: Room,
-  objects: RoomObjects,
+  addition: RoomObjectAddition,
+): RoomObjectKinds[RoomObjectAddition['kind']] {
+  switch (addition.kind) {
+    case 'screen':
+      return defaultScreen(room)
+    case 'furniture':
+      return newFurnitureBox(room, addition.preset)
+    case 'opening':
+      return newOpening(room, addition.preset)
+  }
+}
+
+/**
+ * The config with the room object `addition` asks for added at the end of
+ * its list: the default TV centred on the front wall (defaultScreen), a
+ * furniture box from a preset against the middle of the front wall
+ * (newFurnitureBox), or a door or window (newOpening). Comes back as it
+ * was when the Room already has as many of that kind as it may (one
+ * screen, MAX_FURNITURE, MAX_OPENINGS).
+ */
+export function withRoomObjectAdded<C extends RoomWithObjects>(
+  config: C,
+  addition: RoomObjectAddition,
+): C {
+  const { kind } = addition
+  const list = objectsOf(config.roomObjects, kind)
+  if (list.length >= KIND_RULES[kind].count.max) return config
+  const added = [...list, newRoomObject(config.room, addition)]
+  return settle(config, withObjectsOf(config.roomObjects, kind, added))
+}
+
+/**
+ * The config without room object `id`; the objects after it in its list
+ * move up a place (and so take the next id down). Comes back as it was
+ * when there is no such object, or it is the seat row (every Room has
+ * one).
+ */
+export function withRoomObjectRemoved<C extends RoomWithObjects>(
+  config: C,
+  id: RoomObjectId,
+): C {
+  const place = placeOf(id)
+  if (!place) return config
+  const list = objectsOf(config.roomObjects, place.kind)
+  if (
+    place.index >= list.length ||
+    list.length <= KIND_RULES[place.kind].count.min
+  ) {
+    return config
+  }
+  const kept = list.filter((_, at) => at !== place.index)
+  return settle(config, withObjectsOf(config.roomObjects, place.kind, kept))
+}
+
+/**
+ * The config with room object `id` changed by `edit` (see
+ * RoomObjectEdit). Comes back as it was when there is no such object, or
+ * the edit rejects or keeps it, or gives one that doesn't fit the Room.
+ */
+export function withRoomObjectEdited<
+  C extends RoomWithObjects,
+  I extends RoomObjectId,
+>(config: C, id: I, edit: RoomObjectEdit<I>): C {
+  const place = placeOf(id)
+  const object = roomObjectAt(config.roomObjects, id)
+  if (!place || !object) return config
+  const edited = edit(config.room, object)
+  if (!edited || edited === object) return config
+  const list = objectsOf(config.roomObjects, place.kind)
+  const changed = list.map((other, at) => (at === place.index ? edited : other))
+  return settle(
+    config,
+    withObjectsOf(
+      config.roomObjects,
+      place.kind,
+      changed as readonly RoomObjectKinds[RoomObjectKind][],
+    ),
+  )
+}
+
+/**
+ * One of room object `id`'s lengths as a field shows it: how long it is
+ * now, and the values the field accepts in this Room, given its other
+ * lengths. Every value inside them gives a valid config (see
+ * withRoomObjectDimension). Null when the Room doesn't have the object,
+ * or the object doesn't have the length (a door's sill, the standoff of a
+ * screen on the wall).
+ */
+export function roomObjectLength<I extends RoomObjectId>(
+  { room, roomObjects }: RoomWithObjects,
+  id: I,
+  dimension: RoomObjectDimension<I>,
+): RoomObjectLength | null {
+  const kind = placeOf(id)?.kind
+  const object = roomObjectAt(roomObjects, id)
+  if (!kind || !object) return null
+  const { lengths } = rulesOf(kind)
+  const limits = lengths.limits(room, object, 'typed')[dimension]
+  const meters = lengths.read(room, object, dimension)
+  return limits && meters !== null ? { meters, limits } : null
+}
+
+/**
+ * The config with one of room object `id`'s lengths set to `meters`; a
+ * size that grows past a wall moves the object in from it. Comes back as
+ * it was when the value is outside the limits roomObjectLength gives, or
+ * there is no such object or length.
+ */
+export function withRoomObjectDimension<
+  C extends RoomWithObjects,
+  I extends RoomObjectId,
+>(config: C, id: I, dimension: RoomObjectDimension<I>, meters: number): C {
+  const kind = placeOf(id)?.kind
+  if (!kind) return config
+  const { lengths } = rulesOf(kind)
+  if (!lengths.dimensions.includes(dimension)) return config
+  return withRoomObjectEdited(
+    config,
+    id,
+    (room, object) =>
+      withLength(lengths, room, object, dimension, meters) as RoomObjectOf<I>,
+  )
+}
+
+/**
+ * The config with room object `id` dragged on the floor plan to `to`, its
+ * middle to `to` (stopped at the walls). The Screen only moves along the
+ * front wall, so only `to.x` counts, and an opening only along its own
+ * wall. The Seat row stores no position (it is where the MLP is), so it
+ * stays as it is here: dragging it moves the MLP (withDragged in
+ * drag-targets.ts). Comes back as it was when there is no such object or
+ * it doesn't move.
+ */
+export function withRoomObjectMoved<C extends RoomWithObjects>(
+  config: C,
   id: RoomObjectId,
   to: FloorPoint,
-): RoomObjects {
-  switch (id) {
-    case SEAT_ROW_ID:
-      return objects
-    case SCREEN_ID: {
-      if (!objects.screen) return objects
-      const screen = screenMovedTo(room, objects.screen, to.x)
-      return screen === objects.screen ? objects : { ...objects, screen }
-    }
-    default:
-      return isOpeningId(id)
-        ? withOpening(objects, id, (opening) =>
-            openingMovedTo(room, opening, to),
-          )
-        : withFurnitureBox(objects, id, (box) =>
-            furnitureMovedTo(room, box, to),
-          )
-  }
-}
-
-/**
- * The room objects with furniture box `id` changed by `edit`, which
- * returns the changed box, or null to reject the change. Come back as they
- * were when there is no such box, or the edit rejects or keeps it.
- */
-export function withFurnitureBox(
-  objects: RoomObjects,
-  id: FurnitureId,
-  edit: (box: FurnitureBox) => FurnitureBox | null,
-): RoomObjects {
-  const index = furnitureIndex(id)
-  const box = index === null ? undefined : objects.furniture[index]
-  if (index === null || !box) return objects
-  const edited = edit(box)
-  if (!edited || edited === box) return objects
-  return {
-    ...objects,
-    furniture: objects.furniture.map((other, at) =>
-      at === index ? edited : other,
-    ),
-  }
-}
-
-/**
- * The room objects with opening `id` changed by `edit`, which returns the
- * changed opening, or null to reject the change. Come back as they were
- * when there is no such opening, or the edit rejects or keeps it.
- */
-export function withOpening(
-  objects: RoomObjects,
-  id: OpeningId,
-  edit: (opening: Opening) => Opening | null,
-): RoomObjects {
-  const index = openingIndex(id)
-  const opening = index === null ? undefined : objects.openings[index]
-  if (index === null || !opening) return objects
-  const edited = edit(opening)
-  if (!edited || edited === opening) return objects
-  return {
-    ...objects,
-    openings: objects.openings.map((other, at) =>
-      at === index ? edited : other,
-    ),
-  }
-}
-
-/**
- * The room objects as a share link stores them: positions to the
- * millimeter. The seat row's and the screen's sizes are typed, not
- * dragged, so they stay as they are; furniture boxes and openings are
- * stored to the millimeter, sizes too (see roundFurnitureForLink and
- * roundOpeningForLink).
- */
-export function roundRoomObjectsForLink({
-  seatRow,
-  screen,
-  furniture,
-  openings,
-}: RoomObjects): RoomObjects {
-  return {
-    seatRow,
-    screen: screen && roundScreenForLink(screen),
-    furniture: furniture.map(roundFurnitureForLink),
-    openings: openings.map(roundOpeningForLink),
-  }
+): C {
+  const kind = placeOf(id)?.kind
+  if (!kind) return config
+  const rules = rulesOf(kind)
+  return withRoomObjectEdited(config, id, (room, object) =>
+    rules.movedTo(room, object, to),
+  )
 }

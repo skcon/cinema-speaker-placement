@@ -3,32 +3,31 @@
  * objects. They are drawn and give placement warnings (W1, W2, W3 and
  * W5), and are never part of the estimated response (ADR 0006): the
  * low-frequency model still assumes closed, rigid walls. A Room has up to
- * OPENINGS.maxCount of them.
+ * OPENINGS.maxCount of them, and room-objects.ts keeps their list and ids.
  *
  * An opening sits on one wall. `position` is where its middle is along
- * that wall, from the wall's start: the left wall for the front and back
- * walls (so along room x, from -width / 2), the front wall for the left
- * and right walls (along room y). A door reaches from the floor to
+ * that wall, from the wall's start (`along` in the wall frame,
+ * wall-frame.ts): the left wall for the front and back walls, the front
+ * wall for the left and right walls. A door reaches from the floor to
  * OPENINGS.doorHeight (ours); a window from its sill to its top. Every
  * opening stays on its wall, between the corners, the floor and the
  * ceiling.
  */
-import { ROUNDING_SLACK, toMillimeter } from './manual-positions'
+import { linkSlack } from './link-precision'
 import {
-  checkRange,
-  clamp,
-  type AcceptedRange,
-  type RangeProblem,
-} from './range'
+  hasValidLengths,
+  type LengthTolerance,
+  type ObjectLengths,
+} from './object-lengths'
+import { clamp, type AcceptedRange } from './range'
 import { OPENINGS } from './reference'
+import { WALLS, type FloorPoint, type Room, type Wall } from './room'
 import {
-  distanceToWall,
-  WALLS,
-  type FloorPoint,
-  type Room,
-  type RoomPoint,
-  type Wall,
-} from './room'
+  fromWallFrame,
+  toWallFrame,
+  wallLength,
+  type WallPoint,
+} from './wall-frame'
 
 /** What an opening is. */
 export const OPENING_KINDS = ['door', 'window'] as const
@@ -59,47 +58,18 @@ export type WindowOpening = {
 
 export type Opening = Door | WindowOpening
 
-/** The most openings a Room has (ADR 0006). */
-export const MAX_OPENINGS: number = OPENINGS.maxCount
-
 /**
- * An opening's lengths as they are edited: its width, where it is as
- * `fromCorner` (from the wall's start to its nearest edge), and for a
- * window its sill and height.
+ * An opening's lengths as they are edited (see OPENING_LENGTHS): its
+ * width, where it is as `fromCorner` (from the wall's start to its nearest
+ * edge), and for a window its sill and height.
  */
 export type OpeningDimension = 'width' | 'fromCorner' | 'sill' | 'height'
-
-/** How long `wall` is, corner to corner, in meters. */
-export function wallLength(room: Room, wall: Wall): number {
-  return wall === 'front' || wall === 'back' ? room.width : room.length
-}
 
 /** Where an opening is along its wall: its two edges, from the wall's start. */
 export function openingSpan(opening: Opening): { start: number; end: number } {
   return {
     start: opening.position - opening.width / 2,
     end: opening.position + opening.width / 2,
-  }
-}
-
-/** Where a point on the floor plan is along `wall`, from the wall's start. */
-export function alongWall(room: Room, wall: Wall, point: FloorPoint): number {
-  return wall === 'front' || wall === 'back'
-    ? point.x + room.width / 2
-    : point.y
-}
-
-/** The point on `wall`'s base `along` meters from the wall's start. */
-export function pointOnWall(room: Room, wall: Wall, along: number): FloorPoint {
-  switch (wall) {
-    case 'front':
-      return { x: along - room.width / 2, y: 0 }
-    case 'back':
-      return { x: along - room.width / 2, y: room.length }
-    case 'left':
-      return { x: -room.width / 2, y: along }
-    case 'right':
-      return { x: room.width / 2, y: along }
   }
 }
 
@@ -110,8 +80,8 @@ export function openingEnds(
 ): [FloorPoint, FloorPoint] {
   const { start, end } = openingSpan(opening)
   return [
-    pointOnWall(room, opening.wall, start),
-    pointOnWall(room, opening.wall, end),
+    fromWallFrame(room, opening.wall, { along: start, out: 0 }),
+    fromWallFrame(room, opening.wall, { along: end, out: 0 }),
   ]
 }
 
@@ -128,9 +98,6 @@ export function openingVerticalSpan(
     ? { bottom: 0, top: Math.min(OPENINGS.doorHeight, room.height) }
     : { bottom: opening.sill, top: opening.sill + opening.height }
 }
-
-/** A point on a wall: how far along it (from its start) and how high. */
-export type WallPoint = { along: number; z: number }
 
 /** Whether `point` on `wall` is inside the opening (its edges count). */
 export function isInOpening(
@@ -162,8 +129,7 @@ export function isInFrontOfOpening(
   depth: number,
 ): boolean {
   const { start, end } = openingSpan(opening)
-  const along = alongWall(room, opening.wall, point)
-  const out = distanceToWall(room, { ...point, z: 0 }, opening.wall)
+  const { along, out } = toWallFrame(room, opening.wall, point)
   return along >= start && along <= end && out >= 0 && out <= depth
 }
 
@@ -177,120 +143,93 @@ export function floorDistanceToOpening(
   point: FloorPoint,
 ): number {
   const { start, end } = openingSpan(opening)
-  const along = alongWall(room, opening.wall, point)
+  const { along, out } = toWallFrame(room, opening.wall, point)
   const beside = along < start ? start - along : along > end ? along - end : 0
-  const out = distanceToWall(room, { ...point, z: 0 }, opening.wall)
   return Math.hypot(beside, out)
 }
 
 /**
- * Where on `wall` the first-order reflection from `source` to `listener`
- * hits it (the image-source point: the angle in equals the angle out), or
- * null when either is not inside the Room in front of the wall. The point
- * divides the way from source to listener in the ratio of their
- * distances to the wall.
+ * How far a stored opening may reach past its wall's ends or the ceiling,
+ * in meters: a share link writes its lengths to the millimeter
+ * (link-precision.ts), which can move an edge half a millimeter for
+ * each.
  */
-export function wallReflectionPoint(
-  room: Room,
-  wall: Wall,
-  source: RoomPoint,
-  listener: RoomPoint,
-): WallPoint | null {
-  const fromSource = distanceToWall(room, source, wall)
-  const fromListener = distanceToWall(room, listener, wall)
-  if (fromSource < 0 || fromListener < 0 || fromSource + fromListener === 0) {
-    return null
-  }
-  const share = fromSource / (fromSource + fromListener)
-  const at = (axis: 'x' | 'y' | 'z') =>
-    source[axis] + (listener[axis] - source[axis]) * share
-  return {
-    along: alongWall(room, wall, { x: at('x'), y: at('y') }),
-    z: at('z'),
-  }
-}
+const FIT_SLACK = linkSlack('openings')
 
 /**
  * The accepted range of each of the opening's lengths in `room`, given
  * its others: OPENINGS' limits, on its wall and under the ceiling. A
- * wider opening moves in from a corner instead (see withOpeningDimension),
+ * wider opening moves in from a corner instead (see OPENING_LENGTHS.set),
  * so its width is only limited by the wall. A door has no sill or height
- * to set: theirs are its own, fixed.
+ * to set: theirs are its own, fixed. Stored, an opening may reach
+ * FIT_SLACK past its limits, its wall's ends and the ceiling.
  */
-export function openingLimits(
+function openingLimits(
   room: Room,
   opening: Opening,
+  tolerance: LengthTolerance,
 ): Record<OpeningDimension, AcceptedRange> {
   const { width, sill, height } = OPENINGS.limits
+  const slack = tolerance === 'stored' ? FIT_SLACK : 0
   const wall = wallLength(room, opening.wall)
   const { bottom, top } = openingVerticalSpan(room, opening)
   const tall = top - bottom
   return {
-    width: { min: width.min, max: Math.min(width.max, wall) },
-    fromCorner: { min: 0, max: Math.max(0, wall - opening.width) },
+    width: { min: width.min, max: Math.min(width.max, wall) + slack },
+    // Never an empty range, even for a stored opening a little wider
+    // than its wall.
+    fromCorner: {
+      min: 0 - slack, // +0 when typed, not -0
+      max: Math.max(-slack, wall - opening.width) + slack,
+    },
     sill:
       opening.kind === 'door'
         ? { min: 0, max: 0 }
-        : { min: sill.min, max: Math.min(sill.max, room.height - tall) },
+        : {
+            min: sill.min,
+            max: Math.min(sill.max, room.height - tall) + slack,
+          },
     height:
       opening.kind === 'door'
         ? { min: tall, max: tall }
         : {
             min: height.min,
-            max: Math.min(height.max, room.height - opening.sill),
+            max: Math.min(height.max, room.height - opening.sill) + slack,
           },
   }
 }
 
-/** One of the opening's lengths, or null for a door's sill or height. */
-export function openingDimension(
-  opening: Opening,
-  dimension: OpeningDimension,
-): number | null {
-  switch (dimension) {
-    case 'width':
-      return opening.width
-    case 'fromCorner':
-      return openingSpan(opening).start
-    default:
-      return opening.kind === 'window' ? opening[dimension] : null
-  }
-}
-
-/** `null` when `meters` is an accepted `dimension` for the opening in this room. */
-export function checkOpeningDimension(
-  room: Room,
-  opening: Opening,
-  dimension: OpeningDimension,
-  meters: number,
-): RangeProblem | null {
-  return checkRange(meters, openingLimits(room, opening)[dimension])
-}
-
 /**
- * The opening with one length changed, or null when the value is rejected
- * (see checkOpeningDimension) or is a door's sill or height. A wider
- * opening moves in from a corner it would pass.
+ * The opening's lengths: its width, where it is as `fromCorner` (from the
+ * wall's start to its nearest edge), and a window's sill and height (a
+ * door has none: see openingVerticalSpan). A wider opening moves in from
+ * a corner it would pass.
  */
-export function withOpeningDimension(
-  room: Room,
-  opening: Opening,
-  dimension: OpeningDimension,
-  meters: number,
-): Opening | null {
-  if (checkOpeningDimension(room, opening, dimension, meters) !== null) {
-    return null
-  }
-  switch (dimension) {
-    case 'fromCorner':
-      return { ...opening, position: meters + opening.width / 2 }
-    case 'width':
-      return keepOnWall(room, { ...opening, width: meters })
-    default:
-      return opening.kind === 'window'
-        ? { ...opening, [dimension]: meters }
-        : null
-  }
+export const OPENING_LENGTHS: ObjectLengths<Opening, OpeningDimension> = {
+  dimensions: ['width', 'fromCorner', 'sill', 'height'],
+  limits: openingLimits,
+  read: (_, opening, dimension) => {
+    switch (dimension) {
+      case 'width':
+        return opening.width
+      case 'fromCorner':
+        return openingSpan(opening).start
+      default:
+        return opening.kind === 'window' ? opening[dimension] : null
+    }
+  },
+  set: (room, opening, dimension, meters) => {
+    switch (dimension) {
+      case 'fromCorner':
+        return { ...opening, position: meters + opening.width / 2 }
+      case 'width':
+        return keepOnWall(room, { ...opening, width: meters })
+      default:
+        return opening.kind === 'window'
+          ? { ...opening, [dimension]: meters }
+          : opening
+    }
+  },
 }
 
 /**
@@ -319,7 +258,7 @@ export function openingMovedTo(
   if (!Number.isFinite(to.x) || !Number.isFinite(to.y)) return opening
   const moved = keepOnWall(room, {
     ...opening,
-    position: alongWall(room, opening.wall, to),
+    position: toWallFrame(room, opening.wall, to).along,
   })
   return moved.position === opening.position ? opening : moved
 }
@@ -354,51 +293,15 @@ export function fitOpeningToRoom(room: Room, opening: Opening): Opening {
 }
 
 /**
- * How far an opening may reach past its wall's ends or the ceiling, in
- * meters: a share link writes its lengths to the millimeter
- * (roundOpeningForLink), which can move an edge half a millimeter for
- * each.
- */
-const FIT_SLACK = 2 * ROUNDING_SLACK
-
-/**
  * Whether the opening is one a config may hold in `room`: a known kind on
- * a wall, every length inside its limits, and the whole opening on its
- * wall and under the ceiling (to the millimeter, see FIT_SLACK).
+ * a wall, and every length it has inside its stored limits (so the whole
+ * opening on its wall and under the ceiling, to the millimeter).
  */
 export function isValidOpening(room: Room, opening: Opening): boolean {
-  if (!OPENING_KINDS.includes(opening.kind) || !WALLS.includes(opening.wall)) {
-    return false
-  }
-  const { width, sill, height } = OPENINGS.limits
-  const wall = wallLength(room, opening.wall)
-  const { start, end } = openingSpan(opening)
-  const { bottom, top } = openingVerticalSpan(room, opening)
-  const inRange = (value: number, { min, max }: AcceptedRange) =>
-    checkRange(value, { min, max: max + FIT_SLACK }) === null
   return (
-    inRange(opening.width, {
-      min: width.min,
-      max: Math.min(width.max, wall),
-    }) &&
-    start >= -FIT_SLACK &&
-    end <= wall + FIT_SLACK &&
-    (opening.kind === 'door' ||
-      (inRange(opening.sill, sill) &&
-        inRange(opening.height, height) &&
-        bottom >= 0 &&
-        top <= room.height + FIT_SLACK))
-  )
-}
-
-/** Whether every opening fits `room` and there are no more than MAX_OPENINGS. */
-export function isValidOpenings(
-  room: Room,
-  openings: readonly Opening[],
-): boolean {
-  return (
-    openings.length <= MAX_OPENINGS &&
-    openings.every((opening) => isValidOpening(room, opening))
+    OPENING_KINDS.includes(opening.kind) &&
+    WALLS.includes(opening.wall) &&
+    hasValidLengths(OPENING_LENGTHS, room, opening)
   )
 }
 
@@ -424,47 +327,6 @@ export function newOpening(room: Room, kind: OpeningKind): Opening {
           ...OPENINGS.presets.window,
         }
   return fitOpeningToRoom(room, opening)
-}
-
-/**
- * The opening as a share link stores it: every length to the millimeter.
- * A typed imperial size is a long binary fraction in meters, and six
- * openings of them would not fit the URL budget; the millimeter is well
- * under the 0.1 in the app shows.
- */
-export function roundOpeningForLink(opening: Opening): Opening {
-  const position = toMillimeter(opening.position)
-  const width = toMillimeter(opening.width)
-  return opening.kind === 'door'
-    ? { ...opening, position, width }
-    : {
-        ...opening,
-        position,
-        width,
-        sill: toMillimeter(opening.sill),
-        height: toMillimeter(opening.height),
-      }
-}
-
-/** The id the room view drags opening `index` (from 0) by. */
-export type OpeningId = `opening-${number}`
-
-/** The room view's id for the opening at `index` in the config's list. */
-export function openingId(index: number): OpeningId {
-  return `opening-${index + 1}`
-}
-
-const OPENING_ID = /^opening-([1-9]\d*)$/
-
-/** The index in the config's list that `id` names, or null for another id. */
-export function openingIndex(id: string): number | null {
-  const match = OPENING_ID.exec(id)
-  return match ? Number(match[1]) - 1 : null
-}
-
-/** Whether `id` names an opening (it may not be in the Room). */
-export function isOpeningId(id: string): id is OpeningId {
-  return openingIndex(id) !== null
 }
 
 /** How the app names each kind of opening. */

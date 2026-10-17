@@ -1,25 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
-  checkFurnitureDimension,
   checkFurnitureName,
   fitFurnitureToRoom,
-  furnitureDimension,
+  FURNITURE_LENGTHS,
   furnitureFootprint,
-  furnitureId,
-  furnitureIndex,
   furnitureLabel,
   furnitureMovedTo,
   furnitureSolid,
   furnitureTurned,
-  isFurnitureId,
-  isValidFurniture,
   isValidFurnitureBox,
   newFurnitureBox,
-  roundFurnitureForLink,
-  withFurnitureDimension,
   withFurnitureName,
   type FurnitureBox,
 } from './furniture'
+import { checkLength, withLength } from './object-lengths'
 import { DEFAULT_ROOM } from './room'
 
 /** The default room: 6 m long, 4.5 m wide, 2.6 m high. */
@@ -138,30 +132,44 @@ describe('a furniture box', () => {
 
   describe('lengths', () => {
     it('are limited to 0.1–8 m across and along, and 0.1 m up to the ceiling', () => {
-      expect(checkFurnitureDimension(ROOM, CABINET, 'width', 0.1)).toBeNull()
-      expect(checkFurnitureDimension(ROOM, CABINET, 'width', 0.09)).toEqual({
+      expect(
+        checkLength(FURNITURE_LENGTHS, ROOM, CABINET, 'width', 0.1),
+      ).toBeNull()
+      expect(
+        checkLength(FURNITURE_LENGTHS, ROOM, CABINET, 'width', 0.09),
+      ).toEqual({
         problem: 'too-small',
         min: 0.1,
         max: 4.5,
       })
       // The default room is 4.5 m wide, so the width stops there.
-      expect(checkFurnitureDimension(ROOM, CABINET, 'width', 4.6)).toEqual({
+      expect(
+        checkLength(FURNITURE_LENGTHS, ROOM, CABINET, 'width', 4.6),
+      ).toEqual({
         problem: 'too-large',
         min: 0.1,
         max: 4.5,
       })
-      expect(checkFurnitureDimension(ROOM, CABINET, 'depth', 6)).toBeNull()
-      expect(checkFurnitureDimension(ROOM, CABINET, 'height', 2.6)).toBeNull()
       expect(
-        checkFurnitureDimension(ROOM, CABINET, 'height', 2.61),
+        checkLength(FURNITURE_LENGTHS, ROOM, CABINET, 'depth', 6),
+      ).toBeNull()
+      expect(
+        checkLength(FURNITURE_LENGTHS, ROOM, CABINET, 'height', 2.6),
+      ).toBeNull()
+      expect(
+        checkLength(FURNITURE_LENGTHS, ROOM, CABINET, 'height', 2.61),
       ).toMatchObject({ problem: 'too-large', max: 2.6 })
     })
 
     it('run along the walls the box is turned to', () => {
       const turned = { ...CABINET, rotation: 90 } as const
       // Turned, its width runs along the 6 m room.
-      expect(checkFurnitureDimension(ROOM, turned, 'width', 6)).toBeNull()
-      expect(checkFurnitureDimension(ROOM, turned, 'depth', 4.6)).toEqual({
+      expect(
+        checkLength(FURNITURE_LENGTHS, ROOM, turned, 'width', 6),
+      ).toBeNull()
+      expect(
+        checkLength(FURNITURE_LENGTHS, ROOM, turned, 'depth', 4.6),
+      ).toEqual({
         problem: 'too-large',
         min: 0.1,
         max: 4.5,
@@ -170,13 +178,17 @@ describe('a furniture box', () => {
 
     it('move a box that grows past a wall in from it', () => {
       const atLeftWall = { ...CABINET, x: -1.45 } // left side at -2.25
-      expect(withFurnitureDimension(ROOM, atLeftWall, 'width', 2)).toEqual({
+      expect(
+        withLength(FURNITURE_LENGTHS, ROOM, atLeftWall, 'width', 2),
+      ).toEqual({
         ...atLeftWall,
         width: 2,
         x: -1.25,
       })
       // Deeper from the front wall: it grows into the room.
-      expect(withFurnitureDimension(ROOM, CABINET, 'depth', 0.6)).toEqual({
+      expect(
+        withLength(FURNITURE_LENGTHS, ROOM, CABINET, 'depth', 0.6),
+      ).toEqual({
         ...CABINET,
         depth: 0.6,
         y: 0.3,
@@ -184,15 +196,20 @@ describe('a furniture box', () => {
     })
 
     it('reject a value out of range', () => {
-      expect(withFurnitureDimension(ROOM, CABINET, 'height', 0)).toBeNull()
+      expect(
+        withLength(FURNITURE_LENGTHS, ROOM, CABINET, 'height', 0),
+      ).toBeNull()
     })
   })
 
   describe('position from the walls', () => {
     it('is from the left wall to its left side and from the front wall to its front', () => {
       const box = { ...CABINET, x: -1, y: 2 }
-      expect(furnitureDimension(ROOM, box, 'fromLeftWall')).toBeCloseTo(0.45, 9)
-      expect(furnitureDimension(ROOM, box, 'fromFrontWall')).toBeCloseTo(
+      expect(FURNITURE_LENGTHS.read(ROOM, box, 'fromLeftWall')).toBeCloseTo(
+        0.45,
+        9,
+      )
+      expect(FURNITURE_LENGTHS.read(ROOM, box, 'fromFrontWall')).toBeCloseTo(
         1.775,
         9,
       )
@@ -200,14 +217,14 @@ describe('a furniture box', () => {
 
     it('moves the box, inside the room', () => {
       expect(
-        withFurnitureDimension(ROOM, CABINET, 'fromLeftWall', 0),
+        withLength(FURNITURE_LENGTHS, ROOM, CABINET, 'fromLeftWall', 0),
       ).toMatchObject({ x: -1.45 })
       expect(
-        withFurnitureDimension(ROOM, CABINET, 'fromFrontWall', 1),
+        withLength(FURNITURE_LENGTHS, ROOM, CABINET, 'fromFrontWall', 1),
       ).toMatchObject({ y: 1.225 })
       // 4.5 m wall - 1.6 m box: 2.9 m at most.
       expect(
-        checkFurnitureDimension(ROOM, CABINET, 'fromLeftWall', 3),
+        checkLength(FURNITURE_LENGTHS, ROOM, CABINET, 'fromLeftWall', 3),
       ).toMatchObject({ problem: 'too-large', max: 2.9 })
     })
   })
@@ -279,13 +296,6 @@ describe('a furniture box', () => {
       expect(isValidFurnitureBox(ROOM, { ...CABINET, name: ' TV' })).toBe(false)
       expect(isValidFurnitureBox(ROOM, { ...CABINET, name: '' })).toBe(false)
     })
-
-    it('allows at most eight boxes', () => {
-      const boxes = (count: number) =>
-        Array.from({ length: count }, () => CABINET)
-      expect(isValidFurniture(ROOM, boxes(8))).toBe(true)
-      expect(isValidFurniture(ROOM, boxes(9))).toBe(false)
-    })
   })
 
   describe('in a smaller room', () => {
@@ -301,25 +311,7 @@ describe('a furniture box', () => {
     })
   })
 
-  it('goes into a share link to the millimeter, sizes and position', () => {
-    expect(
-      roundFurnitureForLink({
-        ...CABINET,
-        // 4 ft 1.3 in: 1.2522199999999999 m.
-        width: (4 * 12 + 1.3) * 0.0254,
-        x: -0.98765,
-        y: 2.0004,
-      }),
-    ).toEqual({ ...CABINET, width: 1.252, x: -0.988, y: 2 })
-  })
-
-  it('is named by its place in the list, from 1', () => {
-    expect(furnitureId(0)).toBe('furniture-1')
-    expect(furnitureIndex('furniture-8')).toBe(7)
-    expect(furnitureIndex('furniture-0')).toBeNull()
-    expect(furnitureIndex('screen')).toBeNull()
-    expect(isFurnitureId('furniture-3')).toBe(true)
-    expect(isFurnitureId('MLP')).toBe(false)
+  it('is named in words by its name and its place in the list, from 1', () => {
     expect(furnitureLabel(CABINET, 1)).toBe('Cabinet (box 2)')
   })
 })

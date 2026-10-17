@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here. The project follows [Semantic Versioning](https://semver.org/). Every release is a `vX.Y.Z` tag on `main`, which deploys the site to GitHub Pages.
 
+## [1.2.0] - 2026-10-17
+
+An architecture release: the same app, built from deeper modules so the next features are cheaper to add and easier to test (spec #76, from the improve-codebase-architecture review).
+
+### Fixed
+
+- **Pressing the couch beside the MLP drags the couch.** A press now goes to the item whose drawn marker is nearest, so an overhead speaker's touch area no longer steals presses on the couch (#91).
+
+### Changed
+
+- **Faster dragging in rooms with many objects**: the Room analysis is worked out once per change and shared, instead of once per sidebar section, furniture box and opening (#77).
+- Internal restructuring with no change to results or share links:
+  - room objects (screen, couch, furniture, doors and windows) are one module with one set of add, remove, edit and move actions (#78);
+  - one module decides each drag target's anchor and what a drag does (#79);
+  - each room object declares its editable lengths and limits once (#80);
+  - the share-link codec owns which lengths a link stores to the millimetre (#81);
+  - placing the layout for a seat is one operation used by the analysis and the seat score (#82);
+  - one wall frame for everything measured along a wall, including boundary interference (#83, #92).
+- Timing-sensitive tests are robust on a busy machine and still catch real slowdowns (#93).
+
+### Notes
+
+- Share links are unchanged: links from 1.0.0 and 1.1.0 open exactly as before (ADR 0003).
+
 ## [1.1.0] - 2026-10-16
 
 Real-room placement, room objects and a clearer UI. Speakers now land where a home theater would put them, the plan can hold the couch, screen, furniture, doors and windows, and every grade explains itself.
@@ -76,6 +100,7 @@ The first complete release: plan a rectangular home theater room from Dolby's pl
 - CI for pull requests to `develop`, and the GitHub Pages deploy on release tags (#18).
 - Planning documents: CLAUDE.md, GLOSSARY.md, ADRs 0001–0002 and the cited Dolby placement research (#3).
 
+[1.2.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/skcon/cinema-speaker-placement/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/skcon/cinema-speaker-placement/releases/tag/v0.1.0

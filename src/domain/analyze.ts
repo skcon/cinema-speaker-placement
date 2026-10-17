@@ -9,7 +9,6 @@ import { summarizeLayout, type LayoutSummary } from './layout'
 import type { Placement } from './manual-positions'
 import {
   checkOverheadPlacementRange,
-  checkPlacementRange,
   type OverheadPlacementRangeCheck,
   type PlacementRangeCheck,
 } from './placement-range'
@@ -182,10 +181,11 @@ export function analyzeRoom(config: Config): RoomAnalysis {
   const mlp = placements.mlp.position
   const frequencies = responseFrequencies()
 
-  // Each speaker faces the current MLP; its reflections follow from that
-  // aim and are worked out once, for both the estimate and the notes.
+  // Each speaker is installed for and graded from the current MLP, and
+  // faces it; its reflections follow from that aim and are worked out
+  // once, for both the estimate and the notes.
   const heardSpeakers = placements.speakers.map(
-    ({ reference, position, placement, screenRelation }) => {
+    ({ reference, position, placement, screenRelation, placementRange }) => {
       const { aim, woofer, reflections, levels } = hearSpeaker(
         config,
         { channel: reference.channel, position },
@@ -199,10 +199,7 @@ export function analyzeRoom(config: Config): RoomAnalysis {
         woofer,
         placement,
         aim,
-        placementRange: checkPlacementRange(
-          reference,
-          azimuthFromMlp(mlp, position),
-        ),
+        placementRange,
         screenRelation,
       }
       return {

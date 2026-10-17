@@ -1,8 +1,7 @@
-import { useId, useState } from 'react'
+import { useId } from 'react'
 import {
   checkAmplifierWatts,
   checkSensitivity,
-  checkSubwooferSpec,
   DEFAULT_AMPLIFIER_WATTS,
   DEFAULT_SPEAKER_SPECS,
   DEFAULT_SUBWOOFER_SPECS,
@@ -18,7 +17,6 @@ import {
   type SpeakerGroupId,
   type SpeakerType,
   type SubwooferId,
-  type SubwooferSpecField,
   type SubwooferSpecs,
 } from '@/domain'
 import { useConfig } from '@/state/config-context'
@@ -29,14 +27,13 @@ import { NumberField } from '@/ui/NumberField'
 import { rangeErrorMessage } from '@/ui/lib/range-error'
 import {
   acceptedSpecs,
-  draftsFromSpecs,
   formatWatts,
-  reseedDrafts,
-  specsFromDrafts,
   SUBWOOFER_SPEC_TEXT,
+  SUBWOOFER_SPECS_TEXT,
   subwooferSpecErrorMessage,
-  type SubwooferSpecDrafts,
+  subwooferSpecProblems,
 } from '@/ui/lib/subwoofer-specs'
+import { useDraftField } from '@/ui/lib/use-draft-field'
 
 const ENCLOSURE_LABELS = {
   sealed: 'Sealed',
@@ -240,7 +237,8 @@ function OwnSubwooferSpecs() {
  * in its field with an inline error while the store keeps the last valid
  * specs. Peak and RMS power are checked against each other as typed, so
  * fixing one can make the other valid, and then both are stored. When the
- * stored specs change elsewhere, the fields start over from them.
+ * stored specs change elsewhere, the fields start over from them
+ * (useDraftField).
  */
 function SubwooferSpecsFields({
   target,
@@ -250,27 +248,19 @@ function SubwooferSpecsFields({
   specs: SubwooferSpecs
 }) {
   const setSubwooferSpecs = useConfig((state) => state.setSubwooferSpecs)
-  const [drafts, setDrafts] = useState(() => draftsFromSpecs(specs))
-  const [seenInStore, setSeenInStore] = useState(specs)
+  const {
+    text: drafts,
+    problem: problems,
+    edit,
+  } = useDraftField({
+    value: specs,
+    codec: SUBWOOFER_SPECS_TEXT,
+    check: subwooferSpecProblems,
+    accept: acceptedSpecs,
+    onCommit: (accepted) => setSubwooferSpecs(target, accepted),
+  })
   const enclosureLabelId = useId()
   const idPrefix = useId()
-
-  // Adjust state while rendering, as RoomDimensionField does.
-  if (seenInStore !== specs) {
-    setSeenInStore(specs)
-    setDrafts(reseedDrafts(drafts, seenInStore, specs))
-  }
-
-  const typed = specsFromDrafts(drafts, specs)
-
-  function update(field: SubwooferSpecField, text: string) {
-    const next: SubwooferSpecDrafts = { ...drafts, [field]: text }
-    setDrafts(next)
-    const accepted = acceptedSpecs(specsFromDrafts(next, specs), specs)
-    if (SUBWOOFER_SPEC_FIELDS.some((f) => accepted[f] !== specs[f])) {
-      setSubwooferSpecs(target, accepted)
-    }
-  }
 
   return (
     <>
@@ -304,13 +294,13 @@ function SubwooferSpecsFields({
         </RadioGroup>
       </div>
       {SUBWOOFER_SPEC_FIELDS.map((field) => {
-        const problem = checkSubwooferSpec(typed, field)
+        const problem = problems?.[field] ?? null
         return (
           <SpecField
             key={field}
             label={`${SUBWOOFER_SPEC_TEXT[field].label} (${SUBWOOFER_SPEC_TEXT[field].unit})`}
             value={drafts[field]}
-            onChange={(text) => update(field, text)}
+            onChange={(text) => edit({ ...drafts, [field]: text })}
             error={problem && subwooferSpecErrorMessage(field, problem)}
           />
         )

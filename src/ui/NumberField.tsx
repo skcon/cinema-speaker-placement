@@ -1,17 +1,17 @@
-import { useId, useState } from 'react'
-import type { RangeProblem } from '@/domain'
+import { useId } from 'react'
 import { Input } from '@/ui/components/input'
 import { Label } from '@/ui/components/label'
-import { parseDecimal } from '@/ui/lib/decimal'
+import { DECIMAL_TEXT } from '@/ui/lib/decimal'
+import { useDraftField } from '@/ui/lib/use-draft-field'
 
 /**
- * A labelled number field for one stored value, as CrossoverField works: a
- * valid number goes straight to the store, an invalid one stays in the
- * field with an inline error while the store keeps the last valid value,
- * and when the stored value changes elsewhere (a share link, undo) the
- * field starts over from it.
+ * A labelled number field for one stored value (useDraftField): a valid
+ * number goes straight to the store, an invalid one stays in the field
+ * with an inline error while the store keeps the last valid value, and
+ * when the stored value changes elsewhere (a share link, undo) the field
+ * starts over from it.
  */
-export function NumberField({
+export function NumberField<P>({
   label,
   value,
   check,
@@ -23,24 +23,20 @@ export function NumberField({
   /** The stored value. */
   value: number
   /** `null` when a typed value can be stored. */
-  check: (value: number) => RangeProblem | null
+  check: (value: number) => P | null
   onValid: (value: number) => void
-  errorMessage: (problem: RangeProblem) => string
+  errorMessage: (problem: P) => string
   note?: string
 }) {
-  const [draft, setDraft] = useState(() => String(value))
-  const [seenInStore, setSeenInStore] = useState(value)
+  const { text, problem, edit } = useDraftField({
+    value,
+    codec: DECIMAL_TEXT,
+    check,
+    onCommit: onValid,
+  })
   const id = useId()
   const errorId = useId()
   const noteId = useId()
-
-  // Adjust state while rendering, as RoomDimensionField does.
-  if (seenInStore !== value) {
-    setSeenInStore(value)
-    if (parseDecimal(draft) !== value) setDraft(String(value))
-  }
-
-  const problem = check(parseDecimal(draft))
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -49,18 +45,14 @@ export function NumberField({
         id={id}
         inputMode="decimal"
         autoComplete="off"
-        value={draft}
-        onChange={(event) => {
-          setDraft(event.target.value)
-          const typed = parseDecimal(event.target.value)
-          if (check(typed) === null) onValid(typed)
-        }}
+        value={text}
+        onChange={(event) => edit(event.target.value)}
         aria-invalid={problem !== null}
         aria-describedby={note ? `${errorId} ${noteId}` : errorId}
         className="max-w-36"
       />
       <p id={errorId} aria-live="polite" className="text-sm text-destructive">
-        {problem && errorMessage(problem)}
+        {problem !== null && errorMessage(problem)}
       </p>
       {note && (
         <p id={noteId} className="text-xs text-muted-foreground">

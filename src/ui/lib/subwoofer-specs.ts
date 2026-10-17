@@ -3,6 +3,7 @@ import {
   formatInches,
   fromInches,
   mapSubwooferSpecFields,
+  SUBWOOFER_SPEC_FIELDS,
   toInches,
   type Rounding,
   type SubwooferSpecField,
@@ -10,6 +11,7 @@ import {
   type SubwooferSpecs,
 } from '@/domain'
 import { parseDecimal } from '@/ui/lib/decimal'
+import type { TextCodec } from '@/ui/lib/use-draft-field'
 
 /** How one numeric spec is labelled, written and read in a text field. */
 type SpecText = {
@@ -60,69 +62,83 @@ export const SUBWOOFER_SPEC_TEXT: Record<SubwooferSpecField, SpecText> = {
 /** What the user has typed into each numeric spec field. */
 export type SubwooferSpecDrafts = Record<SubwooferSpecField, string>
 
-/** The text each spec field starts with. */
-export function draftsFromSpecs(specs: SubwooferSpecs): SubwooferSpecDrafts {
+/**
+ * One set of subwoofer specs as the text of its numeric fields (see
+ * useDraftField), with the enclosure as stored. A field still showing its
+ * stored value's text reads as the stored value, so an untouched driver
+ * size isn't rounded on its way back; unreadable numbers are NaN. After
+ * the stored specs change, a field starts over only when its stored value
+ * changed to something it doesn't describe (a share link, say): after the
+ * user's own edit it keeps what they typed ("12.0"), and a field with an
+ * invalid entry keeps it while another field is stored.
+ */
+export const SUBWOOFER_SPECS_TEXT: TextCodec<
+  SubwooferSpecs,
+  SubwooferSpecDrafts
+> = {
+  write: draftsFromSpecs,
+  read: (drafts, stored) => {
+    const untouched = draftsFromSpecs(stored)
+    return {
+      enclosure: stored.enclosure,
+      ...mapSubwooferSpecFields((field) =>
+        drafts[field] === untouched[field]
+          ? stored[field]
+          : SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field]),
+      ),
+    }
+  },
+  reseed: (drafts, previous, stored) => {
+    const fresh = draftsFromSpecs(stored)
+    return mapSubwooferSpecFields((field) =>
+      previous[field] === stored[field] ||
+      SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field]) === stored[field]
+        ? drafts[field]
+        : fresh[field],
+    )
+  },
+}
+
+function draftsFromSpecs(specs: SubwooferSpecs): SubwooferSpecDrafts {
   return mapSubwooferSpecFields((field) =>
     SUBWOOFER_SPEC_TEXT[field].toText(specs[field]),
   )
 }
 
-/**
- * The specs the drafts describe, with the enclosure as stored. A field
- * still showing its stored value's text counts as the stored value, so an
- * untouched driver size isn't rounded on its way back. Unreadable numbers
- * are NaN.
- */
-export function specsFromDrafts(
-  drafts: SubwooferSpecDrafts,
-  stored: SubwooferSpecs,
-): SubwooferSpecs {
-  const untouched = draftsFromSpecs(stored)
-  return {
-    enclosure: stored.enclosure,
-    ...mapSubwooferSpecFields((field) =>
-      drafts[field] === untouched[field]
-        ? stored[field]
-        : SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field]),
-    ),
-  }
-}
+/** Why each typed spec is rejected, checked against the other typed values. */
+export type SubwooferSpecProblems = Record<
+  SubwooferSpecField,
+  SubwooferSpecProblem | null
+>
 
-/**
- * Drafts brought back in line with the stored specs after they changed. A
- * field starts over only when its stored value changed to something it
- * doesn't describe (a share link, say): after the user's own edit it keeps
- * what they typed ("12.0"), and a field with an invalid entry keeps it
- * while another field is stored.
- */
-export function reseedDrafts(
-  drafts: SubwooferSpecDrafts,
-  previous: SubwooferSpecs,
-  stored: SubwooferSpecs,
-): SubwooferSpecDrafts {
-  const fresh = draftsFromSpecs(stored)
-  return mapSubwooferSpecFields((field) =>
-    previous[field] === stored[field] ||
-    SUBWOOFER_SPEC_TEXT[field].fromText(drafts[field]) === stored[field]
-      ? drafts[field]
-      : fresh[field],
-  )
+/** Each typed spec's problem, or null where it is accepted. */
+export function subwooferSpecProblems(
+  typed: SubwooferSpecs,
+): SubwooferSpecProblems {
+  return mapSubwooferSpecFields((field) => checkSubwooferSpec(typed, field))
 }
 
 /**
  * The specs to store from what the user typed: each field that passes its
- * check against the other typed values, and the stored value for the rest.
+ * check against the other typed values, and the stored value for the
+ * rest; null when that is what is stored already.
  */
 export function acceptedSpecs(
   typed: SubwooferSpecs,
   stored: SubwooferSpecs,
-): SubwooferSpecs {
-  return {
+): SubwooferSpecs | null {
+  const problems = subwooferSpecProblems(typed)
+  const accepted: SubwooferSpecs = {
     enclosure: stored.enclosure,
     ...mapSubwooferSpecFields((field) =>
-      checkSubwooferSpec(typed, field) === null ? typed[field] : stored[field],
+      problems[field] === null ? typed[field] : stored[field],
     ),
   }
+  return SUBWOOFER_SPEC_FIELDS.some(
+    (field) => accepted[field] !== stored[field],
+  )
+    ? accepted
+    : null
 }
 
 /** The inline error for a rejected spec. */

@@ -223,6 +223,7 @@ export function hearRoom(
     frequencies: responseFrequencies(),
   })
   const { frequencies, reliable, modalFrequencyCount } = prepared
+  const modeBandRows = frequencies.slice(0, modalFrequencyCount)
   const target = targetCurve(config.targetCurve, frequencies)
 
   function hear(listening: Listening): HeardSeat {
@@ -253,8 +254,7 @@ export function hearRoom(
     frequencies,
     reliable,
     modes: prepared.modes,
-    modeBandRowNearest: (frequency) =>
-      nearestRow(frequencies.slice(0, modalFrequencyCount), frequency),
+    modeBandRowNearest: (frequency) => nearestRow(modeBandRows, frequency),
     hear,
     calibrateAt,
     estimateAt,

@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useState } from 'react'
 import {
-  dragAnchors,
   formatLength,
   pressSelects,
   UNIT_SYSTEMS,
@@ -41,6 +40,7 @@ import {
   describeScreen,
   describeSeatRow,
 } from '@/scene/room-objects'
+import { grabAreas } from '@/scene/grab-areas'
 import { canUseWebGL } from '@/scene/webgl'
 import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
@@ -76,6 +76,7 @@ export function RoomView() {
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveDragTarget = useConfig((state) => state.moveDragTarget)
   const endGesture = useConfig((state) => state.endGesture)
+  const analysis = useRoomAnalysis()
   const {
     layout,
     mlp,
@@ -84,12 +85,12 @@ export function RoomView() {
     subwoofers,
     seatRow,
     seatRuleOfThumb,
-  } = useRoomAnalysis()
+  } = analysis
   const recommendation = useSeatRecommendation()
   const { select, clear } = useSelection()
-  // Where each drag target is grabbed from, and what a press on it selects
-  // (a room object is never the Selected item: pressing one clears it).
-  const anchors = useMemo(() => dragAnchors(config), [config])
+  // What a press picks up, and what a press on it selects (a room object
+  // is never the Selected item: pressing one clears it).
+  const areas = useMemo(() => grabAreas(config, analysis), [config, analysis])
   const press = (target: DragTarget) => {
     const item = pressSelects(target)
     if (item) select(item)
@@ -203,7 +204,7 @@ export function RoomView() {
             ruleOfThumbFromFrontWall={seatRuleOfThumb.fromFrontWall}
             view={view}
             units={units}
-            dragAnchors={anchors}
+            grabAreas={areas}
             onDragStart={beginGesture}
             onDragMove={moveDragTarget}
             onDragEnd={endGesture}

@@ -68,6 +68,7 @@ export {
   pressSelects,
   withDragged,
   type DragTarget,
+  type PlacedItems,
 } from './drag-targets'
 export {
   DEFAULT_ROOM_OBJECTS,

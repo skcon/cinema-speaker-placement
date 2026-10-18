@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { analyzeRoom } from './analyze'
 import { DEFAULT_CONFIG, type Config } from './config'
 import {
   dragAnchors,
@@ -53,7 +54,7 @@ function drag(
   by: FloorPoint,
   grabbedAt: FloorPoint = { x: 0.07, y: -0.04 },
 ): Config {
-  const anchor = dragAnchors(config).get(target)
+  const anchor = dragAnchors(config, analyzeRoom(config)).get(target)
   if (!anchor) throw new Error(`${target} has no anchor`)
   const pressed = { x: anchor.x + grabbedAt.x, y: anchor.y + grabbedAt.y }
   const offset = { x: anchor.x - pressed.x, y: anchor.y - pressed.y }
@@ -66,7 +67,9 @@ function drag(
 
 describe('drag targets', () => {
   it('are every item of the layout, then every room object the Room has, each with an anchor on the floor plan', () => {
-    expect([...dragAnchors(DEFAULT_CONFIG).keys()]).toEqual([
+    expect([
+      ...dragAnchors(DEFAULT_CONFIG, analyzeRoom(DEFAULT_CONFIG)).keys(),
+    ]).toEqual([
       'L',
       'C',
       'R',
@@ -78,7 +81,7 @@ describe('drag targets', () => {
       'MLP',
       SEAT_ROW_ID,
     ])
-    const anchors = dragAnchors(FURNISHED)
+    const anchors = dragAnchors(FURNISHED, analyzeRoom(FURNISHED))
     expect([...anchors.keys()].slice(-5)).toEqual([
       SEAT_ROW_ID,
       SCREEN_ID,
@@ -92,7 +95,7 @@ describe('drag targets', () => {
   })
 
   it('anchor an item at its position and the seat row at the MLP', () => {
-    const anchors = dragAnchors(FURNISHED)
+    const anchors = dragAnchors(FURNISHED, analyzeRoom(FURNISHED))
     const onFloor = (id: PlaceableId) => {
       const position = positionOf(FURNISHED, id)
       return { x: position?.x, y: position?.y }
@@ -106,7 +109,7 @@ describe('drag targets', () => {
   })
 
   it('anchor a room object at its middle', () => {
-    const anchors = dragAnchors(FURNISHED)
+    const anchors = dragAnchors(FURNISHED, analyzeRoom(FURNISHED))
     const { screen, furniture } = FURNISHED.roomObjects
 
     expect(anchors.get(SCREEN_ID)).toEqual({ x: screen?.x, y: 0 })
@@ -156,7 +159,7 @@ describe('a whole drag', () => {
 
     expect(after.manualPositions.MLP?.x).toBeCloseTo(before.x + 0.2, 9)
     expect(after.manualPositions.MLP?.y).toBeCloseTo(before.y - 0.4, 9)
-    expect(dragAnchors(after).get(SEAT_ROW_ID)).toEqual({
+    expect(dragAnchors(after, analyzeRoom(after)).get(SEAT_ROW_ID)).toEqual({
       x: after.manualPositions.MLP?.x,
       y: after.manualPositions.MLP?.y,
     })

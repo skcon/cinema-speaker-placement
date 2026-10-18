@@ -1,5 +1,6 @@
 import { UNIT_SYSTEMS, type UnitSystem } from '@/domain'
 import { parseDecimal } from '@/ui/lib/decimal'
+import type { TextCodec } from '@/ui/lib/use-draft-field'
 
 /**
  * What the user has typed into a length field: one text per part of the unit
@@ -30,4 +31,20 @@ export function metersFromDraft(draft: LengthDraft, units: UnitSystem): number {
 
 function isBlank(text: string): boolean {
   return text.trim() === ''
+}
+
+/**
+ * A length in meters as a field's text, one codec per unit system (see
+ * useDraftField): switching units switches codec, so the field starts over.
+ */
+export const LENGTH_TEXT = {
+  metric: lengthText('metric'),
+  imperial: lengthText('imperial'),
+} as const satisfies Record<UnitSystem, TextCodec<number, LengthDraft>>
+
+function lengthText(units: UnitSystem): TextCodec<number, LengthDraft> {
+  return {
+    write: (meters) => draftFromMeters(meters, units),
+    read: (draft) => metersFromDraft(draft, units),
+  }
 }

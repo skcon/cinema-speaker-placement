@@ -1,17 +1,13 @@
 /**
  * What the estimated response needs from a config at one listening
- * position, shared by the analysis at the MLP (analyze.ts) and the seat
- * score at candidate seats (seat-score.ts), so both prepare the same room
- * response (and so reuse it, see prepareRoomResponse).
+ * position, shared by the analysis at the MLP (analyze.ts), the seat score
+ * at candidate seats (seat-score.ts) and the heard room they both hear
+ * those positions in (estimated-response.ts): which Speakers are charted,
+ * how each is heard, and the specs each subwoofer is modelled with.
  */
 import type { Config } from './config'
 import type { ChannelId } from './dolby-layouts'
-import {
-  prepareRoomResponse,
-  type PreparedRoomResponse,
-} from './estimated-response'
 import { aimAtMlp, type Aim } from './placement'
-import type { Placements } from './placements'
 import type { RoomPoint } from './room'
 import {
   boundaryReflections,
@@ -50,23 +46,6 @@ export function subwooferSpecsOf(
 ): SubwooferSpecs {
   const { specs, ownSpecs } = speakerGroups.subwoofers
   return ownSpecs[id] ?? specs
-}
-
-/** The subwoofers' room response for the config with its subwoofers where `placements` puts them. */
-export function prepareConfigResponse(
-  config: Config,
-  { subwoofers }: Pick<Placements, 'subwoofers'>,
-  frequencies: readonly number[],
-): PreparedRoomResponse {
-  return prepareRoomResponse({
-    room: config.room,
-    subwoofers: subwoofers.map(({ id, position }) => ({
-      position,
-      enclosure: subwooferSpecsOf(config, id).enclosure,
-    })),
-    crossoverHz: config.crossoverHz,
-    frequencies,
-  })
 }
 
 /**

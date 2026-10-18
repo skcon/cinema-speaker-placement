@@ -13,12 +13,8 @@ import {
   boundaryReflections,
   interferenceLevels,
 } from './boundary-interference'
-import {
-  calibrateResponse,
-  estimateResponse,
-  prepareRoomResponse,
-  responseDeviations,
-} from './estimated-response'
+import { hearRoom } from './estimated-response'
+import { placeAll } from './placements'
 import { bearingTo } from './room'
 import { targetCurve } from './target-curve'
 
@@ -255,26 +251,13 @@ describe('the enclosure in the estimate', () => {
   })
 })
 
-describe('a room response prepared once', () => {
-  /** The default room's prepared response and its MLP listening, as analyzeRoom builds them. */
-  function defaultSetup(config: Config = DEFAULT_CONFIG) {
-    const { response, mlp, subwoofers } = analyzeRoom(config)
-    const frequencies = response.estimated.rows.map((r) => r.frequency)
-    const prepared = prepareRoomResponse({
-      room: config.room,
-      subwoofers: subwoofers.map((s) => ({
-        position: s.position,
-        enclosure: s.specs.enclosure,
-      })),
-      crossoverHz: config.crossoverHz,
-      frequencies,
-    })
+describe('the heard room', () => {
+  /** The config's heard room, and its MLP, as analyzeRoom hears it. */
+  function setup(config: Config = DEFAULT_CONFIG) {
+    const placements = placeAll(config)
     return {
-      response,
-      mlp,
-      frequencies,
-      prepared,
-      target: targetCurve(config.targetCurve, frequencies),
+      room: hearRoom(config, placements),
+      mlp: placements.mlp.position,
     }
   }
 
@@ -300,112 +283,105 @@ describe('a room response prepared once', () => {
       })
   }
 
-  it('gives the same estimate at the MLP as analyzeRoom does, calibrated there', () => {
-    const { response, mlp, frequencies, prepared, target } = defaultSetup()
-    const listening = {
-      receiver: mlp,
-      speakerLevels: frontSpeakerLevels(mlp, frequencies),
+  /** The default room heard at `receiver`, with its front three speakers. */
+  function hearDefaultAt(receiver: RoomPoint) {
+    const { room } = setup()
+    return {
+      room,
+      heard: room.hear({
+        receiver,
+        speakerLevels: frontSpeakerLevels(receiver, room.frequencies),
+      }),
     }
+  }
 
-    expect(estimateResponse(prepared, listening, target)).toEqual(
-      response.estimated,
+  it('gives the estimate at the MLP that analyzeRoom charts: the front three speakers heard there, calibrated there', () => {
+    const { mlp } = setup()
+    const { room, heard } = hearDefaultAt(mlp)
+    const { estimated } = analyzeRoom(DEFAULT_CONFIG).response
+
+    expect(room.estimateAt(heard)).toEqual(estimated)
+    expect(estimated.calibration).toEqual(room.calibrateAt(heard))
+  })
+
+  it('works on the response band’s frequencies, reliable where the estimate’s rows are, at every seat', () => {
+    const { room } = setup()
+    const { rows } = analyzeRoom({
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 1, y: 3, z: 1.2 } },
+    }).response.estimated
+
+    expect(room.frequencies).toEqual(rows.map((r) => r.frequency))
+    expect(room.reliable).toEqual(rows.map((r) => r.reliable))
+  })
+
+  it('compares against the config’s target curve', () => {
+    const house: Config = { ...DEFAULT_CONFIG, targetCurve: 'house' }
+    const { room, mlp } = setup(house)
+    const { rows } = room.estimateAt(
+      room.hear({
+        receiver: mlp,
+        speakerLevels: frontSpeakerLevels(mlp, room.frequencies),
+      }),
     )
-    expect(
-      estimateResponse(
-        prepared,
-        listening,
-        target,
-        calibrateResponse(prepared, listening, target),
-      ),
-    ).toEqual(response.estimated)
+
+    expect(rows.map((r) => r.target)).toEqual(
+      targetCurve('house', room.frequencies).map((t) => t.level),
+    )
   })
 
   it('reuses the preparation when nothing it is prepared from changes (an MLP drag in #9, a target curve here), and not otherwise', () => {
-    const first = defaultSetup().prepared
-    const moved = defaultSetup({ ...DEFAULT_CONFIG, targetCurve: 'house' })
+    const first = setup().room.modes
 
-    expect(moved.prepared).toBe(first)
-    expect(
-      defaultSetup({ ...DEFAULT_CONFIG, crossoverHz: 100 }).prepared,
-    ).not.toBe(first)
+    expect(setup({ ...DEFAULT_CONFIG, targetCurve: 'house' }).room.modes).toBe(
+      first,
+    )
+    expect(setup({ ...DEFAULT_CONFIG, crossoverHz: 100 }).room.modes).not.toBe(
+      first,
+    )
   })
 
   it('gives a grid the deviations alone, the same as the full estimate’s', () => {
-    const { response, mlp, frequencies, prepared, target } = defaultSetup()
-    const listening = {
-      receiver: mlp,
-      speakerLevels: frontSpeakerLevels(mlp, frequencies),
-    }
+    const { mlp } = setup()
+    const { room, heard } = hearDefaultAt(mlp)
+    const { estimated } = analyzeRoom(DEFAULT_CONFIG).response
 
-    const deviations = responseDeviations(
-      prepared,
-      listening,
-      target,
-      response.estimated.calibration,
-    )
+    const deviations = room.deviationsAt(heard, estimated.calibration)
 
     deviations.forEach((deviation, i) => {
-      const row = response.estimated.rows[i]!
+      const row = estimated.rows[i]!
       expect(deviation).toBeCloseTo(row.estimated - row.target, 9)
     })
   })
 
   it('shows weaker bass at another seat with the MLP’s calibration, which calibrating at that seat would hide', () => {
-    const { response, frequencies, prepared, target } = defaultSetup()
+    const { estimated } = analyzeRoom(DEFAULT_CONFIG).response
     // Halfway back, off the center line: on the first length mode's node,
     // where the front-wall subwoofer's lowest mode is not heard.
-    const seat = { x: 1, y: 3, z: 1.2 }
-    const listening = {
-      receiver: seat,
-      speakerLevels: frontSpeakerLevels(seat, frequencies),
-    }
+    const { room, heard } = hearDefaultAt({ x: 1, y: 3, z: 1.2 })
     /** Mean deviation over the reliable rows up to the crossover. */
     const bass = (deviations: readonly number[]) => {
       const picked = deviations.filter(
-        (_, i) =>
-          frequencies[i]! >= prepared.reliableFrom! && frequencies[i]! <= 80,
+        (_, i) => room.reliable[i] && room.frequencies[i]! <= 80,
       )
       return picked.reduce((a, b) => a + b, 0) / picked.length
     }
-    const atMlp = bass(
-      response.estimated.rows.map((r) => r.estimated - r.target),
-    )
-    const fixed = bass(
-      responseDeviations(
-        prepared,
-        listening,
-        target,
-        response.estimated.calibration,
-      ),
-    )
-    const recalibrated = bass(
-      responseDeviations(
-        prepared,
-        listening,
-        target,
-        calibrateResponse(prepared, listening, target),
-      ),
-    )
+    const atMlp = bass(estimated.rows.map((r) => r.estimated - r.target))
+    const fixed = bass(room.deviationsAt(heard, estimated.calibration))
+    const recalibrated = bass(room.deviationsAt(heard, room.calibrateAt(heard)))
 
     expect(fixed).toBeLessThan(atMlp - 3)
     expect(Math.abs(recalibrated - atMlp)).toBeLessThan(Math.abs(fixed - atMlp))
   })
 
-  it('follows the frequencies it is given, beyond the default band', () => {
-    const frequencies = [30, 60, 120, 240, 480]
-    const prepared = prepareRoomResponse({
-      room: DEFAULT_CONFIG.room,
-      subwoofers: [{ position: { x: 0, y: 0.3, z: 0.3 }, enclosure: 'sealed' }],
-      crossoverHz: 80,
-      frequencies,
-    })
-    const { rows } = estimateResponse(
-      prepared,
-      { receiver: { x: 0, y: 2.28, z: 1.2 }, speakerLevels: [] },
-      targetCurve('flat', frequencies),
-    )
-
-    expect(rows.map((r) => r.frequency)).toEqual(frequencies)
+  it('finds the room-mode band’s row nearest a frequency, and none outside the band', () => {
+    const { room } = setup()
+    // Every 16th row is a base-10 third-octave frequency: 63.25 Hz is row
+    // 80, 199.9 Hz nearest row 160, the top of the room-mode band.
+    expect(room.modeBandRowNearest(63)).toBe(80)
+    expect(room.modeBandRowNearest(199.9)).toBe(160)
+    expect(room.modeBandRowNearest(250)).toBeUndefined()
+    expect(room.modeBandRowNearest(19)).toBeUndefined()
   })
 
   it(
@@ -417,12 +393,25 @@ describe('a room response prepared once', () => {
       // times; the later runs reuse the memoized preparation, as dragging
       // the MLP does.
       const room = { length: 15, width: 15, height: 5 }
-      const frequencies = analyzeRoom(
-        DEFAULT_CONFIG,
-      ).response.estimated.rows.map((r) => r.frequency)
-      const target = targetCurve('flat', frequencies)
+      const config: Config = {
+        ...withSubwoofers(4),
+        room,
+        speakerGroups: {
+          ...DEFAULT_CONFIG.speakerGroups,
+          subwoofers: { specs: PORTED, ownSpecs: {} },
+        },
+        manualPositions: {
+          Sub1: { x: 0, y: 0.3, z: 0.3 },
+          Sub2: { x: -7.2, y: 7.5, z: 0.3 },
+          Sub3: { x: 7.2, y: 7.5, z: 0.3 },
+          Sub4: { x: 0, y: 14.7, z: 0.3 },
+          MLP: { x: 0, y: 5.7, z: 1.2 },
+        },
+      }
+      const placements = placeAll(config)
+      const mlp = placements.mlp.position
       const front = [-1.5, 0, 1.5].map((x) => ({ x, y: 0.5, z: 1.2 }))
-      const levelsAt = (receiver: RoomPoint) =>
+      const levelsAt = (receiver: RoomPoint, frequencies: readonly number[]) =>
         front.map((position) =>
           interferenceLevels(
             boundaryReflections(
@@ -434,23 +423,13 @@ describe('a room response prepared once', () => {
           ),
         )
       const scoreGrid = () => {
-        const prepared = prepareRoomResponse({
-          room,
-          subwoofers: [
-            { x: 0, y: 0.3, z: 0.3 },
-            { x: -7.2, y: 7.5, z: 0.3 },
-            { x: 7.2, y: 7.5, z: 0.3 },
-            { x: 0, y: 14.7, z: 0.3 },
-          ].map((position) => ({ position, enclosure: 'ported' as const })),
-          crossoverHz: 80,
-          frequencies,
-        })
-        const mlp = { x: 0, y: 5.7, z: 1.2 }
-        const calibration = calibrateResponse(
-          prepared,
-          { receiver: mlp, speakerLevels: levelsAt(mlp) },
-          target,
-        )
+        const heardRoom = hearRoom(config, placements)
+        const hearAt = (receiver: RoomPoint) =>
+          heardRoom.hear({
+            receiver,
+            speakerLevels: levelsAt(receiver, heardRoom.frequencies),
+          })
+        const calibration = heardRoom.calibrateAt(hearAt(mlp))
         for (let i = 0; i < 20; i++) {
           for (let j = 0; j < 20; j++) {
             const receiver = {
@@ -458,12 +437,7 @@ describe('a room response prepared once', () => {
               y: 1 + (13 * j) / 19,
               z: 1.2,
             }
-            responseDeviations(
-              prepared,
-              { receiver, speakerLevels: levelsAt(receiver) },
-              target,
-              calibration,
-            )
+            heardRoom.deviationsAt(hearAt(receiver), calibration)
           }
         }
       }

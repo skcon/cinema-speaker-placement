@@ -1,19 +1,17 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { UNIT_SYSTEMS, type UnitSystem } from '@/domain'
 import { Input } from '@/ui/components/input'
 import { Label } from '@/ui/components/label'
-import {
-  draftFromMeters,
-  metersFromDraft,
-  type LengthDraft,
-} from '@/ui/lib/length-input'
+import { LENGTH_TEXT } from '@/ui/lib/length-input'
+import { useDraftField } from '@/ui/lib/use-draft-field'
 
 /**
  * A length in the chosen units (meters, or feet + inches) that is applied
  * when the field is left or Enter is pressed, so one edit is one undo step
  * and the value isn't moved (by clamping, say) while it is being typed.
- * Until then it shows the stored length, following drags and undo. Text
- * that isn't a number is dropped when the field is left.
+ * Until then it shows the stored length, following drags, undo and the
+ * units (useDraftField). Text that isn't a number is dropped when the
+ * field is left.
  */
 export function LengthField({
   label,
@@ -26,17 +24,13 @@ export function LengthField({
   units: UnitSystem
   onCommit: (meters: number) => void
 }) {
-  // What the user is typing, or null while the field shows the stored length.
-  const [draft, setDraft] = useState<LengthDraft | null>(null)
-  const shown = draft ?? draftFromMeters(meters, units)
-
-  function commit() {
-    if (draft) {
-      const typed = metersFromDraft(draft, units)
-      if (Number.isFinite(typed)) onCommit(typed)
-    }
-    setDraft(null)
-  }
+  const { text, edit, leave } = useDraftField({
+    value: meters,
+    codec: LENGTH_TEXT[units],
+    check: (typed) => (Number.isFinite(typed) ? null : 'not-a-number'),
+    onCommit,
+    commitOn: 'leave',
+  })
 
   return (
     <fieldset
@@ -44,7 +38,7 @@ export function LengthField({
       onBlur={(event) => {
         // Moving between the feet and inches boxes isn't leaving the field.
         if (!event.currentTarget.contains(event.relatedTarget)) {
-          commit()
+          leave()
         }
       }}
     >
@@ -54,9 +48,9 @@ export function LengthField({
           <UnitInput
             key={unit}
             unit={unit}
-            value={shown[index] ?? ''}
-            onChange={(value) => setDraft(shown.with(index, value))}
-            onEnter={commit}
+            value={text[index] ?? ''}
+            onChange={(value) => edit(text.with(index, value))}
+            onEnter={leave}
           />
         ))}
       </div>

@@ -1,3 +1,5 @@
+import type { TextCodec } from '@/ui/lib/use-draft-field'
+
 const DECIMAL = /^(\d+([.,]\d*)?|[.,]\d+)$/
 
 /**
@@ -7,4 +9,10 @@ const DECIMAL = /^(\d+([.,]\d*)?|[.,]\d+)$/
 export function parseDecimal(text: string): number {
   const trimmed = text.trim()
   return DECIMAL.test(trimmed) ? Number(trimmed.replace(',', '.')) : Number.NaN
+}
+
+/** A number as a field's text (see useDraftField). */
+export const DECIMAL_TEXT: TextCodec<number, string> = {
+  write: (value) => String(value),
+  read: (text) => parseDecimal(text),
 }

@@ -35,7 +35,8 @@
  * keeps the recommendation where it is once the MLP moves there, though
  * moving the MLP recalibrates at the new seat and so changes every score.
  *
- * The subwoofers' room response is the analysis's own (the same
+ * The seats are heard in the analysis's own heard room
+ * (estimated-response.ts: the same target curve, reliable rows and
  * preparation, reused), so only the per-seat part (the costly modal sum
  * at the seat) is worked out per seat. Nothing is remembered here: the
  * caller memoizes (useSeatRecommendation). This is a domain entry point of
@@ -43,15 +44,11 @@
  */
 import type { Config } from './config'
 import {
-  calibrateParts,
-  partsDeviations,
-  responseFrequencies,
-  responseParts,
-  type PreparedRoomResponse,
+  hearRoom,
+  type HeardSeat,
   type ResponseCalibration,
-  type ResponseParts,
 } from './estimated-response'
-import { hearSpeaker, isCharted, prepareConfigResponse } from './listening'
+import { hearSpeaker, isCharted } from './listening'
 import {
   centerLineProjection,
   placeAll,
@@ -62,7 +59,6 @@ import {
 import { EAR_HEIGHT, SEAT_SCORE, SPEAKER_WALL_CLEARANCE } from './reference'
 import { distanceBetween, type RoomPoint } from './room'
 import type { RoomMode } from './room-modes'
-import { targetCurve, type TargetPoint } from './target-curve'
 
 /** A candidate MLP and how good it is. */
 export type ScoredSeat = {
@@ -232,14 +228,14 @@ function scoringAtMlp(config: Config): {
   ) => CenterLineWidthMode | undefined
 } {
   const placements = placeAll(config)
-  const room = hearRoom(config, placements)
-  const mlp = room.hear(placements.mlp.position)
-  const calibration = room.calibrateAt(mlp)
+  const seats = seatScoring(config, placements)
+  const mlp = seats.hear(placements.mlp.position)
+  const calibration = seats.calibrateAt(mlp)
   return {
-    current: room.score(mlp, calibration),
-    scoreAt: (seat) => room.score(room.hear(seat), calibration),
+    current: seats.score(mlp, calibration),
+    scoreAt: (seat) => seats.score(seats.hear(seat), calibration),
     widthModeOffCenterLine: (centerLine, offCenter) =>
-      room.widthModeBetween(centerLine, offCenter, calibration),
+      seats.widthModeBetween(centerLine, offCenter, calibration),
   }
 }
 
@@ -301,39 +297,31 @@ function acrossFromCenterLine(halfWidth: number): number[] {
   )
 }
 
-/** A seat as heard, before any calibration. */
-type HeardSeat = {
+/** A candidate seat as heard, before any calibration. */
+type HeardCandidate = {
   readonly position: RoomPoint
-  readonly parts: ResponseParts
+  readonly heard: HeardSeat
   /** The listener-level speakers' placement fit from the seat, 0 to 1. */
   readonly placementFit: number
 }
 
 /**
- * The config's room response, with its subwoofers where `placements` has
+ * The config's heard room, with its subwoofers where `placements` has
  * them, ready to hear seats in, calibrate at one and score them.
  */
-function hearRoom(config: Config, placements: Pick<Placements, 'subwoofers'>) {
-  const frequencies = responseFrequencies()
-  const prepared: PreparedRoomResponse = prepareConfigResponse(
-    config,
-    placements,
-    frequencies,
-  )
-  const target: readonly TargetPoint[] = targetCurve(
-    config.targetCurve,
-    frequencies,
-  )
-  const isReliable = frequencies.map(
-    (f) => prepared.reliableFrom === undefined || f >= prepared.reliableFrom,
-  )
+function seatScoring(
+  config: Config,
+  placements: Pick<Placements, 'subwoofers'>,
+) {
+  const room = hearRoom(config, placements)
+  const { frequencies, reliable } = room
 
   /**
    * The seat as the MLP: the listener-level speakers installed for it,
    * auto ones placed and manual ones where they are, each graded from the
    * seat.
    */
-  function hear(seat: RoomPoint): HeardSeat {
+  function hear(seat: RoomPoint): HeardCandidate {
     // Auto speakers are installed symmetric to the room: around the seat's
     // projection onto the center line, not around the seat (ADR 0005,
     // amendment), so an off-center seat hears them at its skewed angles.
@@ -354,27 +342,25 @@ function hearRoom(config: Config, placements: Pick<Placements, 'subwoofers'>) {
       )
     return {
       position: seat,
-      parts: responseParts(prepared, { receiver: seat, speakerLevels }),
+      heard: room.hear({ receiver: seat, speakerLevels }),
       placementFit: placementFit(seat, speakers),
     }
   }
 
-  function calibrateAt(seat: HeardSeat): ResponseCalibration {
-    return calibrateParts(prepared, seat.parts, target)
+  function calibrateAt({ heard }: HeardCandidate): ResponseCalibration {
+    return room.calibrateAt(heard)
   }
 
   function score(
-    { position, parts, placementFit }: HeardSeat,
+    { position, heard, placementFit }: HeardCandidate,
     calibration: ResponseCalibration,
   ): ScoredSeat {
-    const reliable = partsDeviations(
-      prepared,
-      parts,
-      target,
-      calibration,
-    ).filter((_, i) => isReliable[i])
+    const reliableDeviations = room
+      .deviationsAt(heard, calibration)
+      .filter((_, i) => reliable[i])
     const responseDeviationDb = Math.sqrt(
-      reliable.reduce((sum, d) => sum + d * d, 0) / reliable.length,
+      reliableDeviations.reduce((sum, d) => sum + d * d, 0) /
+        reliableDeviations.length,
     )
     const bassSmoothness = Number.isFinite(responseDeviationDb)
       ? Math.max(0, 1 - responseDeviationDb / SEAT_SCORE.deviationAtZeroDb)
@@ -406,23 +392,21 @@ function hearRoom(config: Config, placements: Pick<Placements, 'subwoofers'>) {
       return undefined
     }
     const deviationsAt = ({ position }: ScoredSeat) =>
-      partsDeviations(prepared, hear(position).parts, target, calibration)
+      room.deviationsAt(hear(position).heard, calibration)
     const onLine = deviationsAt(centerLine)
     const offLine = deviationsAt(offCenter)
-    const modalRows = frequencies.slice(0, prepared.modalFrequencyCount)
-    const { modes, excited } = prepared.modal
-    const nearer = modes.flatMap((mode, n) => {
+    const nearer = room.modes.flatMap(({ mode, excited }) => {
       if (
         mode.kind !== 'axial' ||
         mode.indices.width === 0 ||
-        !excited[n] ||
+        !excited ||
         // Above the crossover the subwoofers hardly play.
         mode.frequency > config.crossoverHz
       ) {
         return []
       }
-      const row = nearestRow(modalRows, mode.frequency)
-      if (row === undefined || !isReliable[row]) return []
+      const row = room.modeBandRowNearest(mode.frequency)
+      if (row === undefined || !reliable[row]) return []
       const by = Math.abs(onLine[row]!) - Math.abs(offLine[row]!)
       return by > 0 ? [{ mode, by }] : []
     })
@@ -440,25 +424,6 @@ function hearRoom(config: Config, placements: Pick<Placements, 'subwoofers'>) {
   }
 
   return { hear, calibrateAt, score, widthModeBetween }
-}
-
-/**
- * The index of the row nearest `frequency` (on a log scale), or undefined
- * when it lies outside the rows.
- */
-function nearestRow(
-  rows: readonly number[],
-  frequency: number,
-): number | undefined {
-  const first = rows[0]
-  const last = rows.at(-1)
-  if (first === undefined || last === undefined) return undefined
-  if (frequency < first || frequency > last) return undefined
-  const distance = (i: number) => Math.abs(Math.log(rows[i]! / frequency))
-  return rows.reduce(
-    (nearest, _, i) => (distance(i) < distance(nearest) ? i : nearest),
-    0,
-  )
 }
 
 /**

@@ -6,7 +6,8 @@ import {
   V1_DOLBY_LAYOUTS,
   type Config,
 } from '@/domain'
-import { prepareRoomResponse } from './estimated-response'
+import { hearRoom } from './estimated-response'
+import { placeAll } from './placements'
 import { bearingTo } from './room'
 
 function configWithRoom(room: Config['room']): Config {
@@ -238,24 +239,17 @@ describe('the response follows manual positions', () => {
   })
 
   it('reuses the room-mode preparation when only the MLP moves', () => {
-    const { subwoofers } = analyzeRoom(DEFAULT_CONFIG)
-    const input = {
-      room: DEFAULT_CONFIG.room,
-      subwoofers: subwoofers.map((s) => ({
-        position: s.position,
-        enclosure: s.specs.enclosure,
-      })),
-      crossoverHz: DEFAULT_CONFIG.crossoverHz,
-      frequencies: rows(DEFAULT_CONFIG).map((r) => r.frequency),
-    }
-    const prepared = prepareRoomResponse(input)
+    const heardModes = (config: Config) =>
+      hearRoom(config, placeAll(config)).modes
+    const prepared = heardModes(DEFAULT_CONFIG)
 
     analyzeRoom({
       ...DEFAULT_CONFIG,
       manualPositions: { MLP: { x: 0.8, y: 3, z: 1.2 } },
     })
 
-    expect(prepareRoomResponse(input)).toBe(prepared)
+    // The same modes, not only equal ones: the preparation itself.
+    expect(heardModes(DEFAULT_CONFIG)).toBe(prepared)
   })
 
   it('changes the room-mode sum for a manual subwoofer: Subwoofer 1 moved into the front left corner', () => {

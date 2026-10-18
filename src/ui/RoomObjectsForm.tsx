@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId } from 'react'
 import {
   checkFurnitureName,
   checkRange,
@@ -45,6 +45,7 @@ import { Label } from '@/ui/components/label'
 import { RadioGroup, RadioGroupItem } from '@/ui/components/radio-group'
 import { CheckedLengthField } from '@/ui/CheckedLengthField'
 import { lengthErrorMessage } from '@/ui/lib/length-error'
+import { useDraftField, type TextCodec } from '@/ui/lib/use-draft-field'
 import { SidebarSection, SidebarSubsection } from '@/ui/SidebarSection'
 
 /**
@@ -399,26 +400,29 @@ const NAME_ERRORS = {
     "Use letters (also with accents such as é or ö), digits, spaces and - ' & ( ) . , / only.",
 } as const satisfies Record<FurnitureNameProblem, string>
 
+/** A name as a field's text: spaces around it don't count. */
+const NAME_TEXT: TextCodec<string, string> = {
+  write: (name) => name,
+  read: (text) => text.trim(),
+}
+
 /**
- * A box's name, checked as it is typed: an accepted name goes to the store
- * (trimmed), a rejected one stays in the field with an inline error. When
- * the stored name changes elsewhere (undo, a share link) the field starts
- * over from it.
+ * A box's name, checked as it is typed (useDraftField): an accepted name
+ * goes to the store (trimmed), a rejected one stays in the field with an
+ * inline error. When the stored name changes elsewhere (undo, a share
+ * link) the field starts over from it.
  */
 function FurnitureNameField({ id, name }: { id: FurnitureId; name: string }) {
   const editRoomObject = useConfig((state) => state.editRoomObject)
-  const [draft, setDraft] = useState(name)
-  const [seenInStore, setSeenInStore] = useState(name)
+  const { text, problem, edit } = useDraftField({
+    value: name,
+    codec: NAME_TEXT,
+    check: checkFurnitureName,
+    onCommit: (typed) =>
+      editRoomObject(id, (_, box) => withFurnitureName(box, typed)),
+  })
   const inputId = useId()
   const errorId = useId()
-
-  // Adjust state while rendering, as CheckedLengthField does.
-  if (seenInStore !== name) {
-    setSeenInStore(name)
-    if (draft.trim() !== name) setDraft(name)
-  }
-
-  const problem = checkFurnitureName(draft)
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -426,14 +430,8 @@ function FurnitureNameField({ id, name }: { id: FurnitureId; name: string }) {
       <Input
         id={inputId}
         autoComplete="off"
-        value={draft}
-        onChange={(event) => {
-          setDraft(event.target.value)
-          if (checkFurnitureName(event.target.value) === null) {
-            const name = event.target.value
-            editRoomObject(id, (_, box) => withFurnitureName(box, name))
-          }
-        }}
+        value={text}
+        onChange={(event) => edit(event.target.value)}
         aria-invalid={problem !== null}
         aria-describedby={errorId}
         className="max-w-48"

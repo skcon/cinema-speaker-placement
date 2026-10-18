@@ -1709,3 +1709,270 @@ describe('share links from older versions', () => {
     })
   })
 })
+
+/**
+ * An edge of a range: the default config (6 x 4.5 x 2.6 m, 5.1.2, one
+ * subwoofer) with one value set by `at`, a value it opens with and one it
+ * falls back for.
+ */
+type EdgeCase = [
+  name: string,
+  at: (value: number) => Config,
+  opens: number,
+  fallsBack: number,
+]
+
+/** The default config with item `id` moved by hand, `axis` at the value. */
+function positionAt(id: string, point: object, axis: 'x' | 'y' | 'z') {
+  return (value: number): Config =>
+    ({
+      ...DEFAULT_CONFIG,
+      manualPositions: {
+        [id]: { x: 0, y: 3, z: 1.2, ...point, [axis]: value },
+      },
+    }) as Config
+}
+
+/** The default config with these room objects instead of the defaults. */
+function withObjects(roomObjects: Partial<Config['roomObjects']>): Config {
+  return {
+    ...DEFAULT_CONFIG,
+    roomObjects: { ...DEFAULT_ROOM_OBJECTS, ...roomObjects },
+  }
+}
+
+/** A micrometer, to step just inside or outside an edge. */
+const UM = 0.000001
+
+/**
+ * Edges of version 2's ranges in the default room: a value just inside
+ * the slack a link may put it past its limit, and one just outside.
+ * Openings are packed as whole millimeters, so theirs step a millimeter.
+ */
+const VERSION_2_EDGES: EdgeCase[] = [
+  [
+    'the room length at its maximum',
+    (length) => ({
+      ...DEFAULT_CONFIG,
+      room: { ...DEFAULT_CONFIG.room, length },
+    }),
+    15,
+    15 + UM,
+  ],
+  [
+    'the room height at its minimum',
+    (height) => ({
+      ...DEFAULT_CONFIG,
+      room: { ...DEFAULT_CONFIG.room, height },
+    }),
+    2,
+    2 - UM,
+  ],
+  // Speakers keep 0.3 m from the walls, floor and ceiling (slack 0.5 mm).
+  [
+    'a speaker at the left wall clearance',
+    positionAt('R', { y: 1 }, 'x'),
+    -1.9505 + UM,
+    -1.9505 - UM,
+  ],
+  [
+    'a speaker at the front wall clearance',
+    positionAt('R', { x: 1 }, 'y'),
+    0.2995 + UM,
+    0.2995 - UM,
+  ],
+  [
+    'a speaker at the back wall clearance',
+    positionAt('R', { x: 1 }, 'y'),
+    5.7005 - UM,
+    5.7005 + UM,
+  ],
+  [
+    'a speaker at the floor clearance',
+    positionAt('R', { x: 1, y: 1 }, 'z'),
+    0.2995 + UM,
+    0.2995 - UM,
+  ],
+  [
+    'a speaker at the ceiling clearance',
+    positionAt('R', { x: 1, y: 1 }, 'z'),
+    2.3005 - UM,
+    2.3005 + UM,
+  ],
+  [
+    'an overhead above the ceiling',
+    positionAt('Ltm', { x: -1 }, 'z'),
+    2.6005 - UM,
+    2.6005 + UM,
+  ],
+  [
+    'an overhead below the ceiling',
+    positionAt('Ltm', { x: -1 }, 'z'),
+    2.5995 + UM,
+    2.5995 - UM,
+  ],
+  [
+    'a subwoofer above its height',
+    positionAt('Sub1', { y: 5 }, 'z'),
+    0.3005 - UM,
+    0.3005 + UM,
+  ],
+  [
+    'the MLP below ear height',
+    positionAt('MLP', {}, 'z'),
+    1.1995 + UM,
+    1.1995 - UM,
+  ],
+  // The seat row's limits, as typed.
+  [
+    'a seat row at its widest',
+    (width) => withObjects({ seatRow: { width, depth: 0.9 } }),
+    8,
+    8 + UM,
+  ],
+  [
+    'a seat row at its shallowest',
+    (depth) => withObjects({ seatRow: { width: 2, depth } }),
+    0.5,
+    0.5 - UM,
+  ],
+  [
+    'a seat row at its deepest',
+    (depth) => withObjects({ seatRow: { width: 2, depth } }),
+    2,
+    2 + UM,
+  ],
+  // The screen: its middle 0.5 mm past a side wall, its size as typed and
+  // its top edge on the ceiling (float noise only).
+  [
+    'a screen past the left wall',
+    (x) => withObjects({ screen: { ...TV, x } }),
+    -1.5305 + UM,
+    -1.5305 - UM,
+  ],
+  [
+    'a screen as wide as the front wall',
+    (width) => withObjects({ screen: { ...TV, width } }),
+    4.5,
+    4.5 + UM,
+  ],
+  [
+    'a screen up to the ceiling',
+    (height) => withObjects({ screen: { ...TV, bottomEdge: 1.79, height } }),
+    0.81,
+    0.81 + UM,
+  ],
+  [
+    'a screen standing off at its most',
+    (standoff) =>
+      withObjects({ screen: { ...TV, kind: 'projection', standoff } }),
+    1.5,
+    1.5 + UM,
+  ],
+  // Furniture boxes: 1 mm past their limits and the walls.
+  [
+    'a box through the left wall',
+    (x) => withObjects({ furniture: [{ ...CABINET, x }] }),
+    -1.451 + UM,
+    -1.451 - UM,
+  ],
+  [
+    'a box through the front wall',
+    (y) => withObjects({ furniture: [{ ...CABINET, y }] }),
+    0.224 + UM,
+    0.224 - UM,
+  ],
+  [
+    'a box through the back wall',
+    (y) => withObjects({ furniture: [{ ...CABINET, y }] }),
+    5.776 - UM,
+    5.776 + UM,
+  ],
+  [
+    'a turned box through the right wall',
+    (x) => withObjects({ furniture: [{ ...CABINET, rotation: 90, y: 3, x }] }),
+    2.026 - UM,
+    2.026 + UM,
+  ],
+  [
+    'a box as tall as the room',
+    (height) => withObjects({ furniture: [{ ...CABINET, height }] }),
+    2.601 - UM,
+    2.601 + UM,
+  ],
+  [
+    'a box as wide as the room',
+    (width) => withObjects({ furniture: [{ ...CABINET, y: 3, width }] }),
+    4.501 - UM,
+    4.501 + UM,
+  ],
+  // Openings: 1 mm past their walls' ends and the ceiling.
+  [
+    // 0.449 - 0.45 is a hair more than a millimeter in floating point, so
+    // this edge opens on the wall and falls back 2 mm past it.
+    'a door at the start of its wall',
+    (position) => withObjects({ openings: [{ ...DOOR, position }] }),
+    0.45,
+    0.448,
+  ],
+  [
+    'a window past the end of its wall',
+    (position) => withObjects({ openings: [{ ...WINDOW, position }] }),
+    5.401,
+    5.402,
+  ],
+  [
+    'a window as wide as its wall',
+    (width) => withObjects({ openings: [{ ...WINDOW, width }] }),
+    6.001,
+    6.002,
+  ],
+  [
+    'a window up to the ceiling',
+    (height) => withObjects({ openings: [{ ...WINDOW, height }] }),
+    1.701,
+    1.702,
+  ],
+  [
+    'a window sill under the ceiling',
+    (sill) => withObjects({ openings: [{ ...WINDOW, height: 0.2, sill }] }),
+    2.401,
+    2.402,
+  ],
+]
+
+describe('version 2 links on the edges of its ranges', () => {
+  // Version 2 is released (v1.1.0): which links it opens never changes,
+  // and its frozen schema opens exactly what decodeConfig opens.
+  it.each(VERSION_2_EDGES)('open with %s', (_, at, opens) => {
+    const config = at(opens)
+    const link = encodedHolding({ v: 2, config })
+
+    expect(decodeConfig(link)).toEqual({ config, problem: null })
+    expect(frozenCodecV2.decode(link)).toEqual({ config, problem: null })
+  })
+
+  it.each(VERSION_2_EDGES)(
+    'fall back just past that, with %s',
+    (_, at, __, fallsBack) => {
+      const link = encodedHolding({ v: 2, config: at(fallsBack) })
+
+      expect(decodeConfig(link)).toEqual(FALLBACK)
+      expect(frozenCodecV2.decode(link)).toEqual(FALLBACK)
+    },
+  )
+
+  it.each([
+    [
+      'eight furniture boxes',
+      { furniture: Array.from({ length: 8 }, () => CABINET) },
+    ],
+    ['six openings', { openings: Array.from({ length: 6 }, () => DOOR) }],
+  ] as const)('open with the most room objects: %s', (_, objects) => {
+    const config = withObjects(objects)
+    const link = encodedHolding({ v: 2, config })
+
+    expect(decodeConfig(link)).toEqual({ config, problem: null })
+    expect(frozenCodecV2.decode(link)).toEqual({ config, problem: null })
+  })
+})

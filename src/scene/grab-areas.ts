@@ -20,9 +20,11 @@
  *   the press (the higher one first: overheads on the ceiling over
  *   listener-level speakers over subwoofers), then an item only reached
  *   by its touch target, then a room object; and of those alike, the one
- *   first in grabAreas' order. Room objects equally near go as the room
- *   view picked them before this module: a furniture box over the Screen
- *   and over the Seat row (whose rectangle is drawn under everything).
+ *   first in grabAreas' order. Room objects equally near go to a
+ *   furniture box first, then the Screen, the openings and the Seat row
+ *   (drawn under everything): the room view used to leave that tie to
+ *   Three.js hit order, which picked a furniture box over the Screen and,
+ *   on most page loads, over the Seat row.
  *
  * Pure: no React, no Three.js. All lengths are in meters on the floor
  * plan.

@@ -20,7 +20,9 @@
  *   the press (the higher one first: overheads on the ceiling over
  *   listener-level speakers over subwoofers), then an item only reached
  *   by its touch target, then a room object; and of those alike, the one
- *   drawn first (see grabAreas).
+ *   first in grabAreas' order. Room objects equally near go as the room
+ *   view picked them before this module: a furniture box over the Screen
+ *   and over the Seat row (whose rectangle is drawn under everything).
  *
  * Pure: no React, no Three.js. All lengths are in meters on the floor
  * plan.
@@ -110,11 +112,11 @@ export type GrabAnalysis = Pick<
 const TOUCH_TARGET_PX = 44
 
 /**
- * The grab area of every drag target the config has, in the order the
- * room view draws them, bottom first: the Seat row, the furniture boxes,
- * the openings, the Screen, then the MLP, the subwoofers, the
- * listener-level speakers and the overheads. Items are where `analysis`
- * (the config's Room analysis) places them.
+ * The grab area of every drag target the config has, in the order ties
+ * go (see the module comment): the furniture boxes, the Screen, the
+ * openings, the Seat row, then the MLP, the subwoofers, the
+ * listener-level speakers and the overheads, as the room view draws them.
+ * Items are where `analysis` (the config's Room analysis) places them.
  */
 export function grabAreas(
   config: Config,
@@ -132,8 +134,6 @@ export function grabAreas(
     if (anchor) areas.push({ target, anchor, marker, item })
   }
 
-  const { center, width, depth } = analysis.seatRow
-  add(SEAT_ROW_ID, { center, width, depth })
   roomObjects.furniture.forEach((box, index) => {
     const { center, size } = furniturePlan(box)
     add(roomObjectId('furniture', index), {
@@ -142,6 +142,9 @@ export function grabAreas(
       depth: size[1],
     })
   })
+  if (roomObjects.screen) {
+    add(SCREEN_ID, screenBar(roomObjects.screen))
+  }
   roomObjects.openings.forEach((opening, index) => {
     const { center, size } = openingMark(room, opening)
     add(roomObjectId('opening', index), {
@@ -150,9 +153,8 @@ export function grabAreas(
       depth: size[1],
     })
   })
-  if (roomObjects.screen) {
-    add(SCREEN_ID, screenBar(roomObjects.screen))
-  }
+  const { center, width, depth } = analysis.seatRow
+  add(SEAT_ROW_ID, { center, width, depth })
 
   const { mlp, subwoofers, speakers, overheads } = analysis
   add(
@@ -219,14 +221,11 @@ export function pressAt(
   zoom: number,
 ): GrabArea | null {
   const under = areas
-    .flatMap((area, drawOrder) => {
+    .flatMap((area, order) => {
       const stacking = stackingUnder(area, point, zoom)
-      return stacking ? [{ area, drawOrder, ...stacking }] : []
+      return stacking ? [{ area, order, ...stacking }] : []
     })
-    .sort(
-      (a, b) =>
-        a.tier - b.tier || b.height - a.height || a.drawOrder - b.drawOrder,
-    )
+    .sort((a, b) => a.tier - b.tier || b.height - a.height || a.order - b.order)
   let picked: GrabArea | null = null
   let nearest = Infinity
   for (const { area } of under) {

@@ -192,26 +192,42 @@ describe('markers drawn over each other', () => {
     expect(pressed(DEFAULT_CONFIG, offCabinet, 200)).toBe('Sub1')
   })
 
-  it('picks the room object drawn first where two are equally near, as a fresh page draws them', () => {
-    // The default TV over the default cabinet at the middle of the front
-    // wall: the cabinet is drawn (and was registered for presses) first.
-    const config: Config = {
-      ...WITH_SCREEN,
-      roomObjects: {
-        ...WITH_SCREEN.roomObjects,
-        furniture: [
-          {
-            name: 'Cabinet',
-            width: 1.6,
-            depth: 0.45,
-            height: 0.5,
-            x: 0,
-            y: 0.225,
-            rotation: 0,
-          },
-        ],
-      },
-    }
-    expect(pressed(config, { x: 0.4, y: 0.04 }, 100)).toBe('furniture-1')
+  describe('of room objects equally near, the furniture box, as the room view picked it before', () => {
+    const cabinet = (x: number, y: number) => ({
+      name: 'Cabinet',
+      width: 1.6,
+      depth: 0.45,
+      height: 0.5,
+      x,
+      y,
+      rotation: 0 as const,
+    })
+
+    it('over the TV on it', () => {
+      // The default TV over the default cabinet at the middle of the
+      // front wall, a press on both.
+      const config: Config = {
+        ...WITH_SCREEN,
+        roomObjects: {
+          ...WITH_SCREEN.roomObjects,
+          furniture: [cabinet(0, 0.225)],
+        },
+      }
+      expect(pressed(config, { x: 0.4, y: 0.04 }, 100)).toBe('furniture-1')
+    })
+
+    it('over the couch it stands on', () => {
+      const { seatRow } = analyzeRoom(DEFAULT_CONFIG)
+      const config: Config = {
+        ...DEFAULT_CONFIG,
+        roomObjects: {
+          ...DEFAULT_CONFIG.roomObjects,
+          furniture: [cabinet(seatRow.center.x + 0.6, seatRow.center.y)],
+        },
+      }
+      // On both, clear of the MLP and the overheads.
+      const point = { x: seatRow.center.x + 0.6, y: seatRow.center.y + 0.15 }
+      expect(pressed(config, point, 100)).toBe('furniture-1')
+    })
   })
 })

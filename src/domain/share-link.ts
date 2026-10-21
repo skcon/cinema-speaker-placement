@@ -11,10 +11,28 @@
  * nothing else. Links live for years in chats and bookmarks, so every
  * version ever released must keep opening.
  *
- * From version 2 on, `config` spells its field names short, as
- * SHORT_FIELD_NAMES gives them ("room" is "r", "width" is "w"), which keeps
- * the worst-case link inside the URL budget without dropping a digit
- * (ADR 0003, second 1.1.0 amendment). Version 1 links spell them out.
+ * ## Config versions
+ *
+ * What a version means lives in one place: its entry in CONFIG_VERSIONS
+ * (a ConfigVersion), which holds
+ *
+ * - its frozen schema (config-v<n>.ts), which a link of that version must
+ *   pass;
+ * - its wire form (WireForm): the lengths its links store to the
+ *   millimeter (link-precision.ts), whether they spell the field names
+ *   short and which part of the config they pack;
+ * - its migration up: the config in the next version's shape.
+ *
+ * The codec walks the table: it reads a link by its version's wire form,
+ * checks it against that version's schema and migrates it up, checking it
+ * against each later version's schema on the way, and last against the
+ * live `configSchema` (config.ts), which the store holds every config to.
+ * New links are written with the last entry, the current version.
+ *
+ * Version 1 (v1.0.0) spells its field names out. Version 2 (v1.1.0 and
+ * v1.2.0) spells them short, as SHORT_FIELD_NAMES gives them ("room" is
+ * "r", "width" is "w"), which keeps the worst-case link inside the URL
+ * budget without dropping a digit (ADR 0003, second 1.1.0 amendment).
  * Record keys (channel ids, subwoofer ids, "MLP") and values stay as they
  * are, but for one: a version 2 link writes each opening (a door or
  * window, `roomObjects.openings`) as a tuple of whole numbers, packed by
@@ -28,51 +46,34 @@
  * them after spelling the names out; anything else in their place makes
  * the link unreadable.
  *
- * Some lengths are stored to the millimeter (manual positions, where the
- * screen was dragged to, furniture boxes and openings), as
- * LINK_MILLIMETER_LENGTHS lists them (link-precision.ts); every other
- * value comes back to its last digit. The table is frozen with each
- * released version, as SHORT_FIELD_NAMES and the opening packing are:
- * validity's slack for those lengths follows from it.
- *
  * ## Changing the config schema (ADR 0003)
  *
  * Only `vX.Y.Z` tags deploy, so a schema version reaches users when the
- * release that writes it is tagged. Version 1 shipped in v1.0.0 and is
- * frozen in config-v1.ts. Version 2 is the version of the 1.1.0 release
- * cycle: until v1.1.0 is tagged it is unreleased, and every 1.1.0 change
- * to the config extends it instead of adding a version.
+ * release that writes it is tagged. Every version in CONFIG_VERSIONS is
+ * released and frozen. The first change to `configSchema` (config.ts) in a
+ * release cycle, however small (a new, removed or renamed field, a new
+ * meaning, a wider or tighter range, including a limit in reference.ts the
+ * schema reads), adds version n + 1, where n is the current version:
  *
- * Extending the unreleased version (CONFIG_VERSION, not yet tagged):
+ * 1. Change `configSchema` and DEFAULT_CONFIG.
+ * 2. Copy the new schema, with everything it uses (the room limits, the
+ *    layout list, the channel ids, the placement and room-object rules),
+ *    into config-v<n + 1>.ts exporting `configSchemaV<n + 1>`. It imports
+ *    nothing but zod (ESLint checks), so later changes to the live code
+ *    can't reach it.
+ * 3. Give version n its migration up: `up` in its entry, returning the
+ *    config in the version n + 1 shape, each new field with the value an
+ *    older link means (usually its default).
+ * 4. Add the version n + 1 entry: its frozen schema, its wire form (a
+ *    short name for each new field, a millimeter table of its own if it
+ *    stores other lengths to the millimeter) and no migration up.
+ * 5. Keep the version n fixtures, never edited again, and add version
+ *    n + 1 ones (V<n + 1>_LINKS in src/test/share-link-fixtures.ts); grow
+ *    the worst-case config of the URL budget test.
  *
- * 1. Change `configSchema` (config.ts) and DEFAULT_CONFIG.
- * 2. In the migration to it, CONFIG_MIGRATIONS[CONFIG_VERSION - 1], give
- *    each new field the value an older link means (usually its default),
- *    so links from the version before still open as the same room.
- * 3. Give each new field name a short name in SHORT_FIELD_NAMES (or, for
- *    an opening's fields, a place in its packed tuple).
- * 4. Regenerate its fixtures (V<n>_LINKS in src/test/share-link-fixtures.ts)
- *    and grow the worst-case config of the URL budget test.
- *
- * Once a version is released, every change to `configSchema` is a new
- * version, however small (a new, removed or renamed field, a new meaning,
- * a wider or tighter range), made with the first change of the next
- * release cycle:
- *
- * 1. Copy today's `configSchema`, with everything it uses (the room limits,
- *    the layout list, the channel ids, the placement rules), into a frozen
- *    config-v<n>.ts exporting `configSchemaV<n>`, where n is
- *    CONFIG_VERSION. It imports nothing but zod (ESLint checks), so later
- *    changes to the live code can't reach it.
- * 2. Change `configSchema` and bump CONFIG_VERSION to n + 1.
- * 3. Add `n: migrateFrom(configSchemaV<n>, (old) => ...)` to
- *    CONFIG_MIGRATIONS, returning the config in the version n + 1 shape.
- * 4. Keep the version n fixtures, never edited again, and add version n + 1
- *    ones.
- *
- * Decoding validates an old link against its own version's schema, runs it
- * through each migration up to the latest version, and validates the result
- * against `configSchema`. A build that meets a newer version than its own
+ * Later changes in the same release cycle extend version n + 1 in place,
+ * its frozen copy and fixtures too, until its release is tagged (ADR 0003,
+ * first 1.1.0 amendment). A build that meets a newer version than its own
  * reports `newer-version` instead of calling the link broken.
  */
 import {
@@ -82,10 +83,12 @@ import {
 import { z } from 'zod'
 import { configSchema, DEFAULT_CONFIG, type Config } from './config'
 import { configSchemaV1 } from './config-v1'
+import { configSchemaV2 } from './config-v2'
 import {
   LINK_MILLIMETER_LENGTHS,
   MILLIMETERS_PER_METER,
   toMillimeter,
+  type MillimeterLengths,
 } from './link-precision'
 import { entries, type ManualPositions } from './manual-positions'
 import {
@@ -95,7 +98,7 @@ import {
   type OpeningKind,
   type WindowOpening,
 } from './openings'
-import { DEFAULT_ROOM_OBJECTS, type RoomObjects } from './room-objects'
+import { DEFAULT_ROOM_OBJECTS } from './room-objects'
 import { WALLS, type Wall } from './room'
 
 /**
@@ -113,21 +116,6 @@ export type DecodedConfig<C = Config> = {
   problem: ShareLinkProblem | null
 }
 
-/** Turns a config of one schema version into the next version's shape. */
-export type Migration = (config: unknown) => unknown
-
-/**
- * A migration from one schema version to the next. The old config is
- * checked against that version's (frozen) schema first, so `up` gets a
- * typed, valid config.
- */
-export function migrateFrom<S extends z.ZodType>(
-  schema: S,
-  up: (config: z.output<S>) => unknown,
-): Migration {
-  return (config) => up(schema.parse(config))
-}
-
 /**
  * Short names for a config's field names, keyed by the field name. Every
  * short name is used once, and is never a field name itself, so a link's
@@ -135,6 +123,61 @@ export function migrateFrom<S extends z.ZodType>(
  * was not written by the app.
  */
 export type FieldNames = Readonly<Record<string, string>>
+
+/**
+ * A part of the config that a version's links write in a packed form:
+ * `pack` turns a config (its field names spelled out) into that form, and
+ * `unpack` turns it back, throwing on anything `pack` never writes.
+ */
+export type Packing = {
+  readonly pack: (config: unknown) => unknown
+  readonly unpack: (config: unknown) => unknown
+}
+
+/** How the links of one config version write a config, inside the JSON. */
+export type WireForm = {
+  /**
+   * The lengths its links store to the millimeter: rounded before a link
+   * is written, and the source of validity's slack for them.
+   */
+  readonly millimeterLengths: MillimeterLengths
+  /** The short names its links spell field names with, or null for none. */
+  readonly fieldNames: FieldNames | null
+  /** The part of the config its links pack, or null for none. */
+  readonly packing: Packing | null
+}
+
+/**
+ * Turns a config of one schema version, which that version's schema has
+ * accepted, into the next version's shape.
+ */
+export type Migration = (config: unknown) => unknown
+
+/** Everything one config schema version means (see the top of this file). */
+export type ConfigVersion = {
+  /** The schema its links must pass: frozen once it is released. */
+  readonly schema: z.ZodType
+  /** How its links write the config. */
+  readonly wire: WireForm
+  /** Its migration up, or null for the current version. */
+  readonly up: Migration | null
+}
+
+/**
+ * A config version: its schema, its wire form and its migration up, which
+ * gets a config the schema accepted, so a typed, valid one.
+ */
+export function configVersion<S extends z.ZodType>({
+  schema,
+  wire,
+  up,
+}: {
+  schema: S
+  wire: WireForm
+  up: ((config: z.output<S>) => unknown) | null
+}): ConfigVersion {
+  return { schema, wire, up: up && ((config) => up(config as z.output<S>)) }
+}
 
 /**
  * `value` with its object keys renamed by `names` (keys without a name
@@ -183,19 +226,28 @@ function fieldRenamer(names: FieldNames) {
 }
 
 /**
- * A part of the config that links from version `since` on write in a
- * packed form: `pack` turns a config (its field names spelled out) into
- * that form, and `unpack` turns it back, throwing on anything `pack` never
- * writes.
+ * How a wire form writes a config (its lengths already rounded) into a
+ * link, packed and then with its field names short, and reads it back.
+ * Reading throws on anything writing never gives.
  */
-export type PackedForm = {
-  since: number
-  pack: (config: unknown) => unknown
-  unpack: (config: unknown) => unknown
+function wireCoder({ fieldNames, packing }: WireForm) {
+  const renamer = fieldNames && fieldRenamer(fieldNames)
+  return {
+    write: (config: unknown): unknown => {
+      const packed = packing ? packing.pack(config) : config
+      return renamer ? renamer.shorten(packed) : packed
+    },
+    read: (written: unknown): unknown => {
+      const spelledOut = renamer ? renamer.spellOut(written) : written
+      return packing ? packing.unpack(spelledOut) : spelledOut
+    },
+  }
 }
 
 /** Encodes and decodes configs of one config schema. */
 export type ConfigCodec<C> = {
+  /** The version it writes links with: the last it knows. */
+  current: ConfigVersion
   encode: (config: C) => string
   decode: (encoded: string) => DecodedConfig<C>
 }
@@ -206,61 +258,54 @@ const envelopeSchema = z.object({
 })
 
 /**
- * A codec for configs at `version`, which opens links from every earlier
- * version through `migrations` (keyed by the version each one starts from)
- * and falls back to `fallback` for links it can't open.
+ * A codec that writes links with the last of `versions` (version n is
+ * `versions[n - 1]`), opens links of every version through their
+ * migrations up, holds the result to `schema` and falls back to `fallback`
+ * for links it can't open. Throws when a version but the last has no
+ * migration up, or the last has one.
  */
 export function createConfigCodec<C>({
-  version,
+  versions,
   schema,
-  migrations,
   fallback,
-  shortFieldNames,
-  packedForm,
 }: {
-  version: number
+  versions: readonly ConfigVersion[]
   schema: z.ZodType<C>
-  migrations: Readonly<Record<number, Migration>>
   fallback: C
-  /**
-   * Links from version `since` on spell the config's field names short,
-   * by `names`; older ones spell them out.
-   */
-  shortFieldNames?: { since: number; names: FieldNames }
-  /** Links from version `packedForm.since` on pack part of the config. */
-  packedForm?: PackedForm
 }): ConfigCodec<C> {
-  const steps = Array.from({ length: version - 1 }, (_, index) => {
-    const from = index + 1
-    const migration = migrations[from]
-    if (!migration) {
-      throw new Error(`No share-link migration from config version ${from}`)
+  const current = versions.length
+  const currentVersion = versions[current - 1]
+  if (!currentVersion) throw new Error('No config version')
+  versions.forEach(({ up }, index) => {
+    const version = index + 1
+    if (version < current && !up) {
+      throw new Error(`No share-link migration from config version ${version}`)
     }
-    return migration
+    if (version === current && up) {
+      throw new Error(`The current config version ${version} has a migration`)
+    }
   })
+  const coders = versions.map(({ wire }) => wireCoder(wire))
   const unreadable = { config: fallback, problem: 'unreadable' } as const
-  const renamer = shortFieldNames && fieldRenamer(shortFieldNames.names)
-  const isShort = (v: number) =>
-    shortFieldNames !== undefined && v >= shortFieldNames.since
-  const isPacked = (v: number) =>
-    packedForm !== undefined && v >= packedForm.since
-  const write = (config: C): unknown => {
-    const packed =
-      packedForm && isPacked(version) ? packedForm.pack(config) : config
-    return renamer && isShort(version) ? renamer.shorten(packed) : packed
-  }
-  const read = (v: number, written: unknown): unknown => {
-    const spelledOut =
-      renamer && isShort(v) ? renamer.spellOut(written) : written
-    return packedForm && isPacked(v)
-      ? packedForm.unpack(spelledOut)
-      : spelledOut
-  }
+
+  /** The config a version `v` link holds, at the current version. */
+  const migrated = (v: number, written: unknown): unknown =>
+    versions.slice(v - 1).reduce<unknown>(
+      (config, { schema: frozen, up }) => {
+        const valid = frozen.parse(config)
+        return up ? up(valid) : valid
+      },
+      coders[v - 1]?.read(written),
+    )
 
   return {
+    current: currentVersion,
     encode: (config) =>
       compressToEncodedURIComponent(
-        JSON.stringify({ v: version, config: write(config) }),
+        JSON.stringify({
+          v: current,
+          config: coders[current - 1]?.write(config),
+        }),
       ),
     decode: (encoded) => {
       try {
@@ -269,19 +314,15 @@ export function createConfigCodec<C>({
         )
         if (!envelope.success) return unreadable
         const { v, config: written } = envelope.data
-        if (v > version) return { config: fallback, problem: 'newer-version' }
-        const config = read(v, written)
-        const migrated = steps
-          .slice(v - 1)
-          .reduce((old, migrate) => migrate(old), config)
-        const result = schema.safeParse(migrated)
+        if (v > current) return { config: fallback, problem: 'newer-version' }
+        const result = schema.safeParse(migrated(v, written))
         return result.success
           ? { config: result.data, problem: null }
           : unreadable
       } catch {
         // Not compressed, not JSON, a field name spelled out where the
         // link spells them short, a packed value that was not packed by
-        // the app, or an old config its migration rejects.
+        // the app, or a config its version's schema rejects.
         return unreadable
       }
     },
@@ -295,8 +336,7 @@ export function createConfigCodec<C>({
  */
 export type EncodedConfig = string & { readonly __brand: 'EncodedConfig' }
 
-/** The current config schema version: the `v` that new share links get. */
-const CONFIG_VERSION = 2
+// Version 1: v1.0.0.
 
 /**
  * How deep v1.0.0 drew every Seat row, in meters: version 1 stored only
@@ -305,11 +345,37 @@ const CONFIG_VERSION = 2
  */
 const V1_SEAT_ROW_DEPTH = 0.9
 
+/** Version 1's links stored the manual positions to the millimeter. */
+const V1_MILLIMETER_LENGTHS = {
+  manualPositions: { lengths: ['x', 'y', 'z'], perEdge: 1 },
+} as const satisfies MillimeterLengths
+
+const VERSION_1 = configVersion({
+  schema: configSchemaV1,
+  wire: {
+    millimeterLengths: V1_MILLIMETER_LENGTHS,
+    fieldNames: null,
+    packing: null,
+  },
+  // Version 1 had no room objects except the seat row, whose width was a
+  // field of its own and whose position (then as now) follows the MLP.
+  up: ({ seatRowWidth, ...config }) => ({
+    ...config,
+    roomObjects: {
+      ...DEFAULT_ROOM_OBJECTS,
+      seatRow: { width: seatRowWidth, depth: V1_SEAT_ROW_DEPTH },
+    },
+  }),
+})
+
+// Version 2: v1.1.0 and v1.2.0.
+
 /**
- * The short field names of version 2 links on (see the wire format above),
+ * The short field names of version 2 links (see the wire format above),
  * keyed by the config's field names. Released links depend on them: never
- * change or reuse a short name, only add one for a new field (a test checks
- * that every field of the worst-case config has one).
+ * change or reuse a short name. A later version that adds a field gives it
+ * a short name in a table of its own (a test checks that every field of
+ * the worst-case config has one).
  */
 export const SHORT_FIELD_NAMES = {
   units: 'u',
@@ -351,13 +417,10 @@ export const SHORT_FIELD_NAMES = {
   openings: 'op',
 } as const satisfies FieldNames
 
-/** The first config schema version whose links use SHORT_FIELD_NAMES. */
-const SHORT_FIELD_NAMES_SINCE = 2
-
 /**
  * The first digit of an opening's tuple in a version 2 link (see the wire
  * format above): its kind and its wall in one. Released links depend on
- * them: never change or reuse a code, only add one.
+ * them: never change or reuse a code.
  */
 const OPENING_WIRE_CODES = {
   door: { front: 0, right: 1, back: 2, left: 3 },
@@ -461,45 +524,43 @@ function withWireOpenings(
   }
 }
 
-/** Openings packed as tuples in version 2 links on (see above). */
-const PACKED_OPENINGS: PackedForm = {
-  since: 2,
+/** Openings packed as tuples in version 2 links (see above). */
+const PACKED_OPENINGS: Packing = {
   pack: (config) => withWireOpenings(config, packOpening),
   unpack: (config) => withWireOpenings(config, unpackOpening),
 }
 
-/** Migrations from each earlier schema version to the next. */
-const CONFIG_MIGRATIONS: Readonly<Record<number, Migration>> = {
-  // The 1.1.0 tickets that extend version 2 give their new fields the
-  // value a version 1 link means here. Version 1 had no room objects
-  // except the seat row, whose width was a field of its own and whose
-  // position (then as now) follows the MLP.
-  1: migrateFrom(configSchemaV1, ({ seatRowWidth, ...config }) => ({
-    ...config,
-    roomObjects: {
-      ...DEFAULT_ROOM_OBJECTS,
-      seatRow: { width: seatRowWidth, depth: V1_SEAT_ROW_DEPTH },
-    },
-  })),
-}
+const VERSION_2 = configVersion({
+  schema: configSchemaV2,
+  wire: {
+    millimeterLengths: LINK_MILLIMETER_LENGTHS,
+    fieldNames: SHORT_FIELD_NAMES,
+    packing: PACKED_OPENINGS,
+  },
+  up: null,
+})
+
+/**
+ * Every config schema version, version n at index n - 1: what each one
+ * means (see ConfigVersion). The last is the current version, which new
+ * links are written with.
+ */
+export const CONFIG_VERSIONS: readonly ConfigVersion[] = [VERSION_1, VERSION_2]
 
 /**
  * A config as a version 2 link writes it, its openings packed and its
  * field names short (see the wire format above), for tests that write
- * links by hand. An opening that is not of the config's exact shape stays
- * as it is.
+ * links by hand. Its lengths are not rounded, and an opening that is not
+ * of the config's exact shape stays as it is.
  */
 export function writtenAsVersion2(config: unknown): unknown {
-  return fieldRenamer(SHORT_FIELD_NAMES).shorten(PACKED_OPENINGS.pack(config))
+  return wireCoder(VERSION_2.wire).write(config)
 }
 
 const configCodec = createConfigCodec({
-  version: CONFIG_VERSION,
+  versions: CONFIG_VERSIONS,
   schema: configSchema,
-  migrations: CONFIG_MIGRATIONS,
   fallback: DEFAULT_CONFIG,
-  shortFieldNames: { since: SHORT_FIELD_NAMES_SINCE, names: SHORT_FIELD_NAMES },
-  packedForm: PACKED_OPENINGS,
 })
 
 /** `item` with its `lengths` (those it has) to the nearest millimeter. */
@@ -518,12 +579,22 @@ function withLengthsRounded<T extends object>(
   }
 }
 
+/** `item` with the lengths `part` lists rounded, if it lists any. */
+function roundedBy<T extends object>(
+  item: T,
+  part: { readonly lengths: readonly string[] } | undefined,
+): T {
+  return part ? withLengthsRounded(item, part.lengths) : item
+}
+
 /**
  * The manual positions as a link stores them: in PLACEABLE_IDS order, each
- * point's coordinates to the millimeter.
+ * point's `lengths` coordinates (all three) to the millimeter.
  */
-function manualPositionsForLink(positions: ManualPositions): ManualPositions {
-  const { lengths } = LINK_MILLIMETER_LENGTHS.manualPositions
+function manualPositionsForLink(
+  positions: ManualPositions,
+  lengths: readonly ('x' | 'y' | 'z')[],
+): ManualPositions {
   return Object.fromEntries(
     entries(positions).map(([id, point]) => [
       id,
@@ -534,38 +605,41 @@ function manualPositionsForLink(positions: ManualPositions): ManualPositions {
   )
 }
 
-/** The room objects as a link stores them (see LINK_MILLIMETER_LENGTHS). */
-function roomObjectsForLink({
-  seatRow,
-  screen,
-  furniture,
-  openings,
-}: RoomObjects): RoomObjects {
-  const table = LINK_MILLIMETER_LENGTHS
+/**
+ * The config with the lengths `table` lists to the nearest millimeter, as
+ * a link of its version stores it.
+ */
+function roundedForLink(config: Config, table: MillimeterLengths): Config {
+  const { seatRow, screen, furniture, openings } = config.roomObjects
   return {
-    seatRow,
-    screen: screen && withLengthsRounded(screen, table.screen.lengths),
-    furniture: furniture.map((box) =>
-      withLengthsRounded(box, table.furniture.lengths),
-    ),
-    // Packed as whole millimeters after this (PACKED_OPENINGS).
-    openings: openings.map((opening) =>
-      withLengthsRounded(opening, table.openings.lengths),
-    ),
+    ...config,
+    manualPositions: table.manualPositions
+      ? manualPositionsForLink(
+          config.manualPositions,
+          table.manualPositions.lengths,
+        )
+      : config.manualPositions,
+    roomObjects: {
+      seatRow,
+      screen: screen && roundedBy(screen, table.screen),
+      furniture: furniture.map((box) => roundedBy(box, table.furniture)),
+      // Packed as whole millimeters after this (PACKED_OPENINGS).
+      openings: openings.map((opening) => roundedBy(opening, table.openings)),
+    },
   }
 }
 
 /**
  * The config as an encoded config: the URL-safe text a share link carries
- * in its `config` search param, with the lengths LINK_MILLIMETER_LENGTHS
- * lists to the nearest millimeter, which keeps links short.
+ * in its `config` search param, written with the current config version,
+ * the lengths its millimeter table lists to the nearest millimeter, which
+ * keeps links short.
  */
 export function encodeConfig(config: Config): EncodedConfig {
-  return configCodec.encode({
-    ...config,
-    manualPositions: manualPositionsForLink(config.manualPositions),
-    roomObjects: roomObjectsForLink(config.roomObjects),
-  }) as EncodedConfig
+  const { millimeterLengths } = configCodec.current.wire
+  return configCodec.encode(
+    roundedForLink(config, millimeterLengths),
+  ) as EncodedConfig
 }
 
 /**

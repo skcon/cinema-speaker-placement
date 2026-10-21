@@ -1724,13 +1724,12 @@ type EdgeCase = [
 
 /** The default config with item `id` moved by hand, `axis` at the value. */
 function positionAt(id: string, point: object, axis: 'x' | 'y' | 'z') {
-  return (value: number): Config =>
-    ({
-      ...DEFAULT_CONFIG,
-      manualPositions: {
-        [id]: { x: 0, y: 3, z: 1.2, ...point, [axis]: value },
-      },
-    }) as Config
+  return (value: number): Config => ({
+    ...DEFAULT_CONFIG,
+    manualPositions: {
+      [id]: { x: 0, y: 3, z: 1.2, ...point, [axis]: value },
+    },
+  })
 }
 
 /** The default config with these room objects instead of the defaults. */

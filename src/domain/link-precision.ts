@@ -17,9 +17,12 @@
  * (the config schema) allows linkSlack(part) there, or a link the app
  * wrote would not open again.
  *
- * Version 2 is released (v1.1.0), so this table is frozen with it: a
- * length that is stored to the millimeter, or a slack, changes only with a
- * new schema version and a migration.
+ * LINK_MILLIMETER_LENGTHS is the table of config version 2, the current
+ * version: its entry in CONFIG_VERSIONS (share-link.ts) names it, and
+ * config-v2.ts keeps a copy of the slack it gives. Version 2 is released
+ * (v1.1.0), so the table is frozen with it: a length that is stored to the
+ * millimeter, or a slack, changes only with a new schema version, which
+ * gets a table of its own.
  *
  * It imports types only, so the room-object modules can read their slack
  * without depending on the codec.
@@ -30,7 +33,7 @@ import type { RoomPoint } from './room'
 import type { RoomScreen } from './screen'
 
 /** One part of the config whose lengths a link stores to the millimeter. */
-type LinkLengths<Item> = {
+export type LinkLengths<Item> = {
   /** Its lengths a link stores to the millimeter. */
   readonly lengths: readonly (keyof Item & string)[]
   /**
@@ -52,11 +55,17 @@ export const LINK_MILLIMETER_LENGTHS = {
   screen: { lengths: ['x'], perEdge: 1 },
   furniture: { lengths: ['width', 'depth', 'height', 'x', 'y'], perEdge: 2 },
   openings: { lengths: ['position', 'width', 'sill', 'height'], perEdge: 2 },
-} as const satisfies {
-  manualPositions: LinkLengths<RoomPoint>
-  screen: LinkLengths<RoomScreen>
-  furniture: LinkLengths<FurnitureBox>
-  openings: LinkLengths<Door & WindowOpening>
+} as const satisfies Required<MillimeterLengths>
+
+/**
+ * The lengths a config version's links store to the millimeter, by part
+ * of the config: a part the table leaves out is stored as it is.
+ */
+export type MillimeterLengths = {
+  readonly manualPositions?: LinkLengths<RoomPoint>
+  readonly screen?: LinkLengths<RoomScreen>
+  readonly furniture?: LinkLengths<FurnitureBox>
+  readonly openings?: LinkLengths<Door & WindowOpening>
 }
 
 /** A part of the config whose lengths a link stores to the millimeter. */

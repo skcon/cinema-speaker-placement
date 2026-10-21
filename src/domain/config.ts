@@ -142,8 +142,10 @@ const seatRowSchema = z.strictObject({
  *
  * The `Config` type is inferred from it, so a new field is added here and
  * the compiler asks for its value in DEFAULT_CONFIG and the test fixtures.
- * Share links are released, so a change here extends the unreleased schema
- * version or starts a new one, with a migration (see share-link.ts).
+ * It accepts exactly what the current config version's frozen schema
+ * (config-v2.ts) accepts. That version is released, so a change here, or
+ * to a limit or rule it reads (reference.ts, the room-object modules), is
+ * a new config version with a migration (see share-link.ts).
  */
 export const configSchema = z
   .strictObject({

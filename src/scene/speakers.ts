@@ -1,4 +1,5 @@
 import {
+  type FloorPoint,
   overheadSideSign,
   type PlacedOverhead,
   type PlacedSpeaker,
@@ -67,10 +68,9 @@ export function speakerMarker({
   },
 }: PlacedSpeaker): SpeakerMarker {
   const yaw = (aim.yaw * Math.PI) / 180
-  // Yaw is clockwise from facing the front wall (-y). The top-down view
-  // draws room x to the right and room y downward, so on screen the
-  // speaker faces (sin yaw, -cos yaw).
-  const facing = { x: Math.sin(yaw), y: -Math.cos(yaw) }
+  // The top-down view draws room x to the right and room y downward, so
+  // on screen the speaker faces the way it does on the floor plan.
+  const facing = speakerFacing(aim)
   return {
     position: toScenePosition(position),
     // A turn of θ about the shape's normal points its +y side at room
@@ -81,6 +81,17 @@ export function speakerMarker({
     grade,
     labelDirection: snapToAxis(facing),
   }
+}
+
+/**
+ * Which way a speaker aimed `aim` faces on the floor plan, as a unit
+ * vector in room (x, y): yaw is clockwise from facing the front wall (-y),
+ * so it faces (sin yaw, -cos yaw). Its cabinet is drawn
+ * SPEAKER_FOOTPRINT.depth deep along it.
+ */
+export function speakerFacing({ yaw }: PlacedSpeaker['aim']): FloorPoint {
+  const radians = (yaw * Math.PI) / 180
+  return { x: Math.sin(radians), y: -Math.cos(radians) }
 }
 
 /** The screen axis direction closest to `direction`. */
@@ -150,6 +161,9 @@ export function describeSpeaker({
 }: PlacedSpeaker): string {
   return `${name} ${shown}° (${GRADE_STYLES[grade].label})`
 }
+
+/** The drawn radius of the MLP marker, a disc, in meters. */
+export const MLP_MARKER_RADIUS = 0.18
 
 /**
  * The drawn radius of an overhead speaker seen from above, in meters: a

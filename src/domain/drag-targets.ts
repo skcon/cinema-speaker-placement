@@ -7,14 +7,15 @@
  * its meaning live together: where a target's anchor is (the floor point
  * a drag moves), what the config becomes when the anchor is dragged to
  * `to`, and what pressing the target selects. The room view only grabs a
- * target by its anchor, keeping the grab offset, and draws the grab area
- * over what it draws; the store applies the drag.
+ * target by its anchor, keeping the grab offset, and works out which
+ * target a press picks up (src/scene/grab-areas.ts); the store applies
+ * the drag.
  */
 import type { Config } from './config'
 import { placeManually, samePositions } from './config-edits'
+import type { ChannelId, OverheadChannelId } from './dolby-layouts'
 import { MLP_ID, type PlaceableId } from './manual-positions'
-import { placeAll } from './placements'
-import type { FloorPoint } from './room'
+import type { FloorPoint, RoomPoint } from './room'
 import { fromWallFrame } from './wall-frame'
 import {
   isRoomObjectId,
@@ -25,16 +26,38 @@ import {
   type RoomObjectId,
 } from './room-objects'
 import { screenSurface } from './screen'
+import type { SubwooferId } from './subwoofer-arrangements'
 
 /** What can be dragged on the floor plan: an item or a room object. */
 export type DragTarget = PlaceableId | RoomObjectId
 
 /**
+ * Where the layout's items are, as the Room analysis (analyzeRoom) placed
+ * them: a RoomAnalysis is one.
+ */
+export type PlacedItems = {
+  readonly mlp: RoomPoint
+  readonly speakers: readonly {
+    readonly channel: ChannelId
+    readonly position: RoomPoint
+  }[]
+  readonly overheads: readonly {
+    readonly channel: OverheadChannelId
+    readonly position: RoomPoint
+  }[]
+  readonly subwoofers: readonly {
+    readonly id: SubwooferId
+    readonly position: RoomPoint
+  }[]
+}
+
+/**
  * Every drag target the config has, with its anchor: the floor point a
  * drag moves, which withDragged takes `to` as the new place of. In order:
  * the layout's items (its channels, overhead channels, subwoofers and
- * the MLP, as placeAll gives them), then the Seat row, the Screen, the
- * furniture boxes and the openings the Room has.
+ * the MLP, where `items` places them: the config's Room analysis), then
+ * the Seat row, the Screen, the furniture boxes and the openings the Room
+ * has.
  *
  * - An item is anchored at its position.
  * - The Seat row is anchored at the MLP: it has no position of its own,
@@ -45,23 +68,21 @@ export type DragTarget = PlaceableId | RoomObjectId
  */
 export function dragAnchors(
   config: Config,
+  { mlp, speakers, overheads, subwoofers }: PlacedItems,
 ): ReadonlyMap<DragTarget, FloorPoint> {
   const { room, roomObjects } = config
-  const { mlp, speakers, overheads, subwoofers } = placeAll(config)
   const onFloor = ({ x, y }: FloorPoint): FloorPoint => ({ x, y })
   const anchors = new Map<DragTarget, FloorPoint>([
     ...speakers.map(
-      ({ reference, position }) =>
-        [reference.channel, onFloor(position)] as const,
+      ({ channel, position }) => [channel, onFloor(position)] as const,
     ),
     ...overheads.map(
-      ({ reference, position }) =>
-        [reference.channel, onFloor(position)] as const,
+      ({ channel, position }) => [channel, onFloor(position)] as const,
     ),
     ...subwoofers.map(({ id, position }) => [id, onFloor(position)] as const),
-    [MLP_ID, onFloor(mlp.position)],
+    [MLP_ID, onFloor(mlp)],
   ])
-  anchors.set(SEAT_ROW_ID, onFloor(mlp.position))
+  anchors.set(SEAT_ROW_ID, onFloor(mlp))
   const { screen, furniture, openings } = roomObjects
   if (screen) {
     anchors.set(SCREEN_ID, {

@@ -364,8 +364,9 @@ export type SeatScoreInput = Config & { readonly [SEAT_SCORE_INPUT]: true }
 
 /**
  * The config as the recommended seat reads it (findRecommendedSeat), with
- * what it doesn't read set to one fixed value, so two configs that can
- * only differ in their recommendation have different inputs:
+ * what it doesn't read set to one fixed value: configs whose
+ * recommendation can differ have different inputs, and configs that
+ * differ only in what it doesn't read have the same one:
  *
  * - the MLP and every listener-level and overhead speaker back to auto, so
  *   neither moving the MLP nor moving a speaker changes the recommendation

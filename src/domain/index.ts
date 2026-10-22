@@ -64,10 +64,16 @@ export {
 export {
   placeAtWallDistance,
   placeManually,
+  withAmplifierWatts,
   withAutoPlacement,
+  withCrossover,
   withLayout,
   withMlpAtRecommendedSeat,
   withRoom,
+  withRoomDimension,
+  withSpeakerSpecs,
+  withSubwooferHasOwnSpecs,
+  withSubwooferSpecs,
 } from './config-edits'
 export {
   dragAnchors,

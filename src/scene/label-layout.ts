@@ -124,10 +124,10 @@ function preferredPlacement(label: LabelToPlace): LabelPlacement {
  * A placement for every label, by id, so no two overlap and none covers an
  * `obstacle` or leaves `bounds`, where that can be done. Fixed labels go
  * first, at their preferred place; then the others in the order given (most
- * important first), each at the first free candidate place nearest its
- * preferred one, with its full text if it fits anywhere nearby, else
- * compact. A label with no free place nearby takes the one that overlaps
- * least.
+ * important first), each at the free candidate place nearest its preferred
+ * one, where dropping its secondary text counts as moving COMPACT_COST_PX
+ * (see candidatePlacements). A label with no free place nearby takes the
+ * one that overlaps least, rather covering an obstacle than a label.
  */
 export function layoutLabels(
   labels: readonly LabelToPlace[],

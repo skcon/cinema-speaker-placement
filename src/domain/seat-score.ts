@@ -189,11 +189,17 @@ export type SeatRecommendation = {
   /** Whether the MLP already is (within a centimeter) at the recommended seat. */
   readonly mlpIsRecommended: boolean
   /**
+   * Whether the MLP keeps the seating distances as well as the candidates
+   * do (SEATING_DISTANCE). When it doesn't, it is never kept as the
+   * recommended seat, however well it scores.
+   */
+  readonly mlpKeepsSeatingDistances: boolean
+  /**
    * Every candidate seat of the grid that keeps the seating distances
    * (or, when none does, every one that comes nearest), with its score,
-   * for a heatmap (#16). The scores are relative: made with the calibration at the current MLP,
-   * so they change when the MLP moves, and compare seats in this config
-   * only.
+   * for a heatmap (#16). The scores are relative: made with the
+   * calibration at the current MLP, so they change when the MLP moves,
+   * and compare seats in this config only.
    */
   readonly candidates: readonly ScoredSeat[]
 }
@@ -259,6 +265,7 @@ export function recommendSeat(config: Config): SeatRecommendation {
     mlpIsRecommended:
       recommended === current ||
       distanceBetween(recommended.position, current.position) < SAME_SEAT,
+    mlpKeepsSeatingDistances: mlp !== undefined,
     candidates,
   }
 }

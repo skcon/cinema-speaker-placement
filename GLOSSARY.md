@@ -141,11 +141,15 @@ How far above the reference peak a speaker group (its weakest Speaker) or the Su
 _Avoid_: Reserve, margin (in the UI), SPL capability
 
 **Seat score**:
-How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The **recommended seat** is the best candidate on the room's center line, unless a seat off it scores meaningfully better; then the app says why, for example a width mode at the center line (ADR 0005). An estimate, never a measurement.
+How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The **recommended seat** is the best candidate on the room's center line, unless a seat off it scores meaningfully better; then the app says why, for example a width mode at the center line (ADR 0005). Only candidates that keep the seating distances count. An estimate, never a measurement.
 _Avoid_: Rating, quality
 
+**Seating distances**:
+How far a candidate seat must be to be recommended: 0.5 m from every listener-level speaker, every subwoofer, the side walls and the back wall (RP22 Level 1), and 1.5 m behind the front-stage line (ours). A hard filter on the candidates, not part of the seat score (ADR 0005, #119).
+_Avoid_: Minimum distance (alone), safety distance
+
 **Seat-score heatmap**:
-The recommended seat's candidate grid drawn as colors on the floor plan, so good and bad seating areas show. Each seat's color is its relative score: how it scores against the other seats in this room, not an absolute grade. An estimate, never a measurement.
+The recommended seat's candidate grid drawn as colors on the floor plan, so good and bad seating areas show. Seats that break the seating distances are left blank. Each seat's color is its relative score: how it scores against the other seats in this room, not an absolute grade. An estimate, never a measurement.
 _Avoid_: Heat map, score map
 
 **Auto-place**:

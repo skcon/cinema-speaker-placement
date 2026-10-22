@@ -462,9 +462,11 @@ describe('seating distances (#119)', () => {
       ...DEFAULT_CONFIG,
       manualPositions: { MLP: { x: 0, y: 1, z: 1.2 } },
     }
-    const { recommended, current, mlpIsRecommended } = recommendSeat(config)
+    const { recommended, current, mlpIsRecommended, mlpKeepsSeatingDistances } =
+      recommendSeat(config)
 
     expect(current.distances.shortfall).toBeGreaterThan(0)
+    expect(mlpKeepsSeatingDistances).toBe(false)
     expect(recommended).not.toBe(current)
     expect(mlpIsRecommended).toBe(false)
     expectSeatingDistancesKept(recommended, 'default room, MLP 1 m back')

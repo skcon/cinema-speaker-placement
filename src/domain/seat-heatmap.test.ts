@@ -42,6 +42,7 @@ function recommendation(
     offCenterLine: undefined,
     current,
     mlpIsRecommended: recommended === current,
+    mlpKeepsSeatingDistances: true,
     candidates,
   }
 }
@@ -164,6 +165,7 @@ describe('seat-score heatmap', () => {
         offCenterLine: undefined,
         current: mlp,
         mlpIsRecommended: true,
+        mlpKeepsSeatingDistances: true,
         candidates: [],
       }),
     ).toMatchObject({ cells: [], scoresAboutTheSame: true })

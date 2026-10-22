@@ -58,6 +58,20 @@ describe('seating in the sidebar', () => {
     expect(seating).not.toHaveTextContent(/It is off the center line/)
   })
 
+  it('says when the MLP is too close to the speakers to stay the recommended seat (#119)', async () => {
+    const seating = renderSeating({
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0, y: 1, z: 1.2 } },
+    })
+
+    expect(
+      await within(seating).findByText(/Your MLP scores/),
+    ).toHaveTextContent(/too close to a speaker, a wall or the front stage/)
+    expect(seating).toHaveTextContent(
+      /at least 0\.5 m from every speaker, subwoofer, side and back wall, and 1\.5 m behind the front speakers/,
+    )
+  })
+
   it('says why the recommended seat is off the center line', async () => {
     // A 2.1 room 5 m wide: the best seat beats the center line by about 4
     // points, on the bass.

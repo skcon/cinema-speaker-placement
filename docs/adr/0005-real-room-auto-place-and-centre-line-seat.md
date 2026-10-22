@@ -103,3 +103,15 @@ So auto-place aims **Left and Right at 29°** (`LEFT_RIGHT_AIM` in reference.ts)
 - In the default room (6 × 4.5 × 2.6 m, 5.1.2) Left and Right move from 1.98 m to 2.04 m from the MLP (0.87 m to 0.99 m off the centre line). With the default 88 dB, 100 W specs their headroom drops from tight to about 0.2 dB short.
 - The seat score moves where L and R add bass below the crossover, and an off-centre seat now sees L/R at different angles. The default room still recommends its 38% MLP. Some test rooms were swapped for others that show the same behaviour (`src/test/seat-fixtures.ts` and the centre-line tests). The seat-score calibration (#120, amendment above) is unchanged by this.
 - `LEFT_RIGHT_AIM` cites IG p.7 and IG p.8 fig.3. The 1° margin is ours.
+
+## Amendment (1.3.1): Speakers follow the seat (#123)
+
+Auto speakers have always been installed around the MLP, so they move with every drag of the MLP. Users who move the seat to try it out, or whose speakers are already mounted, asked to keep the speakers where they are while the seat moves, as a toggle.
+
+- **Speakers follow the seat** (GLOSSARY.md), on by default, is today's rule: the auto listener-level and overhead speakers are installed around the MLP (`installedFor` is the MLP in `placeSpeakers`) and follow it live while it is dragged; a drag is one undo step.
+- **Off**, the config stores the seat they are installed for (`speakersInstalledFor`), set to where the MLP is when it is turned off, so nothing moves. `placeAll` then installs the auto speakers (and spaces the auto overheads) for that stored seat and grades every speaker from the MLP: moving the MLP changes the grades, the aim and the estimate, never a speaker's position. A wall that moves past the stored seat moves it in, as it would the MLP.
+- **Turning it back on** installs the auto speakers around the MLP where it is now. Toggling is one undo step.
+- **Manual speakers are unchanged**: dragging a speaker makes it manual whichever way the toggle is, and a manual speaker never follows the seat.
+- **Auto-place** installs the auto speakers around the recommended seat either way: with the toggle off it stores that seat and stays off, and it counts a stored seat more than a millimeter from the MLP as something to do.
+- **The recommended seat doesn't read it**: every candidate seat has its own speakers installed for it (the #120 amendment), so `seatScoreInput` fixes the toggle on. The current MLP's comparison (`compareMlp`) is scored with the auto speakers where they are installed for, when it is off.
+- The config change is config version 3 (ADR 0003, amendment for #123). No new numbers.

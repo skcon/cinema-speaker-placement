@@ -157,8 +157,12 @@ Placing every speaker from the reference recommendations for the current room an
 _Avoid_: Auto-layout, optimize
 
 **Auto / manual**:
-Whether a channel's speaker, a subwoofer or the MLP is placed by Auto-place (auto, follows Room and MLP changes) or was dragged or edited by the user (manual, stays where it was left; its **manual position** is stored in the config).
+Whether a channel's speaker, a subwoofer or the MLP is placed by Auto-place (auto, follows Room changes and, while Speakers follow the seat is on, MLP changes) or was dragged or edited by the user (manual, stays where it was left; its **manual position** is stored in the config).
 _Avoid_: Locked, pinned, custom position
+
+**Speakers follow the seat**:
+The checkbox (on by default) that says where the auto listener-level and overhead speakers are installed for. On, they are installed around the MLP and follow it while it is dragged. Off, they stay installed for the seat the MLP was at when it was turned off (that seat is stored in the config, `speakersInstalledFor`); moving the MLP then grades them from the new seat without moving them. Turning it back on installs them around the MLP where it is. Manual speakers never follow either way, and neither setting changes the recommended seat (ADR 0005, amendment for #123).
+_Avoid_: Lock speakers, anchor (a drag target's anchor is something else), freeze
 
 ## Room view
 

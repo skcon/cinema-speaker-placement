@@ -16,7 +16,11 @@ import type { Layout } from './layout'
 import { checkRange, type AcceptedRange, type RangeProblem } from './range'
 import { SPEAKER_TYPE_GEOMETRY } from './reference'
 import type { RoomPoint } from './room'
-import { subwooferIds, type SubwooferId } from './subwoofer-arrangements'
+import {
+  SUBWOOFER_IDS,
+  subwooferIds,
+  type SubwooferId,
+} from './subwoofer-arrangements'
 import { fromInches } from './units'
 
 /** How a subwoofer's driver is loaded: a closed box or a box with a port. */
@@ -54,10 +58,10 @@ export type SubwooferGroup = {
 
 /**
  * Whether subwoofer `id` may have own specs in `layout`: only a subwoofer
- * of the layout may. The one home of this rule: the config schema, the
- * layout edit and the own-specs edit all follow it.
+ * of the layout may. The one home of this own-specs rule: the config
+ * schema and the layout and own-specs edits all follow it.
  */
-export function mayHaveOwnSpecs(layout: Layout, id: string): boolean {
+function mayHaveOwnSpecs(layout: Layout, id: string): boolean {
   return subwooferIds(layout.subwoofers).some((inLayout) => inLayout === id)
 }
 
@@ -69,15 +73,21 @@ export function hasOwnSpecsOnlyInLayout(
   return Object.keys(ownSpecs).every((id) => mayHaveOwnSpecs(layout, id))
 }
 
-/** The group's own specs, kept only for the subwoofers in `ids`, in that order. */
-function ownSpecsOf(
+/**
+ * The group's own specs of the subwoofers that may have them in `layout`
+ * and `keep` keeps, by subwoofer id.
+ */
+function ownSpecsIn(
+  layout: Layout,
   { ownSpecs }: SubwooferGroup,
-  ids: readonly SubwooferId[],
+  keep: (id: SubwooferId) => boolean = () => true,
 ): SubwooferGroup['ownSpecs'] {
   return Object.fromEntries(
-    ids.flatMap((id) => {
+    SUBWOOFER_IDS.flatMap((id) => {
       const specs = ownSpecs[id]
-      return specs ? [[id, specs] as const] : []
+      return specs && mayHaveOwnSpecs(layout, id) && keep(id)
+        ? [[id, specs] as const]
+        : []
     }),
   )
 }
@@ -90,10 +100,7 @@ export function keepOwnSpecsInLayout(
   layout: Layout,
   group: SubwooferGroup,
 ): SubwooferGroup {
-  return {
-    ...group,
-    ownSpecs: ownSpecsOf(group, subwooferIds(layout.subwoofers)),
-  }
+  return { ...group, ownSpecs: ownSpecsIn(layout, group) }
 }
 
 /**
@@ -112,10 +119,7 @@ export function withOwnSpecs(
   if ((group.ownSpecs[id] !== undefined) === hasOwnSpecs) return group
   const ownSpecs = hasOwnSpecs
     ? { ...group.ownSpecs, [id]: group.specs }
-    : ownSpecsOf(
-        group,
-        subwooferIds(layout.subwoofers).filter((other) => other !== id),
-      )
+    : ownSpecsIn(layout, group, (other) => other !== id)
   return { ...group, ownSpecs }
 }
 

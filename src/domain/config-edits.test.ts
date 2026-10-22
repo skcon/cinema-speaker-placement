@@ -113,6 +113,28 @@ describe('a layout edit', () => {
     })
   })
 
+  it('lists own specs by subwoofer once the count changes, so the share link is the same however they were given', () => {
+    // Subwoofer 1 gets own specs after Subwoofer 2 has them.
+    const config = withSubwooferHasOwnSpecs(ROOM, 'Sub1', true)
+    expect(Object.keys(config.speakerGroups.subwoofers.ownSpecs)).toEqual([
+      'Sub2',
+      'Sub1',
+    ])
+
+    const edited = withLayout(config, { ...config.layout, subwoofers: 3 })
+
+    expect(Object.keys(edited.speakerGroups.subwoofers.ownSpecs)).toEqual([
+      'Sub1',
+      'Sub2',
+    ])
+  })
+
+  it('leaves the Subwoofers group as it is for another Dolby layout', () => {
+    const edited = withLayout(ROOM, { ...ROOM.layout, dolbyLayout: '5.1' })
+
+    expect(edited.speakerGroups).toBe(ROOM.speakerGroups)
+  })
+
   it('changes nothing for the same layout', () => {
     expect(withLayout(ROOM, { ...ROOM.layout })).toBe(ROOM)
   })

@@ -3,6 +3,7 @@ import { modeName } from '@/charts/notes-text'
 import {
   formatLength,
   SEAT_SCORE,
+  SEATING_DISTANCE,
   wallDistances,
   type OffCenterLine,
   type Room,
@@ -41,7 +42,10 @@ export function RecommendedSeat() {
             <p className="text-muted-foreground">
               {recommendation.mlpIsRecommended
                 ? 'Your MLP is at the recommended seat: no seat scores meaningfully better.'
-                : `Your MLP scores ${outOf100(recommendation.current)}.`}
+                : recommendation.mlpKeepsSeatingDistances
+                  ? `Your MLP scores ${outOf100(recommendation.current)}.`
+                  : `Your MLP scores ${outOf100(recommendation.current)}, but ` +
+                    `it is too close to a speaker, a wall or the front stage.`}
             </p>
           </>
         ) : (
@@ -66,7 +70,12 @@ export function RecommendedSeat() {
         seats scored on bass smoothness (the estimated response against the
         target) and on the listener-level speakers&rsquo; Dolby placement ranges
         (auto speakers installed symmetric to the room), with the receiver
-        calibrated at the MLP. The best seat on the center line is preferred, as
+        calibrated at the MLP. Only seats at least{' '}
+        {formatLength(SEATING_DISTANCE.fromSpeaker, units)} from every speaker
+        and subwoofer, {formatLength(SEATING_DISTANCE.fromWall, units)} from the
+        side and back walls, and{' '}
+        {formatLength(SEATING_DISTANCE.behindFrontStage, units)} behind the
+        front speakers, count. The best seat on the center line is preferred, as
         in published practice, unless a seat off it scores meaningfully better.
         Moving the MLP makes it manual; undo takes it back. Auto-place also puts
         the MLP here.

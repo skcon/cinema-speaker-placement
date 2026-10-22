@@ -4,8 +4,13 @@ import {
   DEFAULT_CONFIG,
   recommendSeat,
   scoreSeat,
+  SEATING_DISTANCE,
+  SUBWOOFER_COUNTS,
+  V1_DOLBY_LAYOUTS,
   type Config,
+  type DolbyLayout,
   type ScoredSeat,
+  type SubwooferCount,
 } from '@/domain'
 import { yardsticksFor } from '@/test/relative-speed'
 import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
@@ -343,5 +348,195 @@ describe('recommended seat on the center line (ADR 0005)', () => {
     expect(current.position.x).toBe(0)
     expect(recommended).toBe(current)
     expect(offCenterLine).toBeUndefined()
+  })
+})
+
+describe('seating distances (#119)', () => {
+  /** A room `length` deep and `width` wide, 2.6 m high, with a layout. */
+  const roomOf = (
+    length: number,
+    width: number,
+    dolbyLayout: DolbyLayout = DEFAULT_CONFIG.layout.dolbyLayout,
+    subwoofers: SubwooferCount = DEFAULT_CONFIG.layout.subwoofers,
+  ): Config => ({
+    ...DEFAULT_CONFIG,
+    room: { length, width, height: 2.6 },
+    layout: { dolbyLayout, subwoofers },
+  })
+
+  /** The seat's distance from the nearest listener-level speaker or subwoofer. */
+  const nearestSpeaker = ({ distances }: ScoredSeat) =>
+    Math.min(
+      ...[...distances.speakers, ...distances.subwoofers].map(
+        ({ distance }) => distance,
+      ),
+    )
+
+  /** Expect `seat` to keep every seating distance. */
+  const expectSeatingDistancesKept = (seat: ScoredSeat, room: string) => {
+    expect(nearestSpeaker(seat), room).toBeGreaterThanOrEqual(0.5 - 1e-9)
+    expect(seat.distances.fromWall, room).toBeGreaterThanOrEqual(0.5 - 1e-9)
+    expect(seat.distances.behindFrontStage, room).toBeGreaterThanOrEqual(
+      1.5 - 1e-9,
+    )
+    expect(seat.distances.shortfall, room).toBe(0)
+  }
+
+  it('are RP22’s Level 1 head clearance from speakers and walls, and our 1.5 m behind the front stage', () => {
+    expect(SEATING_DISTANCE).toMatchObject({
+      fromSpeaker: 0.5,
+      fromWall: 0.5,
+      behindFrontStage: 1.5,
+    })
+    expect(SEATING_DISTANCE.citations).toContainEqual(
+      expect.objectContaining({ source: 'RP22' }),
+    )
+    expect(SEATING_DISTANCE.note).toMatch(/behindFrontStage is ours/)
+  })
+
+  it('expose the stage installed for a seat: every speaker’s and subwoofer’s distance, the L–R spread and the distance behind the front stage', () => {
+    // The default room's 38% MLP, 2.28 m back: the front stage on the
+    // 0.5 m line, 1.78 m ahead, Left and Right at ±26°; the subwoofer on
+    // the floor at the front wall, 0.3 m off it and 0.3 m up.
+    const { distances } = scoreSeat(DEFAULT_CONFIG, { x: 0, y: 2.28, z: 1.2 })
+    const ahead = 2.28 - 0.5
+    const tan26 = Math.tan((26 * Math.PI) / 180)
+    const distanceOf = (id: string) =>
+      [...distances.speakers, ...distances.subwoofers].find(
+        (item) => item.id === id,
+      )!.distance
+
+    expect(distances.speakers.map(({ id }) => id)).toEqual([
+      'L',
+      'C',
+      'R',
+      'Ls',
+      'Rs',
+    ])
+    expect(distanceOf('C')).toBeCloseTo(ahead, 9)
+    expect(distanceOf('L')).toBeCloseTo(
+      ahead / Math.cos((26 * Math.PI) / 180),
+      9,
+    )
+    expect(distanceOf('R')).toBeCloseTo(distanceOf('L'), 9)
+    expect(distances.leftRightSpread).toBeCloseTo(2 * ahead * tan26, 9)
+    expect(distanceOf('Sub1')).toBeCloseTo(Math.hypot(2.28 - 0.3, 1.2 - 0.3), 9)
+    expect(distances.behindFrontStage).toBeCloseTo(ahead, 9)
+    expect(distances.fromWall).toBeCloseTo(4.5 / 2, 9)
+    expect(distances.shortfall).toBe(0)
+  })
+
+  it('count a seat in front of the front-stage line as in front of it, though its own stage falls back to the wall clearance', () => {
+    // 0.4 m from the front wall: the auto stage installed for it stops at
+    // the 0.3 m wall clearance, right in front of the seat.
+    const { distances } = scoreSeat(DEFAULT_CONFIG, { x: 0, y: 0.4, z: 1.2 })
+
+    expect(distances.behindFrontStage).toBeCloseTo(-0.1, 9)
+    expect(distances.shortfall).toBeCloseTo(1.6, 9)
+  })
+
+  it('count a manual front speaker farther back than the front-stage line as the front stage', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { C: { x: 0, y: 2, z: 1.2 } },
+    }
+    const { distances } = scoreSeat(config, { x: 0, y: 3, z: 1.2 })
+
+    expect(distances.behindFrontStage).toBeCloseTo(1, 9)
+    expect(distances.shortfall).toBeCloseTo(0.5, 9)
+  })
+
+  it('only leave candidates that keep every seating distance', () => {
+    const { candidates } = recommendSeat(DEFAULT_CONFIG)
+
+    for (const seat of candidates) {
+      expectSeatingDistancesKept(
+        seat,
+        `(${seat.position.x}, ${seat.position.y})`,
+      )
+    }
+  })
+
+  it('move the recommendation off an MLP that is too close to the front stage', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0, y: 1, z: 1.2 } },
+    }
+    const { recommended, current, mlpIsRecommended, mlpKeepsSeatingDistances } =
+      recommendSeat(config)
+
+    expect(current.distances.shortfall).toBeGreaterThan(0)
+    expect(mlpKeepsSeatingDistances).toBe(false)
+    expect(recommended).not.toBe(current)
+    expect(mlpIsRecommended).toBe(false)
+    expectSeatingDistancesKept(recommended, 'default room, MLP 1 m back')
+  })
+
+  it.each([
+    // The rooms of the report: wider than long, the TV on the long wall.
+    // Before #119 the recommendation was 0.54 m from the front wall in the
+    // 4 x 6 m room, 4 cm behind the front stage, on the Center and Sub1.
+    { length: 4, width: 6 },
+    { length: 5, width: 6.5 },
+  ])(
+    'keep the recommendation out of the front 25% of a $length x $width m room in every v1 layout',
+    ({ length, width }) => {
+      for (const dolbyLayout of V1_DOLBY_LAYOUTS) {
+        const { recommended } = recommendSeat(
+          roomOf(length, width, dolbyLayout),
+        )
+        const room = `${length} x ${width} m, ${dolbyLayout}`
+
+        expect(recommended.position.y, room).toBeGreaterThan(0.25 * length)
+        expectSeatingDistancesKept(recommended, room)
+        // Left and Right on their 26° from at least 1.5 m: no tiny stage.
+        expect(recommended.distances.leftRightSpread, room).toBeGreaterThan(
+          2 * 1.5 * Math.tan((26 * Math.PI) / 180) - 1e-9,
+        )
+      }
+    },
+    HEAVY_TEST_TIMEOUT_MS,
+  )
+
+  /** The sweep's room lengths and widths, in meters (the report's sweep). */
+  const sweepLengths = [3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9]
+  const sweepWidths = [3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7]
+
+  it.each(sweepLengths.map((length, i) => ({ length, i })))(
+    'keep every seating distance in every room $length m long, 3–7 m wide (sweep)',
+    ({ length, i }) => {
+      // Each room gets one layout and one subwoofer count, stepping
+      // through them like a checkerboard, so every v1 layout and every
+      // count is tried across the sweep (108 rooms) without scoring every
+      // combination in every room.
+      sweepWidths.forEach((width, j) => {
+        const dolbyLayout = V1_DOLBY_LAYOUTS[(i + j) % V1_DOLBY_LAYOUTS.length]!
+        const subwoofers =
+          SUBWOOFER_COUNTS[(i + 2 * j) % SUBWOOFER_COUNTS.length]!
+        const { recommended } = recommendSeat(
+          roomOf(length, width, dolbyLayout, subwoofers),
+        )
+
+        expectSeatingDistancesKept(
+          recommended,
+          `${length} x ${width} m, ${dolbyLayout}, ${subwoofers} sub`,
+        )
+      })
+    },
+    HEAVY_TEST_TIMEOUT_MS,
+  )
+
+  it('recommend the seats that come nearest when no seat of a very small room keeps them', () => {
+    // 2.4 m deep: 1.5 m behind the 0.5 m front stage is 2 m back, but
+    // 0.5 m from the back wall is no more than 1.9 m back, so no seat keeps
+    // both. The seats that come nearest are kept, all equally short.
+    const config = roomOf(2.4, 3)
+    const { recommended, candidates } = recommendSeat(config)
+    const shortfalls = candidates.map(({ distances }) => distances.shortfall)
+
+    expect(candidates.length).toBeGreaterThan(0)
+    expect(Math.min(...shortfalls)).toBeGreaterThan(0)
+    expect(Math.max(...shortfalls)).toBeCloseTo(Math.min(...shortfalls), 9)
+    expect(recommended.distances.shortfall).toBeCloseTo(shortfalls[0]!, 9)
   })
 })

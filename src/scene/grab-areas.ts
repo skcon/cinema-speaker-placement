@@ -20,11 +20,11 @@
  *   the press (the higher one first: overheads on the ceiling over
  *   listener-level speakers over subwoofers), then an item only reached
  *   by its touch target, then a room object; and of those alike, the one
- *   first in grabAreas' order. Room objects equally near go to a
- *   furniture box first, then the Screen, the openings and the Seat row
- *   (drawn under everything): the room view used to leave that tie to
- *   Three.js hit order, which picked a furniture box over the Screen and,
- *   on most page loads, over the Seat row.
+ *   first in grabAreas' order. Room objects equally near go to the
+ *   Screen first (its thin bar is drawn over a furniture box under it,
+ *   such as a TV over its cabinet, and a box is still picked where only
+ *   the bar's touch target reaches over it, #126), then a furniture box,
+ *   the openings and the Seat row (drawn under everything).
  *
  * Pure: no React, no Three.js. All lengths are in meters on the floor
  * plan.
@@ -105,8 +105,8 @@ export type GrabAnalysis = Pick<RoomAnalysis, 'mlp' | 'items' | 'seatRow'>
  * a grab area.
  */
 const ROOM_OBJECT_TIES: { readonly [K in RoomObjectKind]: number } = {
-  furniture: 0,
-  screen: 1,
+  screen: 0,
+  furniture: 1,
   opening: 2,
   seatRow: 3,
 }
@@ -123,7 +123,7 @@ const TOUCH_TARGET_PX = 44
 
 /**
  * The grab area of every drag target the config has, in the order ties
- * go (see the module comment): the furniture boxes, the Screen, the
+ * go (see the module comment): the Screen, the furniture boxes, the
  * openings, the Seat row, then the MLP, the subwoofers, the
  * listener-level speakers and the overheads, as the room view draws them.
  * Items are where `analysis` (the config's Room analysis) places them.

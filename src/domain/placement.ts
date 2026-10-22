@@ -361,6 +361,11 @@ export const FRONT_STAGE_CHANNELS: ReadonlySet<ChannelId> = new Set([
   'R',
 ])
 
+/** Whether `channel` is on the front stage: L, C or R. */
+export function isFrontStageChannel(channel: ChannelId): boolean {
+  return FRONT_STAGE_CHANNELS.has(channel)
+}
+
 /** Turn a speaker at `position` to face the MLP (rule 5 above). */
 export function aimAtMlp(position: RoomPoint, mlp: RoomPoint): Aim {
   return { yaw: bearingTo(position, mlp) }

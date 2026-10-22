@@ -315,8 +315,10 @@ export {
   type UnitSystemSpec,
 } from './units'
 export {
+  frontStageDistances,
   itemDistances,
   type DimensionLine,
+  type FrontStageDistance,
   type ItemDistances,
   type WallDimensionLine,
 } from './item-distances'

@@ -40,9 +40,10 @@ export type { RoomMode, RoomModeKind } from './room-modes'
 export {
   compareMlp,
   findRecommendedSeat,
-  recommendationInputs,
   recommendSeat,
   scoreSeat,
+  seatScoreInput,
+  seatScoreKey,
   type CenterLineWidthMode,
   type ItemFromSeat,
   type MlpComparison,
@@ -51,6 +52,7 @@ export {
   type ScoredSeat,
   type SeatDistances,
   type SeatRecommendation,
+  type SeatScoreInput,
 } from './seat-score'
 export { seatHeatmap, type HeatmapCell, type SeatHeatmap } from './seat-heatmap'
 export { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'

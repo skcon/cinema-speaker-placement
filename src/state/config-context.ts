@@ -11,6 +11,8 @@ import {
   compareMlp,
   findRecommendedSeat,
   seatHeatmap,
+  seatScoreInput,
+  seatScoreKey,
   type Config,
   type RecommendedSeat,
   type RoomAnalysis,
@@ -18,7 +20,6 @@ import {
   type SeatRecommendation,
 } from '@/domain'
 import type { ConfigState, ConfigStore } from './config-store'
-import { seatScoreKey } from './seat-recommendation'
 
 /** The app's config store; provided by ConfigStoreProvider. */
 export const ConfigStoreContext = createContext<ConfigStore | null>(null)
@@ -107,15 +108,16 @@ export function useSeatHeatmap(enabled: boolean): SeatHeatmap | null {
 /**
  * Works the recommended seat out, for SeatRecommendationContext only:
  * deferred and kept through a gesture. The grid (findRecommendedSeat) is
- * memoized on everything it depends on (seatScoreKey), so moving the MLP
- * or a speaker, or a change of units or seat row size, keeps it; the
- * current MLP's cheap comparison with it (compareMlp) follows every
- * change (#120).
+ * scored on the domain's seat score input and memoized on its key
+ * (seatScoreInput, seatScoreKey, #127), so moving the MLP or a speaker,
+ * or a change the recommendation doesn't read, keeps it; the current
+ * MLP's cheap comparison with it (compareMlp) follows every change (#120).
  */
 export function useComputedSeatRecommendation(): SeatRecommendation | null {
   const config = useConfig((state) => state.gesture?.start ?? state.config)
   const deferred = useDeferredValue<Config | null>(config, null)
-  const key = deferred && seatScoreKey(deferred)
+  const input = deferred && seatScoreInput(deferred)
+  const key = input && seatScoreKey(input)
   const [memo, setMemo] = useState<{
     key: string | null
     seat: RecommendedSeat | null
@@ -124,7 +126,7 @@ export function useComputedSeatRecommendation(): SeatRecommendation | null {
   // does), so the grid is scored once per key.
   let seat = memo.seat
   if (memo.key !== key) {
-    seat = deferred && findRecommendedSeat(deferred)
+    seat = input && findRecommendedSeat(input)
     setMemo({ key, seat })
   }
   return useMemo(

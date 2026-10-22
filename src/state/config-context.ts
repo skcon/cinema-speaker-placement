@@ -8,9 +8,11 @@ import {
 import { useStore } from 'zustand'
 import {
   analyzeRoom,
-  recommendSeat,
+  compareMlp,
+  findRecommendedSeat,
   seatHeatmap,
   type Config,
+  type RecommendedSeat,
   type RoomAnalysis,
   type SeatHeatmap,
   type SeatRecommendation,
@@ -104,9 +106,11 @@ export function useSeatHeatmap(enabled: boolean): SeatHeatmap | null {
 
 /**
  * Works the recommended seat out, for SeatRecommendationContext only:
- * deferred, kept through a gesture, and memoized on everything the score
- * depends on (seatScoreKey), so a change of units or seat row size
- * keeps it.
+ * deferred and kept through a gesture. The grid (findRecommendedSeat) is
+ * memoized on everything it depends on (seatScoreKey), so moving the MLP
+ * or a speaker, or a change of units or seat row size, keeps it; the
+ * current MLP's cheap comparison with it (compareMlp) follows every
+ * change (#120).
  */
 export function useComputedSeatRecommendation(): SeatRecommendation | null {
   const config = useConfig((state) => state.gesture?.start ?? state.config)
@@ -114,17 +118,18 @@ export function useComputedSeatRecommendation(): SeatRecommendation | null {
   const key = deferred && seatScoreKey(deferred)
   const [memo, setMemo] = useState<{
     key: string | null
-    recommendation: SeatRecommendation | null
-  }>({ key: null, recommendation: null })
+    seat: RecommendedSeat | null
+  }>({ key: null, seat: null })
   // Adjust state while rendering when the key changes (as CrossoverField
   // does), so the grid is scored once per key.
+  let seat = memo.seat
   if (memo.key !== key) {
-    const next = {
-      key,
-      recommendation: deferred && recommendSeat(deferred),
-    }
-    setMemo(next)
-    return next.recommendation
+    seat = deferred && findRecommendedSeat(deferred)
+    setMemo({ key, seat })
   }
-  return memo.recommendation
+  return useMemo(
+    () =>
+      deferred && seat ? { ...seat, ...compareMlp(deferred, seat) } : null,
+    [deferred, seat],
+  )
 }

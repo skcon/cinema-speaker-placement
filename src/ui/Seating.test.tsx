@@ -58,6 +58,20 @@ describe('seating in the sidebar', () => {
     expect(seating).not.toHaveTextContent(/It is off the center line/)
   })
 
+  it('keeps the recommended seat when the MLP moves, and says the MLP is about as good within the model’s precision (#120)', async () => {
+    const seating = renderSeating({
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0, y: 2.38, z: 1.2 } },
+    })
+
+    expect(
+      await within(seating).findByText(/Your MLP scores/),
+    ).toHaveTextContent(/about as good as the recommended seat/)
+    expect(seating).toHaveTextContent(
+      /Recommended seat: 2\.28 m from the front wall/,
+    )
+  })
+
   it('says when the MLP is too close to the speakers to stay the recommended seat (#119)', async () => {
     const seating = renderSeating({
       ...DEFAULT_CONFIG,

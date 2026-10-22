@@ -8,6 +8,7 @@ import {
   type OffCenterLine,
   type Room,
   type ScoredSeat,
+  type SeatRecommendation,
   type UnitSystem,
 } from '@/domain'
 import { useConfig, useSeatRecommendation } from '@/state/config-context'
@@ -40,12 +41,7 @@ export function RecommendedSeat() {
               </p>
             )}
             <p className="text-muted-foreground">
-              {recommendation.mlpIsRecommended
-                ? 'Your MLP is at the recommended seat: no seat scores meaningfully better.'
-                : recommendation.mlpKeepsSeatingDistances
-                  ? `Your MLP scores ${outOf100(recommendation.current)}.`
-                  : `Your MLP scores ${outOf100(recommendation.current)}, but ` +
-                    `it is too close to a speaker, a wall or the front stage.`}
+              {mlpComparisonText(recommendation)}
             </p>
           </>
         ) : (
@@ -70,7 +66,10 @@ export function RecommendedSeat() {
         seats scored on bass smoothness (the estimated response against the
         target) and on the listener-level speakers&rsquo; Dolby placement ranges
         (auto speakers installed symmetric to the room), with the receiver
-        calibrated at the MLP. Only seats at least{' '}
+        calibrated at the &ldquo;38% rule&rdquo; seat. The recommended seat
+        places every speaker automatically (subwoofers stay where they are), so
+        moving the MLP or a speaker doesn&rsquo;t move it; your MLP is scored
+        with the speakers where they are. Only seats at least{' '}
         {formatLength(SEATING_DISTANCE.fromSpeaker, units)} from every speaker
         and subwoofer, {formatLength(SEATING_DISTANCE.fromWall, units)} from the
         side and back walls, and{' '}
@@ -82,6 +81,37 @@ export function RecommendedSeat() {
       </p>
     </div>
   )
+}
+
+/**
+ * How the current MLP compares with the recommended seat: its score, and
+ * whether it is at the seat, within the model's precision of it, or too
+ * close to a speaker, a wall or the front stage.
+ */
+function mlpComparisonText({
+  current,
+  mlpIsRecommended,
+  mlpKeepsSeatingDistances,
+  mlpWithinMeaningfulDifference,
+}: SeatRecommendation): string {
+  const scores = `scores ${outOf100(current)}`
+  if (mlpIsRecommended) {
+    return `Your MLP is at the recommended seat and ${scores}.`
+  }
+  if (!mlpKeepsSeatingDistances) {
+    return (
+      `Your MLP ${scores}, but it is too close to a speaker, a wall or ` +
+      `the front stage.`
+    )
+  }
+  if (mlpWithinMeaningfulDifference) {
+    return (
+      `Your MLP ${scores}: within the ` +
+      `${Math.round(SEAT_SCORE.meaningfulDifference * 100)} points the ` +
+      `simplified model can tell apart, about as good as the recommended seat.`
+    )
+  }
+  return `Your MLP ${scores}.`
 }
 
 /** Where a seat is: from the front wall, and from the nearer side wall. */

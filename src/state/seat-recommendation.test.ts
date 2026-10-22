@@ -42,10 +42,24 @@ describe('the seat score memo key', () => {
     ['the layout', { layout: { dolbyLayout: '7.1', subwoofers: 2 } }],
     ['the target curve', { targetCurve: 'house' }],
     ['the crossover', { crossoverHz: 100 }],
-    ['a manual position', { manualPositions: { MLP: { x: 0, y: 3, z: 1.2 } } }],
+    [
+      'a manual subwoofer',
+      { manualPositions: { Sub1: { x: 1.5, y: 3, z: 0.3 } } },
+    ],
   ] as const)('changes with %s', (_, change) => {
     expect(seatScoreKey({ ...DEFAULT_CONFIG, ...change })).not.toBe(key)
   })
+
+  it.each([
+    ['the MLP', { MLP: { x: 0, y: 3, z: 1.2 } }],
+    ['a listener-level speaker', { L: { x: -1.8, y: 0.5, z: 1.2 } }],
+    ['an overhead speaker', { Ltm: { x: -1, y: 2, z: 2.6 } }],
+  ] as const)(
+    'ignores %s moved by hand, which the recommended seat does not read (#120)',
+    (_, manualPositions) => {
+      expect(seatScoreKey({ ...DEFAULT_CONFIG, manualPositions })).toBe(key)
+    },
+  )
 
   it('changes with any other field, even one added later (a blocklist, not an allowlist)', () => {
     const withNewField = { ...DEFAULT_CONFIG, ampWatts: 100 } as Config

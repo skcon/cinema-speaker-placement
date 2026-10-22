@@ -141,7 +141,7 @@ How far above the reference peak a speaker group (its weakest Speaker) or the Su
 _Avoid_: Reserve, margin (in the UI), SPL capability
 
 **Seat score**:
-How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The **recommended seat** is the best candidate on the room's center line, unless a seat off it scores meaningfully better; then the app says why, for example a width mode at the center line (ADR 0005). Only candidates that keep the seating distances count. An estimate, never a measurement.
+How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The **recommended seat** is the best candidate on the room's center line, unless a seat off it scores meaningfully better; then the app says why, for example a width mode at the center line (ADR 0005). Only candidates that keep the seating distances count. The recommended seat belongs to the room, the layout and the subwoofers: it is found with the MLP and every speaker auto and one calibration at the "38% rule" seat, so moving the MLP or a speaker never moves it. The current MLP is scored where it is, with the speakers where they are, and compared with it (ADR 0004, #120). An estimate, never a measurement.
 _Avoid_: Rating, quality
 
 **Seating distances**:

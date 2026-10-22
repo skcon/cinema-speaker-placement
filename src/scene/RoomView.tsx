@@ -301,8 +301,8 @@ function SelectionReadout({
 }
 
 /**
- * What the heatmap colors mean, and what the scores are: relative to the
- * current MLP's calibration, and an estimate. When the seats score about
+ * What the heatmap colors mean, and what the scores are: relative to one
+ * calibration for the room (at the "38% rule" seat), and an estimate. When the seats score about
  * the same, the colors sit near the middle of the scale and a note says so.
  */
 function HeatmapLegend({
@@ -329,8 +329,8 @@ function HeatmapLegend({
       </div>
       {scoresAboutTheSame && <p>Seats score about the same.</p>}
       <p>
-        Relative to the current MLP&rsquo;s calibration: an estimate from a
-        simplified model.
+        Relative to one calibration for the room, at the &ldquo;38% rule&rdquo;
+        seat: an estimate from a simplified model.
       </p>
     </div>
   )

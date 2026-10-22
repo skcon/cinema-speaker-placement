@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeRoom,
   DEFAULT_CONFIG,
+  recommendationInputs,
   recommendSeat,
   scoreSeat,
   SEATING_DISTANCE,
   SUBWOOFER_COUNTS,
   V1_DOLBY_LAYOUTS,
+  withAutoPlacement,
   type Config,
   type DolbyLayout,
   type ScoredSeat,
@@ -77,21 +79,6 @@ describe('seat score', () => {
     expect(centered.placementFit).toBe(1)
     expect(atWall.placementFit).toBeLessThan(0.75)
   })
-
-  it('counts weaker bass than at the MLP, as the calibration stays the MLP’s', () => {
-    // Moving the MLP to the null calibrates there, which hides most of
-    // the weaker bass; scored from the 38% seat it shows.
-    const seat = { x: 0, y: 3, z: 1.2 }
-    const fromMlp = scoreSeat(DEFAULT_CONFIG, seat)
-    const calibratedThere = scoreSeat(
-      { ...DEFAULT_CONFIG, manualPositions: { MLP: seat } },
-      seat,
-    )
-
-    expect(fromMlp.responseDeviationDb).toBeGreaterThan(
-      calibratedThere.responseDeviationDb,
-    )
-  })
 })
 
 describe('recommended seat', () => {
@@ -99,7 +86,7 @@ describe('recommended seat', () => {
     const { recommended, current, offCenterLine, mlpIsRecommended } =
       recommendSeat(DEFAULT_CONFIG)
 
-    expect(recommended).toBe(current)
+    expect(recommended).toEqual(current)
     expect(recommended.position.x).toBe(0)
     expect(recommended.position.y).toBeCloseTo(2.28, 9)
     expect(mlpIsRecommended).toBe(true)
@@ -135,17 +122,20 @@ describe('recommended seat', () => {
     expect(moved.recommended.position).toEqual(recommended.position)
   })
 
-  it('keeps the MLP when no seat is better by more than the model’s precision', () => {
+  it('keeps the 38% seed seat when no seat is better by more than the model’s precision', () => {
     // The default room: the best seat of the grid, 4.54 m back, is less
-    // than a point better than the 38% MLP.
-    const { recommended, current, candidates, mlpIsRecommended } =
-      recommendSeat(DEFAULT_CONFIG)
+    // than a point better than the 38% seed seat, wherever the MLP is.
+    const seed = { x: 0, y: 6 * 0.38, z: 1.2 }
+    const { recommended, candidates } = recommendSeat({
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0, y: 4.5, z: 1.2 } },
+    })
     const best = Math.max(...candidates.map((seat) => seat.score))
+    const seedScore = scoreSeat(DEFAULT_CONFIG, seed).score
 
-    expect(best).toBeGreaterThan(current.score)
-    expect(best).toBeLessThan(current.score + 0.02)
-    expect(recommended).toBe(current)
-    expect(mlpIsRecommended).toBe(true)
+    expect(best).toBeGreaterThan(seedScore)
+    expect(best).toBeLessThan(seedScore + 0.02)
+    expect(recommended.position).toEqual(seed)
   })
 
   it('only considers seats inside the MLP’s wall clearance, at ear height', () => {
@@ -280,7 +270,7 @@ describe('recommended seat on the center line (ADR 0005)', () => {
 
     expect(Math.abs(recommended.position.x)).toBeCloseTo(0.94, 2)
     expect(recommended).toBe(bestOf(candidates))
-    expect(offCenterLine?.centerLine).toBe(bestOnCenterLine)
+    expect(offCenterLine?.centerLine).toEqual(bestOnCenterLine)
     expect(offCenterLine?.margin).toBeCloseTo(
       recommended.score - bestOnCenterLine.score,
       12,
@@ -347,14 +337,14 @@ describe('recommended seat on the center line (ADR 0005)', () => {
     HEAVY_TEST_TIMEOUT_MS,
   )
 
-  it('counts an MLP on the center line as a center-line seat, and keeps it when no seat beats it meaningfully', () => {
+  it('counts the 38% seed seat as a center-line seat, and keeps it when no seat beats it meaningfully', () => {
     // The 24 x 15 ft fixture room: its 38% MLP is on the center line and
     // scores about as well as the grid's best center-line seat.
     const config = V2_LINKS.imperialRoom.config as Config
     const { recommended, current, offCenterLine } = recommendSeat(config)
 
     expect(current.position.x).toBe(0)
-    expect(recommended).toBe(current)
+    expect(recommended).toEqual(current)
     expect(offCenterLine).toBeUndefined()
   })
 })
@@ -466,7 +456,7 @@ describe('seating distances (#119)', () => {
     }
   })
 
-  it('move the recommendation off an MLP that is too close to the front stage', () => {
+  it('say when the MLP is too close to the front stage, and recommend a seat that keeps the distances', () => {
     const config: Config = {
       ...DEFAULT_CONFIG,
       manualPositions: { MLP: { x: 0, y: 1, z: 1.2 } },
@@ -476,7 +466,7 @@ describe('seating distances (#119)', () => {
 
     expect(current.distances.shortfall).toBeGreaterThan(0)
     expect(mlpKeepsSeatingDistances).toBe(false)
-    expect(recommended).not.toBe(current)
+    expect(recommended.position).not.toEqual(current.position)
     expect(mlpIsRecommended).toBe(false)
     expectSeatingDistancesKept(recommended, 'default room, MLP 1 m back')
   })
@@ -548,5 +538,139 @@ describe('seating distances (#119)', () => {
     expect(Math.min(...shortfalls)).toBeGreaterThan(0)
     expect(Math.max(...shortfalls)).toBeCloseTo(Math.min(...shortfalls), 9)
     expect(recommended.distances.shortfall).toBeCloseTo(shortfalls[0]!, 9)
+  })
+})
+
+describe('recommended seat independent of the MLP and manual positions (#120)', () => {
+  const recommendedOf = (config: Config) =>
+    recommendSeat(config).recommended.position
+
+  it('gives the default room’s recommended seat with Left manual at (−1.8, 0.5) and with the MLP at 3 m', () => {
+    const expected = recommendedOf(DEFAULT_CONFIG)
+    const leftManual: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { L: { x: -1.8, y: 0.5, z: 1.2 } },
+    }
+    const mlpBack: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0, y: 3, z: 1.2 } },
+    }
+
+    expect(recommendedOf(leftManual)).toEqual(expected)
+    expect(recommendedOf(mlpBack)).toEqual(expected)
+  })
+
+  it('stays put when the MLP moves or every speaker is manual', () => {
+    const expected = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
+    const moves: Config['manualPositions'][] = [
+      { MLP: { x: 0, y: 1, z: 1.2 } },
+      { MLP: { x: 0.6, y: 4, z: 1.2 } },
+      {
+        L: { x: -1.6, y: 0.4, z: 1.2 },
+        C: { x: 0, y: 0.4, z: 1.2 },
+        R: { x: 1.2, y: 0.8, z: 1.2 },
+        Ls: { x: -1.7, y: 4.5, z: 1.2 },
+        Rs: { x: 1.7, y: 2, z: 1.2 },
+      },
+    ]
+    for (const manualPositions of moves) {
+      const moved = recommendSeat({
+        ...ROOM_WITH_A_BETTER_SEAT,
+        manualPositions,
+      })
+
+      expect(moved.recommended, JSON.stringify(manualPositions)).toEqual(
+        expected.recommended,
+      )
+      expect(moved.offCenterLine).toEqual(expected.offCenterLine)
+      expect(moved.candidates).toEqual(expected.candidates)
+    }
+  })
+
+  it('reads only the subwoofers of the manual positions, as the bass comes from them', () => {
+    const subwooferMoved: Config['manualPositions'] = {
+      Sub1: { x: 1.5, y: 3, z: 0.3 },
+    }
+
+    expect(
+      recommendationInputs({
+        ...DEFAULT_CONFIG,
+        manualPositions: {
+          ...subwooferMoved,
+          MLP: { x: 0, y: 3, z: 1.2 },
+          L: { x: -1.8, y: 0.5, z: 1.2 },
+          Ltm: { x: -1, y: 2, z: 2.6 },
+        },
+      }),
+    ).toEqual({ ...DEFAULT_CONFIG, manualPositions: subwooferMoved })
+  })
+
+  it('still scores the current MLP where it is, with the speakers where they are', () => {
+    const atSeed = recommendSeat(DEFAULT_CONFIG).current
+    const mlpBack = recommendSeat({
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: { x: 0, y: 3, z: 1.2 } },
+    }).current
+    const leftManual = recommendSeat({
+      ...DEFAULT_CONFIG,
+      manualPositions: { L: { x: -1.8, y: 0.5, z: 1.2 } },
+    }).current
+
+    expect(mlpBack.position.y).toBe(3)
+    expect(mlpBack.score).not.toBeCloseTo(atSeed.score, 6)
+    expect(leftManual.position).toEqual(atSeed.position)
+    expect(leftManual.placementFit).toBeLessThan(atSeed.placementFit)
+  })
+
+  it('compares the current MLP with the recommended seat, within the meaningful difference, without moving the recommendation', () => {
+    // The 6 x 4 m room recommends a seat meaningfully better than its 38%
+    // MLP; once the MLP is there, it is the recommended seat.
+    const { recommended, mlpWithinMeaningfulDifference } = recommendSeat(
+      ROOM_WITH_A_BETTER_SEAT,
+    )
+    const moved = recommendSeat({
+      ...ROOM_WITH_A_BETTER_SEAT,
+      manualPositions: { MLP: recommended.position },
+    })
+
+    expect(mlpWithinMeaningfulDifference).toBe(false)
+    expect(moved.recommended).toEqual(recommended)
+    expect(moved.mlpWithinMeaningfulDifference).toBe(true)
+    expect(moved.mlpIsRecommended).toBe(true)
+  })
+
+  it('calls an MLP just behind the recommended seat within the meaningful difference, not the recommended seat', () => {
+    const { recommended } = recommendSeat(DEFAULT_CONFIG)
+    const nearby = recommendSeat({
+      ...DEFAULT_CONFIG,
+      manualPositions: {
+        MLP: { ...recommended.position, y: recommended.position.y + 0.1 },
+      },
+    })
+
+    expect(nearby.recommended).toEqual(recommended)
+    expect(nearby.mlpIsRecommended).toBe(false)
+    expect(nearby.mlpWithinMeaningfulDifference).toBe(true)
+  })
+
+  it('leaves the MLP at the recommended seat after Auto-place in a 4 m long, 6 m wide room', () => {
+    // Before #120 Auto-place put the MLP 2.24 m back, and the MLP there
+    // recalibrated the score and moved the recommendation to 2.73 m.
+    const placed = withAutoPlacement({
+      ...DEFAULT_CONFIG,
+      room: { length: 4, width: 6, height: 2.6 },
+    })
+    const { recommended, current, mlpIsRecommended } = recommendSeat(placed)
+
+    expect(mlpIsRecommended).toBe(true)
+    expect(current.position).toEqual(recommended.position)
+  })
+
+  it('scores a seat the same wherever the MLP is: the calibration is at the 38% seed seat', () => {
+    const seat = { x: 0, y: 3, z: 1.2 }
+
+    expect(
+      scoreSeat({ ...DEFAULT_CONFIG, manualPositions: { MLP: seat } }, seat),
+    ).toEqual(scoreSeat(DEFAULT_CONFIG, seat))
   })
 })

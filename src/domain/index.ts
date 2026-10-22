@@ -38,11 +38,16 @@ export {
 } from './placement-warnings'
 export type { RoomMode, RoomModeKind } from './room-modes'
 export {
+  compareMlp,
+  findRecommendedSeat,
+  recommendationInputs,
   recommendSeat,
   scoreSeat,
   type CenterLineWidthMode,
   type ItemFromSeat,
+  type MlpComparison,
   type OffCenterLine,
+  type RecommendedSeat,
   type ScoredSeat,
   type SeatDistances,
   type SeatRecommendation,

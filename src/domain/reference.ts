@@ -645,10 +645,11 @@ export const RESPONSE_NOTES = {
  *   clearance, at most `gridSpacing` meters apart, with at most
  *   `maxPerSide` seats along each side, so the largest room stays fast.
  * - **Bass smoothness**: the RMS deviation of the estimated response
- *   from the target over the reliable rows, at the seat, with the
- *   calibration made at the current MLP (so a seat with weaker or
- *   stronger bass than the MLP counts too). A deviation of
- *   `deviationAtZeroDb` or more scores 0, none scores 1, linear between.
+ *   from the target over the reliable rows, at the seat, with one
+ *   calibration made at the "38% rule" seed seat, wherever the MLP is (so
+ *   a seat with weaker or stronger bass than there counts too, #120). A
+ *   deviation of `deviationAtZeroDb` or more scores 0, none scores 1,
+ *   linear between.
  * - **Placement fit**: per listener-level speaker, its placement-range
  *   grade from the seat (ideal 1, acceptable 0.5, outside 0), times its
  *   equidistance: Dolby wants every listener-level speaker as far from the
@@ -657,11 +658,15 @@ export const RESPONSE_NOTES = {
  *   the rest (IG p.6, p.15). A speaker at least `equidistanceShare` of the
  *   reference distance away counts in full, nearer ones in proportion (a
  *   speaker a wall squeezes against the seat). The mean over the speakers.
- *   Auto speakers are re-placed around each seat; manual ones stay put.
+ *   Auto speakers are re-placed for each seat (around its projection onto
+ *   the center line); the recommended seat places every speaker auto, and
+ *   only the current MLP's score keeps manual ones where they are (#120).
  * - **Score**: the two weighted by `weights` (they add up to 1).
- * - **Recommendation**: the best seat, if it beats the MLP by at least
- *   `meaningfulDifference` (two points on a 100-point scale); smaller
- *   differences are within the simplified model's precision.
+ * - **Recommendation**: the best seat, if it beats the "38% rule" seed
+ *   seat by at least `meaningfulDifference` (two points on a 100-point
+ *   scale); smaller differences are within the simplified model's
+ *   precision. The MLP within it of the recommended seat is about as good,
+ *   which the app says, without moving the recommendation.
  */
 export const SEAT_SCORE = {
   gridSpacing: 0.25,

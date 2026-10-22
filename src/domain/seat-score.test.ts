@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeRoom,
   DEFAULT_CONFIG,
-  recommendationInputs,
   recommendSeat,
   scoreSeat,
+  seatScoreInput,
+  seatScoreKey,
   SEATING_DISTANCE,
   SUBWOOFER_COUNTS,
   V1_DOLBY_LAYOUTS,
@@ -593,7 +594,7 @@ describe('recommended seat independent of the MLP and manual positions (#120)', 
     }
 
     expect(
-      recommendationInputs({
+      seatScoreInput({
         ...DEFAULT_CONFIG,
         manualPositions: {
           ...subwooferMoved,
@@ -672,5 +673,127 @@ describe('recommended seat independent of the MLP and manual positions (#120)', 
     expect(
       scoreSeat({ ...DEFAULT_CONFIG, manualPositions: { MLP: seat } }, seat),
     ).toEqual(scoreSeat(DEFAULT_CONFIG, seat))
+  })
+})
+
+describe('seat score input and its memo key (#127)', () => {
+  const keyOf = (config: Config) => seatScoreKey(seatScoreInput(config))
+  const key = keyOf(DEFAULT_CONFIG)
+  const withRoomObjects = (
+    roomObjects: Partial<Config['roomObjects']>,
+  ): Config => ({
+    ...DEFAULT_CONFIG,
+    roomObjects: { ...DEFAULT_CONFIG.roomObjects, ...roomObjects },
+  })
+  const cabinet = {
+    name: 'Cabinet',
+    width: 1,
+    depth: 0.4,
+    height: 0.6,
+    x: 0,
+    y: 0.3,
+    rotation: 0,
+  } as const
+  const door = { kind: 'door', wall: 'left', position: 2, width: 0.9 } as const
+
+  it.each<[string, Partial<Config>]>([
+    ['the room', { room: { length: 7, width: 4.5, height: 2.6 } }],
+    ['the layout', { layout: { dolbyLayout: '7.1', subwoofers: 2 } }],
+    [
+      'the subwoofer specs',
+      {
+        speakerGroups: {
+          ...DEFAULT_CONFIG.speakerGroups,
+          subwoofers: {
+            ...DEFAULT_CONFIG.speakerGroups.subwoofers,
+            specs: {
+              ...DEFAULT_CONFIG.speakerGroups.subwoofers.specs,
+              enclosure: 'ported',
+            },
+          },
+        },
+      },
+    ],
+    ['the target curve', { targetCurve: 'house' }],
+    ['the crossover', { crossoverHz: 100 }],
+    [
+      'a manual subwoofer',
+      { manualPositions: { Sub1: { x: 1.5, y: 3, z: 0.3 } } },
+    ],
+    [
+      'the screen, which auto-place reads',
+      withRoomObjects({
+        screen: {
+          kind: 'tv',
+          width: 1.44,
+          height: 0.81,
+          bottomEdge: 0.93,
+          x: 0,
+          standoff: null,
+        },
+      }),
+    ],
+  ])('changes with %s', (_, change) => {
+    expect(keyOf({ ...DEFAULT_CONFIG, ...change })).not.toBe(key)
+  })
+
+  it.each<[string, Partial<Config>]>([
+    ['the units', { units: 'imperial' }],
+    ['the MLP', { manualPositions: { MLP: { x: 0, y: 3, z: 1.2 } } }],
+    [
+      'a listener-level speaker moved by hand',
+      { manualPositions: { L: { x: -1.8, y: 0.5, z: 1.2 } } },
+    ],
+    [
+      'an overhead speaker moved by hand',
+      { manualPositions: { Ltm: { x: -1, y: 2, z: 2.6 } } },
+    ],
+    [
+      'the seat row size, which follows the MLP',
+      withRoomObjects({ seatRow: { width: 3, depth: 1.2 } }),
+    ],
+    [
+      'a furniture box, which is not modelled (ADR 0006)',
+      withRoomObjects({ furniture: [cabinet] }),
+    ],
+    [
+      'an opening, which is not modelled (ADR 0006)',
+      withRoomObjects({ openings: [door] }),
+    ],
+  ])(
+    'stays the same with %s, which the recommended seat does not read',
+    (_, change) => {
+      expect(keyOf({ ...DEFAULT_CONFIG, ...change })).toBe(key)
+    },
+  )
+
+  it('changes with any other field, even one added later', () => {
+    const withNewField = { ...DEFAULT_CONFIG, ampWatts: 100 } as Config
+
+    expect(keyOf(withNewField)).not.toBe(key)
+  })
+
+  it('changes with any other room object, even one added later', () => {
+    const withNewObject = withRoomObjects({
+      rug: { width: 2 },
+    } as Partial<Config['roomObjects']>)
+
+    expect(keyOf(withNewObject)).not.toBe(key)
+  })
+
+  it('gives configs with the same key the same recommended seat', () => {
+    const imperialWithObjects: Config = {
+      ...withRoomObjects({
+        seatRow: { width: 3, depth: 1.2 },
+        furniture: [cabinet],
+        openings: [door],
+      }),
+      units: 'imperial',
+    }
+
+    expect(keyOf(imperialWithObjects)).toBe(key)
+    expect(recommendSeat(imperialWithObjects).recommended).toEqual(
+      recommendSeat(DEFAULT_CONFIG).recommended,
+    )
   })
 })

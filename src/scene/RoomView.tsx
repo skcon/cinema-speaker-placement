@@ -1,10 +1,5 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useState } from 'react'
-import {
-  formatLength,
-  pressSelects,
-  UNIT_SYSTEMS,
-  type DragTarget,
-} from '@/domain'
+import { pressSelects, UNIT_SYSTEMS, type DragTarget } from '@/domain'
 import {
   useConfig,
   useRoomAnalysis,
@@ -17,23 +12,17 @@ import {
   selectionDimensions,
   type SelectionDimensions,
 } from '@/scene/dimensions'
-import {
-  describeOverhead,
-  describeSpeaker,
-  describeSubwoofer,
-  GRADE_STYLES,
-  UNGRADED_STYLE,
-} from '@/scene/speakers'
+import { GRADE_STYLES, UNGRADED_STYLE } from '@/scene/speakers'
 import { RECOMMENDED_SEAT_COLOR, RULE_OF_THUMB_COLOR } from '@/scene/palette'
 import {
-  describeRoomObjects,
   roomObjectsDragHelp,
   roomObjectsLegend,
   type RoomObjectsInView,
 } from '@/scene/room-objects'
+import { describeRoomView } from '@/scene/room-description'
 import { grabAreas } from '@/scene/grab-areas'
 import { canUseWebGL } from '@/scene/webgl'
-import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
+import { heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
 import { Button } from '@/ui/components/button'
 import { Toggle } from '@/ui/components/toggle'
@@ -64,15 +53,7 @@ export function RoomView() {
   const moveDragTarget = useConfig((state) => state.moveDragTarget)
   const endGesture = useConfig((state) => state.endGesture)
   const analysis = useRoomAnalysis()
-  const {
-    layout,
-    mlp,
-    speakers,
-    overheads,
-    subwoofers,
-    seatRow,
-    seatRuleOfThumb,
-  } = analysis
+  const { overheads, seatRow, seatRuleOfThumb } = analysis
   const objectsInView: RoomObjectsInView = {
     room,
     roomObjects: config.roomObjects,
@@ -100,47 +81,21 @@ export function RoomView() {
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
 
-  const roomDescription =
-    view === '3d'
-      ? `3D view of the room, ${formatLength(room.length, units)} long, ` +
-        `${formatLength(room.width, units)} wide and ` +
-        `${formatLength(room.height, units)} high, seen from behind the ` +
-        `seats, with the MLP ${formatLength(mlp.y, units)} from the front wall.`
-      : `Top-down view of the room, ${formatLength(room.length, units)} long ` +
-        `and ${formatLength(room.width, units)} wide, with the front wall at ` +
-        `the top and the MLP ${formatLength(mlp.y, units)} from the front wall.`
-  const seatDescription = recommendation
-    ? recommendation.mlpIsRecommended
-      ? 'The MLP is at the recommended seat (an estimate).'
-      : `The recommended seat (an estimate) is ringed, ` +
-        `${formatLength(recommendation.recommended.position.y, units)} ` +
-        `from the front wall.`
-    : ''
-  const speakersDescription =
-    `${layout.name} listener-level speakers, angle from the MLP ` +
-    `and Dolby placement-range grade: ` +
-    `${speakers.map(describeSpeaker).join(', ')}.`
-  const overheadsDescription =
-    overheads.length > 0
-      ? `${overheads.length} overhead speakers on the ceiling, angle and ` +
-        `elevation from the MLP and Dolby placement-range grade: ` +
-        `${overheads.map(describeOverhead).join(', ')}.`
-      : ''
-  const roomObjectsDescription = describeRoomObjects(objectsInView, units)
-  const subwoofersDescription =
-    `${subwoofers.length} ${subwoofers.length === 1 ? 'subwoofer' : 'subwoofers'}, ` +
-    `not graded as Dolby gives subwoofers no placement range: ` +
-    `${subwoofers.map(describeSubwoofer).join(', ')}.`
+  const description = describeRoomView({
+    analysis,
+    objectsInView,
+    recommendation,
+    heatmap,
+    units,
+    view,
+  })
 
   if (!webGL) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-        <p>{roomDescription}</p>
-        <p>{speakersDescription}</p>
-        {overheadsDescription && <p>{overheadsDescription}</p>}
-        <p>{subwoofersDescription}</p>
-        <p>{roomObjectsDescription}</p>
-        {seatDescription && <p>{seatDescription}</p>}
+        {description.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
         <p>This browser can&rsquo;t draw the room view (no WebGL 2).</p>
       </div>
     )
@@ -150,17 +105,7 @@ export function RoomView() {
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div
         role="img"
-        aria-label={[
-          roomDescription,
-          speakersDescription,
-          overheadsDescription,
-          subwoofersDescription,
-          roomObjectsDescription,
-          seatDescription,
-          describeHeatmap(heatmap, units),
-        ]
-          .filter(Boolean)
-          .join(' ')}
+        aria-label={description.join(' ')}
         // Below lg the panel stacks over the others: the drawing keeps a
         // usable height of its own, whatever the legend below it takes.
         className="relative min-h-0 flex-1 overflow-hidden rounded-lg max-lg:min-h-96"

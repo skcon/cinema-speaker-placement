@@ -8,6 +8,7 @@ import {
   SCREEN_ID,
   SEAT_ROW_ID,
   withDragged,
+  withRoomObjectAdded,
   type Config,
   type DragTarget,
   type FloorPoint,
@@ -192,7 +193,42 @@ describe('markers drawn over each other', () => {
     expect(pressed(DEFAULT_CONFIG, offCabinet, 200)).toBe('Sub1')
   })
 
-  describe('of room objects equally near, the furniture box, as the room view picked it before', () => {
+  describe('the TV over the default cabinet (#126)', () => {
+    // The default room with the default TV and the default cabinet, added
+    // as the room view adds them: the cabinet stands against the middle of
+    // the front wall, under the TV's bar.
+    const config = withRoomObjectAdded(
+      withRoomObjectAdded(DEFAULT_CONFIG, { kind: 'screen' }),
+      { kind: 'furniture', preset: 'cabinet' },
+    )
+    const bar = screenBar(config.roomObjects.screen!)
+    const cabinet = config.roomObjects.furniture[0]!
+    // Right of the Center and Subwoofer 1 in the middle of the wall.
+    const x = 0.6
+
+    it('stand over each other', () => {
+      const back = cabinet.y - cabinet.depth / 2
+      expect(back).toBeLessThan(bar.center.y)
+      expect(back + cabinet.depth).toBeGreaterThan(bar.center.y)
+    })
+
+    it('picks the TV for a press on its bar', () => {
+      expect(pressed(config, { x, y: bar.center.y }, 100)).toBe(SCREEN_ID)
+      expect(pressed(config, { x: -x, y: bar.center.y }, 50)).toBe(SCREEN_ID)
+    })
+
+    it('picks the cabinet for a press on it off the bar, even inside the touch target around the bar', () => {
+      // 0.1 m in front of the bar: inside its 0.44 m deep touch target at
+      // 100 px per meter, but off the bar as drawn.
+      const nearBar = { x, y: bar.center.y + bar.depth / 2 + 0.1 }
+      expect(pressed(config, nearBar, 100)).toBe('furniture-1')
+      expect(pressed(config, { x, y: cabinet.y + 0.15 }, 100)).toBe(
+        'furniture-1',
+      )
+    })
+  })
+
+  describe('of room objects equally near, the one drawn on top', () => {
     const cabinet = (x: number, y: number) => ({
       name: 'Cabinet',
       width: 1.6,
@@ -203,20 +239,7 @@ describe('markers drawn over each other', () => {
       rotation: 0 as const,
     })
 
-    it('over the TV on it', () => {
-      // The default TV over the default cabinet at the middle of the
-      // front wall, a press on both.
-      const config: Config = {
-        ...WITH_SCREEN,
-        roomObjects: {
-          ...WITH_SCREEN.roomObjects,
-          furniture: [cabinet(0, 0.225)],
-        },
-      }
-      expect(pressed(config, { x: 0.4, y: 0.04 }, 100)).toBe('furniture-1')
-    })
-
-    it('over the couch it stands on', () => {
+    it('the furniture box over the couch it stands on', () => {
       const { seatRow } = analyzeRoom(DEFAULT_CONFIG)
       const config: Config = {
         ...DEFAULT_CONFIG,

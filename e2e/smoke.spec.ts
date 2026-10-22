@@ -12,7 +12,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
   page,
 }) => {
   await page.goto('./')
@@ -183,9 +183,24 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     )
   })
 
-  await test.step('at phone width the room drawing keeps a usable height with the heatmap on', async () => {
+  await test.step('at phone width the room view comes before the forms, and its drawing keeps a usable height with the heatmap on', async () => {
     const desktop = page.viewportSize()
     await page.setViewportSize({ width: 390, height: 844 })
+    await page.evaluate('window.scrollTo(0, 0)')
+
+    // Right under the page header, in the first screen, rather than below
+    // every form (#125).
+    const roomView = page.getByRole('region', { name: 'Room view' })
+    await expect(roomView).toBeInViewport()
+    const roomTop = (await roomView.boundingBox())?.y ?? Infinity
+    expect(roomTop).toBeLessThan(844 / 2)
+    const formsTop =
+      (
+        await page
+          .getByRole('complementary', { name: 'Room plan' })
+          .boundingBox()
+      )?.y ?? -Infinity
+    expect(formsTop).toBeGreaterThan(roomTop)
 
     await expect
       .poll(async () => (await scene.boundingBox())?.height ?? 0)

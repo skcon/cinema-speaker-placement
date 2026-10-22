@@ -24,7 +24,7 @@
  *
  * The recommended seat belongs to the room, the layout and the
  * subwoofers, not to where the MLP and the speakers are now: the grid is
- * scored with the MLP and every speaker auto (recommendationInputs), so
+ * scored with the MLP and every speaker auto (seatScoreInput), so
  * moving the MLP or a speaker by hand never moves it (#120). Only manual
  * subwoofers stay where they are, as the bass comes from them. The
  * current MLP is scored separately (compareMlp) with every item where it
@@ -61,8 +61,9 @@
  * preparation, reused), so only the per-seat part (the costly modal sum
  * at the seat) is worked out per seat. Nothing is remembered here: the
  * caller memoizes (useSeatRecommendation), the grid (findRecommendedSeat)
- * on everything but the MLP and the manual speakers, and the cheap
- * comparison of the MLP on every change. This is a domain entry point of
+ * on its input (seatScoreKey of seatScoreInput, the one value that is
+ * both its argument and its memo key, #127), and the cheap comparison of
+ * the MLP on every change. This is a domain entry point of
  * its own next to `analyzeRoom`, so it can run deferred (ADR 0004).
  */
 import { placeMlp } from './auto-place-policy'
@@ -76,6 +77,7 @@ import type { ChannelId } from './dolby-layouts'
 import { hearSpeaker, isCharted } from './listening'
 import { entries, kindOf } from './manual-positions'
 import { defaultMlp } from './mlp'
+import { DEFAULT_ROOM_OBJECTS } from './room-objects'
 import { FRONT_STAGE_CHANNELS, frontStageLine } from './placement'
 import {
   centerLineProjection,
@@ -191,7 +193,7 @@ export type OffCenterLine = {
 
 /**
  * The best seat of the grid, with the MLP and every speaker auto
- * (recommendationInputs): the same wherever the MLP and the manual
+ * (seatScoreInput): the same wherever the MLP and the manual
  * speakers are (#120).
  */
 export type RecommendedSeat = {
@@ -261,20 +263,19 @@ export function scoreSeat(config: Config, seat: RoomPoint): ScoredSeat {
  * memoized: the caller memoizes.
  */
 export function recommendSeat(config: Config): SeatRecommendation {
-  const seat = findRecommendedSeat(config)
+  const seat = findRecommendedSeat(seatScoreInput(config))
   return { ...seat, ...compareMlp(config, seat) }
 }
 
 /**
  * Score a grid of candidate seats across the Room, with the MLP and every
- * speaker auto (recommendationInputs), and recommend one (see above).
+ * speaker auto (seatScoreInput), and recommend one (see above).
  * Ties go to the reference seat, then to the seat nearest the center
  * line, then nearest the front wall. Reads neither the MLP nor the manual
  * speakers, only manual subwoofers. Pure and not memoized: the
- * caller memoizes.
+ * caller memoizes, on seatScoreKey of the same input.
  */
-export function findRecommendedSeat(config: Config): RecommendedSeat {
-  const auto = recommendationInputs(config)
+export function findRecommendedSeat(auto: SeatScoreInput): RecommendedSeat {
   const { reference, install, scoreInstalled, widthModeOffCenterLine } =
     scoringFor(auto)
   const installed = candidateSeats(auto).map(install)
@@ -352,23 +353,57 @@ export function compareMlp(
   }
 }
 
+/** Marks a config as projected by seatScoreInput (type only). */
+declare const SEAT_SCORE_INPUT: unique symbol
+
 /**
- * The config as the recommended seat reads it (findRecommendedSeat): the
- * MLP and every listener-level and overhead speaker back to auto, so
- * neither moving the MLP nor moving a speaker changes the recommendation
- * (#120); manual subwoofers stay where they are, as the bass at every seat
- * comes from them and they don't depend on the MLP. The caller's memo key
- * (seatScoreKey) is made from this too, so the two can't drift apart.
+ * The seat score's input: the config as the recommended seat reads it
+ * (seatScoreInput). Both the grid's argument (findRecommendedSeat) and,
+ * through seatScoreKey, its memo key, so the two can't drift apart (#127).
  */
-export function recommendationInputs(config: Config): Config {
+export type SeatScoreInput = Config & { readonly [SEAT_SCORE_INPUT]: true }
+
+/**
+ * The config as the recommended seat reads it (findRecommendedSeat), with
+ * what it doesn't read set to one fixed value: configs whose
+ * recommendation can differ have different inputs, and configs that
+ * differ only in what it doesn't read have the same one:
+ *
+ * - the MLP and every listener-level and overhead speaker back to auto, so
+ *   neither moving the MLP nor moving a speaker changes the recommendation
+ *   (#120); manual subwoofers stay where they are, as the bass at every
+ *   seat comes from them and they don't depend on the MLP;
+ * - the units metric, as the domain works in meters whatever they are;
+ * - the seat row, the furniture and the openings as in a new Room: the
+ *   seat row follows the MLP, and neither furniture nor openings change
+ *   the estimated response or auto-place (ADR 0006). The screen stays, as
+ *   auto-place and the front-stage line read it.
+ *
+ * Every other field, and every other room object, is kept, including ones
+ * added later, so a new input can't be left out by accident. Should the
+ * grid start reading one of the fixed fields, keep it here instead.
+ */
+export function seatScoreInput(config: Config): SeatScoreInput {
+  const { seatRow, furniture, openings } = DEFAULT_ROOM_OBJECTS
   return {
     ...config,
+    units: 'metric',
     manualPositions: Object.fromEntries(
       entries(config.manualPositions).filter(
         ([id]) => kindOf(id) === 'subwoofer',
       ),
     ),
-  }
+    roomObjects: { ...config.roomObjects, seatRow, furniture, openings },
+  } as SeatScoreInput
+}
+
+/**
+ * The memo key of a seat score input: equal exactly when the inputs are,
+ * so the caller scores the grid (findRecommendedSeat) again exactly when
+ * its recommendation can change.
+ */
+export function seatScoreKey(input: SeatScoreInput): string {
+  return JSON.stringify(input)
 }
 
 /** Scores this close count as equal. */

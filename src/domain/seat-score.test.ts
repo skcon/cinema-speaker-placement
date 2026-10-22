@@ -1,20 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import { analyzeRoom } from './analyze'
+import { withAutoPlacement } from './auto-place'
+import { DEFAULT_CONFIG, type Config } from './config'
+import { V1_DOLBY_LAYOUTS, type DolbyLayout } from './dolby-layouts'
+import { SUBWOOFER_COUNTS, type SubwooferCount } from './layout'
+import { SEATING_DISTANCE } from './reference'
 import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
   recommendSeat,
   scoreSeat,
   seatScoreInput,
   seatScoreKey,
-  SEATING_DISTANCE,
-  SUBWOOFER_COUNTS,
-  V1_DOLBY_LAYOUTS,
-  withAutoPlacement,
-  type Config,
-  type DolbyLayout,
   type ScoredSeat,
-  type SubwooferCount,
-} from '@/domain'
+} from './seat-score'
 import { yardsticksFor } from '@/test/relative-speed'
 import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
 import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'

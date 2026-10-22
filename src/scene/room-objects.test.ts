@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_ROOM,
-  DEFAULT_ROOM_OBJECTS,
+  DEFAULT_CONFIG,
   type FurnitureBox,
   type Opening,
   type RoomScreen,
@@ -219,19 +218,19 @@ const WINDOW: Opening = {
 
 describe('openings from above', () => {
   it('are a mark along the inside of their wall, as wide as they are', () => {
-    const door = openingMark(DEFAULT_ROOM, DOOR)
+    const door = openingMark(DEFAULT_CONFIG.room, DOOR)
     expect(door.center.x).toBeCloseTo(0, 12)
     expect(door.center.y).toBeCloseTo(6 - OPENING_MARK_DEPTH / 2, 12)
     expect(door.size).toEqual([0.9, OPENING_MARK_DEPTH])
 
-    const window = openingMark(DEFAULT_ROOM, WINDOW)
+    const window = openingMark(DEFAULT_CONFIG.room, WINDOW)
     expect(window.center.x).toBeCloseTo(-2.25 + OPENING_MARK_DEPTH / 2, 12)
     expect(window.center.y).toBeCloseTo(1.6, 12)
     expect(window.size).toEqual([OPENING_MARK_DEPTH, 1.2])
   })
 
   it('show where a door swings: a square as deep as the door is wide', () => {
-    const swing = doorSwing(DEFAULT_ROOM, DOOR)
+    const swing = doorSwing(DEFAULT_CONFIG.room, DOOR)
     expect(swing.center.x).toBeCloseTo(0, 12)
     expect(swing.center.y).toBeCloseTo(5.55, 12)
     expect(swing.size).toEqual([0.9, 0.9])
@@ -240,7 +239,7 @@ describe('openings from above', () => {
 
 describe('openings in 3D', () => {
   it('are panels on their wall, a door from the floor to 2 m', () => {
-    const { position, size, rotation } = openingPanel(DEFAULT_ROOM, DOOR)
+    const { position, size, rotation } = openingPanel(DEFAULT_CONFIG.room, DOOR)
     expect(position[0]).toBeCloseTo(0, 12)
     expect(position[1]).toBeCloseTo(1, 12)
     expect(size).toEqual([0.9, 2])
@@ -248,7 +247,10 @@ describe('openings in 3D', () => {
   })
 
   it('are panels on their wall, a window from its sill to its top, turned to face the room', () => {
-    const { position, size, rotation } = openingPanel(DEFAULT_ROOM, WINDOW)
+    const { position, size, rotation } = openingPanel(
+      DEFAULT_CONFIG.room,
+      WINDOW,
+    )
     expect(position[1]).toBeCloseTo(1.5, 12)
     expect(position[2]).toBeCloseTo(1.6, 12)
     expect(size[0]).toBe(1.2)
@@ -265,7 +267,7 @@ describe('openings in 3D', () => {
     'stand just inside the %s wall, turned to face into the room',
     (wall, at, turn) => {
       const door: Opening = { ...DOOR, wall, position: 0.75 }
-      const { position, rotation } = openingPanel(DEFAULT_ROOM, door)
+      const { position, rotation } = openingPanel(DEFAULT_CONFIG.room, door)
       position.forEach((value, axis) => {
         expect(value).toBeCloseTo(at[axis] ?? NaN, 12)
       })
@@ -297,7 +299,11 @@ describe('opening marks on every wall', () => {
       [OPENING_MARK_DEPTH, 0.9],
     ],
   ] as const)('lie along the inside of the %s wall', (wall, center, size) => {
-    const mark = openingMark(DEFAULT_ROOM, { ...DOOR, wall, position: 0.75 })
+    const mark = openingMark(DEFAULT_CONFIG.room, {
+      ...DOOR,
+      wall,
+      position: 0.75,
+    })
     expect(mark.center.x).toBeCloseTo(center.x, 12)
     expect(mark.center.y).toBeCloseTo(center.y, 12)
     expect(mark.center.z).toBe(0)
@@ -322,7 +328,7 @@ describe('openings in words', () => {
  * window.
  */
 const FURNISHED: RoomObjectsInView = {
-  room: DEFAULT_ROOM,
+  room: DEFAULT_CONFIG.room,
   roomObjects: {
     seatRow: { width: 2, depth: 0.9 },
     screen: TV,
@@ -335,7 +341,10 @@ const FURNISHED: RoomObjectsInView = {
 /** The same room with the seat row only, as every Room starts. */
 const BARE: RoomObjectsInView = {
   ...FURNISHED,
-  roomObjects: { ...DEFAULT_ROOM_OBJECTS, seatRow: { width: 2, depth: 0.9 } },
+  roomObjects: {
+    ...DEFAULT_CONFIG.roomObjects,
+    seatRow: { width: 2, depth: 0.9 },
+  },
 }
 
 /** A rectangle lying flat on the floor at `layer`, as the room view draws one. */
@@ -382,9 +391,9 @@ describe('room objects as the room view draws them', () => {
   it('lays each one flat on the floor from above, on its own layer, with the furniture box named', () => {
     const bar = screenBar(TV)
     const box = furniturePlan(CABINET)
-    const swing = doorSwing(DEFAULT_ROOM, DOOR)
-    const door = openingMark(DEFAULT_ROOM, DOOR)
-    const window = openingMark(DEFAULT_ROOM, WINDOW)
+    const swing = doorSwing(DEFAULT_CONFIG.room, DOOR)
+    const door = openingMark(DEFAULT_CONFIG.room, DOOR)
+    const window = openingMark(DEFAULT_CONFIG.room, WINDOW)
 
     expect(shapesById(FURNISHED, 'top-down')).toEqual({
       seatRow: [
@@ -446,8 +455,8 @@ describe('room objects as the room view draws them', () => {
   it('stands the screen, the furniture and the openings up in 3D, the seat row still on the floor', () => {
     const panel = screenPanel(TV)
     const block = furnitureBlock(CABINET)
-    const door = openingPanel(DEFAULT_ROOM, DOOR)
-    const window = openingPanel(DEFAULT_ROOM, WINDOW)
+    const door = openingPanel(DEFAULT_CONFIG.room, DOOR)
+    const window = openingPanel(DEFAULT_CONFIG.room, WINDOW)
 
     expect(shapesById(FURNISHED, '3d')).toEqual({
       seatRow: [
@@ -503,8 +512,8 @@ describe('room objects as the room view draws them', () => {
 describe('room objects as grab areas', () => {
   it('are picked up by the rectangle drawn for them from above', () => {
     const box = furniturePlan(CABINET)
-    const door = openingMark(DEFAULT_ROOM, DOOR)
-    const window = openingMark(DEFAULT_ROOM, WINDOW)
+    const door = openingMark(DEFAULT_CONFIG.room, DOOR)
+    const window = openingMark(DEFAULT_CONFIG.room, WINDOW)
 
     expect(roomObjectGrabs(FURNISHED, 'seatRow')).toEqual([
       {

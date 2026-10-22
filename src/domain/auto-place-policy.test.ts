@@ -5,7 +5,7 @@ import {
   placeMlp,
   placementPolicy,
 } from './auto-place-policy'
-import { DEFAULT_CONFIG, type Config } from '@/domain'
+import { DEFAULT_CONFIG, type Config } from './config'
 
 const LEFT_BY_HAND = { x: -1, y: 1, z: 1.2 }
 

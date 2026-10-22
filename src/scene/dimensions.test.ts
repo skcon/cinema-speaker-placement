@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_ROOM } from '@/domain'
+import { DEFAULT_CONFIG } from '@/domain'
 import { roomDimensions } from '@/scene/dimensions'
 
 describe('room dimensions in the sketch', () => {
@@ -7,7 +7,7 @@ describe('room dimensions in the sketch', () => {
     // The default room is 6 m long and 4.5 m wide; room coordinates start
     // at the middle of the front wall, so the back wall's middle is at
     // y 6 and the left wall's middle at x -2.25, y 3.
-    const [width, length] = roomDimensions(DEFAULT_ROOM, 'metric')
+    const [width, length] = roomDimensions(DEFAULT_CONFIG.room, 'metric')
 
     expect(width).toEqual({
       measures: 'width',
@@ -23,7 +23,7 @@ describe('room dimensions in the sketch', () => {
 
   it('writes them in feet and inches in imperial', () => {
     // 4.5 m = 177.17 in = 14 ft 9.2 in; 6 m = 236.22 in = 19 ft 8.2 in.
-    const [width, length] = roomDimensions(DEFAULT_ROOM, 'imperial')
+    const [width, length] = roomDimensions(DEFAULT_CONFIG.room, 'imperial')
 
     expect(width?.text).toBe('14 ft 9.2 in')
     expect(length?.text).toBe('19 ft 8.2 in')

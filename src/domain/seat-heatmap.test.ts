@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_CONFIG } from './config'
+import { SEAT_SCORE } from './reference'
+import { seatHeatmap } from './seat-heatmap'
 import {
-  DEFAULT_CONFIG,
   recommendSeat,
-  SEAT_SCORE,
-  seatHeatmap,
   type ScoredSeat,
   type SeatRecommendation,
-} from '@/domain'
+} from './seat-score'
 
 /** A scored seat at (x, y) with only the score that matters here. */
 function seat(x: number, y: number, score: number): ScoredSeat {

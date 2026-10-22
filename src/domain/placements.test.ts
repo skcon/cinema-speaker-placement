@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CONFIG, type Config } from '@/domain'
+import { DEFAULT_CONFIG, type Config } from './config'
 import {
   centerLineProjection,
   placeAll,

@@ -4,26 +4,22 @@ import {
 } from 'lz-string'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { speakersFollowSeat } from './auto-place'
 import {
-  DEFAULT_CONFIG,
-  decodeConfig,
-  encodeConfig,
-  DEFAULT_ROOM_OBJECTS,
-  speakersFollowSeat,
-  TARGET_CURVE_KINDS,
-  UNIT_SYSTEM_NAMES,
   V1_DOLBY_LAYOUTS,
-  type Config,
   type DolbyLayout,
   type OverheadChannelId,
-} from '@/domain'
+} from './dolby-layouts'
+import { DEFAULT_ROOM_OBJECTS } from './room-objects'
+import { TARGET_CURVE_KINDS } from './target-curve'
+import { UNIT_SYSTEM_NAMES } from './units'
 import {
   IMPERIAL_ROOM,
   V1_LINKS,
   V2_LINKS,
   V3_LINKS,
 } from '@/test/share-link-fixtures'
-import { configSchema } from './config'
+import { configSchema, DEFAULT_CONFIG, type Config } from './config'
 import { placeItems } from './placed-items'
 import { placeSpeakers } from './placements'
 import { WALLS } from './room'
@@ -45,6 +41,8 @@ import {
   writtenAsVersion,
   type ConfigVersion,
   type WireForm,
+  decodeConfig,
+  encodeConfig,
 } from './share-link'
 
 /**

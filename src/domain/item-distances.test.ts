@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  frontStageDistances,
-  itemDistances,
-  type ChannelId,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG } from './config'
+import type { ChannelId } from './dolby-layouts'
+import { frontStageDistances, itemDistances } from './item-distances'
 
 describe('distances of an item to the walls and the MLP', () => {
   it('gives Left in the default room its distances to the front and left walls and to the MLP', () => {

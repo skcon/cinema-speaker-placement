@@ -5,10 +5,10 @@
  * name, its placement, its placement-range grading, its aim and how it
  * relates to the Screen.
  *
- * Its interface is one call, `placeItems(config)`, which gives the items
- * as the per-kind lists the acoustic estimates read and, by PlaceableId,
- * in one placed-item shape (`items`): the one by-id lookup the selection,
- * the drag targets, the scene and config edits (positionOf) use. The Room
+ * `placeItems(config)` gives the items as the per-kind lists the acoustic
+ * estimates read and, by PlaceableId, in one placed-item shape (`items`):
+ * the one by-id lookup the drag targets, the scene, config edits
+ * (positionOf) and the Selected item (selectedItem) use. The Room
  * analysis (analyzeRoom) is a PlacedItems, so it offers the same lookup.
  *
  * Nothing here is acoustic: every fact is cheap, so config edits can place

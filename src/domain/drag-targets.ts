@@ -34,7 +34,7 @@ export type DragTarget = PlaceableId | RoomObjectId
  * Every drag target the config has, with its anchor: the floor point a
  * drag moves, which withDragged takes `to` as the new place of. In order:
  * the layout's items (its channels, overhead channels, subwoofers and
- * the MLP, where `placed` has them: the config's Room analysis), then
+ * the MLP, where `items` has them: the config's Room analysis), then
  * the Seat row, the Screen, the furniture boxes and the openings the Room
  * has.
  *

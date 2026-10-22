@@ -4,12 +4,18 @@
  */
 export {
   analyzeRoom,
-  type PlacedOverhead,
-  type PlacedSpeaker,
-  type PlacedSubwoofer,
   type ResponseAnalysis,
   type RoomAnalysis,
 } from './analyze'
+export {
+  selectedItem,
+  type PlacedItem,
+  type PlacedItems,
+  type PlacedOverhead,
+  type PlacedSpeaker,
+  type PlacedSubwoofer,
+  type SelectedItem,
+} from './placed-items'
 export type {
   EstimatedResponse,
   ResponseComponent,
@@ -68,7 +74,6 @@ export {
   pressSelects,
   withDragged,
   type DragTarget,
-  type PlacedItems,
 } from './drag-targets'
 export {
   DEFAULT_ROOM_OBJECTS,

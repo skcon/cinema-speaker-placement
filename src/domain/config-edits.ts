@@ -14,7 +14,7 @@ import {
   placeablesIn,
   type PlaceableId,
 } from './manual-positions'
-import { positionOf } from './placements'
+import { positionOf } from './placed-items'
 import { keepRoomObjectsInRoom } from './room-objects'
 import { recommendSeat } from './seat-score'
 import type { Room, RoomPoint, Wall } from './room'

@@ -170,14 +170,3 @@ export function placeSpeakers(
 export function centerLineProjection(seat: RoomPoint): RoomPoint {
   return { ...seat, x: 0 }
 }
-
-/** Where item `id` is now, or null when the layout has no such item. */
-export function positionOf(config: Config, id: PlaceableId): RoomPoint | null {
-  const { mlp, speakers, overheads, subwoofers } = placeAll(config)
-  if (id === MLP_ID) return mlp.position
-  const item =
-    speakers.find(({ reference }) => reference.channel === id) ??
-    overheads.find(({ reference }) => reference.channel === id) ??
-    subwoofers.find((subwoofer) => subwoofer.id === id)
-  return item?.position ?? null
-}

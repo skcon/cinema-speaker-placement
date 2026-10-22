@@ -4,7 +4,6 @@ import {
   centerLineProjection,
   placeAll,
   placeSpeakers,
-  positionOf,
 } from '@/domain/placements'
 import { azimuthFromMlp, type RoomPoint } from '@/domain/room'
 import type { RoomScreen } from '@/domain/screen'
@@ -61,29 +60,6 @@ describe('placing every item of the layout', () => {
       wall: 'back',
     })
     expect(subwoofers[0]?.placement).toBe('auto')
-  })
-})
-
-describe('where one item is', () => {
-  it('is its manual position, or its auto-placed one', () => {
-    const config: Config = {
-      ...SEVEN_TWO,
-      manualPositions: { MLP: { x: 0.5, y: 3, z: 1.2 } },
-    }
-
-    expect(positionOf(config, 'MLP')).toEqual({ x: 0.5, y: 3, z: 1.2 })
-    // The Center sits on the front-stage line, 0.5 m from the front wall,
-    // whatever the MLP.
-    expect(positionOf(config, 'C')?.y).toBeCloseTo(0.5, 9)
-    expect(positionOf(config, 'C')?.z).toBe(1.2)
-    expect(positionOf(config, 'Sub2')).toEqual(
-      placeAll(config).subwoofers[1]?.position,
-    )
-  })
-
-  it('is null for an item the layout does not have', () => {
-    expect(positionOf(DEFAULT_CONFIG, 'Lrs')).toBeNull()
-    expect(positionOf(DEFAULT_CONFIG, 'Sub3')).toBeNull()
   })
 })
 

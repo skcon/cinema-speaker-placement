@@ -72,7 +72,7 @@ describe('speaker markers in the top-down scene', () => {
 
   it('label the channel and its angle from the MLP, and the grade in words', () => {
     expect(speakerMarker(placed('L'))).toMatchObject({
-      label: 'L 26°',
+      label: 'L 29°',
       grade: 'ideal',
     })
     expect(speakerMarker(placed('Rs')).label).toBe('Rs 115°')
@@ -96,7 +96,7 @@ describe('speaker markers in the top-down scene', () => {
 
     // Screen x to the right, y down; the front wall is at the top.
     expect(labelDirection('C')).toEqual({ x: 0, y: 1 }) // in front: below
-    expect(labelDirection('L')).toEqual({ x: 0, y: 1 }) // front left, 26°: below
+    expect(labelDirection('L')).toEqual({ x: 0, y: 1 }) // front left, 29°: below
     expect(labelDirection('Ls')).toEqual({ x: 1, y: 0 }) // left side, 100°: right of it
     expect(labelDirection('Rs')).toEqual({ x: -1, y: 0 }) // right side: left of it
     expect(labelDirection('Lrs')).toEqual({ x: 0, y: -1 }) // behind, 143°: above
@@ -162,7 +162,7 @@ describe('speakers in words', () => {
   it('names the channel, its angle from the MLP and its grade', () => {
     expect(describeSpeaker(placed('Ls'))).toBe('Left Surround 115° (ideal)')
     expect(describeSpeaker(graded(placed('R'), 'acceptable'))).toBe(
-      'Right 26° (acceptable)',
+      'Right 29° (acceptable)',
     )
   })
 })

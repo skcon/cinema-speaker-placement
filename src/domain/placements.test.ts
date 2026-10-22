@@ -105,14 +105,16 @@ describe('the speakers installed for one point, heard at another', () => {
     expect(
       fromSeat.every(({ placementRange }) => placementRange.grade === 'ideal'),
     ).toBe(true)
-    // ...but 0.84 m to the left, Left is seen at about 21°, just outside
-    // its 22°-30°, and graded at that angle.
-    const left = offCenter.find(({ reference }) => reference.channel === 'L')!
-    expect(left.placementRange.grade).not.toBe('ideal')
-    expect(left.placementRange.azimuth.degrees).toBeCloseTo(
-      azimuthFromMlp(LEFT_OF_SEAT, left.position),
+    // ...but 0.84 m to the left, the Left Surround is seen at about 127°,
+    // outside its 90°-110°, and graded at that angle. (Left, at 29° since
+    // #121, is seen at about 25° and stays ideal.)
+    const ls = offCenter.find(({ reference }) => reference.channel === 'Ls')!
+    expect(ls.placementRange.grade).not.toBe('ideal')
+    expect(ls.placementRange.azimuth.degrees).toBeCloseTo(
+      azimuthFromMlp(LEFT_OF_SEAT, ls.position),
       9,
     )
+    expect(ls.placementRange.azimuth.degrees).toBeCloseTo(-127.4, 1)
   })
 
   it('keeps manual speakers where they are, whatever it is installed for', () => {

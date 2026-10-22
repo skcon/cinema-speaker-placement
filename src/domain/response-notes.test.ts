@@ -381,7 +381,7 @@ describe('notes for a room', () => {
     layout: { ...DEFAULT_CONFIG.layout, subwoofers: 2 },
   }
 
-  it('finds the default front stage’s front-wall reflection notch near c/(2Δ) ≈ 184 Hz, shared by Left, Center and Right', () => {
+  it('finds the default front stage’s front-wall reflection notch near c/(2Δ) ≈ 172 Hz, shared by Left, Center and Right', () => {
     const { response, speakers, mlp } = analyzeRoom(DEFAULT_CONFIG)
     const notch = response.notes.weaknesses.find(
       (w) =>
@@ -389,8 +389,11 @@ describe('notes for a room', () => {
         w.cause.effect === 'notch' &&
         w.cause.surfaces.includes('front wall'),
     )
-    // The Left speaker and its image behind the front wall, seen from the MLP.
-    const { x, y } = speakers.find((s) => s.channel === 'L')!.position
+    // The Center and its image behind the front wall, seen from the MLP:
+    // Δ = 2 × 0.5 m. (Until #121 this followed Left, Δ = 0.93 m, 184 Hz; at
+    // 29° Left's own Δ is 0.92 m, 187 Hz, and the charted dip, 168 Hz, sits
+    // nearer the Center's.)
+    const { x, y } = speakers.find((s) => s.channel === 'C')!.position
     const direct = Math.hypot(x - mlp.x, y - mlp.y)
     const image = Math.hypot(x - mlp.x, -y - mlp.y)
 

@@ -45,8 +45,8 @@ describe('seat score', () => {
 
   it('scores a seat that puts manual speakers outside their placement ranges worse than one that keeps them ideal', () => {
     const config = withManualFront()
-    // The MLP, 2.28 m back: Left and Right at 26°, ideal. A meter from the
-    // front wall they are about 52° out, outside even the acceptable range.
+    // The MLP, 2.28 m back: Left and Right at 29°, ideal. A meter from the
+    // front wall they are about 63° out, outside even the acceptable range.
     const ideal = scoreSeat(config, { x: 0, y: 2.28, z: 1.2 })
     const tooClose = scoreSeat(config, { x: 0, y: 1, z: 1.2 })
 
@@ -106,7 +106,9 @@ describe('recommended seat', () => {
   it('stays off the first length mode’s null', () => {
     const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
 
-    expect(Math.abs(recommended.position.y - 3)).toBeGreaterThan(0.25)
+    // Its null runs across the room halfway back.
+    const halfway = ROOM_WITH_A_BETTER_SEAT.room.length / 2
+    expect(Math.abs(recommended.position.y - halfway)).toBeGreaterThan(0.25)
   })
 
   it('is still the recommended seat once the MLP is moved there', () => {
@@ -213,14 +215,20 @@ describe('recommended seat on the center line (ADR 0005)', () => {
     manualPositions,
   })
 
-  /** A small, narrow 2.1 room. */
-  const narrowStereo = stereo(4, 2.5)
+  /**
+   * A small, narrow 2.1 room. 4 x 2.5 m until #121: with Left and Right at
+   * 29° its best off-center seat beats the center line meaningfully there.
+   */
+  const narrowStereo = stereo(4.25, 2.5)
   /** A 2.1 room 5 m wide, the subwoofer in the middle of the front wall. */
   const wideStereo = stereo(6, 5)
-  /** A 3.1 room 4 m wide, its subwoofer moved off the center line. */
+  /**
+   * A 3.1 room 4.5 m wide, its subwoofer moved off the center line. 4 m wide
+   * until #121: with Left and Right at 29° that room kept its auto MLP.
+   */
   const subwooferOffCenter: Config = {
     ...DEFAULT_CONFIG,
-    room: { length: 6, width: 4, height: 2.6 },
+    room: { length: 6, width: 4.5, height: 2.6 },
     layout: { dolbyLayout: '3.1', subwoofers: 1 },
     manualPositions: { Sub1: { x: 1.5, y: 3, z: 0.3 } },
   }
@@ -252,7 +260,7 @@ describe('recommended seat on the center line (ADR 0005)', () => {
   })
 
   it('recommends an off-center seat that beats every center-line seat meaningfully, with the margin and the center-line seat it beat', () => {
-    // About 4.3 points better 0.94 m off the center line.
+    // About 5.8 points better 0.94 m off the center line (4.3 before #121).
     const { recommended, current, candidates, offCenterLine } =
       recommendSeat(wideStereo)
     const bestOnCenterLine = bestOf([
@@ -290,7 +298,7 @@ describe('recommended seat on the center line (ADR 0005)', () => {
 
   it('names a width mode with a null on the center line when an off-center subwoofer drives it', () => {
     // Off the center line the subwoofer drives the first width mode,
-    // 343 / (2 × 4) = 42.9 Hz, whose null runs down the center line.
+    // 343 / (2 × 4.5) = 38.1 Hz, whose null runs down the center line.
     const { recommended, offCenterLine } = recommendSeat(subwooferOffCenter)
 
     expect(recommended.position.x).not.toBe(0)
@@ -300,7 +308,7 @@ describe('recommended seat on the center line (ADR 0005)', () => {
       width: 1,
       height: 0,
     })
-    expect(offCenterLine?.widthMode?.mode.frequency).toBeCloseTo(42.9, 1)
+    expect(offCenterLine?.widthMode?.mode.frequency).toBeCloseTo(38.1, 1)
     expect(offCenterLine?.widthMode?.atCenterLine).toBe('null')
   })
 
@@ -386,11 +394,12 @@ describe('seating distances (#119)', () => {
 
   it('expose the stage installed for a seat: every speaker’s and subwoofer’s distance, the L–R spread and the distance behind the front stage', () => {
     // The default room's 38% MLP, 2.28 m back: the front stage on the
-    // 0.5 m line, 1.78 m ahead, Left and Right at ±26°; the subwoofer on
+    // 0.5 m line, 1.78 m ahead, Left and Right at ±29° (±26° before #121,
+    // a 1.74 m spread; now 1.97 m, about their distance); the subwoofer on
     // the floor at the front wall, 0.3 m off it and 0.3 m up.
     const { distances } = scoreSeat(DEFAULT_CONFIG, { x: 0, y: 2.28, z: 1.2 })
     const ahead = 2.28 - 0.5
-    const tan26 = Math.tan((26 * Math.PI) / 180)
+    const tan29 = Math.tan((29 * Math.PI) / 180)
     const distanceOf = (id: string) =>
       [...distances.speakers, ...distances.subwoofers].find(
         (item) => item.id === id,
@@ -405,11 +414,11 @@ describe('seating distances (#119)', () => {
     ])
     expect(distanceOf('C')).toBeCloseTo(ahead, 9)
     expect(distanceOf('L')).toBeCloseTo(
-      ahead / Math.cos((26 * Math.PI) / 180),
+      ahead / Math.cos((29 * Math.PI) / 180),
       9,
     )
     expect(distanceOf('R')).toBeCloseTo(distanceOf('L'), 9)
-    expect(distances.leftRightSpread).toBeCloseTo(2 * ahead * tan26, 9)
+    expect(distances.leftRightSpread).toBeCloseTo(2 * ahead * tan29, 9)
     expect(distanceOf('Sub1')).toBeCloseTo(Math.hypot(2.28 - 0.3, 1.2 - 0.3), 9)
     expect(distances.behindFrontStage).toBeCloseTo(ahead, 9)
     expect(distances.fromWall).toBeCloseTo(4.5 / 2, 9)
@@ -479,9 +488,10 @@ describe('seating distances (#119)', () => {
 
         expect(recommended.position.y, room).toBeGreaterThan(0.25 * length)
         expectSeatingDistancesKept(recommended, room)
-        // Left and Right on their 26° from at least 1.5 m: no tiny stage.
+        // Left and Right on their 29° (26° before #121) from at least
+        // 1.5 m: no tiny stage.
         expect(recommended.distances.leftRightSpread, room).toBeGreaterThan(
-          2 * 1.5 * Math.tan((26 * Math.PI) / 180) - 1e-9,
+          2 * 1.5 * Math.tan((29 * Math.PI) / 180) - 1e-9,
         )
       }
     },

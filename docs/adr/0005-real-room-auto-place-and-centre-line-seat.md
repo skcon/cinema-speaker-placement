@@ -2,7 +2,7 @@
 
 v1.0.0 put every listener-level speaker on one circle around the MLP, its radius the MLP's distance from the front wall's clearance line (Dolby's equidistance, IG p.6). In the default 6 × 4.5 m room that crams the speakers within about 2 m of the MLP and leaves the back half of the room empty (#49). No home source in `docs/research/real-room-placement.md` places all speakers on such a circle. The circle is studio and reference-room practice, and the home answer is speakers at the walls with the receiver's distance/delay setting evening out the arrival times. So auto-place becomes a **hybrid** (decided in #44):
 
-- **Angles stay Dolby's.** Every listener-level speaker still aims at the middle of its cited azimuth range from the MLP (`src/domain/dolby-layouts.ts`), so every grade stays as it was. Only the distance along that angle changes.
+- **Angles stay Dolby's.** Every listener-level speaker still aims at the middle of its cited azimuth range from the MLP (`src/domain/dolby-layouts.ts`), so every grade stays as it was. Only the distance along that angle changes. (Left and Right now aim at 29°, not the middle: see the amendment for #121 below.)
 - **Front stage near the front wall.** L, C and R sit on their angle where it meets a line **0.5 m from the front wall** (`FRONT_STAGE_WALL_DISTANCE`, our choice). The sources disagree on one number: Genelec says under about 0.6 m, and to avoid 1–2.2 m; ADAM says under 0.5 m or over 1.5 m; KEF says 0.3–1 m. 0.5 m sits inside the close-to-wall advice and keeps the first boundary notch above the 80 Hz crossover (`docs/research/real-room-placement.md`; read from search extracts, so re-check before relying on it).
 - **Everything else at the walls.** Surrounds and rear surrounds sit on their angle where it meets the side or back wall's clearance line (`SPEAKER_WALL_CLEARANCE`, 0.3 m, unchanged), whichever the angle reaches first. A surround at 90–120° lands on its side wall; a rear surround at 135–150° lands on the back or side wall, depending on the room.
 - **Unequal distances are expected.** The UI says that the receiver's distance (delay) setting compensates, which is exact at the MLP only (Denon accepts up to 6 m of difference; a 2023 Dolby AES paper reports about 10° of image shift when one speaker of a pair is much nearer, even after calibration).
@@ -79,3 +79,27 @@ The first amendment above says manual speakers stay where they are while candida
 - **The current MLP** is still scored with manual speakers where they are, and `mlpKeepsSeatingDistances` and the new `mlpWithinMeaningfulDifference` compare it with the recommended seat for the seating panel, without choosing it.
 
 The centre-line preference, the seating distances and their numbers are unchanged. The default room still recommends its 38% seat at 2.28 m; with Left manual at (−1.8, 0.5) or the MLP at 3.0 m it now recommends the same seat.
+
+## Amendment (1.3.1): Left and Right form a triangle with the seat (#121)
+
+"Angles stay at Dolby's middle" made the front stage narrow. L/R at 26°, the middle of the sheets' 22°–30°, put them 2 sin 26° ≈ 0.88 of their distance apart, whatever the room. The stage was 0.975 × (MLP y − 0.5 m) wide, and the user reported the speakers too close together for the seating distance. The overheads' lateral spacing follows the listener-level layout width, so it narrowed with them.
+
+So auto-place aims **Left and Right at 29°** (`LEFT_RIGHT_AIM` in reference.ts). Every other listener-level channel still aims at the middle of its range.
+
+- **Dolby's reference is 30°.** IG p.7 uses ±30° as the L/R reference, and IG p.8 fig.3 (the 7.1.4 reference) draws L/R at 30° nominal (`docs/research/dolby-speaker-placement.md` section 3, "Shared values"). ITU-R BS.775 also puts L/R at ±30° (`docs/research/screen-and-front-stage.md` section 3.1, from an excerpt). At 30° the spacing equals the distance: an equilateral triangle.
+- **1° inside the edge (ours).** 30° is the edge of the sheets' ideal range, and grades round to whole degrees. A seat only about 2% of the way forward toward the front stage would then read 31°, acceptable, without notice. `LEFT_RIGHT_AIM.edgeMargin` keeps the aim 1° inside, the largest whole-degree angle with a margin. A seat up to about 6% of the way forward stays ideal (the margin test in `auto-place.test.ts` checks 5%). The trade-off: the triangle is 2 sin 29° ≈ 0.97, not exactly equilateral.
+- **The ratio holds in every room.** The angle always holds, and a side wall only brings L and R in along it, both alike, so L–R spacing ÷ MLP→L is 0.97 with the auto MLP in every room (tested 4–9 m long, 3–7 m wide, every v1 layout, every grade ideal).
+- **With a Screen nothing changes**: L/R still go to the screen edges, clamped into Dolby's 22°–30° (the 1.1.0 amendment).
+
+### Considered options
+
+- **Exactly 30°**: rejected. It sits on the ideal range's edge, so the slightest step forward grades acceptable.
+- **A margin in meters** (for example "ideal from 0.1 m forward"): rejected. The margin in meters grows with the distance to the front stage. A margin in degrees is the same in every room and matches Dolby's whole-degree resolution.
+- **The middle, 26°**: the old rule, and what the report was about.
+
+### Consequences
+
+- No config or share-link change: only auto positions move, and V1/V2 links decode as before.
+- In the default room (6 × 4.5 × 2.6 m, 5.1.2) Left and Right move from 1.98 m to 2.04 m from the MLP (0.87 m to 0.99 m off the centre line). With the default 88 dB, 100 W specs their headroom drops from tight to about 0.2 dB short.
+- The seat score moves where L and R add bass below the crossover, and an off-centre seat now sees L/R at different angles. The default room still recommends its 38% MLP. Some test rooms were swapped for others that show the same behaviour (`src/test/seat-fixtures.ts` and the centre-line tests). The seat-score calibration (#120, amendment above) is unchanged by this.
+- `LEFT_RIGHT_AIM` cites IG p.7 and IG p.8 fig.3. The 1° margin is ours.

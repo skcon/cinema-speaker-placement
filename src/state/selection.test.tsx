@@ -44,7 +44,7 @@ describe('the selected item', () => {
       'front',
       'left',
     ])
-    expect(item?.distances.mlp?.meters).toBeCloseTo(1.98043, 4)
+    expect(item?.distances.mlp?.meters).toBeCloseTo(2.03517, 4)
   })
 
   it('can be the MLP, which has no distance to itself', () => {

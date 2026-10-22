@@ -38,8 +38,10 @@ describe('headroom indicator', () => {
   it('gives every speaker group of the layout and the subwoofers a status in plain language', () => {
     renderIndicator()
 
-    // Our 88 dB, 100 W defaults just reach reference peaks.
-    expect(item(/^Front L\/R/)).toHaveTextContent(/Tight/)
+    // Our 88 dB, 100 W defaults fall just short of reference peaks for
+    // Left and Right, 2.04 m away at 29° since #121 (tight at 26°).
+    expect(item(/^Front L\/R/)).toHaveTextContent(/Short/)
+    expect(item(/^Front L\/R/)).toHaveTextContent(/About 0\.2 dB short/)
     expect(item(/^Front L\/R/)).toHaveTextContent(/would leave 3\.0 dB/)
     expect(item(/^Center/)).toBeDefined()
     expect(item(/^Surrounds/)).toBeDefined()

@@ -76,11 +76,11 @@ describe('manual positions in the room plan', () => {
     expect(after.mlpPlacement).toBe('manual')
     expect(before.mlpPlacement).toBe('auto')
     // The Center still sits at the screen; Right follows the MLP back and
-    // stays at 26°.
+    // stays at 29° (#121).
     expect(speaker(after, 'R').position).not.toEqual(
       speaker(before, 'R').position,
     )
-    expect(speaker(after, 'R').placementRange.azimuth.shown).toBe(26)
+    expect(speaker(after, 'R').placementRange.azimuth.shown).toBe(29)
     expect(speaker(after, 'L').position).toEqual({ x: -1, y: 0.5, z: 1.2 })
   })
 

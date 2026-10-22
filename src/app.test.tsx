@@ -105,7 +105,7 @@ describe('app shell', () => {
     const roomView = await screen.findByRole('region', { name: 'Room view' })
     expect(
       within(roomView).getByText(
-        '5.1.2 listener-level speakers, angle from the MLP and Dolby placement-range grade: Left 26° (ideal), Center 0° (ideal), Right 26° (ideal), Left Surround 115° (ideal), Right Surround 115° (ideal).',
+        '5.1.2 listener-level speakers, angle from the MLP and Dolby placement-range grade: Left 29° (ideal), Center 0° (ideal), Right 29° (ideal), Left Surround 115° (ideal), Right Surround 115° (ideal).',
       ),
     ).toBeInTheDocument()
   })

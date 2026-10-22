@@ -9,6 +9,8 @@
  * and, for speakers, the MLP) or **manual** (its position is stored in the
  * config). Only manual positions are stored, keyed by channel, subwoofer id
  * or `MLP`; an item without an entry is auto. Auto-place clears them all.
+ * The Auto-place module reads an item's placement policy from them
+ * (auto-place-policy.ts).
  *
  * ## Where a manual item may go
  *
@@ -85,9 +87,6 @@ true satisfies Exclude<
 
 /** A listener-level or overhead channel, a subwoofer or the MLP. */
 export type PlaceableId = (typeof PLACEABLES)[PlaceableKind][number]
-
-/** Whether an item's position is derived (auto) or stored (manual). */
-export type Placement = 'auto' | 'manual'
 
 /** The stored positions of the manual items, in room coordinates (meters). */
 export type ManualPositions = Partial<Record<PlaceableId, RoomPoint>>

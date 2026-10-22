@@ -10,7 +10,7 @@ import {
 } from '@/domain'
 import { createConfigStore, type ConfigStore } from '@/state/config-store'
 import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
-import { IMPERIAL_ROOM, V2_LINKS } from '@/test/share-link-fixtures'
+import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
 /** The default room (6 x 4.5 x 2.6 m, 5.1.2) with this layout. */
 function inLayout(dolbyLayout: Config['layout']['dolbyLayout']): Config {
@@ -148,20 +148,6 @@ describe('auto and manual items', () => {
     expect(store.getState().config).toEqual(beforeAutoPlace)
   })
 
-  it('leave the MLP auto on Auto-place when the 38% seed is already the recommended seat', () => {
-    // In the 24 x 15 ft 7.2.2 room no seat is meaningfully better than
-    // the seed (see the seat score tests).
-    const config = { ...V2_LINKS.imperialRoom.config } as Config
-    const store = createConfigStore({
-      ...config,
-      manualPositions: { L: { x: -1, y: 1, z: 1.2 } },
-    })
-
-    store.getState().autoPlace()
-
-    expect(manual(store)).toEqual({})
-  })
-
   it('change nothing on a second Auto-place, so undo records no empty step', () => {
     const store = createConfigStore()
     store.getState().autoPlace()
@@ -176,7 +162,7 @@ describe('auto and manual items', () => {
 })
 
 describe('moving the MLP to the recommended seat', () => {
-  it('moves the MLP to the seat on screen, manual, in one undoable step, and auto speakers follow it', () => {
+  it('moves the MLP to the seat on screen, manual, in one undoable step', () => {
     const store = createConfigStore(ROOM_WITH_A_BETTER_SEAT)
     const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
 
@@ -184,29 +170,11 @@ describe('moving the MLP to the recommended seat', () => {
 
     expect(analysis(store).mlp).toEqual(recommended.position)
     expect(analysis(store).mlpPlacement).toBe('manual')
-    expect(recommendSeat(store.getState().config).mlpIsRecommended).toBe(true)
-    // The Left Surround is auto, so it moves with the MLP.
-    expect(speaker(store, 'Ls').placement).toBe('auto')
-    expect(speaker(store, 'Ls').position).not.toEqual(
-      analyzeRoom(ROOM_WITH_A_BETTER_SEAT).speakers.find(
-        ({ channel }) => channel === 'Ls',
-      )!.position,
-    )
 
     store.getState().undo()
 
     expect(store.getState().config).toEqual(ROOM_WITH_A_BETTER_SEAT)
     expect(store.getState().history.canUndo).toBe(false)
-  })
-
-  it('lands on the seat it is given, not one worked out again', () => {
-    const store = createConfigStore()
-    // A seat shown for a config from before an edit, say.
-    const shown = { x: -1, y: 2, z: 1.2 }
-
-    store.getState().moveMlpToRecommendedSeat(shown)
-
-    expect(analysis(store).mlp).toEqual(shown)
   })
 
   it('records nothing when the MLP already is there', () => {

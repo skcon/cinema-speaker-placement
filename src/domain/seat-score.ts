@@ -66,6 +66,7 @@
  * the MLP on every change. This is a domain entry point of
  * its own next to `analyzeRoom`, so it can run deferred (ADR 0004).
  */
+import { placeMlp } from './auto-place-policy'
 import type { Config } from './config'
 import {
   hearRoom,
@@ -333,7 +334,7 @@ export function compareMlp(
   config: Config,
   { recommended, candidates }: RecommendedSeat,
 ): MlpComparison {
-  const current = scoreSeat(config, placeAll(config).mlp.position)
+  const current = scoreSeat(config, placeMlp(config).position)
   // The candidates are the seats that keep the distances, or come nearest.
   const allowedShortfall =
     Math.min(...candidates.map(({ distances }) => distances.shortfall)) +

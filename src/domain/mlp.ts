@@ -10,7 +10,8 @@ import type { Room, RoomPoint } from './room'
  * (seat-score.ts, #120). It is not derived
  * from the recommended seat, which would make the analysis wait for the
  * seat score (ADR 0004). Auto-place and "Move MLP here" put the MLP at the
- * recommended seat, which makes it manual.
+ * recommended seat, which makes it manual (auto-place.ts). Where the MLP
+ * is, auto or manual, is placeMlp's (auto-place-policy.ts).
  */
 export function defaultMlp(room: Room): RoomPoint {
   return { x: 0, y: seatRuleOfThumb(room).fromFrontWall, z: EAR_HEIGHT.meters }

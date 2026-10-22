@@ -73,10 +73,8 @@ export {
 export {
   placeManually,
   withAmplifierWatts,
-  withAutoPlacement,
   withCrossover,
   withLayout,
-  withMlpAtRecommendedSeat,
   withPositionLength,
   withRoom,
   withRoomDimension,
@@ -84,6 +82,8 @@ export {
   withSubwooferHasOwnSpecs,
   withSubwooferSpecs,
 } from './config-edits'
+export { canAutoPlace, withAutoPlacement, withMlpAt } from './auto-place'
+export type { Placement } from './auto-place-policy'
 export {
   dragAnchors,
   pressSelects,
@@ -163,7 +163,6 @@ export {
   positionLengths,
   type ManualPositions,
   type PlaceableId,
-  type Placement,
   type PositionDimension,
   type PositionLength,
   type PositionLengths,

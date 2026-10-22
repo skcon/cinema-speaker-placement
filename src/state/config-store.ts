@@ -3,12 +3,11 @@ import { createStore } from 'zustand/vanilla'
 import {
   decodeConfig,
   DEFAULT_CONFIG,
-  MLP_ID,
   withAmplifierWatts,
   withAutoPlacement,
   withCrossover,
   withLayout,
-  withMlpAtRecommendedSeat,
+  withMlpAt,
   withPositionLength,
   withRoomDimension,
   withSpeakerSpecs,
@@ -31,7 +30,6 @@ import {
   type RoomObjectDimension,
   type RoomObjectEdit,
   type RoomObjectId,
-  type SeatRecommendation,
   type ShareLinkProblem,
   type SpeakerGroupId,
   type SpeakerGroups,
@@ -249,20 +247,6 @@ export function isUneditedSinceOpened(state: ConfigState): boolean {
   return state.config === state.openedConfig
 }
 
-/**
- * Whether Auto-place has something to do: an item other than the MLP is
- * manual, or the MLP isn't at the recommended seat. Until the
- * recommendation is ready, whether anything is manual.
- */
-export function canAutoPlace(
-  config: Config,
-  recommendation: SeatRecommendation | null,
-): boolean {
-  const manual = Object.keys(config.manualPositions)
-  if (!recommendation) return manual.length > 0
-  return manual.some((id) => id !== MLP_ID) || !recommendation.mlpIsRecommended
-}
-
 /** How many edits undo can take back. */
 const UNDO_LIMIT = 100
 
@@ -369,9 +353,7 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
               withRoomObjectDimension(config, id, dimension, meters),
             ),
           moveMlpToRecommendedSeat: (seat) =>
-            setConfigIfChanged((config) =>
-              withMlpAtRecommendedSeat(config, seat),
-            ),
+            setConfigIfChanged((config) => withMlpAt(config, seat)),
           autoPlace: () => setConfigIfChanged(withAutoPlacement),
           beginGesture: () => {
             const { gesture, config } = get()

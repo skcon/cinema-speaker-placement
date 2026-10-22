@@ -1,8 +1,9 @@
 /**
- * Where every item of the layout is: its manual position when it has one,
- * else its auto-placed one. Auto speakers are placed around the MLP where
- * it is, manual or auto, and L, C and R fit the Screen when the Room has
- * one (placement.ts, rule 6).
+ * Where every item of the layout is, by its placement policy
+ * (auto-place-policy.ts: a manual item where it is, an auto one where
+ * auto-place puts it). Auto speakers are placed around the MLP where it
+ * is, manual or auto, and L, C and R fit the Screen when the Room has one
+ * (placement.ts, rule 6).
  *
  * The listener-level speakers can also be placed on their own, installed
  * for one point and heard at another (placeSpeakers): the seat score
@@ -15,8 +16,12 @@ import {
   type ChannelReference,
   type OverheadChannelReference,
 } from './dolby-layouts'
-import { MLP_ID, type PlaceableId, type Placement } from './manual-positions'
-import { defaultMlp } from './mlp'
+import {
+  placeItem,
+  placeItemWith,
+  placeMlp,
+  type Placed,
+} from './auto-place-policy'
 import { autoPlaceOverhead, layoutWidth } from './overhead-placement'
 import {
   autoPlaceSpeakerAtScreen,
@@ -31,12 +36,6 @@ import { azimuthFromMlp, type RoomPoint, type Wall } from './room'
 import { nearestWall } from './wall-frame'
 import type { SubwooferId } from './subwoofer-arrangements'
 import { autoPlaceSubwoofers } from './subwoofer-placement'
-
-/** An item's position and whether it is auto or manual. */
-export type Placed = {
-  readonly position: RoomPoint
-  readonly placement: Placement
-}
 
 /**
  * A listener-level speaker installed for one point and heard at another
@@ -83,14 +82,8 @@ export type Placements = {
 }
 
 export function placeAll(config: Config): Placements {
-  const { room, layout, manualPositions } = config
-  const placed = (id: PlaceableId, auto: () => RoomPoint): Placed => {
-    const manual = manualPositions[id]
-    return manual
-      ? { position: manual, placement: 'manual' }
-      : { position: auto(), placement: 'auto' }
-  }
-  const mlp = placed(MLP_ID, () => defaultMlp(room))
+  const { room, layout } = config
+  const mlp = placeMlp(config)
   const speakers = placeSpeakers(config, {
     installedFor: mlp.position,
     heardAt: mlp.position,
@@ -99,23 +92,19 @@ export function placeAll(config: Config): Placements {
   const width = layoutWidth(speakers.map(({ position }) => position))
   const overheads = overheadChannels.map((reference) => ({
     reference,
-    ...placed(reference.channel, () =>
+    ...placeItem(config, reference.channel, () =>
       autoPlaceOverhead(room, mlp.position, reference, width),
     ),
   }))
   const subwoofers = autoPlaceSubwoofers(room, layout.subwoofers).map(
-    ({ id, position, wall }) => {
-      const where = placed(id, () => position)
-      return {
-        id,
-        ...where,
+    ({ id, position, wall }) => ({
+      id,
+      ...placeItemWith(config, id, {
+        auto: () => ({ position, wall }),
         // A manual subwoofer stands against the wall it is closest to.
-        wall:
-          where.placement === 'manual'
-            ? nearestWall(room, where.position)
-            : wall,
-      }
-    },
+        manual: (where) => ({ wall: nearestWall(room, where) }),
+      }),
+    }),
   )
   return { mlp, speakers, overheads, subwoofers }
 }
@@ -134,27 +123,30 @@ export function placeAll(config: Config): Placements {
  * (ADR 0005, amendment).
  */
 export function placeSpeakers(
-  { room, layout, manualPositions, roomObjects: { screen } }: Config,
+  config: Config,
   { installedFor, heardAt }: ListeningPoints,
 ): readonly InstalledSpeaker[] {
+  const {
+    room,
+    layout,
+    roomObjects: { screen },
+  } = config
   return DOLBY_LAYOUTS[layout.dolbyLayout].channels.map(
     (reference): InstalledSpeaker => {
       const { channel } = reference
-      const manual = manualPositions[channel]
-      const { position, screenRelation } = manual
-        ? {
-            position: manual,
-            screenRelation: manualScreenRelation(channel, screen),
-          }
-        : autoPlaceSpeakerAtScreen(room, installedFor, reference, screen)
+      const placed = placeItemWith(config, channel, {
+        auto: () =>
+          autoPlaceSpeakerAtScreen(room, installedFor, reference, screen),
+        manual: () => ({
+          screenRelation: manualScreenRelation(channel, screen),
+        }),
+      })
       return {
         reference,
-        position,
-        placement: manual ? 'manual' : 'auto',
-        screenRelation,
+        ...placed,
         placementRange: checkPlacementRange(
           reference,
-          azimuthFromMlp(heardAt, position),
+          azimuthFromMlp(heardAt, placed.position),
         ),
       }
     },

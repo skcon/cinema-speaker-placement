@@ -11,8 +11,9 @@
  * target a press picks up (src/scene/grab-areas.ts); the store applies
  * the drag.
  */
+import { withMlpAt } from './auto-place'
 import type { Config } from './config'
-import { placeManually, samePositions } from './config-edits'
+import { placeManually } from './config-edits'
 import { MLP_ID, type PlaceableId } from './manual-positions'
 import type { PlacedItems } from './placed-items'
 import type { FloorPoint } from './room'
@@ -79,24 +80,22 @@ export function dragAnchors(
  * on the floor plan:
  *
  * - An item goes to `to`, made manual, inside its wall clearances; it
- *   keeps its height (placeManually).
+ *   keeps its height (placeManually). The MLP moves as every MLP edit
+ *   does (withMlpAt, auto-place.ts).
  * - The Seat row moves the MLP to `to` the same way, and comes with it.
  * - The Screen slides along the front wall (only `to.x` counts), a
  *   furniture box goes with its middle to `to`, and an opening slides along
  *   its own wall, each stopped at the walls (withRoomObjectMoved).
  *
  * Comes back as it was when the target isn't in the config, or a room
- * object (or the Seat row's MLP) doesn't move.
+ * object (or the MLP, by itself or by the Seat row) doesn't move.
  */
 export function withDragged(
   config: Config,
   target: DragTarget,
   to: FloorPoint,
 ): Config {
-  if (target === SEAT_ROW_ID) {
-    const moved = placeManually(config, MLP_ID, { x: to.x, y: to.y })
-    return samePositions(moved, config) ? config : moved
-  }
+  if (target === SEAT_ROW_ID || target === MLP_ID) return withMlpAt(config, to)
   if (isRoomObjectId(target)) return withRoomObjectMoved(config, target, to)
   return placeManually(config, target, { x: to.x, y: to.y })
 }

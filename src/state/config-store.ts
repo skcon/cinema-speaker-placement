@@ -3,47 +3,23 @@ import { createStore } from 'zustand/vanilla'
 import {
   decodeConfig,
   DEFAULT_CONFIG,
-  withAmplifierWatts,
-  withAutoPlacement,
-  withCrossover,
-  withLayout,
-  withMlpAt,
-  withPositionLength,
-  withRoomDimension,
-  withSpeakerSpecs,
-  withSubwooferHasOwnSpecs,
-  withSubwooferSpecs,
-  withDragged,
-  withRoomObjectAdded,
-  withRoomObjectDimension,
-  withRoomObjectEdited,
-  withRoomObjectRemoved,
   type Config,
-  type DolbyLayout,
-  type DragTarget,
-  type FloorPoint,
-  type PlaceableId,
-  type PositionDimension,
-  type RoomPoint,
-  type RoomDimension,
-  type RoomObjectAddition,
-  type RoomObjectDimension,
-  type RoomObjectEdit,
-  type RoomObjectId,
   type ShareLinkProblem,
-  type SpeakerGroupId,
-  type SpeakerGroups,
-  type SubwooferCount,
-  type SubwooferId,
-  type SubwooferSpecs,
   type TargetCurveKind,
   type UnitSystem,
 } from '@/domain'
 
+/**
+ * A domain config edit (config-edits.ts, auto-place.ts, drag-targets.ts,
+ * room-objects.ts ...): it takes the config and gives the edited one, or
+ * the same config when the edit is rejected or changes nothing.
+ */
+export type ConfigEdit = (config: Config) => Config
+
 export type ConfigState = {
   /**
    * The current config. Always valid: every edit of the room is a domain
-   * config edit (config-edits.ts), which rejects invalid input.
+   * config edit (see applyEdit), which rejects invalid input.
    */
   config: Config
   /**
@@ -75,131 +51,18 @@ export type ConfigState = {
    */
   setUnits: (units: UnitSystem) => void
   /**
-   * Set one room dimension, in meters (withRoomDimension in the domain).
-   * Out-of-range values are ignored.
-   */
-  setRoomDimension: (dimension: RoomDimension, meters: number) => void
-  /**
-   * Switch to another v1 Dolby layout (X and Z), keeping the subwoofers
-   * (withLayout in the domain).
-   */
-  setLayout: (dolbyLayout: DolbyLayout) => void
-  /**
-   * Set how many subwoofers the layout has (the Y), as withLayout in the
-   * domain says. Subwoofers that stay keep their own specs; removed ones
-   * drop theirs, and added ones use the group's.
-   */
-  setSubwooferCount: (subwoofers: SubwooferCount) => void
-  /**
-   * Change specs of the Subwoofers group, or the own specs of one
-   * subwoofer (withSubwooferSpecs in the domain). Ignored when a spec would
-   * be out of range (or the peak power below the RMS power), or the
-   * subwoofer has no own specs.
-   */
-  setSubwooferSpecs: (
-    target: 'group' | SubwooferId,
-    change: Partial<SubwooferSpecs>,
-  ) => void
-  /**
-   * Change specs of one other speaker group (Front L/R ... Overheads), as
-   * withSpeakerSpecs in the domain says. Ignored when a spec would be out
-   * of range.
-   */
-  setSpeakerSpecs: <G extends SpeakerGroupId>(
-    group: G,
-    change: Partial<SpeakerGroups[G]['specs']>,
-  ) => void
-  /**
-   * Set the amplifier power per channel, in watts (withAmplifierWatts in
-   * the domain). Out-of-range values are ignored.
-   */
-  setAmplifierWatts: (watts: number) => void
-  /**
-   * Give a subwoofer of the layout own specs, starting as a copy of the
-   * group's, or make it use the group's again, dropping its own
-   * (withSubwooferHasOwnSpecs in the domain).
-   */
-  setSubwooferHasOwnSpecs: (
-    subwoofer: SubwooferId,
-    hasOwnSpecs: boolean,
-  ) => void
-  /**
    * Compare the estimated response against the flat or the house curve. A
    * view preference: not an undo step.
    */
   setTargetCurve: (targetCurve: TargetCurveKind) => void
   /**
-   * Set the crossover between the Speakers and the Subwoofers, in Hz
-   * (withCrossover in the domain). Out-of-range values are ignored.
+   * Apply a domain config edit to the config, for example
+   * `applyEdit((config) => withRoomDimension(config, 'length', 7))`. It is
+   * one undo step, or part of the drag in progress (see beginGesture). An
+   * edit that gives the same config back (rejected, or changing nothing)
+   * changes no state, so undo records no empty step.
    */
-  setCrossover: (crossoverHz: number) => void
-  /**
-   * Drag a drag target on the floor plan: its anchor (see dragAnchors in
-   * the domain) goes to `to`, as withDragged says. A channel, a subwoofer
-   * or the MLP is made manual there, inside the wall clearances, keeping
-   * its height; dragging the Seat row moves the MLP the same way; the
-   * Screen slides along the front wall, a furniture box goes with its
-   * middle to `to` and an opening slides along its own wall, each stopping
-   * at the walls. Ignored for a target the config doesn't have.
-   */
-  moveDragTarget: (target: DragTarget, to: FloorPoint) => void
-  /**
-   * Set one of an item's lengths, its height above the floor or its
-   * distance to a wall, in meters, making it manual. Ignored when the
-   * value is outside the limits positionLengths gives (unlike a drag, it
-   * isn't moved to the limit), or the item's height is fixed.
-   */
-  setPositionLength: (
-    id: PlaceableId,
-    dimension: PositionDimension,
-    meters: number,
-  ) => void
-  /**
-   * Add a room object: the Screen (the default TV, centred on the front
-   * wall), a furniture box from a preset, or a door or window (see
-   * withRoomObjectAdded in the domain). Ignored when the Room already has
-   * as many of that kind as it may.
-   */
-  addRoomObject: (addition: RoomObjectAddition) => void
-  /**
-   * Take room object `id` away; the objects after it in its list move up a
-   * place. Ignored for the seat row and an object the Room doesn't have.
-   */
-  removeRoomObject: (id: RoomObjectId) => void
-  /**
-   * Change room object `id` with `edit`, for example one of a kind
-   * module's `with...` functions (a screen's kind, a box's name, an
-   * opening's wall). Ignored when there is no such object, or the edit
-   * rejects the change or gives one that doesn't fit the Room.
-   */
-  editRoomObject: <I extends RoomObjectId>(
-    id: I,
-    edit: RoomObjectEdit<I>,
-  ) => void
-  /**
-   * Set one of room object `id`'s lengths, a size or a distance from a
-   * wall (see withRoomObjectDimension in the domain). Ignored when the
-   * value is outside the limits roomObjectLength gives, or there is no
-   * such object or length.
-   */
-  setRoomObjectDimension: <I extends RoomObjectId>(
-    id: I,
-    dimension: RoomObjectDimension<I>,
-    meters: number,
-  ) => void
-  /**
-   * Move the MLP to `seat`, the recommended seat on screen ("Move MLP
-   * here"), making it manual, as one undoable step; auto speakers follow
-   * it. With the MLP already there it changes nothing.
-   */
-  moveMlpToRecommendedSeat: (seat: RoomPoint) => void
-  /**
-   * Put every channel, subwoofer and the MLP back to auto, dropping the
-   * stored manual positions, then the MLP at the recommended seat, as one
-   * undoable change. When that changes nothing it makes no new state, so
-   * undo won't record an empty step.
-   */
-  autoPlace: () => void
+  applyEdit: (edit: ConfigEdit) => void
   /**
    * Start a drag: until endGesture, edits change the config (so the view
    * and the grades follow live) without each one becoming an undo step.
@@ -269,12 +132,6 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           set(state)
           if (!get().gesture) history.resume()
         }
-        /** Apply a config edit, unless it changed nothing. */
-        const setConfigIfChanged = (edit: (config: Config) => Config) => {
-          const { config } = get()
-          const edited = edit(config)
-          if (edited !== config) set({ config: edited })
-        }
         /**
          * Step through the history, keeping the current view preferences
          * (units, target curve), which are not part of it.
@@ -302,59 +159,13 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           gesture: null,
           setUnits: (units) =>
             setUntracked({ config: { ...get().config, units } }),
-          setRoomDimension: (dimension, meters) =>
-            setConfigIfChanged((config) =>
-              withRoomDimension(config, dimension, meters),
-            ),
-          setLayout: (dolbyLayout) =>
-            setConfigIfChanged((config) =>
-              withLayout(config, { ...config.layout, dolbyLayout }),
-            ),
-          setSubwooferCount: (subwoofers) =>
-            setConfigIfChanged((config) =>
-              withLayout(config, { ...config.layout, subwoofers }),
-            ),
-          setSubwooferSpecs: (target, change) =>
-            setConfigIfChanged((config) =>
-              withSubwooferSpecs(config, target, change),
-            ),
-          setSpeakerSpecs: (group, change) =>
-            setConfigIfChanged((config) =>
-              withSpeakerSpecs(config, group, change),
-            ),
-          setAmplifierWatts: (watts) =>
-            setConfigIfChanged((config) => withAmplifierWatts(config, watts)),
-          setSubwooferHasOwnSpecs: (subwoofer, hasOwnSpecs) =>
-            setConfigIfChanged((config) =>
-              withSubwooferHasOwnSpecs(config, subwoofer, hasOwnSpecs),
-            ),
           setTargetCurve: (targetCurve) =>
             setUntracked({ config: { ...get().config, targetCurve } }),
-          setCrossover: (hz) =>
-            setConfigIfChanged((config) => withCrossover(config, hz)),
-          moveDragTarget: (target, to) =>
-            setConfigIfChanged((config) => withDragged(config, target, to)),
-          setPositionLength: (id, dimension, meters) =>
-            setConfigIfChanged((config) =>
-              withPositionLength(config, id, dimension, meters),
-            ),
-          addRoomObject: (addition) =>
-            setConfigIfChanged((config) =>
-              withRoomObjectAdded(config, addition),
-            ),
-          removeRoomObject: (id) =>
-            setConfigIfChanged((config) => withRoomObjectRemoved(config, id)),
-          editRoomObject: (id, edit) =>
-            setConfigIfChanged((config) =>
-              withRoomObjectEdited(config, id, edit),
-            ),
-          setRoomObjectDimension: (id, dimension, meters) =>
-            setConfigIfChanged((config) =>
-              withRoomObjectDimension(config, id, dimension, meters),
-            ),
-          moveMlpToRecommendedSeat: (seat) =>
-            setConfigIfChanged((config) => withMlpAt(config, seat)),
-          autoPlace: () => setConfigIfChanged(withAutoPlacement),
+          applyEdit: (edit) => {
+            const { config } = get()
+            const edited = edit(config)
+            if (edited !== config) set({ config: edited })
+          },
           beginGesture: () => {
             const { gesture, config } = get()
             if (gesture) {

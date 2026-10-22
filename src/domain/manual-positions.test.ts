@@ -238,6 +238,7 @@ describe('setting one of an item’s lengths', () => {
   it('rejects a height for an item whose height is fixed, a missing item, or text that is not a number', () => {
     expect(withPositionLength(ROOM, 'Sub1', 'height', 1)).toBe(ROOM)
     expect(withPositionLength(ROOM, 'MLP', 'height', 1.2)).toBe(ROOM)
+    expect(withPositionLength(ROOM, 'Rtm', 'height', 2)).toBe(ROOM)
     // The default 5.1.2 has no rear surrounds.
     expect(withPositionLength(ROOM, 'Lrs', 'left', 1)).toBe(ROOM)
     expect(withPositionLength(ROOM, 'R', 'front', Number.NaN)).toBe(ROOM)

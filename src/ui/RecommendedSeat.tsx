@@ -5,6 +5,7 @@ import {
   SEAT_SCORE,
   SEATING_DISTANCE,
   wallDistances,
+  withMlpAt,
   type OffCenterLine,
   type Room,
   type ScoredSeat,
@@ -23,7 +24,7 @@ export function RecommendedSeat() {
   const recommendation = useSeatRecommendation()
   const room = useConfig((state) => state.config.room)
   const units = useConfig((state) => state.config.units)
-  const moveMlp = useConfig((state) => state.moveMlpToRecommendedSeat)
+  const applyEdit = useConfig((state) => state.applyEdit)
 
   return (
     <div className="flex flex-col gap-2">
@@ -56,7 +57,9 @@ export function RecommendedSeat() {
         className="self-start max-lg:h-11 max-lg:px-4"
         disabled={!recommendation || recommendation.mlpIsRecommended}
         onClick={() => {
-          if (recommendation) moveMlp(recommendation.recommended.position)
+          if (!recommendation) return
+          const seat = recommendation.recommended.position
+          applyEdit((config) => withMlpAt(config, seat))
         }}
       >
         Move MLP here

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useContext } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { findRecommendedSeat } from '@/domain'
+import { findRecommendedSeat, withMlpAt, withRoomDimension } from '@/domain'
 import {
   ConfigStoreContext,
   useSeatRecommendation,
@@ -37,7 +37,13 @@ function Seats() {
 function Width() {
   const store = useContext(ConfigStoreContext)!
   return (
-    <button onClick={() => store.getState().setRoomDimension('width', 5)}>
+    <button
+      onClick={() =>
+        store
+          .getState()
+          .applyEdit((config) => withRoomDimension(config, 'width', 5))
+      }
+    >
       wider
     </button>
   )
@@ -48,7 +54,9 @@ function MoveMlp() {
   return (
     <button
       onClick={() =>
-        store.getState().moveMlpToRecommendedSeat({ x: 0, y: 3, z: 1.2 })
+        store
+          .getState()
+          .applyEdit((config) => withMlpAt(config, { x: 0, y: 3 }))
       }
     >
       move MLP

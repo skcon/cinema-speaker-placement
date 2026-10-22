@@ -55,6 +55,24 @@ export function draggedTo(pointer: FloorPoint, offset: FloorPoint): FloorPoint {
  */
 export const FLAT_ON_FLOOR: Vec3 = [-Math.PI / 2, 0, 0]
 
+/**
+ * Small heights (in meters) that stack the flat floor layers so they don't
+ * z-fight. The top-down camera is orthographic, so they don't move anything.
+ */
+export const FLOOR_LAYERS = {
+  grid: 0.005,
+  seatRow: 0.007,
+  ruleOfThumb: 0.008,
+  heatmap: 0.009,
+  doorSwing: 0.0092,
+  furniture: 0.0094,
+  furnitureFront: 0.0097,
+  walls: 0.01,
+  opening: 0.0105,
+  screen: 0.011,
+  recommended: 0.012,
+} as const
+
 /** A Three.js plane covering the floor: its center, rotation and size. */
 export function floorPlane(room: Room) {
   return {

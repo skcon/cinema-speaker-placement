@@ -32,15 +32,13 @@
 import {
   dragAnchors,
   MLP_ID,
-  roomObjectId,
-  SCREEN_ID,
-  SEAT_ROW_ID,
   type Config,
   type DragTarget,
   type FloorPoint,
   type RoomAnalysis,
+  type RoomObjectKind,
 } from '@/domain'
-import { furniturePlan, openingMark, screenBar } from '@/scene/room-objects'
+import { roomObjectGrabs, type GrabRectangle } from '@/scene/room-objects'
 import {
   MLP_MARKER_RADIUS,
   OVERHEAD_MARKER_DOT,
@@ -57,12 +55,7 @@ import {
  * `depth` along y.
  */
 export type GrabShape =
-  | { readonly center: FloorPoint; readonly radius: number }
-  | {
-      readonly center: FloorPoint
-      readonly width: number
-      readonly depth: number
-    }
+  { readonly center: FloorPoint; readonly radius: number } | GrabRectangle
 
 /**
  * What is drawn for an item, where a press is on it: a disc (the MLP), a
@@ -108,6 +101,18 @@ export type GrabAnalysis = Pick<
 >
 
 /**
+ * The room object kinds in the order ties between them go (see the module
+ * comment); each kind's grab rectangle is the one it is drawn as from
+ * above (roomObjectGrabs).
+ */
+const ROOM_OBJECT_TIE_ORDER: readonly RoomObjectKind[] = [
+  'furniture',
+  'screen',
+  'opening',
+  'seatRow',
+]
+
+/**
  * The smallest touch target, in pixels: the size WCAG 2.5.5 (AAA) and the
  * Apple and Android guidelines give for something a finger has to hit.
  */
@@ -124,7 +129,6 @@ export function grabAreas(
   config: Config,
   analysis: GrabAnalysis,
 ): readonly GrabArea[] {
-  const { room, roomObjects } = config
   const anchors = dragAnchors(config, analysis)
   const areas: GrabArea[] = []
   const add = (
@@ -136,27 +140,16 @@ export function grabAreas(
     if (anchor) areas.push({ target, anchor, marker, item })
   }
 
-  roomObjects.furniture.forEach((box, index) => {
-    const { center, size } = furniturePlan(box)
-    add(roomObjectId('furniture', index), {
-      center,
-      width: size[0],
-      depth: size[1],
-    })
-  })
-  if (roomObjects.screen) {
-    add(SCREEN_ID, screenBar(roomObjects.screen))
+  const objects = {
+    room: config.room,
+    roomObjects: config.roomObjects,
+    seatRow: analysis.seatRow,
   }
-  roomObjects.openings.forEach((opening, index) => {
-    const { center, size } = openingMark(room, opening)
-    add(roomObjectId('opening', index), {
-      center,
-      width: size[0],
-      depth: size[1],
-    })
-  })
-  const { center, width, depth } = analysis.seatRow
-  add(SEAT_ROW_ID, { center, width, depth })
+  for (const kind of ROOM_OBJECT_TIE_ORDER) {
+    for (const { target, marker } of roomObjectGrabs(objects, kind)) {
+      add(target, marker)
+    }
+  }
 
   const { mlp, subwoofers, speakers, overheads } = analysis
   add(

@@ -69,7 +69,12 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ]) {
       await expect(scene.getByText(label, { exact: true })).toBeVisible()
     }
-    await expect(scene.getByText('ideal', { exact: true })).toHaveCount(7)
+    // Each label carries its grade where it fits; a crowded view drops
+    // it, and the marker's color and the description still give it (#124).
+    await expect(
+      scene.getByText('ideal', { exact: true }).first(),
+    ).toBeVisible()
+    await expect(scene).toHaveAccessibleName(/Left 26° \(ideal\)/)
     await expect(
       page.getByRole('table', { name: 'Speakers' }).getByText('Left Surround'),
     ).toBeVisible()
@@ -238,8 +243,11 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     for (const label of ['L 26°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
     }
-    // Seven listener-level speakers and two overheads.
-    await expect(sharedScene.getByText('ideal', { exact: true })).toHaveCount(9)
+    // Seven listener-level speakers and two overheads, graded in the
+    // description (and on the labels where they fit).
+    await expect(sharedScene).toHaveAccessibleName(
+      /Rear Surround 143° \(ideal\).*Right Top Middle elevation 83° \(ideal\)/,
+    )
     // Two subwoofers, at the middle of the front and back walls.
     for (const label of ['Sub1', 'Sub2']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()

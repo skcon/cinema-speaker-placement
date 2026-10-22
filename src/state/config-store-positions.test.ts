@@ -53,8 +53,8 @@ describe('auto and manual items', () => {
   it('stay auto when a subwoofer or the MLP is given a height, as theirs are fixed', () => {
     const store = createConfigStore()
 
-    store.getState().setItemHeight('Sub1', 1)
-    store.getState().setItemHeight('MLP', 1.6)
+    store.getState().setPositionLength('Sub1', 'height', 1)
+    store.getState().setPositionLength('MLP', 'height', 1.6)
 
     expect(manual(store)).toEqual({})
     expect(store.getState().history.canUndo).toBe(false)
@@ -76,8 +76,8 @@ describe('auto and manual items', () => {
   it('become manual when their height or a wall distance is edited', () => {
     const store = createConfigStore()
 
-    store.getState().setItemHeight('C', 1.8)
-    store.getState().setWallDistance('L', 'left', 0.5)
+    store.getState().setPositionLength('C', 'height', 1.8)
+    store.getState().setPositionLength('L', 'left', 0.5)
 
     expect(speaker(store, 'C')).toMatchObject({
       placement: 'manual',
@@ -85,6 +85,16 @@ describe('auto and manual items', () => {
     })
     expect(speaker(store, 'L').placement).toBe('manual')
     expect(speaker(store, 'L').position.x).toBeCloseTo(-1.75, 9)
+  })
+
+  it('ignore a typed length outside the clearances, rather than moving the item to the limit', () => {
+    const store = createConfigStore()
+
+    store.getState().setPositionLength('C', 'height', 2.5)
+    store.getState().setPositionLength('L', 'left', 0.1)
+
+    expect(manual(store)).toEqual({})
+    expect(store.getState().history.canUndo).toBe(false)
   })
 
   it('follow Room changes while auto, and stay put once manual', () => {
@@ -237,7 +247,7 @@ describe('overhead speakers', () => {
   it('keep their height on the ceiling: a height edit changes nothing', () => {
     const store = createConfigStore()
 
-    store.getState().setItemHeight('Rtm', 2)
+    store.getState().setPositionLength('Rtm', 'height', 2)
 
     expect(manual(store)).toEqual({})
     expect(store.getState().history.canUndo).toBe(false)
@@ -397,7 +407,7 @@ describe('undo and redo', () => {
     // starts the drag.
     const store = createConfigStore()
 
-    store.getState().setItemHeight('C', 1.5)
+    store.getState().setPositionLength('C', 'height', 1.5)
     store.getState().beginGesture()
     store.getState().moveDragTarget('R', { x: 1, y: 1 })
     store.getState().endGesture()

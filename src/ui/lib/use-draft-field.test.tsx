@@ -171,18 +171,19 @@ describe('a draft field committed when it is left', () => {
     expect(onCommit).not.toHaveBeenCalled()
   })
 
-  it('drops a rejected value when left', () => {
+  it('keeps a rejected value, with its problem, when left', () => {
     const onCommit = vi.fn()
     const { result } = renderDraft(
       { value: 5, codec: DECIMAL_TEXT, onCommit },
       'leave',
     )
 
-    act(() => result.current.edit('abc'))
+    act(() => result.current.edit('12'))
     act(() => result.current.leave())
 
     expect(onCommit).not.toHaveBeenCalled()
-    expect(result.current.text).toBe('5')
+    expect(result.current.text).toBe('12')
+    expect(result.current.problem).toBe('out-of-range')
   })
 
   it('follows the stored value while untouched (undo, a drag, the units)', () => {

@@ -3,6 +3,7 @@ import {
   formatLength,
   FRONT_STAGE_WALL_DISTANCE,
   positionLengths,
+  withPositionLength,
   type PlaceableId,
   type PlacedItem,
   type Placement,
@@ -205,7 +206,7 @@ function PositionLengthField({
   noun: string
 }) {
   const units = useConfig((state) => state.config.units)
-  const setPositionLength = useConfig((state) => state.setPositionLength)
+  const applyEdit = useConfig((state) => state.applyEdit)
 
   return (
     <CheckedLengthField
@@ -216,7 +217,9 @@ function PositionLengthField({
       errorMessage={(problem) =>
         lengthErrorMessage(noun, label, problem, units)
       }
-      onChange={(value) => setPositionLength(id, dimension, value)}
+      onChange={(value) =>
+        applyEdit((config) => withPositionLength(config, id, dimension, value))
+      }
       commitOn="leave"
     />
   )

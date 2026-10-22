@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { withCrossover } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { CrossoverField } from '@/ui/CrossoverField'
@@ -10,8 +11,12 @@ function StoredCrossover() {
 }
 
 function SetElsewhere() {
-  const setCrossover = useConfig((state) => state.setCrossover)
-  return <button onClick={() => setCrossover(120)}>Set 120 Hz elsewhere</button>
+  const applyEdit = useConfig((state) => state.applyEdit)
+  return (
+    <button onClick={() => applyEdit((config) => withCrossover(config, 120))}>
+      Set 120 Hz elsewhere
+    </button>
+  )
 }
 
 function renderField() {

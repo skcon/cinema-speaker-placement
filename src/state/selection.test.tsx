@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { useContext, type ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
-import { encodeConfig } from '@/domain'
+import { encodeConfig, withLayout } from '@/domain'
 import { ConfigStoreContext } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { useSelectedItem, useSelection } from '@/state/selection-context'
@@ -71,7 +71,13 @@ describe('the selected item', () => {
 
     act(() => result.current.selection.select('Ltm'))
     expect(result.current.item?.name).toBe('Left Top Middle')
-    act(() => result.current.store.getState().setLayout('5.1'))
+    act(() =>
+      result.current.store
+        .getState()
+        .applyEdit((config) =>
+          withLayout(config, { ...config.layout, dolbyLayout: '5.1' }),
+        ),
+    )
 
     expect(result.current.item).toBeNull()
   })

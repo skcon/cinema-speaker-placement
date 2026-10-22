@@ -1,13 +1,20 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { withAmplifierWatts } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { HeadroomIndicator } from '@/ui/HeadroomIndicator'
 
 /** Stands in for the amplifier power field. */
 function SetWatts({ watts }: { watts: number }) {
-  const setAmplifierWatts = useConfig((state) => state.setAmplifierWatts)
-  return <button onClick={() => setAmplifierWatts(watts)}>Set {watts} W</button>
+  const applyEdit = useConfig((state) => state.applyEdit)
+  return (
+    <button
+      onClick={() => applyEdit((config) => withAmplifierWatts(config, watts))}
+    >
+      Set {watts} W
+    </button>
+  )
 }
 
 function renderIndicator() {

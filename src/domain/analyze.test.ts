@@ -4,7 +4,9 @@ import {
   DEFAULT_CONFIG,
   formatLayout,
   V1_DOLBY_LAYOUTS,
+  withRoomObjectAdded,
   type Config,
+  type RoomObjectAddition,
 } from '@/domain'
 import { hearRoom } from './estimated-response'
 import { placeAll } from './placements'
@@ -272,5 +274,21 @@ describe('the response follows manual positions', () => {
         levelsFrom(DEFAULT_CONFIG, 30, 80),
       ),
     ).toBeGreaterThan(3)
+  })
+})
+
+describe('the response with room objects', () => {
+  it('stays as it is with furniture, a door and a window: they are drawn and warned about, not modelled (ADR 0006)', () => {
+    const additions: RoomObjectAddition[] = [
+      { kind: 'furniture', preset: 'cabinet' },
+      { kind: 'opening', preset: 'door' },
+      { kind: 'opening', preset: 'window' },
+    ]
+    const furnished = additions.reduce(withRoomObjectAdded, DEFAULT_CONFIG)
+    expect(furnished.roomObjects.openings).toHaveLength(2)
+
+    expect(analyzeRoom(furnished).response).toEqual(
+      analyzeRoom(DEFAULT_CONFIG).response,
+    )
   })
 })

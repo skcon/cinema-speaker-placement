@@ -6,6 +6,7 @@ import {
   SCREEN_ID,
   SEAT_ROW_ID,
   withDragged,
+  withRoomObjectAdded,
   type Config,
   type DragTarget,
   type FloorPoint,
@@ -21,15 +22,18 @@ import { createConfigStore, type ConfigStore } from '@/state/config-store'
  */
 function furnishedStore(): ConfigStore {
   const store = createConfigStore()
-  const { addRoomObject, beginGesture, moveDragTarget, endGesture } =
-    store.getState()
-  addRoomObject({ kind: 'screen' })
-  addRoomObject({ kind: 'furniture', preset: 'cabinet' })
-  addRoomObject({ kind: 'opening', preset: 'door' })
-  addRoomObject({ kind: 'opening', preset: 'window' })
-  beginGesture()
-  moveDragTarget('furniture-1', { x: -1, y: 4.5 })
-  endGesture()
+  const { applyEdit } = store.getState()
+  applyEdit((config) => withRoomObjectAdded(config, { kind: 'screen' }))
+  applyEdit((config) =>
+    withRoomObjectAdded(config, { kind: 'furniture', preset: 'cabinet' }),
+  )
+  applyEdit((config) =>
+    withRoomObjectAdded(config, { kind: 'opening', preset: 'door' }),
+  )
+  applyEdit((config) =>
+    withRoomObjectAdded(config, { kind: 'opening', preset: 'window' }),
+  )
+  applyEdit((config) => withDragged(config, 'furniture-1', { x: -1, y: 4.5 }))
   return store
 }
 
@@ -56,10 +60,12 @@ function dragInView(
   by: FloorPoint,
   grabbedAt: FloorPoint,
 ) {
-  const { config, beginGesture, moveDragTarget, endGesture } = store.getState()
+  const { config, beginGesture, applyEdit, endGesture } = store.getState()
+  // As the room view wires it (RoomView).
   const controller = createDragController({
     onDragStart: beginGesture,
-    onDragMove: moveDragTarget,
+    onDragMove: (moved, to) =>
+      applyEdit((current) => withDragged(current, moved, to)),
     onDragEnd: endGesture,
   })
   const anchor = anchorIn(store, target)

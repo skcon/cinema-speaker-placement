@@ -187,10 +187,11 @@ describe('a whole drag', () => {
     expect(after.manualPositions.MLP?.y).toBeLessThan(DEFAULT_ROOM.length)
   })
 
-  it('changes nothing when the seat row is dragged back where it was', () => {
+  it('changes nothing when the seat row or the MLP is dragged back where it was', () => {
     const moved = drag(FURNISHED, SEAT_ROW_ID, { x: 0.4, y: 0.3 })
 
     expect(drag(moved, SEAT_ROW_ID, { x: 0, y: 0 })).toBe(moved)
+    expect(drag(moved, 'MLP', { x: 0, y: 0 })).toBe(moved)
   })
 
   it('slides the screen along the front wall: only across counts', () => {

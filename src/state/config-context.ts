@@ -8,15 +8,18 @@ import {
 import { useStore } from 'zustand'
 import {
   analyzeRoom,
-  recommendSeat,
+  compareMlp,
+  findRecommendedSeat,
   seatHeatmap,
+  seatScoreInput,
+  seatScoreKey,
   type Config,
+  type RecommendedSeat,
   type RoomAnalysis,
   type SeatHeatmap,
   type SeatRecommendation,
 } from '@/domain'
 import type { ConfigState, ConfigStore } from './config-store'
-import { seatScoreKey } from './seat-recommendation'
 
 /** The app's config store; provided by ConfigStoreProvider. */
 export const ConfigStoreContext = createContext<ConfigStore | null>(null)
@@ -104,27 +107,31 @@ export function useSeatHeatmap(enabled: boolean): SeatHeatmap | null {
 
 /**
  * Works the recommended seat out, for SeatRecommendationContext only:
- * deferred, kept through a gesture, and memoized on everything the score
- * depends on (seatScoreKey), so a change of units or seat row size
- * keeps it.
+ * deferred and kept through a gesture. The grid (findRecommendedSeat) is
+ * scored on the domain's seat score input and memoized on its key
+ * (seatScoreInput, seatScoreKey, #127), so moving the MLP or a speaker,
+ * or a change the recommendation doesn't read, keeps it; the current
+ * MLP's cheap comparison with it (compareMlp) follows every change (#120).
  */
 export function useComputedSeatRecommendation(): SeatRecommendation | null {
   const config = useConfig((state) => state.gesture?.start ?? state.config)
   const deferred = useDeferredValue<Config | null>(config, null)
-  const key = deferred && seatScoreKey(deferred)
+  const input = deferred && seatScoreInput(deferred)
+  const key = input && seatScoreKey(input)
   const [memo, setMemo] = useState<{
     key: string | null
-    recommendation: SeatRecommendation | null
-  }>({ key: null, recommendation: null })
+    seat: RecommendedSeat | null
+  }>({ key: null, seat: null })
   // Adjust state while rendering when the key changes (as CrossoverField
   // does), so the grid is scored once per key.
+  let seat = memo.seat
   if (memo.key !== key) {
-    const next = {
-      key,
-      recommendation: deferred && recommendSeat(deferred),
-    }
-    setMemo(next)
-    return next.recommendation
+    seat = input && findRecommendedSeat(input)
+    setMemo({ key, seat })
   }
-  return memo.recommendation
+  return useMemo(
+    () =>
+      deferred && seat ? { ...seat, ...compareMlp(deferred, seat) } : null,
+    [deferred, seat],
+  )
 }

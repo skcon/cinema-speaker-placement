@@ -4,11 +4,14 @@
  * ## The rule
  *
  * 1. **Angle**: each channel aims at the middle of its Dolby ideal azimuth
- *    range, to the nearest whole degree, on its own side of the room (L at
- *    -26°, Ls in a 5.1 bed at -115°, Lrs at -143° for 135°–150°). The middle
- *    leaves the most margin to both edges, and whole degrees match Dolby's
- *    resolution. Choosing the middle is our rule; Dolby gives only the
- *    range.
+ *    range, to the nearest whole degree, on its own side of the room (Ls in
+ *    a 5.1 bed at -115°, Lrs at -143° for 135°–150°). The middle leaves the
+ *    most margin to both edges, and whole degrees match Dolby's resolution.
+ *    Choosing the middle is our rule; Dolby gives only the range. Left and
+ *    Right are the exception (#121, ADR 0005 amendment): they aim at
+ *    Dolby's 30° L/R reference less a 1° margin to the ideal range's edge
+ *    (LEFT_RIGHT_AIM: L at -29°), so they form a near-equilateral triangle
+ *    with the MLP instead of a narrow stage.
  * 2. **Front stage near the front wall**: Left, Center and Right go along
  *    their angle to where it meets a line FRONT_STAGE_WALL_DISTANCE (0.5 m,
  *    our choice after the manufacturers' advice) from the front wall
@@ -44,6 +47,7 @@ import {
   angleOnSide,
   azimuthFromSide,
   CHANNELS,
+  type AngleRange,
   type ChannelId,
   type ChannelReference,
 } from './dolby-layouts'
@@ -51,6 +55,7 @@ import { clamp } from './range'
 import {
   EAR_HEIGHT,
   FRONT_STAGE_WALL_DISTANCE,
+  LEFT_RIGHT_AIM,
   SCREEN_FRONT_STAGE,
   SPEAKER_WALL_CLEARANCE,
 } from './reference'
@@ -70,16 +75,6 @@ export type Aim = {
    * facing the front wall, in (-180°, +180°]. 180° faces the back wall.
    */
   readonly yaw: number
-}
-
-/** Where a listener-level channel goes around the MLP (see the rule above). */
-export function autoPlaceSpeaker(
-  room: Room,
-  mlp: RoomPoint,
-  reference: ChannelReference,
-  screen: RoomScreen | null = null,
-): RoomPoint {
-  return autoPlaceSpeakerAtScreen(room, mlp, reference, screen).position
 }
 
 /**
@@ -160,7 +155,7 @@ export function autoPlaceSpeakerAtScreen(
       position: alongAzimuth(
         room,
         mlp,
-        middleAzimuth(reference),
+        autoAzimuth(reference),
         frontLineFor(channel),
       ),
       screenRelation: null,
@@ -182,13 +177,41 @@ export function manualScreenRelation(
     : null
 }
 
-/** The middle of a channel's ideal range in whole degrees, signed on its side (rule 1). */
-function middleAzimuth({
+/**
+ * How far from the front wall the front stage (Left, Center and Right)
+ * stands when auto-placed: FRONT_STAGE_WALL_DISTANCE, or nearer the wall
+ * behind an acoustically transparent screen (rule 2; "With a screen"
+ * above). The seat score keeps its seats behind it (SEATING_DISTANCE).
+ */
+export function frontStageLine(screen: RoomScreen | null): number {
+  return screen === null
+    ? FRONT_STAGE_WALL_DISTANCE.meters
+    : frontStageAt(screen).line
+}
+
+/**
+ * The azimuth auto-place aims a channel at without a screen, signed on its
+ * side (rule 1): LEFT_RIGHT_AIM for Left and Right, the middle of the
+ * ideal range in whole degrees for every other channel.
+ */
+function autoAzimuth({
   channel,
   azimuth: { ideal },
 }: ChannelReference): number {
-  const middle = Math.round((ideal.range.min + ideal.range.max) / 2)
-  return azimuthFromSide(CHANNELS[channel].side, middle)
+  const angle =
+    channel === 'L' || channel === 'R'
+      ? leftRightAngle(ideal.range)
+      : Math.round((ideal.range.min + ideal.range.max) / 2)
+  return azimuthFromSide(CHANNELS[channel].side, angle)
+}
+
+/**
+ * Dolby's 30° L/R reference, kept LEFT_RIGHT_AIM.edgeMargin inside the
+ * ideal range's edge, and never below the range (rule 1).
+ */
+function leftRightAngle({ min, max }: AngleRange): number {
+  const { nominal, edgeMargin } = LEFT_RIGHT_AIM
+  return clamp(nominal, min, max - edgeMargin)
 }
 
 /** How far from the front wall a channel stops without a screen (rules 2 and 3). */
@@ -297,7 +320,7 @@ function placeCenterAtScreen(
   reference: ChannelReference,
   { screen, line, behind }: FrontStage,
 ): AutoPlacedSpeaker {
-  const atEar = alongAzimuth(room, mlp, middleAzimuth(reference), line)
+  const atEar = alongAzimuth(room, mlp, autoAzimuth(reference), line)
   const image = screenSurface(screen)
   // The image's edges as seen from the MLP on the Center's plane.
   const scale = seenScale(mlp, image.fromFrontWall, atEar.y)
@@ -339,8 +362,20 @@ function placeCenterAtScreen(
   }
 }
 
-/** The channels auto-place puts near the front wall (rule 2 above). */
-const FRONT_STAGE_CHANNELS: ReadonlySet<ChannelId> = new Set(['L', 'C', 'R'])
+/**
+ * The front-stage channels, Left, Center and Right: the ones auto-place
+ * puts near the front wall (rule 2 above).
+ */
+export const FRONT_STAGE_CHANNELS: ReadonlySet<ChannelId> = new Set([
+  'L',
+  'C',
+  'R',
+])
+
+/** Whether `channel` is on the front stage: L, C or R. */
+export function isFrontStageChannel(channel: ChannelId): boolean {
+  return FRONT_STAGE_CHANNELS.has(channel)
+}
 
 /** Turn a speaker at `position` to face the MLP (rule 5 above). */
 export function aimAtMlp(position: RoomPoint, mlp: RoomPoint): Aim {

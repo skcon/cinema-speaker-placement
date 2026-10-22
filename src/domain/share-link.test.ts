@@ -4,26 +4,32 @@ import {
 } from 'lz-string'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { speakersFollowSeat } from './auto-place'
 import {
-  DEFAULT_CONFIG,
-  decodeConfig,
-  encodeConfig,
-  DEFAULT_ROOM_OBJECTS,
-  TARGET_CURVE_KINDS,
-  UNIT_SYSTEM_NAMES,
   V1_DOLBY_LAYOUTS,
-  type Config,
   type DolbyLayout,
   type OverheadChannelId,
-} from '@/domain'
-import { IMPERIAL_ROOM, V1_LINKS, V2_LINKS } from '@/test/share-link-fixtures'
-import { configSchema } from './config'
+} from './dolby-layouts'
+import { DEFAULT_ROOM_OBJECTS } from './room-objects'
+import { TARGET_CURVE_KINDS } from './target-curve'
+import { UNIT_SYSTEM_NAMES } from './units'
+import {
+  IMPERIAL_ROOM,
+  V1_LINKS,
+  V2_LINKS,
+  V3_LINKS,
+} from '@/test/share-link-fixtures'
+import { configSchema, DEFAULT_CONFIG, type Config } from './config'
+import { placeItems } from './placed-items'
+import { placeSpeakers } from './placements'
 import { WALLS } from './room'
 import { configSchemaV1, type ConfigV1 } from './config-v1'
-import { configSchemaV2 } from './config-v2'
+import { configSchemaV2, type ConfigV2 } from './config-v2'
+import { configSchemaV3 } from './config-v3'
 import {
   LINK_MILLIMETER_LENGTHS,
   linkSlack,
+  V2_MILLIMETER_LENGTHS,
   type LinkPart,
 } from './link-precision'
 import {
@@ -31,9 +37,12 @@ import {
   configVersion,
   createConfigCodec,
   SHORT_FIELD_NAMES,
-  writtenAsVersion2,
+  V3_SHORT_FIELD_NAMES,
+  writtenAsVersion,
   type ConfigVersion,
   type WireForm,
+  decodeConfig,
+  encodeConfig,
 } from './share-link'
 
 /**
@@ -45,8 +54,11 @@ import {
 function encodedHolding(json: unknown): string {
   const envelope = json as { v?: unknown; config?: unknown } | null
   const short =
-    typeof envelope?.v === 'number' && envelope.v >= 2 && 'config' in envelope
-      ? { ...envelope, config: writtenAsVersion2(envelope.config) }
+    typeof envelope?.v === 'number' &&
+    envelope.v >= 2 &&
+    envelope.v <= CONFIG_VERSIONS.length &&
+    'config' in envelope
+      ? { ...envelope, config: writtenAsVersion(envelope.v, envelope.config) }
       : json
   return compressToEncodedURIComponent(JSON.stringify(short))
 }
@@ -82,12 +94,31 @@ const PLAIN: WireForm = {
  * A config in version 1's shape: without room objects, the seat row's
  * width a field of its own.
  */
-function inVersion1({ roomObjects, ...config }: Config): ConfigV1 {
+function inVersion1({
+  roomObjects,
+  speakersInstalledFor,
+  ...config
+}: Config): ConfigV1 {
+  void speakersInstalledFor
   return { ...config, seatRowWidth: roomObjects.seatRow.width }
 }
 
 /** The default config as a version 1 link holds it. */
 const DEFAULT_V1 = inVersion1(DEFAULT_CONFIG)
+
+/**
+ * A config in version 2's shape: without Speakers follow the seat, which
+ * version 3 added (#123).
+ */
+function asVersion2({ speakersInstalledFor, ...config }: Config): ConfigV2 {
+  void speakersInstalledFor
+  return config
+}
+
+/** A version 2 config as the migration to version 3 opens it. */
+function migratedFromVersion2(config: ConfigV2): Config {
+  return { ...config, speakersInstalledFor: null }
+}
 
 /**
  * A config of version 1's shape as a version 2 link would hold it: its
@@ -631,23 +662,85 @@ const BROKEN_ROOM_OBJECTS: [string, unknown][] = [
   ],
 ]
 
+/**
+ * Seats the speakers can't be installed for in a version 3 link, in the
+ * default 6 x 4.5 x 2.6 m room: the MLP's clearance lines, at ear height.
+ */
+const BROKEN_SPEAKERS_INSTALLED_FOR: [string, unknown][] = [
+  ['a seat outside the left wall clearance', { x: -2, y: 3, z: 1.2 }],
+  ['a seat outside the front wall clearance', { x: 0, y: 0.2, z: 1.2 }],
+  ['a seat beyond the back wall', { x: 0, y: 6.5, z: 1.2 }],
+  ['a seat above ear height', { x: 0, y: 3, z: 1.5 }],
+  ['a seat without a height', { x: 0, y: 3 }],
+  ['a seat with a field of its own', { x: 0, y: 3, z: 1.2, w: 1 }],
+  ['a seat that is text', '0, 3, 1.2'],
+  ['a seat that is a flag', false],
+  ['a seat left out', undefined],
+]
+
 describe('share link codec', () => {
-  it('writes new share links as version 2', () => {
-    expect(envelopeOf(encodeConfig(DEFAULT_CONFIG))).toMatchObject({ v: 2 })
+  it('writes new share links as version 3', () => {
+    expect(envelopeOf(encodeConfig(DEFAULT_CONFIG))).toMatchObject({ v: 3 })
   })
 
-  it('spells the field names short in version 2 links, keeping every value', () => {
-    const { config } = envelopeOf(encodeConfig(IMPERIAL_ROOM))
+  it('spells the field names short in version 3 links, keeping every value', () => {
+    const { config } = envelopeOf(
+      encodeConfig({
+        ...IMPERIAL_ROOM,
+        speakersInstalledFor: { x: 0.25, y: 3.1, z: 1.2 },
+      }),
+    )
 
     expect(config).toMatchObject({
       u: 'imperial',
       r: { l: 8, w: 5, h: 3 },
       ly: { dl: '7.1.4', s: 2 },
       m: { Rrs: { x: 2.2, y: 7.2, z: 1.5 }, Sub2: { x: 2.2, y: 7.7, z: 0.3 } },
+      si: { x: 0.25, y: 3.1, z: 1.2 },
       ro: { st: { w: 3.6576, d: 0.9144 } },
     })
-    expect(keysIn(config).filter((key) => key in SHORT_FIELD_NAMES)).toEqual([])
+    expect(
+      keysIn(config).filter(
+        (key) => key in SHORT_FIELD_NAMES || key in V3_SHORT_FIELD_NAMES,
+      ),
+    ).toEqual([])
   })
+
+  it('falls back for a version 3 link that spells Speakers follow the seat out', () => {
+    const { v, config } = envelopeOf(encodeConfig(DEFAULT_CONFIG))
+    const spelledOut = {
+      ...(config as object),
+      si: undefined,
+      speakersInstalledFor: null,
+    }
+
+    expect(
+      decodeConfig(
+        compressToEncodedURIComponent(
+          JSON.stringify({ v, config: spelledOut }),
+        ),
+      ),
+    ).toEqual(FALLBACK)
+  })
+
+  it.each([
+    ['on', null],
+    ['off', { x: -0.4, y: 3.25, z: 1.2 }],
+  ] as const)(
+    'rebuilds Speakers follow the seat %s, and the seat the speakers are installed for',
+    (_, speakersInstalledFor) => {
+      const config: Config = {
+        ...IMPERIAL_ROOM,
+        manualPositions: { MLP: { x: 0.5, y: 4, z: 1.2 } },
+        speakersInstalledFor,
+      }
+
+      expect(decodeConfig(encodeConfig(config))).toEqual({
+        config,
+        problem: null,
+      })
+    },
+  )
 
   it('falls back for a version 2 link that spells a field name out', () => {
     const { v, config } = envelopeOf(encodeConfig(DEFAULT_CONFIG))
@@ -1016,10 +1109,19 @@ describe('share link codec', () => {
       expect(decodeConfig(encodedHolding(json))).toEqual(FALLBACK)
     })
 
-    // Version 2 is version 1 with room objects, so both break the same rules.
+    // Version 2 is version 1 with room objects, and version 3 version 2
+    // with Speakers follow the seat, so all three break the same rules.
     describe.each([
       [1, DEFAULT_V1, (config: unknown) => config],
-      [2, DEFAULT_CONFIG, inVersion2],
+      [2, asVersion2(DEFAULT_CONFIG), inVersion2],
+      [
+        3,
+        DEFAULT_CONFIG,
+        (config: unknown) => ({
+          ...(inVersion2(config) as object),
+          speakersInstalledFor: null,
+        }),
+      ],
     ])('for a version %i config', (v, defaultConfig, inVersion) => {
       it('but opens the config these cases start from', () => {
         expect(
@@ -1034,24 +1136,54 @@ describe('share link codec', () => {
       })
     })
 
-    describe('for a version 2 config', () => {
+    describe.each([
+      [2, asVersion2(DEFAULT_CONFIG)],
+      [3, DEFAULT_CONFIG],
+    ] as const)('for a version %i config', (v, defaultConfig) => {
       it.each(BROKEN_ROOM_OBJECTS)('with %s', (_, roomObjects) => {
-        const config = { ...DEFAULT_CONFIG, roomObjects }
+        const config = { ...defaultConfig, roomObjects }
 
-        expect(decodeConfig(encodedHolding({ v: 2, config }))).toEqual(FALLBACK)
+        expect(decodeConfig(encodedHolding({ v, config }))).toEqual(FALLBACK)
       })
 
       it('without room objects', () => {
         expect(
-          decodeConfig(encodedHolding({ v: 2, config: DEFAULT_V1 })),
+          decodeConfig(
+            encodedHolding({
+              v,
+              config: { ...DEFAULT_V1, seatRowWidth: undefined },
+            }),
+          ),
         ).toEqual(FALLBACK)
       })
     })
 
     it('for a version 1 config with room objects', () => {
       expect(
-        decodeConfig(encodedHolding({ v: 1, config: DEFAULT_CONFIG })),
+        decodeConfig(
+          encodedHolding({ v: 1, config: asVersion2(DEFAULT_CONFIG) }),
+        ),
       ).toEqual(FALLBACK)
+    })
+
+    it('for a version 2 config with Speakers follow the seat', () => {
+      expect(
+        decodeConfig(encodedHolding({ v: 2, config: DEFAULT_CONFIG })),
+      ).toEqual(FALLBACK)
+    })
+
+    describe('for a version 3 config', () => {
+      it.each([
+        ['without Speakers follow the seat', asVersion2(DEFAULT_CONFIG)],
+        ...BROKEN_SPEAKERS_INSTALLED_FOR.map(
+          ([name, speakersInstalledFor]): [string, unknown] => [
+            name,
+            { ...DEFAULT_CONFIG, speakersInstalledFor },
+          ],
+        ),
+      ])('%s', (_, config) => {
+        expect(decodeConfig(encodedHolding({ v: 3, config }))).toEqual(FALLBACK)
+      })
     })
 
     it('and says so when the link comes from a newer version of the app', () => {
@@ -1063,25 +1195,109 @@ describe('share link codec', () => {
   })
 })
 
+const [VERSION_1, VERSION_2, VERSION_3] = CONFIG_VERSIONS as [
+  ConfigVersion,
+  ConfigVersion,
+  ConfigVersion,
+]
+
 describe('version 2 share links', () => {
   // Typed here, so the shared fixtures stay valid configs.
-  const links: Record<string, { encoded: string; config: Config }> = V2_LINKS
+  const links: Record<string, { encoded: string; config: ConfigV2 }> = V2_LINKS
+
+  it.each(Object.entries(links))(
+    'open with Speakers follow the seat on, every position as it was: %s',
+    (_, { encoded, config }) => {
+      expect(decodeConfig(encoded)).toEqual({
+        config: migratedFromVersion2(config),
+        problem: null,
+      })
+    },
+  )
+
+  // Version 2 is released (v1.1.0): never regenerate these. A change to
+  // the config is a new version (ADR 0003).
+  it.each(Object.entries(links))(
+    'are what v1.1.0 to v1.3.0 wrote: %s',
+    (_, { encoded, config }) => {
+      expect(frozenCodecV2.encode(config)).toBe(encoded)
+    },
+  )
+
+  it.each(Object.entries(links))(
+    'install the auto speakers around the MLP, as v1.3.0 did: %s',
+    (_, { encoded }) => {
+      const { config } = decodeConfig(encoded)
+      const { mlp, speakers } = placeItems(config)
+
+      expect(speakersFollowSeat(config)).toBe(true)
+      expect(speakers.map(({ position }) => position)).toEqual(
+        placeSpeakers(config, { installedFor: mlp, heardAt: mlp }).map(
+          ({ position }) => position,
+        ),
+      )
+    },
+  )
+})
+
+describe('version 3 share links', () => {
+  // Typed here, so the shared fixtures stay valid configs.
+  const links: Record<string, { encoded: string; config: Config }> = V3_LINKS
 
   it.each(Object.entries(links))('open: %s', (_, { encoded, config }) => {
     expect(decodeConfig(encoded)).toEqual({ config, problem: null })
   })
 
-  // Version 2 is released (v1.1.0): never regenerate these. A change to
-  // the config is a new version (ADR 0003).
+  // Once version 3 is released, never regenerate these. A change to the
+  // config after that is a new version (ADR 0003).
   it.each(Object.entries(links))(
     'are what the app writes today: %s',
     (_, { encoded, config }) => {
       expect(encodeConfig(config)).toBe(encoded)
     },
   )
-})
 
-const [VERSION_1, VERSION_2] = CONFIG_VERSIONS as [ConfigVersion, ConfigVersion]
+  it.each(Object.entries(links))(
+    'are written again as they are once opened, with the fields in the config schema order: %s',
+    (_, { encoded }) => {
+      expect(encodeConfig(decodeConfig(encoded).config)).toBe(encoded)
+    },
+  )
+
+  it.each([
+    ['version 1', V1_LINKS.imperialRoom.encoded],
+    ['version 2', V2_LINKS.imperialRoom.encoded],
+  ])(
+    'are what the %s imperial room link is written as once opened',
+    (_, encoded) => {
+      expect(encodeConfig(decodeConfig(encoded).config)).toBe(
+        V3_LINKS.imperialRoom.encoded,
+      )
+    },
+  )
+
+  it('open the version 1 and 2 imperial room as its version 3 link does', () => {
+    const v3 = decodeConfig(V3_LINKS.imperialRoom.encoded)
+
+    expect(decodeConfig(V1_LINKS.imperialRoom.encoded)).toEqual(v3)
+    expect(decodeConfig(V2_LINKS.imperialRoom.encoded)).toEqual(v3)
+  })
+
+  it('keep the speakers held for their seat while the MLP is elsewhere', () => {
+    const { config } = decodeConfig(V3_LINKS.speakersHeld.encoded)
+    // The room with the MLP manual where the speakers are installed for.
+    const installed: Config = {
+      ...decodeConfig(V3_LINKS.imperialRoom.encoded).config,
+      manualPositions: { MLP: { x: 0, y: 2.78, z: 1.2 } },
+    }
+
+    expect(speakersFollowSeat(config)).toBe(false)
+    expect(placeItems(config).speakers.map(({ position }) => position)).toEqual(
+      placeItems(installed).speakers.map(({ position }) => position),
+    )
+    expect(placeItems(config).mlp).toEqual({ x: 0.4, y: 3.48, z: 1.2 })
+  })
+})
 
 /**
  * Version 1 as v1.0.0 read it: its frozen schema alone, without the
@@ -1094,26 +1310,43 @@ const codecV1 = createConfigCodec({
 })
 
 /**
- * Version 2 as its frozen schema reads it, without the live config
- * schema: what decodeConfig must keep opening.
+ * Version 2 as its frozen schema reads it, without the migration to
+ * version 3 or the live config schema: what v1.1.0 to v1.3.0 opened.
  */
 const frozenCodecV2 = createConfigCodec({
-  versions: [VERSION_1, VERSION_2],
+  versions: [VERSION_1, { ...VERSION_2, up: null }],
   schema: configSchemaV2,
+  fallback: asVersion2(DEFAULT_CONFIG),
+})
+
+/**
+ * Version 3 as its frozen schema reads it, without the live config
+ * schema: what decodeConfig must keep opening.
+ */
+const frozenCodecV3 = createConfigCodec({
+  versions: [VERSION_1, VERSION_2, VERSION_3],
+  schema: configSchemaV3,
   fallback: DEFAULT_CONFIG,
 })
+
+/** What the frozen version 2 codec gives when it falls back. */
+const FALLBACK_V2 = {
+  config: asVersion2(DEFAULT_CONFIG),
+  problem: 'unreadable',
+}
 
 describe('released share links', () => {
   // Typed here, so the shared fixtures stay valid configs.
   const links: Record<string, { encoded: string; config: ConfigV1 }> = V1_LINKS
 
   it.each(Object.entries(links))(
-    'keep opening as the same room, their seat row width a 0.9 m deep seat row and no other room objects: %s',
+    'keep opening as the same room, their seat row width a 0.9 m deep seat row, no other room objects and Speakers follow the seat on: %s',
     (_, { encoded, config }) => {
       const { seatRowWidth, ...rest } = config
       expect(decodeConfig(encoded)).toEqual({
         config: {
           ...rest,
+          speakersInstalledFor: null,
           roomObjects: {
             seatRow: { width: seatRowWidth, depth: 0.9 },
             screen: null,
@@ -1146,7 +1379,7 @@ describe('released share links', () => {
 })
 
 describe('released version 2 share links', () => {
-  const links: Record<string, { encoded: string; config: Config }> = V2_LINKS
+  const links: Record<string, { encoded: string; config: ConfigV2 }> = V2_LINKS
 
   it.each(Object.entries(links))(
     'open with the frozen version 2 schema alone: %s',
@@ -1158,7 +1391,12 @@ describe('released version 2 share links', () => {
   it.each(Object.entries(V1_LINKS))(
     'open from version 1 with the frozen version 2 schema alone: %s',
     (_, { encoded }) => {
-      expect(frozenCodecV2.decode(encoded)).toEqual(decodeConfig(encoded))
+      const { config, problem } = decodeConfig(encoded)
+
+      expect(frozenCodecV2.decode(encoded)).toEqual({
+        config: asVersion2(config),
+        problem,
+      })
     },
   )
 
@@ -1170,16 +1408,54 @@ describe('released version 2 share links', () => {
     ]),
     ...BROKEN_ROOM_OBJECTS.map(([name, roomObjects]): [string, unknown] => [
       name,
-      { ...DEFAULT_CONFIG, roomObjects },
+      { ...asVersion2(DEFAULT_CONFIG), roomObjects },
     ]),
+    ['Speakers follow the seat', DEFAULT_CONFIG],
   ])(
     'fall back with the frozen version 2 schema alone, for a config with %s',
     (_, config) => {
       expect(frozenCodecV2.decode(encodedHolding({ v: 2, config }))).toEqual(
-        FALLBACK,
+        FALLBACK_V2,
       )
     },
   )
+})
+
+describe('version 3 share links with the frozen version 3 schema alone', () => {
+  const links: Record<string, { encoded: string; config: Config }> = V3_LINKS
+
+  it.each(Object.entries(links))('open: %s', (_, { encoded, config }) => {
+    expect(frozenCodecV3.decode(encoded)).toEqual({ config, problem: null })
+  })
+
+  it.each([...Object.entries(V1_LINKS), ...Object.entries(V2_LINKS)])(
+    'open from an older version as decodeConfig does: %s',
+    (_, { encoded }) => {
+      expect(frozenCodecV3.decode(encoded)).toEqual(decodeConfig(encoded))
+    },
+  )
+
+  // Pins what version 3 rejects, whatever later versions change.
+  it.each([
+    ...BROKEN_CONFIGS.map(([name, config]): [string, unknown] => [
+      name,
+      { ...(inVersion2(config) as object), speakersInstalledFor: null },
+    ]),
+    ...BROKEN_ROOM_OBJECTS.map(([name, roomObjects]): [string, unknown] => [
+      name,
+      { ...DEFAULT_CONFIG, roomObjects },
+    ]),
+    ...BROKEN_SPEAKERS_INSTALLED_FOR.map(
+      ([name, speakersInstalledFor]): [string, unknown] => [
+        name,
+        { ...DEFAULT_CONFIG, speakersInstalledFor },
+      ],
+    ),
+  ])('fall back for a config with %s', (_, config) => {
+    expect(frozenCodecV3.decode(encodedHolding({ v: 3, config }))).toEqual(
+      FALLBACK,
+    )
+  })
 })
 
 /**
@@ -1328,6 +1604,9 @@ const WORST_CASE_CONFIG: Config = {
     Sub4: longestPosition(10, 0.3),
     MLP: longestPosition(11, 1.2),
   },
+  // Speakers follow the seat off, installed for a seat elsewhere than the
+  // MLP (at ear height), stored to the millimeter.
+  speakersInstalledFor: longestPosition(16, 1.2),
   // The seat row's lengths with all 17 significant digits a converted
   // feet + inches value can have. The screen of the longer kind with a
   // standoff, every length with all 17 significant digits, and the
@@ -1366,6 +1645,7 @@ describe('link precision', () => {
   const EVERY_PART: Config = {
     ...DEFAULT_CONFIG,
     manualPositions: { R: { x: 1.5, y: 1, z: 1.2 } },
+    speakersInstalledFor: { x: -0.5, y: 3, z: 1.2 },
     roomObjects: {
       ...DEFAULT_ROOM_OBJECTS,
       screen: TV,
@@ -1380,6 +1660,8 @@ describe('link precision', () => {
     screen: ({ roomObjects: { screen } }) => (screen ? [screen] : []),
     furniture: ({ roomObjects }) => roomObjects.furniture,
     openings: ({ roomObjects }) => roomObjects.openings,
+    speakersInstalledFor: ({ speakersInstalledFor }) =>
+      speakersInstalledFor ? [speakersInstalledFor] : [],
   }
 
   const listed = Object.entries(LINK_MILLIMETER_LENGTHS).flatMap(
@@ -1388,7 +1670,7 @@ describe('link precision', () => {
   )
 
   it('is a frozen part of the wire format: these lengths, to the millimeter', () => {
-    expect(LINK_MILLIMETER_LENGTHS).toEqual({
+    const version2 = {
       manualPositions: { lengths: ['x', 'y', 'z'], perEdge: 1 },
       screen: { lengths: ['x'], perEdge: 1 },
       furniture: {
@@ -1399,7 +1681,15 @@ describe('link precision', () => {
         lengths: ['position', 'width', 'sill', 'height'],
         perEdge: 2,
       },
+    }
+    expect(V2_MILLIMETER_LENGTHS).toEqual(version2)
+    expect(VERSION_2.wire.millimeterLengths).toBe(V2_MILLIMETER_LENGTHS)
+    // Version 3 adds the seat the speakers are installed for (#123).
+    expect(LINK_MILLIMETER_LENGTHS).toEqual({
+      ...version2,
+      speakersInstalledFor: { lengths: ['x', 'y', 'z'], perEdge: 1 },
     })
+    expect(VERSION_3.wire.millimeterLengths).toBe(LINK_MILLIMETER_LENGTHS)
   })
 
   it.each(listed)('stores the %s %s to the millimeter', (part, length) => {
@@ -1445,8 +1735,9 @@ describe('link precision', () => {
     ['screen', 0.0005],
     ['furniture', 0.001],
     ['openings', 0.001],
+    ['speakersInstalledFor', 0.0005],
   ] as const)(
-    'lets a version 2 link put the %s up to %f m past where it may be, as v1.1.0 did',
+    'lets a link put the %s up to %f m past where it may be, as v1.1.0 did',
     (part, slack) => {
       expect(linkSlack(part)).toBe(slack)
     },
@@ -1489,15 +1780,15 @@ describe('link precision', () => {
     ],
   ] as const)('a version 2 link with %s', (_, at, edge, slack) => {
     it('opens up to its slack past the wall', () => {
-      const config = at(edge + slack - 0.000001)
+      const config = asVersion2(at(edge + slack - 0.000001))
       expect(decodeConfig(encodedHolding({ v: 2, config }))).toEqual({
-        config,
+        config: migratedFromVersion2(config),
         problem: null,
       })
     })
 
     it('falls back a micrometer past that', () => {
-      const config = at(edge + slack + 0.000001)
+      const config = asVersion2(at(edge + slack + 0.000001))
       expect(decodeConfig(encodedHolding({ v: 2, config }))).toEqual(FALLBACK)
     })
   })
@@ -1520,9 +1811,10 @@ describe('link precision', () => {
         },
       }
 
-      expect(decodeConfig(encodedHolding({ v: 2, config })).problem).toBe(
-        problem,
-      )
+      expect(
+        decodeConfig(encodedHolding({ v: 2, config: asVersion2(config) }))
+          .problem,
+      ).toBe(problem)
     },
   )
 })
@@ -1535,7 +1827,10 @@ describe('short field names', () => {
       ...Object.keys(WORST_CASE_CONFIG.speakerGroups.subwoofers.ownSpecs),
     ])
     const short = new Set(['x', 'y', 'z'])
-    const shortNames = new Set<string>(Object.values(SHORT_FIELD_NAMES))
+    const shortNames = new Set<string>([
+      ...Object.values(SHORT_FIELD_NAMES),
+      ...Object.values(V3_SHORT_FIELD_NAMES),
+    ])
     const written = keysIn(envelopeOf(encodeConfig(WORST_CASE_CONFIG)).config)
 
     expect(
@@ -1547,7 +1842,10 @@ describe('short field names', () => {
   })
 
   it('are not record keys, so a link can always be spelled out again', () => {
-    const shortNames: string[] = Object.values(SHORT_FIELD_NAMES)
+    const shortNames: string[] = [
+      ...Object.values(SHORT_FIELD_NAMES),
+      ...Object.values(V3_SHORT_FIELD_NAMES),
+    ]
     const recordKeys = keysIn(WORST_CASE_CONFIG.manualPositions)
 
     expect(shortNames.filter((name) => recordKeys.includes(name))).toEqual([])
@@ -1944,20 +2242,23 @@ describe('version 2 links on the edges of its ranges', () => {
   // Version 2 is released (v1.1.0): which links it opens never changes,
   // and its frozen schema opens exactly what decodeConfig opens.
   it.each(VERSION_2_EDGES)('open with %s', (_, at, opens) => {
-    const config = at(opens)
+    const config = asVersion2(at(opens))
     const link = encodedHolding({ v: 2, config })
 
-    expect(decodeConfig(link)).toEqual({ config, problem: null })
+    expect(decodeConfig(link)).toEqual({
+      config: migratedFromVersion2(config),
+      problem: null,
+    })
     expect(frozenCodecV2.decode(link)).toEqual({ config, problem: null })
   })
 
   it.each(VERSION_2_EDGES)(
     'fall back just past that, with %s',
     (_, at, __, fallsBack) => {
-      const link = encodedHolding({ v: 2, config: at(fallsBack) })
+      const link = encodedHolding({ v: 2, config: asVersion2(at(fallsBack)) })
 
       expect(decodeConfig(link)).toEqual(FALLBACK)
-      expect(frozenCodecV2.decode(link)).toEqual(FALLBACK)
+      expect(frozenCodecV2.decode(link)).toEqual(FALLBACK_V2)
     },
   )
 
@@ -1968,10 +2269,87 @@ describe('version 2 links on the edges of its ranges', () => {
     ],
     ['six openings', { openings: Array.from({ length: 6 }, () => DOOR) }],
   ] as const)('open with the most room objects: %s', (_, objects) => {
-    const config = withObjects(objects)
+    const config = asVersion2(withObjects(objects))
     const link = encodedHolding({ v: 2, config })
 
-    expect(decodeConfig(link)).toEqual({ config, problem: null })
+    expect(decodeConfig(link)).toEqual({
+      config: migratedFromVersion2(config),
+      problem: null,
+    })
     expect(frozenCodecV2.decode(link)).toEqual({ config, problem: null })
   })
+})
+
+/** The default config with the speakers installed for a seat, `axis` at the value. */
+function installedForAt(axis: 'x' | 'y' | 'z') {
+  return (value: number): Config => ({
+    ...DEFAULT_CONFIG,
+    speakersInstalledFor: { x: 0, y: 3, z: 1.2, [axis]: value },
+  })
+}
+
+/**
+ * Edges of version 3's ranges in the default room: version 2's, and the
+ * seat the speakers are installed for, on the MLP's clearance lines and at
+ * ear height (slack 0.5 mm, as a manual position).
+ */
+const VERSION_3_EDGES: EdgeCase[] = [
+  ...VERSION_2_EDGES,
+  [
+    'the speakers installed for a seat at the left wall clearance',
+    installedForAt('x'),
+    -1.9505 + UM,
+    -1.9505 - UM,
+  ],
+  [
+    'the speakers installed for a seat at the right wall clearance',
+    installedForAt('x'),
+    1.9505 - UM,
+    1.9505 + UM,
+  ],
+  [
+    'the speakers installed for a seat at the front wall clearance',
+    installedForAt('y'),
+    0.2995 + UM,
+    0.2995 - UM,
+  ],
+  [
+    'the speakers installed for a seat at the back wall clearance',
+    installedForAt('y'),
+    5.7005 - UM,
+    5.7005 + UM,
+  ],
+  [
+    'the speakers installed for a seat below ear height',
+    installedForAt('z'),
+    1.1995 + UM,
+    1.1995 - UM,
+  ],
+  [
+    'the speakers installed for a seat above ear height',
+    installedForAt('z'),
+    1.2005 - UM,
+    1.2005 + UM,
+  ],
+]
+
+describe('version 3 links on the edges of its ranges', () => {
+  // Its frozen schema opens exactly what decodeConfig opens.
+  it.each(VERSION_3_EDGES)('open with %s', (_, at, opens) => {
+    const config = at(opens)
+    const link = encodedHolding({ v: 3, config })
+
+    expect(decodeConfig(link)).toEqual({ config, problem: null })
+    expect(frozenCodecV3.decode(link)).toEqual({ config, problem: null })
+  })
+
+  it.each(VERSION_3_EDGES)(
+    'fall back just past that, with %s',
+    (_, at, __, fallsBack) => {
+      const link = encodedHolding({ v: 3, config: at(fallsBack) })
+
+      expect(decodeConfig(link)).toEqual(FALLBACK)
+      expect(frozenCodecV3.decode(link)).toEqual(FALLBACK)
+    },
+  )
 })

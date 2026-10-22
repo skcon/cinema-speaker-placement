@@ -8,18 +8,37 @@
  *
  * - **Bass smoothness**: the estimated response at the seat against the
  *   target curve, over the reliable rows, as an RMS deviation in dB. The
- *   calibration is a fixed one, made at the MLP (like a receiver
+ *   calibration is a fixed one, made at the reference seat: the "38%
+ *   rule" seed (defaultMlp, mlp.ts), wherever the MLP is (like a receiver
  *   calibrated there), so a seat where the bass is weaker or stronger
- *   than at the MLP counts, not only its shape.
+ *   than there counts, not only its shape, and moving the MLP changes no
+ *   seat's score (#120, ADR 0004 amendment).
  * - **Placement fit**: the listener-level speakers installed for the
  *   seat's projection onto the center line and heard at the seat
  *   (placeSpeakers with centerLineProjection, placements.ts): installed
  *   symmetric to the room, as in a real install, while the listener moves
- *   along the couch (ADR 0005, amendment). Manual speakers stay where they
- *   are. Every speaker's angle is graded from the seat against its
- *   placement range, and a speaker much nearer than the front speakers (a
- *   wall squeezes it against the seat) counts less, after Dolby's
- *   equidistance rule.
+ *   along the couch (ADR 0005, amendment). Every speaker's angle is graded
+ *   from the seat against its placement range, and a speaker much nearer
+ *   than the front speakers (a wall squeezes it against the seat) counts
+ *   less, after Dolby's equidistance rule.
+ *
+ * The recommended seat belongs to the room, the layout and the
+ * subwoofers, not to where the MLP and the speakers are now: the grid is
+ * scored with the MLP and every speaker auto (seatScoreInput), so
+ * moving the MLP or a speaker by hand never moves it (#120). Only manual
+ * subwoofers stay where they are, as the bass comes from them. The
+ * current MLP is scored separately (compareMlp) with every item where it
+ * is, manual ones included, and compared with the recommended seat.
+ *
+ * Only seats that keep the seating distances (SEATING_DISTANCE in
+ * reference.ts, issue #119, ADR 0005 amendment) can be recommended: far
+ * enough from every listener-level speaker installed for the seat, every
+ * subwoofer and the side and back walls, and far enough behind the
+ * front-stage line. That is a hard filter, not a weight: with the auto
+ * speakers installed for every seat, a seat right behind a tiny front
+ * stage still has ideal angles, and bass alone could win it the
+ * recommendation. When no seat of the
+ * grid keeps them (a very small room), the seats that come nearest do.
  *
  * The best seat on the room's center line is preferred (ADR 0005:
  * published practice puts the reference seat there and fixes the bass
@@ -29,26 +48,37 @@
  * why: by how much, and the width mode the center line sits on when the
  * bass is part of it.
  *
- * The preferred seat is recommended only when it beats the MLP by the
- * meaningful difference too; smaller differences are within the simplified
- * model's precision, and the MLP stays the recommended seat. That also
- * keeps the recommendation where it is once the MLP moves there, though
- * moving the MLP recalibrates at the new seat and so changes every score.
+ * The preferred seat is recommended only when it beats the reference
+ * seat by the meaningful difference too; smaller differences are within
+ * the simplified model's precision, and the reference seat, where the
+ * first visit and the calibration start, stays the recommended seat.
+ * Whether the current MLP is within the meaningful difference of the
+ * recommended seat is a separate comparison (compareMlp), never part of
+ * choosing it.
  *
  * The seats are heard in the analysis's own heard room
  * (estimated-response.ts: the same target curve, reliable rows and
  * preparation, reused), so only the per-seat part (the costly modal sum
  * at the seat) is worked out per seat. Nothing is remembered here: the
- * caller memoizes (useSeatRecommendation). This is a domain entry point of
+ * caller memoizes (useSeatRecommendation), the grid (findRecommendedSeat)
+ * on its input (seatScoreKey of seatScoreInput, the one value that is
+ * both its argument and its memo key, #127), and the cheap comparison of
+ * the MLP on every change. This is a domain entry point of
  * its own next to `analyzeRoom`, so it can run deferred (ADR 0004).
  */
+import { placeMlp } from './auto-place-policy'
 import type { Config } from './config'
 import {
   hearRoom,
   type HeardSeat,
   type ResponseCalibration,
 } from './estimated-response'
+import type { ChannelId } from './dolby-layouts'
 import { hearSpeaker, isCharted } from './listening'
+import { entries, kindOf } from './manual-positions'
+import { defaultMlp } from './mlp'
+import { DEFAULT_ROOM_OBJECTS } from './room-objects'
+import { FRONT_STAGE_CHANNELS, frontStageLine } from './placement'
 import {
   centerLineProjection,
   placeAll,
@@ -56,9 +86,57 @@ import {
   type InstalledSpeaker,
   type Placements,
 } from './placements'
-import { EAR_HEIGHT, SEAT_SCORE, SPEAKER_WALL_CLEARANCE } from './reference'
-import { distanceBetween, type RoomPoint } from './room'
+import {
+  EAR_HEIGHT,
+  SEAT_SCORE,
+  SEATING_DISTANCE,
+  SPEAKER_WALL_CLEARANCE,
+} from './reference'
+import { distanceBetween, type Room, type RoomPoint } from './room'
 import type { RoomMode } from './room-modes'
+import type { SubwooferId } from './subwoofer-arrangements'
+
+/** A speaker or subwoofer where it is, and how far it is from a seat. */
+export type ItemFromSeat<Id extends string> = {
+  readonly id: Id
+  readonly position: RoomPoint
+  /** From the seat (the listener's head), in meters. */
+  readonly distance: number
+}
+
+/**
+ * Where the speakers are from a seat, as installed for it (the stage the
+ * seat score hears there), and whether the seat keeps the seating
+ * distances (SEATING_DISTANCE).
+ */
+export type SeatDistances = {
+  /**
+   * The listener-level speakers in Dolby's channel order: auto ones
+   * installed for the seat's projection onto the center line, manual ones
+   * where they are.
+   */
+  readonly speakers: readonly ItemFromSeat<ChannelId>[]
+  /** The subwoofers, Subwoofer 1 first, where the config has them. */
+  readonly subwoofers: readonly ItemFromSeat<SubwooferId>[]
+  /** From Left to Right as installed, in meters. */
+  readonly leftRightSpread: number
+  /**
+   * How far the seat is behind the front-stage line, in meters (negative
+   * in front of it). The line is where auto-place puts the front stage
+   * (frontStageLine), or the farthest back of Left, Center and Right as
+   * installed, whichever is farther from the front wall.
+   */
+  readonly behindFrontStage: number
+  /** From the nearest side wall or the back wall, in meters. */
+  readonly fromWall: number
+  /**
+   * How far the seat falls short of the seating distances, in meters: the
+   * largest shortfall of the nearest speaker or subwoofer, the nearest
+   * side or back wall, and the distance behind the front-stage line. 0
+   * when it keeps them all.
+   */
+  readonly shortfall: number
+}
 
 /** A candidate MLP and how good it is. */
 export type ScoredSeat = {
@@ -76,6 +154,8 @@ export type ScoredSeat = {
    * their placement-range grades, and how near they are to equidistant.
    */
   readonly placementFit: number
+  /** Where the speakers installed for the seat are from it. */
+  readonly distances: SeatDistances
 }
 
 /**
@@ -93,7 +173,10 @@ export type CenterLineWidthMode = {
  * best center-line seat by more than SEAT_SCORE's meaningful difference.
  */
 export type OffCenterLine = {
-  /** The best center-line seat (the MLP, when it is on the line and best). */
+  /**
+   * The best center-line seat (the reference seat, when it keeps the
+   * seating distances and is best).
+   */
   readonly centerLine: ScoredSeat
   /** How much more the recommended seat scores, on the 0 to 1 scale. */
   readonly margin: number
@@ -108,50 +191,110 @@ export type OffCenterLine = {
   readonly widthMode: CenterLineWidthMode | undefined
 }
 
-/** The best seat of the grid, and how the current MLP compares. */
-export type SeatRecommendation = {
+/**
+ * The best seat of the grid, with the MLP and every speaker auto
+ * (seatScoreInput): the same wherever the MLP and the manual
+ * speakers are (#120).
+ */
+export type RecommendedSeat = {
   /**
    * The recommended MLP: the best center-line seat, or an off-center seat
    * that beats it by a meaningful difference (`offCenterLine` says why);
-   * but the current MLP when that seat doesn't beat it meaningfully.
+   * but the reference seat (the "38% rule" seed) when that seat doesn't
+   * beat it meaningfully.
    */
   readonly recommended: ScoredSeat
   /**
    * Why the recommended seat is off the center line, when an off-center
-   * seat beat the center line; undefined otherwise (an MLP kept where it
-   * is, on the center line or not, has no such reason).
+   * seat beat the center line; undefined otherwise.
    */
   readonly offCenterLine: OffCenterLine | undefined
-  /** The current MLP, scored the same way. */
-  readonly current: ScoredSeat
-  /** Whether the MLP already is (within a centimeter) at the recommended seat. */
-  readonly mlpIsRecommended: boolean
   /**
-   * Every candidate seat of the grid with its score, for a heatmap (#16).
-   * The scores are relative: made with the calibration at the current MLP,
-   * so they change when the MLP moves, and compare seats in this config
-   * only.
+   * Every candidate seat of the grid that keeps the seating distances
+   * (or, when none does, every one that comes nearest), with its score,
+   * for a heatmap (#16). The scores are relative: made with the
+   * calibration at the reference seat, they compare seats in this room
+   * and layout only.
    */
   readonly candidates: readonly ScoredSeat[]
 }
 
-/** Score one seat as the MLP of `config`, with the calibration at its MLP. */
+/**
+ * How the current MLP compares with the recommended seat: scored where it
+ * is, with the speakers and subwoofers where they are, manual ones
+ * included, so it changes as they move while the recommended seat
+ * doesn't.
+ */
+export type MlpComparison = {
+  /** The current MLP, scored with the items where they are. */
+  readonly current: ScoredSeat
+  /** Whether the MLP already is (within a centimeter) at the recommended seat. */
+  readonly mlpIsRecommended: boolean
+  /**
+   * Whether the MLP keeps the seating distances as well as the candidates
+   * do (SEATING_DISTANCE).
+   */
+  readonly mlpKeepsSeatingDistances: boolean
+  /**
+   * Whether the MLP keeps the seating distances and scores no more than
+   * SEAT_SCORE's meaningful difference below the recommended seat: as
+   * good a seat within the simplified model's precision. It never moves
+   * the recommended seat.
+   */
+  readonly mlpWithinMeaningfulDifference: boolean
+}
+
+/** The best seat of the grid, and how the current MLP compares. */
+export type SeatRecommendation = RecommendedSeat & MlpComparison
+
+/**
+ * Score one seat as the MLP of `config`, with the items where `config`
+ * has them and the calibration at the reference seat (the "38% rule"
+ * seed), so the config's own MLP changes nothing.
+ */
 export function scoreSeat(config: Config, seat: RoomPoint): ScoredSeat {
-  return scoringAtMlp(config).scoreAt(seat)
+  const { install, scoreInstalled } = scoringFor(config)
+  return scoreInstalled(install(seat))
 }
 
 /**
- * Score a grid of candidate seats across the Room, and recommend one (see
- * above). Ties go to the MLP, then to the seat nearest the center line,
- * then nearest the front wall. Pure and not memoized: the caller memoizes.
+ * The recommended seat (findRecommendedSeat) and how the current MLP
+ * compares with it (compareMlp), worked out together. Pure and not
+ * memoized: the caller memoizes.
  */
 export function recommendSeat(config: Config): SeatRecommendation {
-  const { current, scoreAt, widthModeOffCenterLine } = scoringAtMlp(config)
-  const candidates = candidateSeats(config).map(scoreAt)
-  const best = bestSeat(current, candidates)
-  // The MLP counts as a center-line seat when it is on the line.
+  const seat = findRecommendedSeat(seatScoreInput(config))
+  return { ...seat, ...compareMlp(config, seat) }
+}
+
+/**
+ * Score a grid of candidate seats across the Room, with the MLP and every
+ * speaker auto (seatScoreInput), and recommend one (see above).
+ * Ties go to the reference seat, then to the seat nearest the center
+ * line, then nearest the front wall. Reads neither the MLP nor the manual
+ * speakers, only manual subwoofers. Pure and not memoized: the
+ * caller memoizes, on seatScoreKey of the same input.
+ */
+export function findRecommendedSeat(auto: SeatScoreInput): RecommendedSeat {
+  const { reference, install, scoreInstalled, widthModeOffCenterLine } =
+    scoringFor(auto)
+  const installed = candidateSeats(auto).map(install)
+  // Only the seats that keep the seating distances, or come nearest.
+  const allowedShortfall =
+    Math.min(...installed.map(({ distances }) => distances.shortfall)) +
+    SHORTFALL_TIE
+  const candidates = installed
+    .filter(({ distances }) => distances.shortfall <= allowedShortfall)
+    .map(scoreInstalled)
+  // The reference seat competes only when it keeps the distances as well
+  // as they do.
+  const seed =
+    reference.distances.shortfall <= allowedShortfall ? reference : undefined
+  // At least one candidate always keeps the allowed shortfall.
+  const best = bestSeat(seed, candidates)!
+  // The reference seat is on the center line.
   const centerLine = bestSeat(
-    isOnCenterLine(current.position) ? current : undefined,
+    seed,
     candidates.filter(({ position }) => isOnCenterLine(position)),
   )
   // Off the center line only when meaningfully better than all of it.
@@ -160,34 +303,126 @@ export function recommendSeat(config: Config): SeatRecommendation {
     best.score <= centerLine.score + SEAT_SCORE.meaningfulDifference
       ? centerLine
       : best
-  // A seat only a little better than the MLP is no better within the
-  // model's precision: the MLP stays the recommended seat.
+  // A seat only a little better than the reference seat is no better
+  // within the model's precision: the reference seat stays recommended.
   const recommended =
-    preferred.score >= current.score + SEAT_SCORE.meaningfulDifference
+    seed === undefined ||
+    preferred.score >= seed.score + SEAT_SCORE.meaningfulDifference
       ? preferred
-      : current
-  const offCenter =
-    recommended !== current && !isOnCenterLine(recommended.position)
+      : seed
   return {
     recommended,
     offCenterLine:
-      offCenter && centerLine
+      !isOnCenterLine(recommended.position) && centerLine
         ? {
             centerLine,
             margin: recommended.score - centerLine.score,
             widthMode: widthModeOffCenterLine(centerLine, recommended),
           }
         : undefined,
-    current,
-    mlpIsRecommended:
-      recommended === current ||
-      distanceBetween(recommended.position, current.position) < SAME_SEAT,
     candidates,
   }
 }
 
+/**
+ * The current MLP of `config` scored where it is, with the items where
+ * they are (as scoreSeat, but with Speakers follow the seat off the auto
+ * speakers installed for their stored seat), and compared with `seat`,
+ * the recommended seat
+ * found for the same room and layout (findRecommendedSeat). Cheap: one
+ * seat, not the grid.
+ */
+export function compareMlp(
+  config: Config,
+  { recommended, candidates }: RecommendedSeat,
+): MlpComparison {
+  const { install, installFor, scoreInstalled } = scoringFor(config)
+  const mlp = placeMlp(config).position
+  // With Speakers follow the seat off, the auto speakers stay installed
+  // for their own seat, not the MLP's (#123).
+  const { speakersInstalledFor } = config
+  const current = scoreInstalled(
+    speakersInstalledFor ? installFor(mlp, speakersInstalledFor) : install(mlp),
+  )
+  // The candidates are the seats that keep the distances, or come nearest.
+  const allowedShortfall =
+    Math.min(...candidates.map(({ distances }) => distances.shortfall)) +
+    SHORTFALL_TIE
+  const mlpKeepsSeatingDistances =
+    current.distances.shortfall <= allowedShortfall
+  return {
+    current,
+    mlpIsRecommended:
+      distanceBetween(recommended.position, current.position) < SAME_SEAT,
+    mlpKeepsSeatingDistances,
+    mlpWithinMeaningfulDifference:
+      mlpKeepsSeatingDistances &&
+      current.score >
+        recommended.score - SEAT_SCORE.meaningfulDifference - SCORE_TIE,
+  }
+}
+
+/** Marks a config as projected by seatScoreInput (type only). */
+declare const SEAT_SCORE_INPUT: unique symbol
+
+/**
+ * The seat score's input: the config as the recommended seat reads it
+ * (seatScoreInput). Both the grid's argument (findRecommendedSeat) and,
+ * through seatScoreKey, its memo key, so the two can't drift apart (#127).
+ */
+export type SeatScoreInput = Config & { readonly [SEAT_SCORE_INPUT]: true }
+
+/**
+ * The config as the recommended seat reads it (findRecommendedSeat), with
+ * what it doesn't read set to one fixed value: configs whose
+ * recommendation can differ have different inputs, and configs that
+ * differ only in what it doesn't read have the same one:
+ *
+ * - the MLP and every listener-level and overhead speaker back to auto, so
+ *   neither moving the MLP nor moving a speaker changes the recommendation
+ *   (#120); manual subwoofers stay where they are, as the bass at every
+ *   seat comes from them and they don't depend on the MLP;
+ * - Speakers follow the seat on (no seat stored), as every candidate seat
+ *   has its own speakers installed for it (#123);
+ * - the units metric, as the domain works in meters whatever they are;
+ * - the seat row, the furniture and the openings as in a new Room: the
+ *   seat row follows the MLP, and neither furniture nor openings change
+ *   the estimated response or auto-place (ADR 0006). The screen stays, as
+ *   auto-place and the front-stage line read it.
+ *
+ * Every other field, and every other room object, is kept, including ones
+ * added later, so a new input can't be left out by accident. Should the
+ * grid start reading one of the fixed fields, keep it here instead.
+ */
+export function seatScoreInput(config: Config): SeatScoreInput {
+  const { seatRow, furniture, openings } = DEFAULT_ROOM_OBJECTS
+  return {
+    ...config,
+    units: 'metric',
+    speakersInstalledFor: null,
+    manualPositions: Object.fromEntries(
+      entries(config.manualPositions).filter(
+        ([id]) => kindOf(id) === 'subwoofer',
+      ),
+    ),
+    roomObjects: { ...config.roomObjects, seatRow, furniture, openings },
+  } as SeatScoreInput
+}
+
+/**
+ * The memo key of a seat score input: equal exactly when the inputs are,
+ * so the caller scores the grid (findRecommendedSeat) again exactly when
+ * its recommendation can change.
+ */
+export function seatScoreKey(input: SeatScoreInput): string {
+  return JSON.stringify(input)
+}
+
 /** Scores this close count as equal. */
 const SCORE_TIE = 1e-9
+
+/** Shortfalls this close, in meters, count as equal. */
+const SHORTFALL_TIE = 1e-9
 
 /** How far apart two seats may be and still be the same seat, in meters. */
 const SAME_SEAT = 0.01
@@ -214,26 +449,32 @@ function isOnCenterLine({ x }: RoomPoint): boolean {
 }
 
 /**
- * The setup both entry points share: the room heard, the calibration made
- * at the config's MLP, the MLP scored with it, a way to score any seat
- * with the same calibration, and a way to find the width mode behind an
- * off-center seat's smoother bass.
+ * The setup the entry points share: the room heard, the calibration made
+ * at the reference seat (the "38% rule" seed, defaultMlp: never the
+ * config's MLP), the reference seat scored with it, a way to install the
+ * speakers for any seat (cheap: enough for the seating distances), a way
+ * to score an installed seat with the same calibration (the costly modal
+ * sum), and a way to find the width mode behind an off-center seat's
+ * smoother bass.
  */
-function scoringAtMlp(config: Config): {
-  current: ScoredSeat
-  scoreAt: (seat: RoomPoint) => ScoredSeat
+function scoringFor(config: Config): {
+  reference: ScoredSeat
+  install: (seat: RoomPoint) => InstalledSeat
+  installFor: (seat: RoomPoint, installedFor: RoomPoint) => InstalledSeat
+  scoreInstalled: (seat: InstalledSeat) => ScoredSeat
   widthModeOffCenterLine: (
     centerLine: ScoredSeat,
     offCenter: ScoredSeat,
   ) => CenterLineWidthMode | undefined
 } {
-  const placements = placeAll(config)
-  const seats = seatScoring(config, placements)
-  const mlp = seats.hear(placements.mlp.position)
-  const calibration = seats.calibrateAt(mlp)
+  const seats = seatScoring(config, placeAll(config))
+  const seed = seats.hear(seats.install(defaultMlp(config.room)))
+  const calibration = seats.calibrateAt(seed)
   return {
-    current: seats.score(mlp, calibration),
-    scoreAt: (seat) => seats.score(seats.hear(seat), calibration),
+    reference: seats.score(seed, calibration),
+    install: seats.install,
+    installFor: seats.installFor,
+    scoreInstalled: (seat) => seats.score(seats.hear(seat), calibration),
     widthModeOffCenterLine: (centerLine, offCenter) =>
       seats.widthModeBetween(centerLine, offCenter, calibration),
   }
@@ -297,12 +538,20 @@ function acrossFromCenterLine(halfWidth: number): number[] {
   )
 }
 
+/** A candidate seat with the listener-level speakers installed for it. */
+type InstalledSeat = {
+  readonly position: RoomPoint
+  readonly speakers: readonly InstalledSpeaker[]
+  readonly distances: SeatDistances
+}
+
 /** A candidate seat as heard, before any calibration. */
 type HeardCandidate = {
   readonly position: RoomPoint
   readonly heard: HeardSeat
   /** The listener-level speakers' placement fit from the seat, 0 to 1. */
   readonly placementFit: number
+  readonly distances: SeatDistances
 }
 
 /**
@@ -316,19 +565,44 @@ function seatScoring(
   const room = hearRoom(config, placements)
   const { frequencies, reliable } = room
 
+  const stageLine = frontStageLine(config.roomObjects.screen)
+
   /**
    * The seat as the MLP: the listener-level speakers installed for it,
    * auto ones placed and manual ones where they are, each graded from the
-   * seat.
+   * seat, and the seat's distances from them and the subwoofers.
    */
-  function hear(seat: RoomPoint): HeardCandidate {
+  function install(seat: RoomPoint): InstalledSeat {
     // Auto speakers are installed symmetric to the room: around the seat's
     // projection onto the center line, not around the seat (ADR 0005,
     // amendment), so an off-center seat hears them at its skewed angles.
-    const speakers = placeSpeakers(config, {
-      installedFor: centerLineProjection(seat),
-      heardAt: seat,
-    })
+    return installFor(seat, centerLineProjection(seat))
+  }
+
+  /**
+   * The seat as the MLP, as install has it, with the auto speakers
+   * installed for `installedFor` instead.
+   */
+  function installFor(seat: RoomPoint, installedFor: RoomPoint): InstalledSeat {
+    const speakers = placeSpeakers(config, { installedFor, heardAt: seat })
+    return {
+      position: seat,
+      speakers,
+      distances: seatDistances(seat, {
+        room: config.room,
+        speakers,
+        subwoofers: placements.subwoofers,
+        stageLine,
+      }),
+    }
+  }
+
+  /** The installed seat heard: the costly modal sum at the seat. */
+  function hear({
+    position: seat,
+    speakers,
+    distances,
+  }: InstalledSeat): HeardCandidate {
     const speakerLevels = speakers
       .filter(({ reference }) => isCharted(reference.channel))
       .map(
@@ -344,6 +618,7 @@ function seatScoring(
       position: seat,
       heard: room.hear({ receiver: seat, speakerLevels }),
       placementFit: placementFit(seat, speakers),
+      distances,
     }
   }
 
@@ -352,7 +627,7 @@ function seatScoring(
   }
 
   function score(
-    { position, heard, placementFit }: HeardCandidate,
+    { position, heard, placementFit, distances }: HeardCandidate,
     calibration: ResponseCalibration,
   ): ScoredSeat {
     const reliableDeviations = room
@@ -373,6 +648,7 @@ function seatScoring(
         weights.placementFit * placementFit,
       responseDeviationDb,
       placementFit,
+      distances,
     }
   }
 
@@ -392,7 +668,7 @@ function seatScoring(
       return undefined
     }
     const deviationsAt = ({ position }: ScoredSeat) =>
-      room.deviationsAt(hear(position).heard, calibration)
+      room.deviationsAt(hear(install(position)).heard, calibration)
     const onLine = deviationsAt(centerLine)
     const offLine = deviationsAt(offCenter)
     const nearer = room.modes.flatMap(({ mode, excited }) => {
@@ -423,7 +699,76 @@ function seatScoring(
     )
   }
 
-  return { hear, calibrateAt, score, widthModeBetween }
+  return { install, installFor, hear, calibrateAt, score, widthModeBetween }
+}
+
+/** What a seat's distances are measured to (seatDistances). */
+type SeatSurroundings = {
+  readonly room: Room
+  /** The listener-level speakers installed for the seat. */
+  readonly speakers: readonly InstalledSpeaker[]
+  readonly subwoofers: Placements['subwoofers']
+  /** The auto front stage's distance from the front wall (frontStageLine). */
+  readonly stageLine: number
+}
+
+/**
+ * Where the installed speakers, the subwoofers and the walls are from
+ * `seat`, and how far it falls short of the seating distances
+ * (SeatDistances, SEATING_DISTANCE).
+ */
+function seatDistances(
+  seat: RoomPoint,
+  { room, speakers, subwoofers, stageLine }: SeatSurroundings,
+): SeatDistances {
+  const fromSeat = <Id extends string>(
+    id: Id,
+    position: RoomPoint,
+  ): ItemFromSeat<Id> => ({
+    id,
+    position,
+    distance: distanceBetween(position, seat),
+  })
+  const speakersFromSeat = speakers.map(({ reference, position }) =>
+    fromSeat(reference.channel, position),
+  )
+  const subwoofersFromSeat = subwoofers.map(({ id, position }) =>
+    fromSeat(id, position),
+  )
+  const at = (channel: ChannelId) =>
+    speakers.find(({ reference }) => reference.channel === channel)?.position
+  const left = at('L')
+  const right = at('R')
+  const frontStage = Math.max(
+    stageLine,
+    ...speakers
+      .filter(({ reference }) => FRONT_STAGE_CHANNELS.has(reference.channel))
+      .map(({ position }) => position.y),
+  )
+  const behindFrontStage = seat.y - frontStage
+  // The front wall is behind the front stage, so it is never the nearest.
+  const fromWall = Math.min(
+    room.width / 2 - Math.abs(seat.x),
+    room.length - seat.y,
+  )
+  const nearest = Math.min(
+    ...[...speakersFromSeat, ...subwoofersFromSeat].map(
+      ({ distance }) => distance,
+    ),
+  )
+  return {
+    speakers: speakersFromSeat,
+    subwoofers: subwoofersFromSeat,
+    leftRightSpread: left && right ? distanceBetween(left, right) : 0,
+    behindFrontStage,
+    fromWall,
+    shortfall: Math.max(
+      0,
+      SEATING_DISTANCE.fromSpeaker - nearest,
+      SEATING_DISTANCE.fromWall - fromWall,
+      SEATING_DISTANCE.behindFrontStage - behindFrontStage,
+    ),
+  }
 }
 
 /**

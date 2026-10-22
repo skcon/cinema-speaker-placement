@@ -1,4 +1,4 @@
-import { checkCrossover, type CrossoverProblem } from '@/domain'
+import { checkCrossover, withCrossover, type CrossoverProblem } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { NumberField } from '@/ui/NumberField'
 
@@ -18,13 +18,13 @@ function crossoverErrorMessage(problem: CrossoverProblem): string {
  */
 export function CrossoverField() {
   const hz = useConfig((state) => state.config.crossoverHz)
-  const setCrossover = useConfig((state) => state.setCrossover)
+  const applyEdit = useConfig((state) => state.applyEdit)
   return (
     <NumberField
       label="Crossover (Hz)"
       value={hz}
       check={checkCrossover}
-      onValid={setCrossover}
+      onValid={(valid) => applyEdit((config) => withCrossover(config, valid))}
       errorMessage={crossoverErrorMessage}
       note="Where your receiver hands the bass from the speakers to the subwoofers. 80 Hz is a common setting."
     />

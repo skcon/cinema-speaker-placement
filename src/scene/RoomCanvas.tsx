@@ -14,8 +14,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type ReactNode,
   type RefObject,
 } from 'react'
 import {
@@ -43,7 +41,7 @@ import {
   type SeatHeatmap,
   type UnitSystem,
 } from '@/domain'
-import { roomDimensions, type SelectionDimensions } from '@/scene/dimensions'
+import { type SelectionDimensions } from '@/scene/dimensions'
 import { HEATMAP_OPACITY } from '@/scene/heatmap'
 import { heatmapColor } from '@/scene/heatmap-color'
 import {
@@ -53,7 +51,6 @@ import {
   type LabelTone,
 } from '@/scene/palette'
 import {
-  GRADE_STYLES,
   itemsInDrawOrder,
   MLP_MARKER_RADIUS,
   OVERHEAD_MARKER_DOT,
@@ -64,7 +61,6 @@ import {
   speakerMarker,
   SUBWOOFER_FOOTPRINT,
   subwooferMarker,
-  type ScreenDirection,
 } from '@/scene/speakers'
 import {
   createDragController,
@@ -73,9 +69,18 @@ import {
 } from '@/scene/drag'
 import {
   roomObjectDrawings,
+  type RoomObjectDrawing,
   type RoomObjectShape,
   type RoomObjectsInView,
 } from '@/scene/room-objects'
+import type { LabelPlacement } from '@/scene/label-layout'
+import {
+  layoutTopDownLabels,
+  preferredSceneLabelPlacements,
+  sceneLabels,
+  type SceneLabel,
+  type SceneLabelKind,
+} from '@/scene/scene-labels'
 import { pressAt, type GrabArea } from '@/scene/grab-areas'
 import {
   FLAT_ON_FLOOR,
@@ -101,9 +106,6 @@ const SELECTION_LIFT = 0.02
 
 /** The ring around the recommended seat, inner and outer radius in meters. */
 const RECOMMENDED_RING = { inner: 0.24, outer: 0.3 } as const
-
-/** Free space between a speaker's center and its label, in pixels. */
-const SPEAKER_LABEL_GAP_PX = 14
 
 /**
  * The CSS z-index of a raised label: above drei's default range for the
@@ -189,7 +191,7 @@ export function RoomCanvas({
   const labelLayer = useRef<HTMLDivElement>(null!)
   const [cursor, setCursor] = useState<DragCursor>('auto')
   // One controller for every marker, so only one pointer drags at a time.
-  // The callbacks are store actions, which never change.
+  // The callbacks only call store actions, which never change.
   const [controller] = useState(() => createDragController(callbacks))
   // A drag can't outlive the window's focus (alt-tab mid-drag, say).
   useEffect(() => {
@@ -208,6 +210,15 @@ export function RoomCanvas({
     if (view !== 'top-down') controller.cancel()
   }, [controller, view])
   const dragging = view === 'top-down'
+  const drawings = roomObjectDrawings(roomObjects, view)
+  const labels = sceneLabels({
+    room,
+    units,
+    items,
+    roomObjects: drawings,
+    recommendedSeat,
+    selection,
+  })
   return (
     <div
       className="absolute inset-0"
@@ -238,23 +249,18 @@ export function RoomCanvas({
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
         )}
         {/* Remounted when the view changes, as each view draws them anew. */}
-        <RoomObjects
-          key={view}
-          objects={roomObjects}
-          view={view}
-          labelLayer={labelLayer}
-        />
-        <Walls room={room} labelLayer={labelLayer} />
-        <RoomDimensionLabels
-          room={room}
-          units={units}
-          labelLayer={labelLayer}
-        />
+        <RoomObjects key={view} drawings={drawings} />
+        <Walls room={room} />
         {view === '3d' && <RoomBox room={room} />}
-        {recommendedSeat && (
-          <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
-        )}
-        <ItemMarkers items={items} labelLayer={labelLayer} />
+        {recommendedSeat && <RecommendedSeatMarker at={recommendedSeat} />}
+        <ItemMarkers items={items} />
+        <SceneLabels
+          labels={labels}
+          view={view}
+          room={room}
+          items={items}
+          labelLayer={labelLayer}
+        />
         {dragging && (
           <PressSurface
             room={room}
@@ -265,9 +271,7 @@ export function RoomCanvas({
             onDeselect={onDeselect}
           />
         )}
-        {selection && (
-          <SelectionMarks selection={selection} labelLayer={labelLayer} />
-        )}
+        {selection && <SelectionMarks selection={selection} />}
       </Canvas>
       <div ref={labelLayer} className="pointer-events-none absolute inset-0" />
     </div>
@@ -403,47 +407,121 @@ function PressSurface({
 }
 
 /**
- * A text label pinned to a room point, drawn as HTML over the canvas, in a
- * fixed `tone` on a light backdrop, so it reads on the light scene in either
- * app theme and over the heatmap.
+ * How each kind of scene label looks: its fixed text `tone` and classes,
+ * and whether it is drawn over every other label (`raised`).
  */
-function SceneLabel({
-  at,
-  layer,
-  tone,
-  className,
-  style,
-  raised = false,
-  children,
+const LABEL_LOOKS = {
+  frontWall: { tone: 'muted', className: '' },
+  roomWidth: { tone: 'muted', className: '' },
+  roomLength: { tone: 'muted', className: '' },
+  distance: {
+    tone: 'selection',
+    className: 'border font-medium tabular-nums',
+    raised: true,
+  },
+  mlp: { tone: 'mlp', className: 'font-medium' },
+  recommended: { tone: 'recommended', className: 'font-medium' },
+  speaker: {
+    tone: 'text',
+    className: 'flex flex-col items-center leading-tight',
+  },
+  subwoofer: { tone: 'text', className: 'leading-tight font-medium' },
+  roomObject: { tone: 'muted', className: '' },
+} as const satisfies Record<
+  SceneLabelKind,
+  { tone: LabelTone; className: string; raised?: boolean }
+>
+
+/**
+ * Every scene label (see sceneLabels), each where the label layout puts
+ * it: from straight above, clear of each other, the markers and the front
+ * wall line, dropping a speaker's grade line where there is no room (see
+ * layoutTopDownLabels); in the 3D view, which turns under them, at their
+ * preferred places.
+ */
+function SceneLabels({
+  labels,
+  view,
+  room,
+  items,
+  labelLayer,
 }: {
-  at: RoomPoint
-  layer: LabelLayer
-  tone: LabelTone
-  className: string
-  style?: CSSProperties
-  /** Drawn over every other label (the Selected item's distances). */
-  raised?: boolean
-  children: ReactNode
+  labels: readonly SceneLabel[]
+  view: CameraView
+  room: Room
+  items: ReadonlyMap<PlaceableId, PlacedItem>
+  labelLayer: LabelLayer
 }) {
+  const size = useThree((state) => state.size)
+  const placements =
+    view === 'top-down'
+      ? layoutTopDownLabels(labels, { room, viewport: size, items })
+      : preferredSceneLabelPlacements(labels)
+  return labels.map((label) => {
+    const placement = placements.get(label.id)
+    return (
+      placement && (
+        <PlacedSceneLabel
+          key={label.id}
+          label={label}
+          placement={placement}
+          layer={labelLayer}
+        />
+      )
+    )
+  })
+}
+
+/**
+ * A text label pinned to a room point, drawn as HTML over the canvas and
+ * moved off it by its placement's offset, in a fixed tone on a light
+ * backdrop (see LABEL_LOOKS), so it reads on the light scene in either app
+ * theme and over the heatmap.
+ */
+function PlacedSceneLabel({
+  label: { kind, at, text, detail, turned },
+  placement: { offset, compact },
+  layer,
+}: {
+  label: SceneLabel
+  placement: LabelPlacement
+  layer: LabelLayer
+}) {
+  const look: { tone: LabelTone; className: string; raised?: boolean } =
+    LABEL_LOOKS[kind]
+  const turn = turned ? ' rotate(-90deg)' : ''
   return (
     <Html
       position={toScenePosition(at)}
       portal={layer}
       center
-      zIndexRange={raised ? RAISED_LABEL_Z_INDEX : undefined}
+      zIndexRange={look.raised ? RAISED_LABEL_Z_INDEX : undefined}
     >
       <span
         className={cn(
           'block rounded-sm px-1 text-xs whitespace-nowrap select-none',
-          className,
+          look.className,
         )}
         style={{
-          color: LABEL_COLORS[tone],
+          color: LABEL_COLORS[look.tone],
           backgroundColor: LABEL_BACKDROP_CSS,
-          ...style,
+          ...(kind === 'distance' && {
+            backgroundColor: SCENE_COLORS.background,
+            borderColor: SCENE_COLORS.selection,
+          }),
+          transform: `translate(${offset.x}px, ${offset.y}px)${turn}`,
         }}
       >
-        {children}
+        {detail === undefined ? (
+          text
+        ) : (
+          <>
+            <span className="font-medium">{text}</span>
+            {!compact && (
+              <span style={{ color: LABEL_COLORS.muted }}>{detail}</span>
+            )}
+          </>
+        )}
       </span>
     </Html>
   )
@@ -516,7 +594,7 @@ function FloorGrid({ room, spacing }: { room: Room; spacing: number }) {
   ))
 }
 
-function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
+function Walls({ room }: { room: Room }) {
   const corners = floorCorners(room)
   return (
     <>
@@ -532,53 +610,6 @@ function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
         color={SCENE_COLORS.frontWall}
         width={5}
       />
-      {/* Room coordinates start at the middle of the front wall; the label
-          sits a fixed few pixels above it at any zoom. */}
-      <SceneLabel
-        at={{ x: 0, y: 0, z: 0 }}
-        layer={labelLayer}
-        tone="muted"
-        className="-translate-y-3.5"
-      >
-        Front wall
-      </SceneLabel>
-    </>
-  )
-}
-
-/**
- * The Room's width and length written just outside the back and left
- * walls, a fixed few pixels out at any zoom; the length turns to run along
- * its wall.
- */
-function RoomDimensionLabels({
-  room,
-  units,
-  labelLayer,
-}: {
-  room: Room
-  units: UnitSystem
-  labelLayer: LabelLayer
-}) {
-  const [width, length] = roomDimensions(room, units)
-  return (
-    <>
-      <SceneLabel
-        at={width.at}
-        layer={labelLayer}
-        tone="muted"
-        className="translate-y-3.5"
-      >
-        &larr; {width.text} &rarr;
-      </SceneLabel>
-      <SceneLabel
-        at={length.at}
-        layer={labelLayer}
-        tone="muted"
-        className="-translate-x-3.5 -rotate-90"
-      >
-        &larr; {length.text} &rarr;
-      </SceneLabel>
     </>
   )
 }
@@ -605,38 +636,25 @@ function FloorLine({
 }
 
 /**
- * The room objects as roomObjectDrawings has them for `view`: the Seat
+ * The room objects as roomObjectDrawings has them for the view: the Seat
  * row, the Screen, the furniture boxes and the openings, drawn shape by
- * shape. Seen from above they are dragged like the other markers (see
- * grabAreas); the store keeps each where it may go.
+ * shape (their names are scene labels, see SceneLabels). Seen from above
+ * they are dragged like the other markers (see grabAreas); the store keeps
+ * each where it may go.
  */
-function RoomObjects({
-  objects,
-  view,
-  labelLayer,
-}: {
-  objects: RoomObjectsInView
-  view: CameraView
-  labelLayer: LabelLayer
-}) {
-  return roomObjectDrawings(objects, view).map(({ id, shapes }) => (
+function RoomObjects({ drawings }: { drawings: readonly RoomObjectDrawing[] }) {
+  return drawings.map(({ id, shapes }) => (
     // Keyed by id: the room view names an object by it (roomObjectId).
     <Fragment key={id}>
       {shapes.map((shape, index) => (
-        <RoomObjectPart key={index} shape={shape} labelLayer={labelLayer} />
+        <RoomObjectPart key={index} shape={shape} />
       ))}
     </Fragment>
   ))
 }
 
 /** One shape drawn for a room object (see RoomObjectShape). */
-function RoomObjectPart({
-  shape,
-  labelLayer,
-}: {
-  shape: RoomObjectShape
-  labelLayer: LabelLayer
-}) {
+function RoomObjectPart({ shape }: { shape: RoomObjectShape }) {
   switch (shape.kind) {
     case 'plane':
       return (
@@ -662,11 +680,8 @@ function RoomObjectPart({
         </mesh>
       )
     case 'label':
-      return (
-        <SceneLabel at={shape.at} layer={labelLayer} tone="muted" className="">
-          {shape.text}
-        </SceneLabel>
-      )
+      // Drawn with the other scene labels, so it is laid out with them.
+      return null
   }
 }
 
@@ -743,138 +758,63 @@ function HeatmapCells({ heatmap }: { heatmap: SeatHeatmap }) {
   )
 }
 
-/** A violet ring around the recommended MLP, labelled above it. */
-function RecommendedSeatMarker({
-  at,
-  labelLayer,
-}: {
-  at: RoomPoint
-  labelLayer: LabelLayer
-}) {
+/** A violet ring around the recommended MLP (its label is a scene label). */
+function RecommendedSeatMarker({ at }: { at: RoomPoint }) {
   return (
-    <>
-      <mesh
-        position={toScenePosition({ ...at, z: FLOOR_LAYERS.recommended })}
-        rotation={FLAT_ON_FLOOR}
-      >
-        <ringGeometry
-          args={[RECOMMENDED_RING.inner, RECOMMENDED_RING.outer, 48]}
-        />
-        <meshBasicMaterial color={SCENE_COLORS.recommended} />
-      </mesh>
-      <SceneLabel
-        at={at}
-        layer={labelLayer}
-        tone="recommended"
-        className="-translate-y-6 font-medium"
-      >
-        Recommended
-      </SceneLabel>
-    </>
+    <mesh
+      position={toScenePosition({ ...at, z: FLOOR_LAYERS.recommended })}
+      rotation={FLAT_ON_FLOOR}
+    >
+      <ringGeometry
+        args={[RECOMMENDED_RING.inner, RECOMMENDED_RING.outer, 48]}
+      />
+      <meshBasicMaterial color={SCENE_COLORS.recommended} />
+    </mesh>
   )
 }
 
 /**
  * Every placed item's marker, by its kind, in the order the room view
- * draws them (itemsInDrawOrder), so their labels stack that way too.
+ * draws them (itemsInDrawOrder). Their labels are scene labels (see
+ * SceneLabels).
  */
 function ItemMarkers({
   items,
-  labelLayer,
 }: {
   items: ReadonlyMap<PlaceableId, PlacedItem>
-  labelLayer: LabelLayer
 }) {
   return itemsInDrawOrder(items).map((item) => {
     switch (item.kind) {
       case 'mlp':
-        return (
-          <MlpMarker
-            key={item.id}
-            mlp={item.position}
-            labelLayer={labelLayer}
-          />
-        )
+        return <MlpMarker key={item.id} mlp={item.position} />
       case 'subwoofer':
-        return (
-          <SubwooferMarker
-            key={item.id}
-            subwoofer={item}
-            labelLayer={labelLayer}
-          />
-        )
+        return <SubwooferMarker key={item.id} subwoofer={item} />
       case 'listenerLevel':
-        return (
-          <SpeakerMarker key={item.id} speaker={item} labelLayer={labelLayer} />
-        )
+        return <SpeakerMarker key={item.id} speaker={item} />
       case 'overhead':
-        return (
-          <OverheadMarker
-            key={item.id}
-            overhead={item}
-            labelLayer={labelLayer}
-          />
-        )
+        return <OverheadMarker key={item.id} overhead={item} />
     }
   })
 }
 
-function MlpMarker({
-  mlp,
-  labelLayer,
-}: {
-  mlp: RoomPoint
-  labelLayer: LabelLayer
-}) {
+function MlpMarker({ mlp }: { mlp: RoomPoint }) {
   return (
-    <>
-      <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
-        <circleGeometry args={[MLP_MARKER_RADIUS, 32]} />
-        <meshBasicMaterial color={SCENE_COLORS.mlp} />
-      </mesh>
-      {/* Shifted below the marker by CSS, so it never covers it. */}
-      <SceneLabel
-        at={mlp}
-        layer={labelLayer}
-        tone="mlp"
-        className="translate-y-5 font-medium"
-      >
-        MLP
-      </SceneLabel>
-    </>
+    <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
+      <circleGeometry args={[MLP_MARKER_RADIUS, 32]} />
+      <meshBasicMaterial color={SCENE_COLORS.mlp} />
+    </mesh>
   )
 }
 
-function SpeakerMarker({
-  speaker,
-  labelLayer,
-}: {
-  speaker: PlacedSpeaker
-  labelLayer: LabelLayer
-}) {
-  const { position, rotation, color, label, grade, labelDirection } =
-    speakerMarker(speaker)
+function SpeakerMarker({ speaker }: { speaker: PlacedSpeaker }) {
+  const { position, rotation, color } = speakerMarker(speaker)
   return (
-    <>
-      <mesh position={position} rotation={rotation}>
-        <planeGeometry
-          args={[SPEAKER_FOOTPRINT.width, SPEAKER_FOOTPRINT.depth]}
-        />
-        <meshBasicMaterial color={color} />
-      </mesh>
-      <SceneLabel
-        at={speaker.position}
-        layer={labelLayer}
-        tone="text"
-        className="flex flex-col items-center leading-tight"
-        style={{ transform: besideMarker(labelDirection) }}
-      >
-        <span className="font-medium">{label}</span>
-        <span style={{ color: LABEL_COLORS.muted }}>
-          {GRADE_STYLES[grade].label}
-        </span>
-      </SceneLabel>
-    </>
+    <mesh position={position} rotation={rotation}>
+      <planeGeometry
+        args={[SPEAKER_FOOTPRINT.width, SPEAKER_FOOTPRINT.depth]}
+      />
+      <meshBasicMaterial color={color} />
+    </mesh>
   )
 }
 
@@ -885,15 +825,8 @@ function SpeakerMarker({
  * from below. Dragged on the floor plan like the others (top-down only);
  * the store keeps it on the ceiling.
  */
-function OverheadMarker({
-  overhead,
-  labelLayer,
-}: {
-  overhead: PlacedOverhead
-  labelLayer: LabelLayer
-}) {
-  const { position, rotation, color, label, grade, labelDirection } =
-    overheadMarker(overhead)
+function OverheadMarker({ overhead }: { overhead: PlacedOverhead }) {
+  const { position, rotation, color } = overheadMarker(overhead)
   return (
     <>
       <mesh position={position} rotation={rotation}>
@@ -912,18 +845,6 @@ function OverheadMarker({
         />
         <meshBasicMaterial color={color} side={DoubleSide} />
       </mesh>
-      <SceneLabel
-        at={overhead.position}
-        layer={labelLayer}
-        tone="text"
-        className="flex flex-col items-center leading-tight"
-        style={{ transform: besideMarker(labelDirection) }}
-      >
-        <span className="font-medium">{label}</span>
-        <span style={{ color: LABEL_COLORS.muted }}>
-          {GRADE_STYLES[grade].label}
-        </span>
-      </SceneLabel>
     </>
   )
 }
@@ -933,55 +854,26 @@ function OverheadMarker({
  * the listener-level speakers, so a speaker above one (the Center over
  * Subwoofer 1) is drawn on top, with the subwoofer's outline around it.
  */
-function SubwooferMarker({
-  subwoofer,
-  labelLayer,
-}: {
-  subwoofer: PlacedSubwoofer
-  labelLayer: LabelLayer
-}) {
-  const { position, rotation, color, label, labelDirection } =
-    subwooferMarker(subwoofer)
+function SubwooferMarker({ subwoofer }: { subwoofer: PlacedSubwoofer }) {
+  const { position, rotation, color } = subwooferMarker(subwoofer)
   return (
-    <>
-      <mesh position={position} rotation={rotation}>
-        <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />
-        <meshBasicMaterial color={color} />
-      </mesh>
-      <SceneLabel
-        at={subwoofer.position}
-        layer={labelLayer}
-        tone="text"
-        className="leading-tight font-medium"
-        style={{ transform: besideMarker(labelDirection) }}
-      >
-        {label}
-      </SceneLabel>
-    </>
+    <mesh position={position} rotation={rotation}>
+      <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />
+      <meshBasicMaterial color={color} />
+    </mesh>
   )
 }
 
 /**
- * A CSS transform that moves a centered label off its marker along
- * `direction`, by half its own size plus a gap, so the two never overlap.
- */
-function besideMarker({ x, y }: ScreenDirection): string {
-  const gap = `${SPEAKER_LABEL_GAP_PX}px`
-  return `translate(calc(${x} * (50% + ${gap})), calc(${y} * (50% + ${gap})))`
-}
-
-/**
  * The Selected item, ringed, with its Dimension lines to its two nearest
- * walls and the MLP, each labelled with its length (see
- * selectionDimensions) over every other label. Drawn just above the item,
- * so they read over the floor and its marker.
+ * walls and the MLP (their lengths are scene labels, drawn over every
+ * other label, see SceneLabels). Drawn just above the item, so they read
+ * over the floor and its marker.
  */
 function SelectionMarks({
   selection: { at, lines },
-  labelLayer,
 }: {
   selection: SelectionDimensions
-  labelLayer: LabelLayer
 }) {
   const lift = (point: RoomPoint) => ({ ...point, z: point.z + SELECTION_LIFT })
   return (
@@ -990,7 +882,7 @@ function SelectionMarks({
         <ringGeometry args={[SELECTION_RING.inner, SELECTION_RING.outer, 48]} />
         <meshBasicMaterial color={SCENE_COLORS.selection} side={DoubleSide} />
       </mesh>
-      {lines.map(({ target, from, to, labelAt, text }) => (
+      {lines.map(({ target, from, to }) => (
         <Fragment key={target}>
           <Line
             points={[toScenePosition(lift(from)), toScenePosition(lift(to))]}
@@ -1000,19 +892,6 @@ function SelectionMarks({
             dashSize={0.08}
             gapSize={0.05}
           />
-          <SceneLabel
-            at={labelAt}
-            layer={labelLayer}
-            tone="selection"
-            raised
-            className="border font-medium tabular-nums"
-            style={{
-              backgroundColor: SCENE_COLORS.background,
-              borderColor: SCENE_COLORS.selection,
-            }}
-          >
-            {text}
-          </SceneLabel>
         </Fragment>
       ))}
     </>

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { withRoomDimension } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { LayoutForm } from '@/ui/LayoutForm'
@@ -12,11 +13,15 @@ function StoredLayout() {
 
 /** Sets the room height and the units, as the room form would. */
 function RoomControls() {
-  const setRoomDimension = useConfig((state) => state.setRoomDimension)
+  const applyEdit = useConfig((state) => state.applyEdit)
   const setUnits = useConfig((state) => state.setUnits)
   return (
     <>
-      <button onClick={() => setRoomDimension('height', 2.4)}>
+      <button
+        onClick={() =>
+          applyEdit((config) => withRoomDimension(config, 'height', 2.4))
+        }
+      >
         Ceiling 2.4 m
       </button>
       <button onClick={() => setUnits('imperial')}>Imperial</button>
@@ -191,4 +196,41 @@ describe('layout form', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('3.1 with 1 subwoofer')
   })
+
+  it('has Speakers follow the seat, on by default, which holds the speakers for the seat when turned off (#123)', () => {
+    render(
+      <ConfigStoreProvider>
+        <LayoutForm />
+        <StoredSeat />
+      </ConfigStoreProvider>,
+    )
+    const toggle = screen.getByRole('checkbox', {
+      name: 'Speakers follow the seat',
+    })
+    expect(toggle).toBeChecked()
+    expect(screen.getByTestId('seat')).toHaveTextContent('following')
+
+    fireEvent.click(toggle)
+
+    expect(toggle).not.toBeChecked()
+    expect(screen.getByTestId('seat')).toHaveTextContent('held at 0, 2.28')
+    expect(
+      screen.getByText(/auto speakers stay where they are/i),
+    ).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toBeChecked()
+    expect(screen.getByTestId('seat')).toHaveTextContent('following')
+  })
 })
+
+/** Shows the seat the speakers are installed for, as the share link holds it. */
+function StoredSeat() {
+  const seat = useConfig((state) => state.config.speakersInstalledFor)
+  return (
+    <p data-testid="seat">
+      {seat ? `held at ${seat.x}, ${seat.y.toFixed(2)}` : 'following'}
+    </p>
+  )
+}

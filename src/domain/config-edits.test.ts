@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_CONFIG, type Config } from './config'
 import {
-  DEFAULT_CONFIG,
   withAmplifierWatts,
   withCrossover,
   withLayout,
@@ -8,8 +8,7 @@ import {
   withSpeakerSpecs,
   withSubwooferHasOwnSpecs,
   withSubwooferSpecs,
-  type Config,
-} from '@/domain'
+} from './config-edits'
 import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
 const PORTED_15 = {
@@ -44,6 +43,52 @@ describe('a room dimension edit', () => {
     expect(edited.manualPositions.Sub2?.y).toBeLessThan(6)
   })
 
+  it('moves the seat the speakers are installed for in with a wall that moved past it, as the MLP', () => {
+    // Speakers follow the seat off, installed for a seat 7 m back.
+    const held: Config = {
+      ...ROOM,
+      speakersInstalledFor: { x: 2, y: 7, z: 1.2 },
+    }
+
+    expect(withRoomDimension(held, 'length', 6).speakersInstalledFor).toEqual({
+      x: 2,
+      y: 5.7,
+      z: 1.2,
+    })
+    expect(withRoomDimension(held, 'width', 4).speakersInstalledFor).toEqual({
+      x: 1.7,
+      y: 7,
+      z: 1.2,
+    })
+    expect(withRoomDimension(ROOM, 'length', 6).speakersInstalledFor).toBeNull()
+  })
+
+  it('keeps a manual speaker 0.3 m from each wall that moved past it, at its height', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { Rs: { x: 1.95, y: 5.5, z: 1.2 } },
+    }
+
+    const edited = withRoomDimension(
+      withRoomDimension(config, 'width', 3),
+      'length',
+      4,
+    )
+
+    expect(edited.manualPositions).toEqual({ Rs: { x: 1.2, y: 3.7, z: 1.2 } })
+  })
+
+  it('keeps a manual overhead on the ceiling when the room height changes', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { Rtm: { x: 1.95, y: 0.3, z: 2.6 } },
+    }
+
+    const edited = withRoomDimension(config, 'height', 3.1)
+
+    expect(edited.manualPositions).toEqual({ Rtm: { x: 1.95, y: 0.3, z: 3.1 } })
+  })
+
   it.each([
     ['width', 20],
     ['height', 1.5],
@@ -67,6 +112,43 @@ describe('a layout edit', () => {
       layout: { dolbyLayout: '5.1', subwoofers: 2 },
       manualPositions: { Sub2: ROOM.manualPositions.Sub2 },
     })
+  })
+
+  it('keeps the manual channels both layouts share, overheads too, and drops the others', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      layout: { dolbyLayout: '5.1.4', subwoofers: 1 },
+      manualPositions: {
+        Ls: { x: -1.9, y: 3, z: 1.2 },
+        Ltf: { x: -1, y: 1, z: 2.6 },
+      },
+    }
+
+    const seven = withLayout(config, { ...config.layout, dolbyLayout: '7.1.4' })
+    expect(seven.manualPositions).toEqual(config.manualPositions)
+
+    const twoOverheads = withLayout(seven, {
+      ...config.layout,
+      dolbyLayout: '7.1.2',
+    })
+    expect(twoOverheads.manualPositions).toEqual({
+      Ls: { x: -1.9, y: 3, z: 1.2 },
+    })
+  })
+
+  it('keeps the manual subwoofers that stay when the count goes down, and drops the others', () => {
+    const config: Config = {
+      ...DEFAULT_CONFIG,
+      layout: { dolbyLayout: '5.1.2', subwoofers: 4 },
+      manualPositions: {
+        Sub2: { x: 1, y: 5, z: 0.3 },
+        Sub4: { x: -1, y: 5, z: 0.3 },
+      },
+    }
+
+    const edited = withLayout(config, { ...config.layout, subwoofers: 2 })
+
+    expect(edited.manualPositions).toEqual({ Sub2: { x: 1, y: 5, z: 0.3 } })
   })
 
   it('can make 1 to 4 subwoofers, none with own specs when added', () => {

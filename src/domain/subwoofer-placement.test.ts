@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import type { SubwooferCount } from './layout'
+import type { Room, Wall } from './room'
 import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
   evenerSubwooferCounts,
   SUBWOOFER_ARRANGEMENTS,
-  type Config,
-  type Room,
-  type SubwooferCount,
   type SubwooferId,
-  type Wall,
-} from '@/domain'
+} from './subwoofer-arrangements'
 
 function config(room: Room, subwoofers: SubwooferCount): Config {
   return {

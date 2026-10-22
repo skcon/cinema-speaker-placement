@@ -183,4 +183,20 @@ describe('positions in the sidebar', () => {
     expect(item('MLP')).toHaveTextContent('auto')
     await waitFor(() => expect(autoPlace).toBeDisabled())
   })
+
+  it('say the auto speakers stay where they are while Speakers follow the seat is off, and keep them there when the MLP moves (#123)', () => {
+    renderPositions()
+    const left = field('Left', /^From the left wall/)
+    const where = (left as HTMLInputElement).value
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Speakers follow the seat' }),
+    )
+    enter(field('MLP', /^From the front wall/), '3')
+
+    expect(item('Left')).toHaveTextContent('auto, stays')
+    expect(item('MLP')).toHaveTextContent('manual')
+    expect(item('Subwoofer 1')).not.toHaveTextContent('stays')
+    expect(field('Left', /^From the left wall/)).toHaveValue(where)
+  })
 })

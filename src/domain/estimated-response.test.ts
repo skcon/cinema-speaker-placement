@@ -1,21 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  type Config,
-  type ResponseRow,
-  type RoomPoint,
-  type SubwooferCount,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import type { SubwooferCount } from './layout'
 import { yardsticksFor } from '@/test/relative-speed'
 import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
 import {
   boundaryReflections,
   interferenceLevels,
 } from './boundary-interference'
-import { hearRoom } from './estimated-response'
+import { hearRoom, type ResponseRow } from './estimated-response'
 import { placeAll } from './placements'
-import { bearingTo } from './room'
+import { bearingTo, type RoomPoint } from './room'
 import { targetCurve } from './target-curve'
 
 function withSubwoofers(subwoofers: SubwooferCount): Config {
@@ -177,8 +172,9 @@ describe('boundary interference in the estimate', () => {
     const floor = boundaryReflections(DEFAULT_CONFIG.room, left, mlp).find(
       (r) => r.surface === 'floor',
     )!
-    // Speaker and ear both 1.2 m up, 1.98 m apart: Δ = √(1.98² + 2.4²) − 1.98.
-    expect(floor.pathDifference).toBeCloseTo(Math.hypot(1.98, 2.4) - 1.98, 2)
+    // Speaker and ear both 1.2 m up, 2.035 m apart (Left at 29°, #121):
+    // Δ = √(2.035² + 2.4²) − 2.035.
+    expect(floor.pathDifference).toBeCloseTo(Math.hypot(2.035, 2.4) - 2.035, 2)
     const notch = floor.notchFrequencies[0]!
     const rows = response.estimated.rows
     const level = (f: number) => rowAt(rows, f).estimated

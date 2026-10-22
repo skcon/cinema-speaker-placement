@@ -29,9 +29,9 @@ describe('speaker list', () => {
     renderSpeakerList()
 
     expect(speakerRows()).toEqual([
-      ['LLeft', '26°', 'ideal'],
+      ['LLeft', '29°', 'ideal'],
       ['CCenter', '0°', 'ideal'],
-      ['RRight', '26°', 'ideal'],
+      ['RRight', '29°', 'ideal'],
       ['LsLeft Surround', '115°', 'ideal'],
       ['RsRight Surround', '115°', 'ideal'],
       ['LtmLeft Top Middle', 'elev. 83°', 'ideal'],

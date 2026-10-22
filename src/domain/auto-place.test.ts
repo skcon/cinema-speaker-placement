@@ -1,14 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  formatLayout,
-  type ChannelId,
-  type Config,
-  type Layout,
-  type Room,
-  type RoomPoint,
-} from '@/domain'
+  canAutoPlace,
+  placementLabel,
+  speakersFollowSeat,
+  withAutoPlacement,
+  withMlpAt,
+  withSpeakersFollowSeat,
+} from './auto-place'
+import { placeManually } from './config-edits'
+import { placeMlp } from './auto-place-policy'
+import { placeSpeakers } from './placements'
+import { LEFT_RIGHT_AIM } from './reference'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import type { ChannelId } from './dolby-layouts'
+import { formatLayout, type Layout } from './layout'
+import type { Room, RoomPoint } from './room'
+import { recommendSeat } from './seat-score'
+import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
+import { V3_LINKS } from '@/test/share-link-fixtures'
+
+/** The 24 x 15 ft 7.1.2 room of the share-link fixtures, nothing manual. */
+const IMPERIAL_7_1_2 = V3_LINKS.imperialRoom.config as Config
 
 function config(room: Room, layout: Layout = DEFAULT_CONFIG.layout): Config {
   return { ...DEFAULT_CONFIG, room, layout }
@@ -34,7 +47,7 @@ describe('auto-placed listener-level speakers', () => {
     for (const { position } of speakers) expect(position.z).toBe(1.2)
   })
 
-  it("aim at the middle of each channel's ideal range, to the nearest whole degree, on its side of the room", () => {
+  it("aim L/R at 29° (Dolby's 30° reference, 1° inside the ideal range's edge) and every other channel at the middle of its ideal range, to the nearest whole degree, on its side of the room", () => {
     const fiveOne = analyzeRoom(config(DEFAULT_CONFIG.room, FIVE_ONE))
     const sevenOne = analyzeRoom(config(DEFAULT_CONFIG.room, SEVEN_ONE))
     const azimuth = (
@@ -44,8 +57,9 @@ describe('auto-placed listener-level speakers', () => {
 
     // L/R 22°–30°, Ls/Rs 110°–120° (5.1), 90°–110° (7.1), Lrs/Rrs 135°–150°
     expect(azimuth(fiveOne, 'C')).toBeCloseTo(0, 9)
-    expect(azimuth(fiveOne, 'L')).toBeCloseTo(-26, 9)
-    expect(azimuth(fiveOne, 'R')).toBeCloseTo(26, 9)
+    // L/R: LEFT_RIGHT_AIM, 30° less its 1° margin (#121), not the middle 26°
+    expect(azimuth(fiveOne, 'L')).toBeCloseTo(-29, 9)
+    expect(azimuth(fiveOne, 'R')).toBeCloseTo(29, 9)
     expect(azimuth(fiveOne, 'Ls')).toBeCloseTo(-115, 9)
     expect(azimuth(fiveOne, 'Rs')).toBeCloseTo(115, 9)
     expect(azimuth(sevenOne, 'Ls')).toBeCloseTo(-100, 9)
@@ -58,19 +72,20 @@ describe('auto-placed listener-level speakers', () => {
     const analysis = analyzeRoom(config(DEFAULT_CONFIG.room, FIVE_ONE))
     const yaw = (channel: ChannelId) => speaker(analysis, channel).aim.yaw
 
-    // The Center faces straight back at the MLP; Left (at -26°) faces back
-    // and toward the right, 180° - 26°; Left Surround (at -115°) faces
+    // The Center faces straight back at the MLP; Left (at -29°) faces back
+    // and toward the right, 180° - 29°; Left Surround (at -115°) faces
     // forward and to the right, 180° - 115°.
     expect(yaw('C')).toBeCloseTo(180, 9)
-    expect(yaw('L')).toBeCloseTo(154, 9)
-    expect(yaw('R')).toBeCloseTo(-154, 9)
+    expect(yaw('L')).toBeCloseTo(151, 9)
+    expect(yaw('R')).toBeCloseTo(-151, 9)
     expect(yaw('Ls')).toBeCloseTo(65, 9)
     expect(yaw('Rs')).toBeCloseTo(-65, 9)
   })
 
   it('put the front stage on its angles, 0.5 m from the front wall (our front-stage distance)', () => {
     // Default room: MLP 2.28 m from the front wall, so the Center is 1.78 m
-    // away and Left at -26° is 1.78 / cos 26° = 1.980 m away.
+    // away and Left at -29° is 1.78 / cos 29° = 2.035 m away (1.980 m at
+    // the middle 26° before #121).
     const analysis = analyzeRoom(DEFAULT_CONFIG)
     const center = speaker(analysis, 'C')
     const left = speaker(analysis, 'L')
@@ -81,11 +96,14 @@ describe('auto-placed listener-level speakers', () => {
     expect(left.position.y).toBeCloseTo(0.5, 9)
     expect(right.position.y).toBeCloseTo(0.5, 9)
     expect(left.position.x).toBeCloseTo(
-      -1.78 * Math.tan((26 * Math.PI) / 180),
+      -1.78 * Math.tan((29 * Math.PI) / 180),
       9,
     )
     expect(right.position.x).toBeCloseTo(-left.position.x, 9)
-    expect(horizontalDistance(left.position, analysis.mlp)).toBeCloseTo(1.98, 2)
+    expect(horizontalDistance(left.position, analysis.mlp)).toBeCloseTo(
+      2.035,
+      3,
+    )
   })
 
   it('put the surrounds on their angles at the side walls, not on a circle around the MLP', () => {
@@ -125,17 +143,17 @@ describe('auto-placed listener-level speakers', () => {
 
   it('bring a front speaker closer along its angle when a side wall comes before the front-stage line', () => {
     // 2 m wide: 0.7 m from the center line to the side clearance. Left at
-    // -26° meets it 0.7 / sin 26° = 1.597 m from the MLP, long before the
+    // -29° meets it 0.7 / sin 29° = 1.444 m from the MLP, long before the
     // front-stage line 5.2 m ahead.
     const analysis = analyzeRoom(config({ length: 15, width: 2, height: 2.4 }))
     const left = speaker(analysis, 'L')
 
     expect(left.position.x).toBeCloseTo(-0.7, 9)
     expect(horizontalDistance(left.position, analysis.mlp)).toBeCloseTo(
-      1.597,
+      1.444,
       3,
     )
-    expect(left.placementRange.azimuth.degrees).toBeCloseTo(-26, 9)
+    expect(left.placementRange.azimuth.degrees).toBeCloseTo(-29, 9)
     expect(speaker(analysis, 'C').position.y).toBeCloseTo(0.5, 9)
   })
 
@@ -222,4 +240,433 @@ describe.each(
       }
     },
   )
+})
+
+/** Rooms 4–9 m long, narrow to wide (#121's acceptance sweep). */
+const TRIANGLE_ROOMS: Room[] = [4, 5, 6, 7, 8, 9].flatMap((length) =>
+  [3, 4.5, 6, 7].map((width) => ({ length, width, height: 2.6 })),
+)
+
+describe('the front stage and the auto MLP form a near-equilateral triangle (#121)', () => {
+  it("aims L/R at Dolby's 30° reference less a 1° margin to the ideal range's edge, and cites Dolby", () => {
+    expect(LEFT_RIGHT_AIM.nominal).toBe(30)
+    expect(LEFT_RIGHT_AIM.edgeMargin).toBe(1)
+    expect(LEFT_RIGHT_AIM.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'IG', page: 7 }),
+        expect.objectContaining({ source: 'IG', page: 8, figure: 'fig.3' }),
+      ]),
+    )
+  })
+
+  it.each(
+    TRIANGLE_ROOMS.map((room) => [room.length, room.width, room] as const),
+  )(
+    'in a %f x %f m room: L–R spacing ÷ MLP→L is within [0.95, 1.05], and every grade is ideal',
+    (_length, _width, room) => {
+      for (const [layout] of V1_LAYOUTS) {
+        const analysis = analyzeRoom(config(room, layout))
+        const mlp = analysis.mlp
+        const left = speaker(analysis, 'L').position
+        const right = speaker(analysis, 'R').position
+
+        const ratio =
+          horizontalDistance(left, right) / horizontalDistance(mlp, left)
+        expect(ratio).toBeGreaterThanOrEqual(0.95)
+        expect(ratio).toBeLessThanOrEqual(1.05)
+        // 2 sin 29° = 0.970 whatever the room: the angle always holds, and
+        // a side wall only brings L and R in along it, both alike.
+        expect(ratio).toBeCloseTo(2 * Math.sin((29 * Math.PI) / 180), 9)
+        for (const { placementRange } of analysis.speakers) {
+          expect(placementRange.grade).toBe('ideal')
+        }
+      }
+    },
+  )
+
+  it.each(
+    TRIANGLE_ROOMS.map((room) => [room.length, room.width, room] as const),
+  )(
+    'in a %f x %f m room: a seat 5% of the way forward to the front stage still hears every speaker as ideal (the margin)',
+    (_length, _width, room) => {
+      const fiveOne = config(room, FIVE_ONE)
+      const analysis = analyzeRoom(fiveOne)
+      const mlp = analysis.mlp
+      // 5% of the way from the auto MLP to Left and Right as installed
+      // (on the 0.5 m front-stage line, or nearer where a side wall stops
+      // them).
+      const stageY = speaker(analysis, 'L').position.y
+      const forward = { ...mlp, y: mlp.y - 0.05 * (mlp.y - stageY) }
+      const speakers = placeSpeakers(fiveOne, {
+        installedFor: mlp,
+        heardAt: forward,
+      })
+
+      for (const { reference, placementRange } of speakers) {
+        expect([reference.channel, placementRange.grade]).toEqual([
+          reference.channel,
+          'ideal',
+        ])
+      }
+      // At exactly 30° the same step would read 31°, acceptable: the
+      // whole-degree grading leaves 30° only half a degree (about 2% of
+      // the way forward).
+      const left = speakers.find(({ reference }) => reference.channel === 'L')
+      expect(left?.placementRange.azimuth.shown).toBe(30)
+    },
+  )
+})
+
+describe('moving the MLP (a drag, "Move MLP here")', () => {
+  it('makes the MLP manual at the floor point, at ear height, keeping the other items as they are', () => {
+    const withLeft: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { L: { x: -1, y: 1, z: 1.2 } },
+    }
+
+    expect(withMlpAt(withLeft, { x: 0.4, y: 3.1 }).manualPositions).toEqual({
+      L: { x: -1, y: 1, z: 1.2 },
+      MLP: { x: 0.4, y: 3.1, z: 1.2 },
+    })
+  })
+
+  it('keeps the MLP inside its wall clearance', () => {
+    // 0.3 m from the back wall of the 6 m long default room.
+    expect(
+      withMlpAt(DEFAULT_CONFIG, { x: 0, y: 9 }).manualPositions.MLP,
+    ).toEqual({ x: 0, y: 5.7, z: 1.2 })
+  })
+
+  it('lands on the seat it is given ("Move MLP here"), not one worked out again', () => {
+    // A seat shown for a config from before an edit, say.
+    const shown = { x: -1, y: 2, z: 1.2 }
+
+    expect(placeMlp(withMlpAt(DEFAULT_CONFIG, shown))).toEqual({
+      position: shown,
+      placement: 'manual',
+    })
+  })
+
+  it('puts the MLP at the recommended seat on "Move MLP here", and the auto speakers follow it', () => {
+    const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
+
+    const moved = withMlpAt(ROOM_WITH_A_BETTER_SEAT, recommended.position)
+
+    expect(moved.manualPositions).toEqual({ MLP: recommended.position })
+    expect(recommendSeat(moved).mlpIsRecommended).toBe(true)
+    const surround = (config: Config) => speaker(analyzeRoom(config), 'Ls')
+    expect(surround(moved).placement).toBe('auto')
+    expect(surround(moved).position).not.toEqual(
+      surround(ROOM_WITH_A_BETTER_SEAT).position,
+    )
+  })
+
+  it('gives the same config back when the MLP already is there, so no empty undo step is recorded', () => {
+    const moved = withMlpAt(DEFAULT_CONFIG, { x: 0.4, y: 3.1 })
+
+    expect(withMlpAt(moved, { x: 0.4, y: 3.1 })).toBe(moved)
+  })
+})
+
+describe('Auto-place', () => {
+  it('puts every item back to auto and the MLP at the recommended seat, keeping the rest of the config', () => {
+    // The recommended seat is about 3.26 m back, not at the 2.85 m auto MLP.
+    const { recommended, mlpIsRecommended } = recommendSeat(
+      ROOM_WITH_A_BETTER_SEAT,
+    )
+    expect(mlpIsRecommended).toBe(false)
+    const edited: Config = {
+      ...ROOM_WITH_A_BETTER_SEAT,
+      manualPositions: {
+        L: { x: -1, y: 1, z: 1.2 },
+        Ltm: { x: -1, y: 2, z: 2.6 },
+        Sub1: { x: 1, y: 5, z: 0.25 },
+        MLP: { x: 0, y: 3, z: 1.2 },
+      },
+    }
+
+    const placed = withAutoPlacement(edited)
+
+    expect(placed).toEqual({
+      ...ROOM_WITH_A_BETTER_SEAT,
+      manualPositions: { MLP: recommended.position },
+    })
+    expect(placeMlp(placed).position).toEqual(recommended.position)
+  })
+
+  it('places the speakers as auto-place does around the recommended seat', () => {
+    const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
+    const placed = withAutoPlacement(ROOM_WITH_A_BETTER_SEAT)
+
+    expect(analyzeRoom(placed).speakers).toEqual(
+      analyzeRoom({
+        ...ROOM_WITH_A_BETTER_SEAT,
+        manualPositions: { MLP: recommended.position },
+      }).speakers,
+    )
+  })
+
+  it('leaves the MLP auto when the 38% seed already is the recommended seat', () => {
+    // In the 24 x 15 ft 7.1.2 room no seat is meaningfully better than
+    // the seed (see the seat score tests).
+    const placed = withAutoPlacement({
+      ...IMPERIAL_7_1_2,
+      manualPositions: { L: { x: -1, y: 1, z: 1.2 } },
+    })
+
+    expect(placed.manualPositions).toEqual({})
+    expect(placeMlp(placed).placement).toBe('auto')
+  })
+
+  it('gives the same config back when it changes nothing, so no empty undo step is recorded', () => {
+    const placed = withAutoPlacement(ROOM_WITH_A_BETTER_SEAT)
+
+    expect(withAutoPlacement(placed)).toBe(placed)
+    expect(withAutoPlacement(IMPERIAL_7_1_2)).toBe(IMPERIAL_7_1_2)
+  })
+})
+
+describe('whether Auto-place has something to do', () => {
+  const MLP_AT_SEAT = { mlpIsRecommended: true }
+  const MLP_ELSEWHERE = { mlpIsRecommended: false }
+  const withManual = (manualPositions: Config['manualPositions']): Config => ({
+    ...DEFAULT_CONFIG,
+    manualPositions,
+  })
+
+  it('until the recommendation is ready: whether anything is manual', () => {
+    const mlpByHand = withManual({ MLP: { x: 0, y: 3, z: 1.2 } })
+
+    expect(canAutoPlace(DEFAULT_CONFIG, null)).toBe(false)
+    expect(canAutoPlace(mlpByHand, null)).toBe(true)
+  })
+
+  it('then: whether an item other than the MLP is manual, or the MLP is not at the recommended seat', () => {
+    const mlpByHand = withManual({ MLP: { x: 0, y: 3, z: 1.2 } })
+    const leftByHand = withManual({ L: { x: -1, y: 1, z: 1.2 } })
+
+    expect(canAutoPlace(DEFAULT_CONFIG, MLP_AT_SEAT)).toBe(false)
+    expect(canAutoPlace(mlpByHand, MLP_AT_SEAT)).toBe(false)
+    expect(canAutoPlace(DEFAULT_CONFIG, MLP_ELSEWHERE)).toBe(true)
+    expect(canAutoPlace(leftByHand, MLP_AT_SEAT)).toBe(true)
+  })
+})
+
+describe('Speakers follow the seat (#123)', () => {
+  /** The default room as 7.1.4: listener-level and overhead speakers. */
+  const SEVEN_ONE_FOUR: Config = {
+    ...DEFAULT_CONFIG,
+    layout: { dolbyLayout: '7.1.4', subwoofers: 2 },
+  }
+  const BACK = { x: 0.4, y: 3.1 }
+
+  /** Where every speaker, overhead and subwoofer is, by id. */
+  const positions = (config: Config) => {
+    const { speakers, overheads, subwoofers } = analyzeRoom(config)
+    return [
+      ...speakers.map(({ channel, position }) => [channel, position]),
+      ...overheads.map(({ channel, position }) => [channel, position]),
+      ...subwoofers.map(({ id, position }) => [id, position]),
+    ]
+  }
+
+  it('is on by default: no point stored', () => {
+    expect(DEFAULT_CONFIG.speakersInstalledFor).toBeNull()
+    expect(speakersFollowSeat(DEFAULT_CONFIG)).toBe(true)
+  })
+
+  it('on: moving the MLP moves every auto listener-level and overhead speaker with it', () => {
+    const moved = withMlpAt(SEVEN_ONE_FOUR, BACK)
+    const before = analyzeRoom(SEVEN_ONE_FOUR)
+    const after = analyzeRoom(moved)
+
+    for (const [at, list] of [
+      [before.speakers, after.speakers],
+      [before.overheads, after.overheads],
+    ] as const) {
+      expect(list.length).toBeGreaterThan(0)
+      list.forEach((item, index) => {
+        expect(item.placement).toBe('auto')
+        expect(item.position).not.toEqual(at[index]?.position)
+      })
+    }
+    // The speakers are installed for the MLP where it now is.
+    expect(after.speakers.map(({ position }) => position)).toEqual(
+      placeSpeakers(moved, {
+        installedFor: after.mlp,
+        heardAt: after.mlp,
+      }).map(({ position }) => position),
+    )
+  })
+
+  it('turning it off stores where the MLP is, and moves nothing', () => {
+    const off = withSpeakersFollowSeat(SEVEN_ONE_FOUR, false)
+
+    expect(off).toEqual({
+      ...SEVEN_ONE_FOUR,
+      speakersInstalledFor: placeMlp(SEVEN_ONE_FOUR).position,
+    })
+    expect(speakersFollowSeat(off)).toBe(false)
+    expect(positions(off)).toEqual(positions(SEVEN_ONE_FOUR))
+  })
+
+  it('turning it off stores a manual MLP where it was left', () => {
+    const moved = withMlpAt(SEVEN_ONE_FOUR, BACK)
+
+    expect(withSpeakersFollowSeat(moved, false).speakersInstalledFor).toEqual({
+      ...BACK,
+      z: 1.2,
+    })
+  })
+
+  it('off: moving the MLP leaves every speaker where it is, and grades them from the new seat', () => {
+    const off = withSpeakersFollowSeat(SEVEN_ONE_FOUR, false)
+    const moved = withMlpAt(off, BACK)
+    const before = analyzeRoom(off)
+    const after = analyzeRoom(moved)
+
+    expect(after.mlp).toEqual({ ...BACK, z: 1.2 })
+    expect(positions(moved)).toEqual(positions(off))
+    expect(moved.speakersInstalledFor).toEqual(off.speakersInstalledFor)
+    // Heard from the new seat: Left's angle and aim change.
+    expect(speaker(after, 'L').placementRange.azimuth.degrees).not.toBeCloseTo(
+      speaker(before, 'L').placementRange.azimuth.degrees,
+      3,
+    )
+    expect(speaker(after, 'L').aim).not.toEqual(speaker(before, 'L').aim)
+    // Graded from the new seat, installed for the old one.
+    expect(after.speakers.map(({ placementRange }) => placementRange)).toEqual(
+      placeSpeakers(moved, {
+        installedFor: before.mlp,
+        heardAt: after.mlp,
+      }).map(({ placementRange }) => placementRange),
+    )
+  })
+
+  it('off: the seat row moves with the MLP, the speakers stay', () => {
+    const off = withSpeakersFollowSeat(SEVEN_ONE_FOUR, false)
+    const moved = withMlpAt(off, { x: 0, y: 3.4 })
+
+    expect(analyzeRoom(moved).seatRow).not.toEqual(analyzeRoom(off).seatRow)
+    expect(positions(moved)).toEqual(positions(off))
+  })
+
+  it('off: a dragged speaker still becomes manual and stays where it was left', () => {
+    const off = withSpeakersFollowSeat(SEVEN_ONE_FOUR, false)
+    const leftMoved = placeManually(off, 'L', { x: -1.5, y: 0.6 })
+    const moved = withMlpAt(leftMoved, BACK)
+
+    expect(speaker(analyzeRoom(moved), 'L')).toMatchObject({
+      placement: 'manual',
+      position: { x: -1.5, y: 0.6, z: 1.2 },
+    })
+  })
+
+  it('turning it back on installs the auto speakers around the MLP where it is now', () => {
+    const off = withSpeakersFollowSeat(SEVEN_ONE_FOUR, false)
+    const on = withSpeakersFollowSeat(withMlpAt(off, BACK), true)
+
+    expect(on.speakersInstalledFor).toBeNull()
+    expect(speakersFollowSeat(on)).toBe(true)
+    expect(positions(on)).toEqual(positions(withMlpAt(SEVEN_ONE_FOUR, BACK)))
+    expect(positions(on)).not.toEqual(positions(off))
+  })
+
+  it('gives the same config back when it is already so, so no empty undo step is recorded', () => {
+    const off = withSpeakersFollowSeat(SEVEN_ONE_FOUR, false)
+
+    expect(withSpeakersFollowSeat(SEVEN_ONE_FOUR, true)).toBe(SEVEN_ONE_FOUR)
+    expect(withSpeakersFollowSeat(off, false)).toBe(off)
+  })
+
+  it('off: Auto-place installs the speakers around the recommended seat, and keeps it off', () => {
+    const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
+    const off = withSpeakersFollowSeat(ROOM_WITH_A_BETTER_SEAT, false)
+
+    const placed = withAutoPlacement(off)
+
+    expect(placed).toEqual({
+      ...ROOM_WITH_A_BETTER_SEAT,
+      manualPositions: { MLP: recommended.position },
+      speakersInstalledFor: recommended.position,
+    })
+    expect(positions(placed)).toEqual(
+      positions(withAutoPlacement(ROOM_WITH_A_BETTER_SEAT)),
+    )
+    expect(withAutoPlacement(placed)).toBe(placed)
+  })
+
+  it('off: Auto-place installs the speakers around the auto MLP when that is the recommended seat', () => {
+    const off = withSpeakersFollowSeat(IMPERIAL_7_1_2, false)
+    const moved = withMlpAt(off, { x: 0, y: 4 })
+
+    const placed = withAutoPlacement(moved)
+
+    expect(placed.manualPositions).toEqual({})
+    expect(placed.speakersInstalledFor).toEqual(placeMlp(placed).position)
+  })
+
+  it('off: Auto-place has something to do while the speakers are installed for another seat', () => {
+    const off = withSpeakersFollowSeat(DEFAULT_CONFIG, false)
+    const mlpMoved = withMlpAt(off, BACK)
+
+    expect(canAutoPlace(off, { mlpIsRecommended: true })).toBe(false)
+    expect(canAutoPlace(off, null)).toBe(false)
+    // The MLP is the recommended seat, but the speakers are not around it.
+    expect(canAutoPlace(mlpMoved, { mlpIsRecommended: true })).toBe(true)
+    expect(canAutoPlace(mlpMoved, null)).toBe(true)
+  })
+
+  it('off: counts speakers installed within a millimeter of the MLP as installed for it, as a share link stores both to the millimeter', () => {
+    const off = withSpeakersFollowSeat(DEFAULT_CONFIG, false)
+    const mlp = placeMlp(off).position
+    const rounded: Config = {
+      ...off,
+      speakersInstalledFor: { ...mlp, y: Math.round(mlp.y * 1000) / 1000 },
+    }
+
+    expect(rounded.speakersInstalledFor).not.toEqual(mlp)
+    expect(canAutoPlace(rounded, { mlpIsRecommended: true })).toBe(false)
+  })
+})
+
+describe('how an item says where it is placed (#123)', () => {
+  const labels = (config: Config) =>
+    Object.fromEntries(
+      [...analyzeRoom(config).items.values()].map((item) => [
+        item.id,
+        placementLabel(config, item),
+      ]),
+    )
+
+  it('auto or manual while the speakers follow the seat', () => {
+    const leftMoved = withMlpAt(
+      placeManually(DEFAULT_CONFIG, 'L', { x: -1.5 }),
+      { x: 0, y: 3 },
+    )
+
+    expect(labels(leftMoved)).toMatchObject({
+      L: 'manual',
+      C: 'auto',
+      Ltm: 'auto',
+      Sub1: 'auto',
+      MLP: 'manual',
+    })
+  })
+
+  it('says the auto speakers stay where they are while they do not, but not the subwoofers or the MLP', () => {
+    const off = withSpeakersFollowSeat(DEFAULT_CONFIG, false)
+
+    expect(labels(placeManually(off, 'L', { x: -1.5 }))).toEqual({
+      L: 'manual',
+      C: 'auto, stays',
+      R: 'auto, stays',
+      Ls: 'auto, stays',
+      Rs: 'auto, stays',
+      Ltm: 'auto, stays',
+      Rtm: 'auto, stays',
+      Sub1: 'auto',
+      MLP: 'auto',
+    })
+  })
 })

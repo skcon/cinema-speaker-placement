@@ -15,7 +15,8 @@
  * screen 2 ft off the floor and 18 in in front of the front wall, moved
  * left of centre, a 4 x 1 x 6 ft bookshelf turned against the left
  * wall near the back, a 32 in door on the left wall and a 5 x 4 ft window
- * 3 ft up on the back wall: nothing at its default.
+ * 3 ft up on the back wall: nothing at its default, but for Speakers
+ * follow the seat (on).
  */
 export const IMPERIAL_ROOM = {
   units: 'imperial',
@@ -51,6 +52,7 @@ export const IMPERIAL_ROOM = {
     Rrs: { x: 2.2, y: 7.2, z: 1.5 },
     Sub2: { x: 2.2, y: 7.7, z: 0.3 },
   },
+  speakersInstalledFor: null,
   roomObjects: {
     seatRow: { width: 3.6576, depth: 0.9144 },
     screen: {
@@ -518,5 +520,82 @@ export const V2_LINKS = {
         ],
       },
     },
+  },
+} as const
+
+/**
+ * A version 2 fixture's config with `speakersInstalledFor`, in the order
+ * the config schema has its fields (before the room objects), as the app
+ * writes a version 3 link.
+ */
+function inVersion3<C extends { readonly roomObjects: unknown }, P>(
+  { roomObjects, ...config }: C,
+  speakersInstalledFor: P,
+): Omit<C, 'roomObjects'> & {
+  readonly speakersInstalledFor: P
+  readonly roomObjects: C['roomObjects']
+} {
+  return { ...config, speakersInstalledFor, roomObjects }
+}
+
+/**
+ * Version 3 share links as the 1.3.1 release cycle writes them (their
+ * encoded configs), with the config each one holds: the version 2 links'
+ * configs with Speakers follow the seat on, as the migration to version 3
+ * gives them, except that the two on the edges of the ranges have the
+ * auto speakers installed for a seat in another corner of the MLP's
+ * clearance lines, and one more has them held for the auto MLP while the
+ * MLP was moved back. Once version 3 is released, never edit these: if one
+ * stops opening, links people already shared no longer open, and the
+ * schema change needs a new version and a migration (ADR 0003).
+ */
+export const V3_LINKS = {
+  /** The version 1 and 2 imperial room (24 x 15 x 9 ft, 7.2.2), as is. */
+  imperialRoom: {
+    encoded:
+      'N4IgbiBcDMA0IGMD2A7AZgSwOZVAVyhAwFsAHAUwCcMBDAGxHktxAcgHYA6aARgFYATPADuUACyc+7ISAAWUAZ3ZjoAgL7w6ATxYATNiC49OAxiADOCjSByRQaFudIsALoRdJhVM+fJQAnAAMatYIjs52IG6QIABGSEgA1uay5HQO8L5QABzZkiGZzJFOroTxSSlpGRZ+kNkAbAUglJbFEaDRcQnJqek+tQ1NSOGOA3xNraAlkbUgpEiULuS6ZrorkIHc0IEylKKQYnyB8KT7QcHwSJMgAMp4saYzhL70y6vrmwJ8Ykz7X8dzfZHYIhaw0fY8L7wFxhGKyJB4LLwAAew0gkIBxFw1nMGCgKDwdDoTDRU2ioH20E4gTE2XgH04-hxsIJRPgaAIkAA2gBdS4RXmgoA',
+    config: inVersion3(V2_LINKS.imperialRoom.config, null),
+  },
+  /**
+   * The imperial room with Speakers follow the seat off: the auto
+   * speakers held for the auto MLP (2.78 m from the front wall, to the
+   * millimeter), and the MLP moved by hand 0.7 m back and 0.4 m right.
+   */
+  speakersHeld: {
+    encoded:
+      'N4IgbiBcDMA0IGMD2A7AZgSwOZVAVyhAwFsAHAUwCcMBDAGxHktxAcgHYA6aARgFYATPADuUACyc+7ISAAWUAZ3ZjoAgL7w6ATxYATNiC49OAxiADOCjSByRQaFudIsALoRdJhVM+fJQAnAAMatYIjs52IG6QIABGSEgA1uay5HQO8L5QABzZkiGZzJFOroTxSSlpGRZ+kNkAbAUglJbFEaDRcQnJqek+tQ1NSOGOA3xNraAlkbUgpEiULuS6ZrorkIHc0IEylKKQYnyB8KT7QcHwSJMgAMp4saYzhL70y6vrmwJ8Ykz7X8dzfZHYIhaw0fY8L7wFxhGKyJB4LLwAAew0gkIBxBYAFkADIABRYyKgmx+IB0ME4Ymy8AAXlBjOprOYMESSfAKYp2DSQPT0SZrJQ0VNoqB9tBOIFqfAPpx-MzYSg8HQ6PA0ARIABtAC6lwiOtBQA',
+    config: inVersion3(
+      {
+        ...V2_LINKS.imperialRoom.config,
+        manualPositions: { MLP: { x: 0.4, y: 3.48, z: 1.2 } },
+      },
+      { x: 0, y: 2.78, z: 1.2 },
+    ),
+  },
+  /**
+   * The smallest room of the version 2 links, the auto speakers installed
+   * for the front right corner of the MLP's clearance lines.
+   */
+  smallestRoom: {
+    encoded:
+      'N4IgbiBcDMA0IGMD2A7AZgSwOZVAVyhAFsBTAFwCcMER4LcQAbKAJngHdX4ALVgX3iMAngwAmzSCBYA6AIy0QAZyiyBIHJFBoGigA4MyhAEZIkAa0XcSjbfEUkoAdgAMfNTU1L9nw5JPnLa1slB0gXNzt6Tz0DY1MLKxsFeydXNQplaO9QXxB-BKDk0PC1JB1skNSIpXKGUJCAQ0YSUQVRVshnOQBWFmgATkGh4cGADjpOSFlneF1J6dLM4Dc1Bvn4Mg8QNEYGw3gADzLIABYZ4gYAGQYDqABaLsd4EU7pOBAALxVpRzUAJRuUEez2+T0+QLeagAyngjPJPLdXmCXl13l9XtA1ABZS4ABUBkAePxBU2J4NJLGqigwBOBIBRb3g6Nk0kpdGOoEUvlAky63XgHT5akUHlAZkIZAgHAh-JAvAx8CMoXOiKJjllimOKDwjEYajQBEgAG1QChCABBBS8uQCiGyHh2w73Lr9WUvFmuui+FjhAC68CQ3iNRrgsm6M2gzmc-qN-Nko3DsEjM3jUdgLCjvt9KyAA',
+    config: inVersion3(V2_LINKS.smallestRoom.config, {
+      x: 0.7,
+      y: 0.3,
+      z: 1.2,
+    }),
+  },
+  /**
+   * The largest room of the version 2 links, the auto speakers installed
+   * for the back right corner of the MLP's clearance lines.
+   */
+  largestRoom: {
+    encoded:
+      'N4IgbiBcDMA0IGMD2A7AZgSwOZVAVyhAFsBTAFwCcMER4LcQAbKARgFZ4B3VjkACyhsAvvEYBPBgBNmkEAHYAdCwUAWWiADOUFSJA5IoNAw0AHBmUJkknEvXgaSrFgAYhumgc1nPF2VZt2mo6QLC5u9vSepuaW1rbqDk6uuhRaUd6gviD+8fbBocnwSMYZQUnhmiUMwSAmSBRkJJLqks2QzgoAbM4AnGw9A4NDA3TcIc4TzvAmYwBMk65FaaAAyngARmqeNQ4AhoxNLW0d3X3D5z2jrAvTcwtuFbtjbJPwZB78SHiJ8AAexZB5lNiAwAEoMX5QRSzeASEIqBRyeAAL20iN0oMoEKhChhIDhLARSJAqMgwnga022MgAFpobDWESUVAOtBdABZAAyAAVqXTcQz2go4CTWLiKhoMNT6fjGYjmSFxXQAaANL5QGMABzwNqzXQaDygADWhBMFCQACsSAgyBhUOotfABJAVPB1vk-lBoApeBoAcpySA0ARIABtUAoQgAdX2jAABBo+CRGGASFouFBtSA2lnnbxITAfYLQnRfIsI4RuYxdigyHG6nXnCwHSzVDrW67+K3Op7aT3ZSFSyyRBXZFWa3WG3HnLMW0LO8c212hf2CzTeASh+0RyBI2Pq7X60hG9A5x0Fx2nd3ezTO5uQA1h7BRyBx4ep841Bn5+2f8uTjeIr3o+27PrulYHpOx7TmwZ5LounbOgBIBrniwFljue6vpBR6Np0cEXn+SFdDeLDFlu5bgfuE64dOcgEb+55XiuvbAuhw4ALpFN4oahq6BQTLAmqvFMLwTFxoZkSorzCeJsChjCchibAPRyaGcCEmwLwqWpPZAlMLBAjpBlAhJSJiVM+mwNArz6RxHEPEAA',
+    config: inVersion3(V2_LINKS.largestRoom.config, {
+      x: 7.2,
+      y: 14.7,
+      z: 1.2,
+    }),
   },
 } as const

@@ -330,6 +330,45 @@ export const FRONT_STAGE_WALL_DISTANCE = {
 } as const satisfies { meters: number; note: string }
 
 /**
+ * Where auto-place aims Left and Right without a Screen (#121, ADR 0005
+ * amendment): at Dolby's 30° reference, less `edgeMargin` when that
+ * reference sits on the ideal range's edge. With every per-layout sheet's
+ * ideal 22°–30° (dolby-layouts.ts) that is 29°, so L–R spacing ÷ MLP→L is
+ * 2 sin 29° ≈ 0.97: a near-equilateral triangle with the MLP.
+ */
+export const LEFT_RIGHT_AIM = {
+  /** Dolby's L/R reference angle, on each side. */
+  nominal: 30,
+  /** Degrees kept inside the ideal range's edge. */
+  edgeMargin: 1,
+  citations: [
+    { source: 'IG', page: 7, note: 'uses ±30° as the L/R reference' },
+    {
+      source: 'IG',
+      page: 8,
+      figure: 'fig.3',
+      note: 'the 7.1.4 reference: L/R 30° nominal, range 22°–40°',
+    },
+  ],
+  note:
+    'ITU-R BS.775 also puts L/R at ±30° (docs/research/screen-and-front-' +
+    'stage.md section 3.1, from an excerpt). Dolby lists the 30° reference ' +
+    'in docs/research/dolby-speaker-placement.md section 3.',
+  assumption:
+    "Our choice, not Dolby's: 30° is the edge of the sheets' ideal " +
+    '22°–30°, and grades round to whole degrees, so a seat about 2% of the ' +
+    'way forward would already read 31°, acceptable. 1° inside the edge ' +
+    'keeps L/R ideal from a seat up to about 6% of the way forward and ' +
+    'still gives a near-equilateral triangle.',
+} as const satisfies {
+  nominal: number
+  edgeMargin: number
+  citations: readonly Citation[]
+  note: string
+  assumption: string
+}
+
+/**
  * How far a subwoofer's acoustic center stands off the wall it is placed
  * against. Auto-place keeps every subwoofer at least this far from every
  * wall.
@@ -606,10 +645,11 @@ export const RESPONSE_NOTES = {
  *   clearance, at most `gridSpacing` meters apart, with at most
  *   `maxPerSide` seats along each side, so the largest room stays fast.
  * - **Bass smoothness**: the RMS deviation of the estimated response
- *   from the target over the reliable rows, at the seat, with the
- *   calibration made at the current MLP (so a seat with weaker or
- *   stronger bass than the MLP counts too). A deviation of
- *   `deviationAtZeroDb` or more scores 0, none scores 1, linear between.
+ *   from the target over the reliable rows, at the seat, with one
+ *   calibration made at the "38% rule" seed seat, wherever the MLP is (so
+ *   a seat with weaker or stronger bass than there counts too, #120). A
+ *   deviation of `deviationAtZeroDb` or more scores 0, none scores 1,
+ *   linear between.
  * - **Placement fit**: per listener-level speaker, its placement-range
  *   grade from the seat (ideal 1, acceptable 0.5, outside 0), times its
  *   equidistance: Dolby wants every listener-level speaker as far from the
@@ -618,11 +658,15 @@ export const RESPONSE_NOTES = {
  *   the rest (IG p.6, p.15). A speaker at least `equidistanceShare` of the
  *   reference distance away counts in full, nearer ones in proportion (a
  *   speaker a wall squeezes against the seat). The mean over the speakers.
- *   Auto speakers are re-placed around each seat; manual ones stay put.
+ *   Auto speakers are re-placed for each seat (around its projection onto
+ *   the center line); the recommended seat places every speaker auto, and
+ *   only the current MLP's score keeps manual ones where they are (#120).
  * - **Score**: the two weighted by `weights` (they add up to 1).
- * - **Recommendation**: the best seat, if it beats the MLP by at least
- *   `meaningfulDifference` (two points on a 100-point scale); smaller
- *   differences are within the simplified model's precision.
+ * - **Recommendation**: the best seat, if it beats the "38% rule" seed
+ *   seat by at least `meaningfulDifference` (two points on a 100-point
+ *   scale); smaller differences are within the simplified model's
+ *   precision. The MLP within it of the recommended seat is about as good,
+ *   which the app says, without moving the recommendation.
  */
 export const SEAT_SCORE = {
   gridSpacing: 0.25,
@@ -652,6 +696,67 @@ export const SEAT_SCORE = {
   equidistanceShare: number
   weights: { bassSmoothness: number; placementFit: number }
   meaningfulDifference: number
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
+ * The seating distances (GLOSSARY.md, issue #119, ADR 0005 amendment):
+ * how far a seat must be from the speakers and the walls to be
+ * recommended. They are a hard filter on the recommended seat's
+ * candidates, not part of the seat score, so a seat right next to a
+ * speaker can't win on bass.
+ *
+ * - **fromSpeaker** and **fromWall**: from the centre of the listener's
+ *   head to every listener-level speaker and every subwoofer, and to the
+ *   nearest side wall or the back wall. RP22's Level 1 minimum: "> 0.5 m"
+ *   from the head to the nearest side wall, back wall or protruding
+ *   speaker baffle (docs/research/seating-and-mlp.md section 3; read from
+ *   an extract, confirm against RP22's table). Level 1 is RP22's lowest
+ *   level; its higher levels ask for 0.8, 1.2 and 1.5 m. We measure to the
+ *   speaker's position (its acoustic centre), not its baffle, and count
+ *   subwoofers as speakers: our simplifications. The Seat row's head
+ *   offset (0.35 m) also needs more than the 0.3 m wall clearance behind
+ *   the MLP.
+ * - **behindFrontStage**: how far the head must be behind the front-stage
+ *   line (Left, Center and Right). **Ours**: no source we have gives a
+ *   minimum distance from the front stage. 1.5 m is the distance Dolby
+ *   calls ideal between listeners and Atmos enabled speakers (IG p.13),
+ *   borrowed as a round, plausible number, not Dolby's rule for the front
+ *   stage. The default room's 38% MLP is 1.78 m behind the line.
+ */
+export const SEATING_DISTANCE = {
+  fromSpeaker: 0.5,
+  fromWall: 0.5,
+  behindFrontStage: 1.5,
+  note:
+    'fromSpeaker and fromWall are RP22 Level 1 (head > 0.5 m from the ' +
+    'nearest side wall, back wall or protruding speaker baffle; from an ' +
+    'extract). Measuring to the acoustic centre and counting subwoofers as ' +
+    'speakers are ours. behindFrontStage is ours: no source gives a minimum ' +
+    'distance from the front stage; 1.5 m borrows the number Dolby calls ' +
+    "ideal for enabled speakers' distance from listeners (IG p.13), not a " +
+    'Dolby rule for the front stage (docs/research/seating-and-mlp.md ' +
+    'section 3; ADR 0005).',
+  citations: [
+    {
+      source: 'RP22',
+      note:
+        'Level 1: head centre > 0.5 m from the nearest side wall, back wall ' +
+        'or protruding speaker baffle (extract)',
+    },
+    {
+      source: 'IG',
+      page: 13,
+      note:
+        'enabled speakers at least 0.9 m, ideally 1.5 m from listeners; ' +
+        'borrowed for behindFrontStage, which is ours',
+    },
+  ],
+} as const satisfies {
+  fromSpeaker: number
+  fromWall: number
+  behindFrontStage: number
   note: string
   citations: readonly Citation[]
 }

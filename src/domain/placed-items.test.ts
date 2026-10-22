@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CONFIG, type Config } from '@/domain'
+import { DEFAULT_CONFIG, type Config } from './config'
 import { itemDistances } from '@/domain/item-distances'
 import { placeItems, positionOf, selectedItem } from '@/domain/placed-items'
 import { placeAll } from '@/domain/placements'
@@ -177,7 +177,7 @@ describe('the Selected item', () => {
       'front',
       'left',
     ])
-    expect(item?.distances.mlp?.meters).toBeCloseTo(1.98043, 4)
+    expect(item?.distances.mlp?.meters).toBeCloseTo(2.03517, 4)
   })
 
   it('measures an overhead and a subwoofer to the MLP too', () => {

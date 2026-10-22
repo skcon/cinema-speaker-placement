@@ -141,11 +141,15 @@ How far above the reference peak a speaker group (its weakest Speaker) or the Su
 _Avoid_: Reserve, margin (in the UI), SPL capability
 
 **Seat score**:
-How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The **recommended seat** is the best candidate on the room's center line, unless a seat off it scores meaningfully better; then the app says why, for example a width mode at the center line (ADR 0005). An estimate, never a measurement.
+How good a candidate MLP is, combining bass smoothness against the target curve with placement fit (the speakers' placement-range grades from that seat, and how near they are to equidistant). The **recommended seat** is the best candidate on the room's center line, unless a seat off it scores meaningfully better; then the app says why, for example a width mode at the center line (ADR 0005). Only candidates that keep the seating distances count. The recommended seat belongs to the room, the layout and the subwoofers: it is found with the MLP and every speaker auto and one calibration at the "38% rule" seat, so moving the MLP or a speaker never moves it. The current MLP is scored where it is, with the speakers where they are, and compared with it (ADR 0004, #120). An estimate, never a measurement.
 _Avoid_: Rating, quality
 
+**Seating distances**:
+How far a candidate seat must be to be recommended: 0.5 m from every listener-level speaker, every subwoofer, the side walls and the back wall (RP22 Level 1), and 1.5 m behind the front-stage line (ours). A hard filter on the candidates, not part of the seat score (ADR 0005, #119).
+_Avoid_: Minimum distance (alone), safety distance
+
 **Seat-score heatmap**:
-The recommended seat's candidate grid drawn as colors on the floor plan, so good and bad seating areas show. Each seat's color is its relative score: how it scores against the other seats in this room, not an absolute grade. An estimate, never a measurement.
+The recommended seat's candidate grid drawn as colors on the floor plan, so good and bad seating areas show. Seats that break the seating distances are left blank. Each seat's color is its relative score: how it scores against the other seats in this room, not an absolute grade. An estimate, never a measurement.
 _Avoid_: Heat map, score map
 
 **Auto-place**:
@@ -153,8 +157,12 @@ Placing every speaker from the reference recommendations for the current room an
 _Avoid_: Auto-layout, optimize
 
 **Auto / manual**:
-Whether a channel's speaker, a subwoofer or the MLP is placed by Auto-place (auto, follows Room and MLP changes) or was dragged or edited by the user (manual, stays where it was left; its **manual position** is stored in the config).
+Whether a channel's speaker, a subwoofer or the MLP is placed by Auto-place (auto, follows Room changes and, while Speakers follow the seat is on, MLP changes) or was dragged or edited by the user (manual, stays where it was left; its **manual position** is stored in the config).
 _Avoid_: Locked, pinned, custom position
+
+**Speakers follow the seat**:
+The checkbox (on by default) that says where the auto listener-level and overhead speakers are installed for. On, they are installed around the MLP and follow it while it is dragged. Off, they stay installed for the seat the MLP was at when it was turned off (that seat is stored in the config, `speakersInstalledFor`); moving the MLP then grades them from the new seat without moving them. Turning it back on installs them around the MLP where it is. Manual speakers never follow either way, and neither setting changes the recommended seat (ADR 0005, amendment for #123).
+_Avoid_: Lock speakers, anchor (a drag target's anchor is something else), freeze
 
 ## Room view
 

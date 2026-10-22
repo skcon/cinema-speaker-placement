@@ -3,10 +3,13 @@ import { modeName } from '@/charts/notes-text'
 import {
   formatLength,
   SEAT_SCORE,
+  SEATING_DISTANCE,
   wallDistances,
+  withMlpAt,
   type OffCenterLine,
   type Room,
   type ScoredSeat,
+  type SeatRecommendation,
   type UnitSystem,
 } from '@/domain'
 import { useConfig, useSeatRecommendation } from '@/state/config-context'
@@ -21,7 +24,7 @@ export function RecommendedSeat() {
   const recommendation = useSeatRecommendation()
   const room = useConfig((state) => state.config.room)
   const units = useConfig((state) => state.config.units)
-  const moveMlp = useConfig((state) => state.moveMlpToRecommendedSeat)
+  const applyEdit = useConfig((state) => state.applyEdit)
 
   return (
     <div className="flex flex-col gap-2">
@@ -39,9 +42,7 @@ export function RecommendedSeat() {
               </p>
             )}
             <p className="text-muted-foreground">
-              {recommendation.mlpIsRecommended
-                ? 'Your MLP is at the recommended seat: no seat scores meaningfully better.'
-                : `Your MLP scores ${outOf100(recommendation.current)}.`}
+              {mlpComparisonText(recommendation)}
             </p>
           </>
         ) : (
@@ -56,7 +57,9 @@ export function RecommendedSeat() {
         className="self-start max-lg:h-11 max-lg:px-4"
         disabled={!recommendation || recommendation.mlpIsRecommended}
         onClick={() => {
-          if (recommendation) moveMlp(recommendation.recommended.position)
+          if (!recommendation) return
+          const seat = recommendation.recommended.position
+          applyEdit((config) => withMlpAt(config, seat))
         }}
       >
         Move MLP here
@@ -66,13 +69,52 @@ export function RecommendedSeat() {
         seats scored on bass smoothness (the estimated response against the
         target) and on the listener-level speakers&rsquo; Dolby placement ranges
         (auto speakers installed symmetric to the room), with the receiver
-        calibrated at the MLP. The best seat on the center line is preferred, as
+        calibrated at the &ldquo;38% rule&rdquo; seat. The recommended seat
+        places every speaker automatically (subwoofers stay where they are), so
+        moving the MLP or a speaker doesn&rsquo;t move it; your MLP is scored
+        with the speakers where they are. Only seats at least{' '}
+        {formatLength(SEATING_DISTANCE.fromSpeaker, units)} from every speaker
+        and subwoofer, {formatLength(SEATING_DISTANCE.fromWall, units)} from the
+        side and back walls, and{' '}
+        {formatLength(SEATING_DISTANCE.behindFrontStage, units)} behind the
+        front speakers, count. The best seat on the center line is preferred, as
         in published practice, unless a seat off it scores meaningfully better.
         Moving the MLP makes it manual; undo takes it back. Auto-place also puts
         the MLP here.
       </p>
     </div>
   )
+}
+
+/**
+ * How the current MLP compares with the recommended seat: its score, and
+ * whether it is at the seat, within the model's precision of it, or too
+ * close to a speaker, a wall or the front stage.
+ */
+function mlpComparisonText({
+  current,
+  mlpIsRecommended,
+  mlpKeepsSeatingDistances,
+  mlpWithinMeaningfulDifference,
+}: SeatRecommendation): string {
+  const scores = `scores ${outOf100(current)}`
+  if (mlpIsRecommended) {
+    return `Your MLP is at the recommended seat and ${scores}.`
+  }
+  if (!mlpKeepsSeatingDistances) {
+    return (
+      `Your MLP ${scores}, but it is too close to a speaker, a wall or ` +
+      `the front stage.`
+    )
+  }
+  if (mlpWithinMeaningfulDifference) {
+    return (
+      `Your MLP ${scores}: within the ` +
+      `${Math.round(SEAT_SCORE.meaningfulDifference * 100)} points the ` +
+      `simplified model can tell apart, about as good as the recommended seat.`
+    )
+  }
+  return `Your MLP ${scores}.`
 }
 
 /** Where a seat is: from the front wall, and from the nearer side wall. */

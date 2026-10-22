@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  placeManually,
-  positionLengths,
-  wallDistances,
-  withPositionLength,
-  type ChannelId,
-  type Config,
-  type RoomAnalysis,
-} from '@/domain'
+import { analyzeRoom, type RoomAnalysis } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import { placeManually, withPositionLength } from './config-edits'
+import type { ChannelId } from './dolby-layouts'
+import { positionLengths } from './manual-positions'
+import { wallDistances } from './wall-frame'
 
 function speaker(analysis: RoomAnalysis, channel: ChannelId) {
   const found = analysis.speakers.find((s) => s.channel === channel)
@@ -76,11 +71,11 @@ describe('manual positions in the room plan', () => {
     expect(after.mlpPlacement).toBe('manual')
     expect(before.mlpPlacement).toBe('auto')
     // The Center still sits at the screen; Right follows the MLP back and
-    // stays at 26°.
+    // stays at 29° (#121).
     expect(speaker(after, 'R').position).not.toEqual(
       speaker(before, 'R').position,
     )
-    expect(speaker(after, 'R').placementRange.azimuth.shown).toBe(26)
+    expect(speaker(after, 'R').placementRange.azimuth.shown).toBe(29)
     expect(speaker(after, 'L').position).toEqual({ x: -1, y: 0.5, z: 1.2 })
   })
 
@@ -238,6 +233,7 @@ describe('setting one of an item’s lengths', () => {
   it('rejects a height for an item whose height is fixed, a missing item, or text that is not a number', () => {
     expect(withPositionLength(ROOM, 'Sub1', 'height', 1)).toBe(ROOM)
     expect(withPositionLength(ROOM, 'MLP', 'height', 1.2)).toBe(ROOM)
+    expect(withPositionLength(ROOM, 'Rtm', 'height', 2)).toBe(ROOM)
     // The default 5.1.2 has no rear surrounds.
     expect(withPositionLength(ROOM, 'Lrs', 'left', 1)).toBe(ROOM)
     expect(withPositionLength(ROOM, 'R', 'front', Number.NaN)).toBe(ROOM)

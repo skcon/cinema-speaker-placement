@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented here. The project follows [Semantic Versioning](https://semver.org/). Every release is a `vX.Y.Z` tag on `main`, which deploys the site to GitHub Pages.
 
+## [1.3.1] - 2026-10-23
+
+Seat and speaker placement fixes from a phone report, a "Speakers follow the seat" toggle, and a third architecture review (tracking issue #118).
+
+### Added
+
+- **Speakers follow the seat** checkbox next to Auto-place (on by default). On, auto speakers move with the MLP while you drag it. Off, they stay where they were installed and moving the MLP only regrades them; they show as "auto, stays". The setting is saved in share links (#123, ADR 0003 and 0005 amendments).
+
+### Fixed
+
+- **The recommended seat no longer lands on the front speakers.** In rooms wider than they are long it could sit a few centimetres behind Center and Sub1. Seats must now be at least 0.5 m from every speaker, subwoofer, side and back wall (RP22) and at least 1.5 m behind the front stage (our assumption, marked as such). The seating panel says when the MLP is closer than that (#119, ADR 0005 amendment).
+- **The recommended seat stays put** when you drag the MLP or move a speaker. Seats are scored with every listener-level speaker auto and calibrated at the 38% reference seat; the seating panel compares your MLP with the recommendation instead (#120, ADR 0004 and 0005 amendments).
+- **Room view labels no longer overlap** when speakers or markers are close; small views drop the grade line first (#124).
+- **A TV standing over the cabinet can be dragged by its bar** (#126).
+
+### Changed
+
+- **Left and Right form a near-equilateral triangle with the seat.** Auto-place aims them at 29° (Dolby's 30° reference, 1° inside the ideal range's edge) instead of 26°, so their spacing is 0.97 of their distance from the MLP instead of 0.88 (#121, ADR 0005 amendment).
+- **On phones the room view comes first**, before the chart and the forms (#125).
+- The room view's description lists how far the front speakers are from the MLP (#130).
+- Internal restructuring with no change to results:
+  - one Auto-place module owns where the MLP goes and what follows it (#122);
+  - the domain owns the seat-score input and its memo key (#127);
+  - the store applies domain config edits through one action (#128);
+  - the `@/domain` barrel exports only what the app uses (#129).
+- The smoke test runs Auto-place in a wide room at phone width (#131).
+
+### Notes
+
+- Share links move to config version 3 for the new toggle. Links from 1.0.0 to 1.3.0 open exactly as before, with the toggle on.
+- Recommended seats move in some rooms because of the seating distances, the new calibration and the wider front stage. The default room still recommends its seat 2.28 m from the front wall.
+
 ## [1.3.0] - 2026-10-22
 
 A second architecture release (spec #99, from the improve-codebase-architecture review after 1.2.0), plus clearer position fields.
@@ -121,6 +153,7 @@ The first complete release: plan a rectangular home theater room from Dolby's pl
 - CI for pull requests to `develop`, and the GitHub Pages deploy on release tags (#18).
 - Planning documents: CLAUDE.md, GLOSSARY.md, ADRs 0001–0002 and the cited Dolby placement research (#3).
 
+[1.3.1]: https://github.com/skcon/cinema-speaker-placement/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.0.0...v1.1.0

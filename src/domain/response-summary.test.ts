@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeRoom, DEFAULT_CONFIG, type ResponseRow } from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG } from './config'
+import type { ResponseRow } from './estimated-response'
 import { responseTable, summarizeResponse } from './response-summary'
 
 /** A row against a flat target with its ±3 dB band. */

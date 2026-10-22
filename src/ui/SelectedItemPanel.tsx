@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { formatLength, warningsAbout } from '@/domain'
+import { formatLength, placementLabel, warningsAbout } from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { useSelectedItem, useSelection } from '@/state/selection-context'
 import { dimensionTargetName } from '@/scene/dimensions'
@@ -21,7 +21,8 @@ export function SelectedItemPanel() {
   const headingId = useId()
   const item = useSelectedItem()
   const { clear } = useSelection()
-  const units = useConfig((state) => state.config.units)
+  const config = useConfig((state) => state.config)
+  const { units } = config
   const { placementWarnings } = useRoomAnalysis()
   const warnings = item ? warningsAbout(placementWarnings, item.id) : []
 
@@ -71,7 +72,7 @@ export function SelectedItemPanel() {
               </>
             )}
             <dt className="text-muted-foreground">Placement</dt>
-            <dd>{item.placement}</dd>
+            <dd>{placementLabel(config, item)}</dd>
             {item.screenRelation && (
               <>
                 <dt className="text-muted-foreground">Screen</dt>

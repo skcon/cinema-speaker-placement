@@ -4,11 +4,14 @@ import type { Room, RoomPoint } from './room'
 /**
  * The auto MLP, only a seed: centered side to side, at ear height, and at
  * the "38% rule" distance from the front wall (a heuristic, see
- * MLP_FRONT_WALL_FRACTION). It is where the first visit starts and where
- * the seat score is first calibrated (seat-score.ts); it is not derived
+ * MLP_FRONT_WALL_FRACTION). It is where the first visit starts, and the
+ * seat score's reference seat: it is calibrated here, wherever the MLP
+ * is, and the seed stays recommended unless a seat beats it meaningfully
+ * (seat-score.ts, #120). It is not derived
  * from the recommended seat, which would make the analysis wait for the
  * seat score (ADR 0004). Auto-place and "Move MLP here" put the MLP at the
- * recommended seat, which makes it manual.
+ * recommended seat, which makes it manual (auto-place.ts). Where the MLP
+ * is, auto or manual, is placeMlp's (auto-place-policy.ts).
  */
 export function defaultMlp(room: Room): RoomPoint {
   return { x: 0, y: seatRuleOfThumb(room).fromFrontWall, z: EAR_HEIGHT.meters }

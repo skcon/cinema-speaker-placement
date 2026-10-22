@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { V1_LINKS, V2_LINKS } from '../src/test/share-link-fixtures.ts'
+import { SEATING_DISTANCE } from '../src/domain/reference.ts'
+import { V1_LINKS, V3_LINKS } from '../src/test/share-link-fixtures.ts'
 
 /** The part of HTMLCanvasElement we use (e2e is typechecked without the DOM lib). */
 type WebGLCanvas = { getContext(contextId: 'webgl2'): object | null }
@@ -12,7 +13,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, reopens a recent room, and auto-places a wide room at phone width with the seat off the front stage', async ({
   page,
 }) => {
   await page.goto('./')
@@ -59,9 +60,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       page.getByRole('radio', { name: '5.1.2', checked: true }),
     ).toBeVisible()
     for (const label of [
-      'L 26°',
+      'L 29°',
       'C 0°',
-      'R 26°',
+      'R 29°',
       'Ls 115°',
       'Rs 115°',
       'Ltm 83°',
@@ -69,7 +70,12 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ]) {
       await expect(scene.getByText(label, { exact: true })).toBeVisible()
     }
-    await expect(scene.getByText('ideal', { exact: true })).toHaveCount(7)
+    // Each label carries its grade where it fits; a crowded view drops
+    // it, and the marker's color and the description still give it (#124).
+    await expect(
+      scene.getByText('ideal', { exact: true }).first(),
+    ).toBeVisible()
+    await expect(scene).toHaveAccessibleName(/Left 29° \(ideal\)/)
     await expect(
       page.getByRole('table', { name: 'Speakers' }).getByText('Left Surround'),
     ).toBeVisible()
@@ -80,17 +86,17 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     if (!box) throw new Error('the room view has no canvas')
     // The view fits the 6 x 4.5 m room inside a 32 px margin, with the
     // front wall at the top (src/scene/top-down.ts). Left is auto-placed
-    // at (-0.868, 0.500) m (src/domain/item-distances.test.ts).
+    // at (-0.987, 0.500) m (src/domain/item-distances.test.ts).
     const zoom = Math.min((box.width - 64) / 4.5, (box.height - 64) / 6)
     await page.mouse.click(
-      box.x + box.width / 2 - 0.868 * zoom,
+      box.x + box.width / 2 - 0.987 * zoom,
       box.y + box.height / 2 + (0.5 - 3) * zoom,
     )
 
     const panel = page.getByRole('region', { name: 'Selected item' })
     await expect(panel.getByRole('heading', { name: 'Left' })).toBeVisible()
-    await expect(panel).toContainText('To the MLP1.98 m')
-    await expect(scene.getByText('1.98 m', { exact: true })).toBeVisible()
+    await expect(panel).toContainText('To the MLP2.04 m')
+    await expect(scene.getByText('2.04 m', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled()
 
     await page.keyboard.press('Escape')
@@ -178,9 +184,24 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     )
   })
 
-  await test.step('at phone width the room drawing keeps a usable height with the heatmap on', async () => {
+  await test.step('at phone width the room view comes before the forms, and its drawing keeps a usable height with the heatmap on', async () => {
     const desktop = page.viewportSize()
     await page.setViewportSize({ width: 390, height: 844 })
+    await page.evaluate('window.scrollTo(0, 0)')
+
+    // Right under the page header, in the first screen, rather than below
+    // every form (#125).
+    const roomView = page.getByRole('region', { name: 'Room view' })
+    await expect(roomView).toBeInViewport()
+    const roomTop = (await roomView.boundingBox())?.y ?? Infinity
+    expect(roomTop).toBeLessThan(844 / 2)
+    const formsTop =
+      (
+        await page
+          .getByRole('complementary', { name: 'Room plan' })
+          .boundingBox()
+      )?.y ?? -Infinity
+    expect(formsTop).toBeGreaterThan(roomTop)
 
     await expect
       .poll(async () => (await scene.boundingBox())?.height ?? 0)
@@ -220,11 +241,14 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('list', { name: 'Headroom' }).getByText('Rear surrounds'),
     ).toBeVisible()
-    for (const label of ['L 26°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
+    for (const label of ['L 29°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
     }
-    // Seven listener-level speakers and two overheads.
-    await expect(sharedScene.getByText('ideal', { exact: true })).toHaveCount(9)
+    // Seven listener-level speakers and two overheads, graded in the
+    // description (and on the labels where they fit).
+    await expect(sharedScene).toHaveAccessibleName(
+      /Rear Surround 143° \(ideal\).*Right Top Middle elevation 83° \(ideal\)/,
+    )
     // Two subwoofers, at the middle of the front and back walls.
     for (const label of ['Sub1', 'Sub2']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
@@ -234,8 +258,8 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toBeVisible()
   })
 
-  // The same room as this version writes it: version 2.
-  const upgraded = V2_LINKS.imperialRoom.encoded
+  // The same room as this version writes it: version 3.
+  const upgraded = V3_LINKS.imperialRoom.encoded
 
   await test.step('the address takes the link this version writes for the room', async () => {
     await expect(page).toHaveURL(
@@ -335,5 +359,66 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(dimensionInput(page, 'Length', 'm')).toHaveValue('6')
     await page.goBack()
     await expect(dimensionInput(page, 'Length', 'ft')).toHaveValue('30')
+  })
+
+  await test.step('at phone width, Auto-place in a wide 4 x 6 m room puts the seat behind the front stage, not on it', async () => {
+    // Build the link in the app: the default room made 4 m long and 6 m
+    // wide, with the MLP moved by hand up to the front stage. Before the
+    // seating distances (#119), Auto-place put the seat a few centimeters
+    // from the Center in this room.
+    await page.goto('./')
+    await dimensionInput(page, 'Length', 'm').fill('4')
+    await dimensionInput(page, 'Width', 'm').fill('6')
+    const mlp = page.getByRole('group', { name: 'MLP position' })
+    await mlp.locator('summary').click()
+    const fromFrontWall = mlp
+      .getByRole('group', { name: /^From the front wall/ })
+      .getByRole('textbox', { name: 'm' })
+    await fromFrontWall.fill('0.8')
+    await fromFrontWall.press('Tab')
+    await expect(mlp).toContainText('manual')
+    // A speaker moved by hand too, so Auto-place has work to do even when
+    // the seat score would keep the MLP where it is.
+    const center = page.getByRole('group', { name: 'Center position' })
+    await center.locator('summary').click()
+    const centerFromLeftWall = center
+      .getByRole('group', { name: /^From the left wall/ })
+      .getByRole('textbox', { name: 'm' })
+    const addressBefore = page.url()
+    await centerFromLeftWall.fill('2.5')
+    await centerFromLeftWall.press('Tab')
+    await expect(center).toContainText('manual')
+    await expect(page).toHaveURL((url) => url.href !== addressBefore)
+    const wideRoomLink = page.url()
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(wideRoomLink)
+    // The link keeps the hand-placed MLP and Center.
+    await expect(
+      page.getByRole('group', { name: 'MLP position' }),
+    ).toContainText('manual')
+    const wideScene = page
+      .getByRole('region', { name: 'Room view' })
+      .getByRole('img', {
+        name: /^Top-down view of the room, 4 m long and 6 m wide/,
+      })
+    await expect(wideScene).toBeVisible()
+
+    await page.getByRole('button', { name: 'Auto-place' }).click()
+
+    // The seat keeps the seating distances (#119): its head at least
+    // behindFrontStage behind the Left-Center-Right line, so each front
+    // speaker is at least that far from it. Thresholds, not exact
+    // distances, as seat-score tuning moves the seat.
+    await expect
+      .poll(async () => {
+        const description = (await wideScene.getAttribute('aria-label')) ?? ''
+        const front =
+          /Front speakers from the MLP: Left ([\d.]+) m, Center ([\d.]+) m, Right ([\d.]+) m\./.exec(
+            description,
+          )
+        return front ? Math.min(...front.slice(1).map(Number)) : 0
+      })
+      .toBeGreaterThanOrEqual(SEATING_DISTANCE.behindFrontStage)
   })
 })

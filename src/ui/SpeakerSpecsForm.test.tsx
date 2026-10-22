@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { Config } from '@/domain'
+import { withSubwooferSpecs, type Config } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { LayoutForm } from '@/ui/LayoutForm'
@@ -18,9 +18,15 @@ function StoredSubwooferGroup() {
  * store, as opening a share link or undo will.
  */
 function SetRmsElsewhere() {
-  const setSubwooferSpecs = useConfig((state) => state.setSubwooferSpecs)
+  const applyEdit = useConfig((state) => state.applyEdit)
   return (
-    <button onClick={() => setSubwooferSpecs('group', { rmsWatts: 450 })}>
+    <button
+      onClick={() =>
+        applyEdit((config) =>
+          withSubwooferSpecs(config, 'group', { rmsWatts: 450 }),
+        )
+      }
+    >
       Set 450 W elsewhere
     </button>
   )
@@ -203,11 +209,12 @@ describe('speaker specs form', () => {
   it('offers specs per subwoofer only with more than one subwoofer', () => {
     renderSpecsForm()
 
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    const ownSpecs = { name: /has its own specs/ }
+    expect(screen.queryByRole('checkbox', ownSpecs)).not.toBeInTheDocument()
 
     chooseSubwooferCount('2')
 
-    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(screen.getAllByRole('checkbox', ownSpecs)).toHaveLength(2)
     expect(
       screen.getByRole('checkbox', { name: 'Subwoofer 2 has its own specs' }),
     ).not.toBeChecked()

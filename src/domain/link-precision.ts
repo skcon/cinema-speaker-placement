@@ -17,12 +17,15 @@
  * (the config schema) allows linkSlack(part) there, or a link the app
  * wrote would not open again.
  *
- * LINK_MILLIMETER_LENGTHS is the table of config version 2, the current
- * version: its entry in CONFIG_VERSIONS (share-link.ts) names it, and
- * config-v2.ts keeps a copy of the slack it gives. Version 2 is released
- * (v1.1.0), so the table is frozen with it: a length that is stored to the
- * millimeter, or a slack, changes only with a new schema version, which
- * gets a table of its own.
+ * LINK_MILLIMETER_LENGTHS is the table of config version 3, the current
+ * version, and V2_MILLIMETER_LENGTHS that of version 2: their entries in
+ * CONFIG_VERSIONS (share-link.ts) name them, and config-v2.ts and
+ * config-v3.ts keep a copy of the slack they give. Each table is frozen
+ * with its version's release: a length that is stored to the millimeter,
+ * or a slack, changes only with a new schema version, which gets a table
+ * of its own. Version 3 adds the seat the auto speakers stay installed
+ * for (Speakers follow the seat off, #123), stored as a manual position
+ * is.
  *
  * It imports types only, so the room-object modules can read their slack
  * without depending on the codec.
@@ -44,17 +47,28 @@ export type LinkLengths<Item> = {
 }
 
 /**
- * The lengths a share link stores to the millimeter, by part of the
+ * The lengths a version 2 link stores to the millimeter, by part of the
  * config: every manual position (speakers, subwoofers, the MLP), where
  * the screen was dragged to, and every length of a furniture box and of
  * an opening (a door has no sill or height). Openings go into the link as
- * whole millimeters (share-link.ts packs them).
+ * whole millimeters (share-link.ts packs them). Released (v1.1.0): never
+ * change it.
  */
-export const LINK_MILLIMETER_LENGTHS = {
+export const V2_MILLIMETER_LENGTHS = {
   manualPositions: { lengths: ['x', 'y', 'z'], perEdge: 1 },
   screen: { lengths: ['x'], perEdge: 1 },
   furniture: { lengths: ['width', 'depth', 'height', 'x', 'y'], perEdge: 2 },
   openings: { lengths: ['position', 'width', 'sill', 'height'], perEdge: 2 },
+} as const satisfies MillimeterLengths
+
+/**
+ * The lengths a link of the current version (3) stores to the
+ * millimeter: version 2's, and the seat the auto speakers stay installed
+ * for, a point like the MLP's manual position, with its slack.
+ */
+export const LINK_MILLIMETER_LENGTHS = {
+  ...V2_MILLIMETER_LENGTHS,
+  speakersInstalledFor: { lengths: ['x', 'y', 'z'], perEdge: 1 },
 } as const satisfies Required<MillimeterLengths>
 
 /**
@@ -66,6 +80,7 @@ export type MillimeterLengths = {
   readonly screen?: LinkLengths<RoomScreen>
   readonly furniture?: LinkLengths<FurnitureBox>
   readonly openings?: LinkLengths<Door & WindowOpening>
+  readonly speakersInstalledFor?: LinkLengths<RoomPoint>
 }
 
 /** A part of the config whose lengths a link stores to the millimeter. */

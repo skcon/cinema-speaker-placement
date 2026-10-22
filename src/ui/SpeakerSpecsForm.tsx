@@ -13,6 +13,10 @@ import {
   SUBWOOFER_SPEC_FIELDS,
   subwooferIds,
   SUBWOOFERS,
+  withAmplifierWatts,
+  withSpeakerSpecs,
+  withSubwooferHasOwnSpecs,
+  withSubwooferSpecs,
   type Enclosure,
   type SpeakerGroupId,
   type SpeakerType,
@@ -94,7 +98,7 @@ const amplifierWattsError = rangeErrorMessage(
 /** One speaker group's specs: bookshelf or tower (not for overheads), and sensitivity. */
 function SpeakerGroupSpecs({ group }: { group: SpeakerGroupId }) {
   const specs = useConfig((state) => state.config.speakerGroups[group].specs)
-  const setSpeakerSpecs = useConfig((state) => state.setSpeakerSpecs)
+  const applyEdit = useConfig((state) => state.applyEdit)
   const typeLabelId = useId()
   const idPrefix = useId()
 
@@ -113,7 +117,8 @@ function SpeakerGroupSpecs({ group }: { group: SpeakerGroupId }) {
             value={specs.type}
             onValueChange={(value) => {
               const type = SPEAKER_TYPES.find((t) => t === value)
-              if (type) setSpeakerSpecs(group, { type })
+              if (!type) return
+              applyEdit((config) => withSpeakerSpecs(config, group, { type }))
             }}
             className="flex flex-wrap gap-x-4 gap-y-2"
           >
@@ -132,7 +137,11 @@ function SpeakerGroupSpecs({ group }: { group: SpeakerGroupId }) {
         label="Sensitivity (dB)"
         value={specs.sensitivity}
         check={checkSensitivity}
-        onValid={(sensitivity) => setSpeakerSpecs(group, { sensitivity })}
+        onValid={(sensitivity) =>
+          applyEdit((config) =>
+            withSpeakerSpecs(config, group, { sensitivity }),
+          )
+        }
         errorMessage={sensitivityError}
       />
     </fieldset>
@@ -142,13 +151,15 @@ function SpeakerGroupSpecs({ group }: { group: SpeakerGroupId }) {
 /** The one amplifier power every Speaker gets (user story 16). */
 function AmplifierPowerField() {
   const watts = useConfig((state) => state.config.amplifierWatts)
-  const setAmplifierWatts = useConfig((state) => state.setAmplifierWatts)
+  const applyEdit = useConfig((state) => state.applyEdit)
   return (
     <NumberField
       label="Amplifier power per channel (W)"
       value={watts}
       check={checkAmplifierWatts}
-      onValid={setAmplifierWatts}
+      onValid={(valid) =>
+        applyEdit((config) => withAmplifierWatts(config, valid))
+      }
       errorMessage={amplifierWattsError}
       note="Your receiver's or amplifier's rated power per channel, for the headroom check."
     />
@@ -190,7 +201,7 @@ function OwnSubwooferSpecs() {
   const ownSpecs = useConfig(
     (state) => state.config.speakerGroups.subwoofers.ownSpecs,
   )
-  const setHasOwnSpecs = useConfig((state) => state.setSubwooferHasOwnSpecs)
+  const applyEdit = useConfig((state) => state.applyEdit)
   const idPrefix = useId()
 
   if (count < 2) {
@@ -212,7 +223,12 @@ function OwnSubwooferSpecs() {
             id={checkboxId}
             type="checkbox"
             checked={specs !== undefined}
-            onChange={(event) => setHasOwnSpecs(id, event.target.checked)}
+            onChange={(event) => {
+              const hasOwnSpecs = event.target.checked
+              applyEdit((config) =>
+                withSubwooferHasOwnSpecs(config, id, hasOwnSpecs),
+              )
+            }}
             className="size-4 accent-primary"
           />
           <Label htmlFor={checkboxId} className="font-normal">
@@ -247,7 +263,7 @@ function SubwooferSpecsFields({
   target: 'group' | SubwooferId
   specs: SubwooferSpecs
 }) {
-  const setSubwooferSpecs = useConfig((state) => state.setSubwooferSpecs)
+  const applyEdit = useConfig((state) => state.applyEdit)
   const {
     text: drafts,
     problem: problems,
@@ -257,7 +273,8 @@ function SubwooferSpecsFields({
     codec: SUBWOOFER_SPECS_TEXT,
     check: subwooferSpecProblems,
     accept: acceptedSpecs,
-    onCommit: (accepted) => setSubwooferSpecs(target, accepted),
+    onCommit: (accepted) =>
+      applyEdit((config) => withSubwooferSpecs(config, target, accepted)),
   })
   const enclosureLabelId = useId()
   const idPrefix = useId()
@@ -273,7 +290,10 @@ function SubwooferSpecsFields({
           value={specs.enclosure}
           onValueChange={(value) => {
             const enclosure = ENCLOSURES.find((e) => e === value)
-            if (enclosure) setSubwooferSpecs(target, { enclosure })
+            if (!enclosure) return
+            applyEdit((config) =>
+              withSubwooferSpecs(config, target, { enclosure }),
+            )
           }}
           className="flex flex-wrap gap-x-4 gap-y-2"
         >

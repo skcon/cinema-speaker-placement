@@ -4,6 +4,9 @@
  * speaker-specs.ts, the accepted ranges) hold whoever edits it. Each takes
  * the config and gives the edited one, or the same config when the edit is
  * rejected or changes nothing, so the store records no empty undo step.
+ *
+ * The edits that move the MLP (a drag, "Move MLP here") and Auto-place
+ * belong to the Auto-place module (auto-place.ts).
  */
 import type { Config } from './config'
 import { checkCrossover } from './crossover'
@@ -22,7 +25,6 @@ import {
 import { positionOf } from './placed-items'
 import { keepRoomObjectsInRoom } from './room-objects'
 import { checkRange } from './range'
-import { recommendSeat } from './seat-score'
 import {
   checkRoomDimension,
   type Room,
@@ -98,14 +100,18 @@ export function withPositionLength(
 }
 
 /**
- * The config in another Room; manual items and room objects the walls
+ * The config in another Room; manual items, the seat the auto speakers
+ * stay installed for (as if it were the MLP) and room objects the walls
  * moved past move in with them (and room objects shrink to fit).
  */
 export function withRoom(config: Config, room: Room): Config {
+  const { speakersInstalledFor } = config
   return {
     ...config,
     room,
     manualPositions: keepInRoom(room, config.manualPositions),
+    speakersInstalledFor:
+      speakersInstalledFor && clampToRoom(room, MLP_ID, speakersInstalledFor),
     roomObjects: keepRoomObjectsInRoom(room, config.roomObjects),
   }
 }
@@ -259,40 +265,4 @@ function changesNothing<T extends object>(
   return Object.entries(change).every(
     ([field, value]) => field in current && current[field as keyof T] === value,
   )
-}
-
-/**
- * The MLP made manual at `seat`, the recommended seat the user is looking
- * at ("Move MLP here"). The config comes back as it was when the MLP
- * already is there.
- */
-export function withMlpAtRecommendedSeat(
-  config: Config,
-  seat: RoomPoint,
-): Config {
-  const moved = placeManually(config, MLP_ID, { x: seat.x, y: seat.y })
-  return samePositions(moved, config) ? config : moved
-}
-
-/**
- * What Auto-place does: every item back to auto, then the MLP at the
- * recommended seat for that (manual there, unless the auto MLP already is
- * the recommended seat). The config comes back as it was when that changes
- * nothing.
- */
-export function withAutoPlacement(config: Config): Config {
-  const reset: Config = { ...config, manualPositions: {} }
-  const { recommended, mlpIsRecommended } = recommendSeat(reset)
-  const placed = mlpIsRecommended
-    ? reset
-    : placeManually(reset, MLP_ID, {
-        x: recommended.position.x,
-        y: recommended.position.y,
-      })
-  return samePositions(placed, config) ? config : placed
-}
-
-/** Whether two configs have the same manual positions. */
-export function samePositions(a: Config, b: Config): boolean {
-  return JSON.stringify(a.manualPositions) === JSON.stringify(b.manualPositions)
 }

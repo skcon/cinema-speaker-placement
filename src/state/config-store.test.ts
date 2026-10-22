@@ -3,13 +3,24 @@ import {
   analyzeRoom,
   DEFAULT_CONFIG,
   encodeConfig,
-  recommendSeat,
+  withCrossover,
+  withDragged,
+  withLayout,
+  withPositionLength,
+  withRoomDimension,
+  withSubwooferHasOwnSpecs,
+  withSpeakersFollowSeat,
+  withSubwooferSpecs,
+  type Config,
+  type DragTarget,
+  type FloorPoint,
 } from '@/domain'
 import {
   createConfigStore,
   isShowingLinkFallback,
   isUneditedSinceOpened,
-  type ConfigState,
+  type ConfigEdit,
+  type ConfigStore,
 } from '@/state/config-store'
 import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
@@ -31,19 +42,6 @@ describe('config store', () => {
     expect(store.getState().config).toEqual(IMPERIAL_ROOM)
   })
 
-  it('stores a new room dimension in meters', () => {
-    const store = createConfigStore()
-
-    store.getState().setRoomDimension('length', 7.25)
-    store.getState().setRoomDimension('height', 3)
-
-    expect(store.getState().config.room).toEqual({
-      length: 7.25,
-      width: 4.5,
-      height: 3,
-    })
-  })
-
   it('switches units without changing the room, which stays in meters', () => {
     const store = createConfigStore()
 
@@ -53,44 +51,6 @@ describe('config store', () => {
       units: 'imperial',
       room: { length: 6, width: 4.5, height: 2.6 },
     })
-  })
-
-  it('auto-place keeps the room and layout, puts every speaker at its auto-placed position and the MLP at the recommended seat', () => {
-    const store = createConfigStore()
-    store.getState().setLayout('7.1')
-    store.getState().setRoomDimension('width', 4)
-
-    store.getState().autoPlace()
-
-    const sevenOneInFourMeters = {
-      ...DEFAULT_CONFIG,
-      room: { length: 6, width: 4, height: 2.6 },
-      layout: { dolbyLayout: '7.1', subwoofers: 1 },
-    } as const
-    const { recommended } = recommendSeat(sevenOneInFourMeters)
-    const autoPlaced = {
-      ...sevenOneInFourMeters,
-      manualPositions: { MLP: recommended.position },
-    }
-    expect(store.getState().config).toEqual(autoPlaced)
-    expect(analyzeRoom(store.getState().config).speakers).toEqual(
-      analyzeRoom(autoPlaced).speakers,
-    )
-  })
-
-  it('auto-place changes nothing when everything is already where it puts it, so undo has nothing to record', () => {
-    const store = createConfigStore()
-    store.getState().autoPlace()
-    const before = store.getState().config
-    let notified = 0
-    store.subscribe(() => {
-      notified += 1
-    })
-
-    store.getState().autoPlace()
-
-    expect(store.getState().config).toBe(before)
-    expect(notified).toBe(0)
   })
 })
 
@@ -110,104 +70,88 @@ describe('target curve', () => {
   })
 })
 
-describe('room edits', () => {
-  // The rules behind each edit are tested in the domain
-  // (config-edits.test.ts); here, how each becomes an undo step. The
-  // imperial room: 7.1.4 with two subwoofers, Subwoofer 2 with own specs.
-  type Edit = (state: ConfigState) => void
-
-  it.each<[string, Edit]>([
-    ['a room dimension', (s) => s.setRoomDimension('length', 7)],
-    ['the Dolby layout', (s) => s.setLayout('5.1')],
-    ['the subwoofer count', (s) => s.setSubwooferCount(1)],
-    [
-      'group subwoofer specs',
-      (s) => s.setSubwooferSpecs('group', { rmsWatts: 400 }),
-    ],
-    [
-      'own subwoofer specs',
-      (s) => s.setSubwooferSpecs('Sub2', { rmsWatts: 400 }),
-    ],
-    [
-      'speaker group specs',
-      (s) => s.setSpeakerSpecs('front', { type: 'bookshelf' }),
-    ],
-    ['the amplifier power', (s) => s.setAmplifierWatts(200)],
-    ['giving own specs', (s) => s.setSubwooferHasOwnSpecs('Sub1', true)],
-    ['giving up own specs', (s) => s.setSubwooferHasOwnSpecs('Sub2', false)],
-    ['the crossover', (s) => s.setCrossover(60)],
-  ])('make changing %s one undo step', (_, edit) => {
+describe('applying a config edit', () => {
+  // What each edit does is tested in the domain; here, how the store
+  // records it.
+  it('stores the config the edit gives', () => {
     const store = createConfigStore(IMPERIAL_ROOM)
 
-    edit(store.getState())
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 7))
+
+    expect(store.getState().config).toEqual(
+      withRoomDimension(IMPERIAL_ROOM, 'length', 7),
+    )
+  })
+
+  it('gives each edit the config as the edits before it left it', () => {
+    const store = createConfigStore()
+    const seen: Config[] = []
+
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 7))
+    store.getState().applyEdit((config) => {
+      seen.push(config)
+      return config
+    })
+
+    expect(seen).toEqual([store.getState().config])
+    expect(seen[0]?.room.length).toBe(7)
+  })
+
+  it('makes an edit one undo step, which redo makes again', () => {
+    const store = createConfigStore(IMPERIAL_ROOM)
+
+    store.getState().applyEdit((config) => withCrossover(config, 60))
     const edited = store.getState().config
-    expect(edited).not.toEqual(IMPERIAL_ROOM)
-    expect(store.getState().history.canUndo).toBe(true)
+    expect(store.getState().history).toEqual({ canUndo: true, canRedo: false })
 
     store.getState().undo()
     expect(store.getState().config).toEqual(IMPERIAL_ROOM)
-    expect(store.getState().history.canUndo).toBe(false)
+    expect(store.getState().history).toEqual({ canUndo: false, canRedo: true })
     store.getState().redo()
     expect(store.getState().config).toEqual(edited)
   })
 
-  it.each<[string, Edit]>([
-    ['an out-of-range dimension', (s) => s.setRoomDimension('width', 20)],
-    ['the same dimension', (s) => s.setRoomDimension('length', 8)],
-    ['the same layout', (s) => s.setLayout('7.1.4')],
-    ['the same subwoofer count', (s) => s.setSubwooferCount(2)],
-    [
-      'out-of-range subwoofer specs',
-      (s) => s.setSubwooferSpecs('group', { rmsWatts: 5 }),
-    ],
-    [
-      'specs of a subwoofer without own specs',
-      (s) => s.setSubwooferSpecs('Sub1', { rmsWatts: 400 }),
-    ],
-    [
-      'the same own specs',
-      (s) => s.setSubwooferSpecs('Sub2', { enclosure: 'sealed' }),
-    ],
-    [
-      'an out-of-range sensitivity',
-      (s) => s.setSpeakerSpecs('front', { sensitivity: Number.NaN }),
-    ],
-    [
-      'the same speaker type',
-      (s) => s.setSpeakerSpecs('front', { type: 'tower' }),
-    ],
-    ['an out-of-range amplifier power', (s) => s.setAmplifierWatts(5001)],
-    ['the same amplifier power', (s) => s.setAmplifierWatts(150)],
-    [
-      'own specs for a subwoofer not in the layout',
-      (s) => s.setSubwooferHasOwnSpecs('Sub3', true),
-    ],
-    [
-      'own specs for a subwoofer that has them',
-      (s) => s.setSubwooferHasOwnSpecs('Sub2', true),
-    ],
-    ['an out-of-range crossover', (s) => s.setCrossover(39)],
-    ['the same crossover', (s) => s.setCrossover(100)],
-  ])('ignore %s, so undo has nothing to record', (_, edit) => {
-    const store = createConfigStore(IMPERIAL_ROOM)
-    let notified = 0
-    store.subscribe(() => {
-      notified += 1
-    })
+  it.each<[string, ConfigEdit]>([
+    ['gives the same config back', (config) => config],
+    ['is rejected', (config) => withRoomDimension(config, 'width', 20)],
+    ['changes nothing', (config) => withCrossover(config, 100)],
+  ])(
+    'changes no state for an edit that %s, so undo has nothing to record',
+    (_, edit) => {
+      const store = createConfigStore(IMPERIAL_ROOM)
+      let notified = 0
+      store.subscribe(() => {
+        notified += 1
+      })
 
-    edit(store.getState())
+      store.getState().applyEdit(edit)
 
-    expect(store.getState().config).toBe(IMPERIAL_ROOM)
-    expect(store.getState().history.canUndo).toBe(false)
-    expect(notified).toBe(0)
-  })
+      expect(store.getState().config).toBe(IMPERIAL_ROOM)
+      expect(store.getState().history.canUndo).toBe(false)
+      expect(notified).toBe(0)
+    },
+  )
 
-  it('make one undo step per edit', () => {
+  it('makes one undo step per edit', () => {
     const store = createConfigStore(IMPERIAL_ROOM)
 
-    store.getState().setSubwooferCount(4)
-    store.getState().setSubwooferHasOwnSpecs('Sub4', true)
-    store.getState().setSubwooferSpecs('Sub4', { rmsWatts: 400 })
+    store
+      .getState()
+      .applyEdit((config) =>
+        withLayout(config, { ...config.layout, subwoofers: 4 }),
+      )
+    store
+      .getState()
+      .applyEdit((config) => withSubwooferHasOwnSpecs(config, 'Sub4', true))
+    store
+      .getState()
+      .applyEdit((config) =>
+        withSubwooferSpecs(config, 'Sub4', { rmsWatts: 400 }),
+      )
 
     store.getState().undo()
     expect(store.getState().config.speakerGroups.subwoofers.ownSpecs).toEqual({
@@ -218,6 +162,240 @@ describe('room edits', () => {
     expect(store.getState().config.layout.subwoofers).toBe(4)
     store.getState().undo()
     expect(store.getState().config).toEqual(IMPERIAL_ROOM)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+})
+
+/** Drag `target` to `to`, as the room view does on each pointer move. */
+function drag(store: ConfigStore, target: DragTarget, to: FloorPoint) {
+  store.getState().applyEdit((config) => withDragged(config, target, to))
+}
+
+function manual(store: ConfigStore) {
+  return store.getState().config.manualPositions
+}
+
+describe('undo and redo', () => {
+  it('step back and forward through edits', () => {
+    const store = createConfigStore()
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 7))
+    store
+      .getState()
+      .applyEdit((config) =>
+        withLayout(config, { ...config.layout, dolbyLayout: '7.1' }),
+      )
+
+    store.getState().undo()
+    expect(store.getState().config.layout.dolbyLayout).toBe('5.1.2')
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+
+    store.getState().redo()
+    store.getState().redo()
+    expect(store.getState().config).toMatchObject({
+      room: { length: 7 },
+      layout: { dolbyLayout: '7.1' },
+    })
+  })
+
+  it('take a whole drag back in one step, however many moves it made', () => {
+    const store = createConfigStore()
+
+    store.getState().beginGesture()
+    drag(store, 'R', { x: 1, y: 1 })
+    drag(store, 'R', { x: 1.2, y: 1.1 })
+    drag(store, 'R', { x: 1.4, y: 1.2 })
+    // The config follows the drag live.
+    expect(manual(store)).toEqual({ R: { x: 1.4, y: 1.2, z: 1.2 } })
+    store.getState().endGesture()
+
+    expect(store.getState().history.canUndo).toBe(true)
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+    store.getState().redo()
+    expect(manual(store)).toEqual({ R: { x: 1.4, y: 1.2, z: 1.2 } })
+  })
+
+  it('record nothing for a drag that moved nothing', () => {
+    const store = createConfigStore()
+
+    store.getState().beginGesture()
+    // The default room has no furniture: the edit changes nothing.
+    drag(store, 'furniture-1', { x: 1, y: 1 })
+    store.getState().endGesture()
+
+    expect(store.getState().config).toBe(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('count a drag started twice (a second finger) as one, ended by its last end', () => {
+    const store = createConfigStore()
+
+    store.getState().beginGesture()
+    drag(store, 'R', { x: 1, y: 1 })
+    store.getState().beginGesture()
+    drag(store, 'L', { x: -1, y: 1 })
+    store.getState().endGesture()
+    // Still dragging: nothing is recorded yet.
+    expect(store.getState().history.canUndo).toBe(false)
+    drag(store, 'R', { x: 1.5, y: 1 })
+    store.getState().endGesture()
+    // An extra end changes nothing.
+    store.getState().endGesture()
+
+    expect(Object.keys(manual(store)).toSorted()).toEqual(['L', 'R'])
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('keep a sidebar edit applied as a drag starts as its own step', () => {
+    // The room view leaves the text field (applying its edit) before it
+    // starts the drag.
+    const store = createConfigStore()
+
+    store
+      .getState()
+      .applyEdit((config) => withPositionLength(config, 'C', 'height', 1.5))
+    store.getState().beginGesture()
+    drag(store, 'R', { x: 1, y: 1 })
+    store.getState().endGesture()
+
+    store.getState().undo()
+    expect(Object.keys(manual(store))).toEqual(['C'])
+    expect(manual(store).C?.z).toBe(1.5)
+    store.getState().undo()
+    expect(manual(store)).toEqual({})
+  })
+
+  it('wait while a drag is in progress', () => {
+    const store = createConfigStore()
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 7))
+
+    store.getState().beginGesture()
+    drag(store, 'R', { x: 1, y: 1 })
+    store.getState().undo()
+    store.getState().redo()
+
+    expect(store.getState().config.room.length).toBe(7)
+    expect(manual(store).R).toBeDefined()
+    store.getState().endGesture()
+    store.getState().undo()
+    expect(manual(store)).toEqual({})
+    expect(store.getState().config.room.length).toBe(7)
+  })
+
+  it('keep a drag one step when a share link opens in the middle of it', () => {
+    const store = createConfigStore()
+
+    store.getState().beginGesture()
+    drag(store, 'R', { x: 1, y: 1 })
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
+    store.getState().endGesture()
+    // The link replaced the room and the drag with it; edits are tracked again.
+    store.getState().setTargetCurve('flat')
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 9))
+
+    expect(store.getState().config).toMatchObject({
+      ...IMPERIAL_ROOM,
+      targetCurve: 'flat',
+      room: { length: 9 },
+    })
+    store.getState().undo()
+    expect(store.getState().config.room.length).toBe(8)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('leave out view preferences: units and the target curve', () => {
+    const store = createConfigStore()
+
+    store.getState().setUnits('imperial')
+    store.getState().setTargetCurve('house')
+    expect(store.getState().history.canUndo).toBe(false)
+
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 7))
+    store.getState().undo()
+    expect(store.getState().config).toMatchObject({
+      units: 'imperial',
+      targetCurve: 'house',
+      room: { length: 6 },
+    })
+  })
+
+  it('never undo into a share link opened from the address, nor past it', () => {
+    const store = createConfigStore()
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 7))
+
+    store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
+
+    expect(store.getState().history.canUndo).toBe(false)
+    store.getState().undo()
+    expect(store.getState().config).toEqual(IMPERIAL_ROOM)
+  })
+})
+
+describe('Speakers follow the seat (#123)', () => {
+  /** Where Left is in the store's room. */
+  const left = (store: ConfigStore) =>
+    analyzeRoom(store.getState().config).speakers.find(
+      ({ channel }) => channel === 'L',
+    )?.position
+
+  it('makes turning it off and on one undo step each', () => {
+    const store = createConfigStore()
+
+    store
+      .getState()
+      .applyEdit((config) => withSpeakersFollowSeat(config, false))
+    const off = store.getState().config
+    store.getState().applyEdit((config) => withSpeakersFollowSeat(config, true))
+
+    store.getState().undo()
+    expect(store.getState().config).toEqual(off)
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('on: an MLP drag moves the speakers live, and is one undo step', () => {
+    const store = createConfigStore()
+    const before = left(store)
+
+    store.getState().beginGesture()
+    drag(store, 'MLP', { x: 0, y: 3 })
+    const during = left(store)
+    drag(store, 'MLP', { x: 0.2, y: 3.4 })
+    store.getState().endGesture()
+
+    expect(during).not.toEqual(before)
+    expect(left(store)).not.toEqual(during)
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('off: an MLP drag leaves the speakers where they are', () => {
+    const store = createConfigStore(
+      withSpeakersFollowSeat(DEFAULT_CONFIG, false),
+    )
+    const before = left(store)
+
+    store.getState().beginGesture()
+    drag(store, 'MLP', { x: 0.2, y: 3.4 })
+    store.getState().endGesture()
+
+    expect(left(store)).toEqual(before)
   })
 })
 
@@ -284,7 +462,9 @@ describe('the default room shown for a broken link', () => {
     const store = createConfigStore()
     store.getState().openEncodedConfig('not-an-encoded-config')
 
-    store.getState().setRoomDimension('length', 7)
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 7))
 
     expect(isShowingLinkFallback(store.getState())).toBe(false)
   })
@@ -313,7 +493,9 @@ describe('unedited since opened', () => {
     store.getState().openEncodedConfig(encodeConfig(IMPERIAL_ROOM))
     expect(isUneditedSinceOpened(store.getState())).toBe(true)
 
-    store.getState().setRoomDimension('length', 9)
+    store
+      .getState()
+      .applyEdit((config) => withRoomDimension(config, 'length', 9))
 
     expect(isUneditedSinceOpened(store.getState())).toBe(false)
   })

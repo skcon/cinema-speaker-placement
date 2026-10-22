@@ -74,7 +74,7 @@ describe('seat-score heatmap in the room view', () => {
     expect(await screen.findByText('heatmap drawn')).toBeInTheDocument()
     const legend = screen.getByRole('group', { name: 'Seat score (estimate)' })
     expect(legend).toHaveTextContent(/low.*high/)
-    expect(screen.getByText(/Relative to the current MLP/)).toHaveTextContent(
+    expect(screen.getByText(/Relative to one calibration/)).toHaveTextContent(
       /simplified model/,
     )
     expect(scene()).toHaveAccessibleName(
@@ -179,6 +179,16 @@ describe('overhead speakers in the room view', () => {
         '83° (ideal), Right Top Middle elevation 83° (ideal).',
     )
     expect(screen.getByText('Overhead speaker (ring)')).toBeInTheDocument()
+  })
+})
+
+describe('front speakers in the room view', () => {
+  it('are described for screen readers with their distances from the MLP', () => {
+    renderRoomView()
+
+    expect(scene().getAttribute('aria-label')).toContain(
+      'Front speakers from the MLP: Left 2.04 m, Center 1.78 m, Right 2.04 m.',
+    )
   })
 })
 

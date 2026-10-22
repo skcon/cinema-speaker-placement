@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  formatLayout,
-  V1_DOLBY_LAYOUTS,
-  type Config,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import { V1_DOLBY_LAYOUTS } from './dolby-layouts'
+import { formatLayout } from './layout'
+import { withRoomObjectAdded, type RoomObjectAddition } from './room-objects'
 import { hearRoom } from './estimated-response'
 import { placeAll } from './placements'
 import { bearingTo } from './room'
@@ -19,7 +17,7 @@ function configWithLayout(layout: Config['layout']): Config {
 }
 
 describe('the default config', () => {
-  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout, our default speaker specs and 100 W amplifier, the flat target curve, an 80 Hz crossover, everything auto-placed, and a 2 x 0.9 m seat row and no other room objects (no screen)', () => {
+  it('is metric with the default 6 x 4.5 x 2.6 m room, a 5.1.2 layout, our default speaker specs and 100 W amplifier, the flat target curve, an 80 Hz crossover, everything auto-placed, Speakers follow the seat on, and a 2 x 0.9 m seat row and no other room objects (no screen)', () => {
     const bookshelf88 = { specs: { type: 'bookshelf', sensitivity: 88 } }
     expect(DEFAULT_CONFIG).toEqual({
       units: 'metric',
@@ -47,6 +45,7 @@ describe('the default config', () => {
       crossoverHz: 80,
 
       manualPositions: {},
+      speakersInstalledFor: null,
       roomObjects: {
         seatRow: { width: 2, depth: 0.9 },
         screen: null,
@@ -272,5 +271,21 @@ describe('the response follows manual positions', () => {
         levelsFrom(DEFAULT_CONFIG, 30, 80),
       ),
     ).toBeGreaterThan(3)
+  })
+})
+
+describe('the response with room objects', () => {
+  it('stays as it is with furniture, a door and a window: they are drawn and warned about, not modelled (ADR 0006)', () => {
+    const additions: RoomObjectAddition[] = [
+      { kind: 'furniture', preset: 'cabinet' },
+      { kind: 'opening', preset: 'door' },
+      { kind: 'opening', preset: 'window' },
+    ]
+    const furnished = additions.reduce(withRoomObjectAdded, DEFAULT_CONFIG)
+    expect(furnished.roomObjects.openings).toHaveLength(2)
+
+    expect(analyzeRoom(furnished).response).toEqual(
+      analyzeRoom(DEFAULT_CONFIG).response,
+    )
   })
 })

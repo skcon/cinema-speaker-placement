@@ -12,11 +12,13 @@ import { useDraftField } from '@/ui/lib/use-draft-field'
 
 /**
  * A length in the chosen units (meters, or feet + inches) checked as it is
- * typed (useDraftField): a length `check` accepts goes to `onChange`, and
- * one it rejects stays in the field with an inline error while the stored
- * length stays as it was. When the stored length or the units change
- * elsewhere (switching units, a share link, undo, a drag), the field
- * starts over from the stored length.
+ * typed (useDraftField): a length `check` accepts goes to `onChange`, as
+ * it is typed or, with `commitOn: 'leave'`, when the field is left or
+ * Enter is pressed (one edit is one undo step, and the item doesn't move
+ * while it is typed). One it rejects stays in the field with an inline
+ * error while the stored length stays as it was. When the stored length
+ * or the units change elsewhere (switching units, a share link, undo, a
+ * drag), the field starts over from the stored length.
  */
 export function CheckedLengthField({
   label,
@@ -25,6 +27,7 @@ export function CheckedLengthField({
   check,
   errorMessage,
   onChange,
+  commitOn = 'edit',
 }: {
   label: string
   meters: number
@@ -34,22 +37,32 @@ export function CheckedLengthField({
   /** The inline error for a rejected length, in the user's units. */
   errorMessage: (problem: RangeProblem) => string
   onChange: (meters: number) => void
+  /** When an accepted length goes to `onChange`: as typed, or when left. */
+  commitOn?: 'edit' | 'leave'
 }) {
   const {
     text: draft,
     problem,
     edit,
+    leave,
   } = useDraftField({
     value: meters,
     codec: LENGTH_TEXT[units],
     check,
     onCommit: onChange,
+    commitOn,
   })
   const errorId = useId()
   const error = problem && errorMessage(problem)
 
   return (
-    <fieldset className="flex flex-col gap-1.5">
+    <fieldset
+      className="flex flex-col gap-1.5"
+      onBlur={(event) => {
+        // Moving between the feet and inches boxes isn't leaving the field.
+        if (!event.currentTarget.contains(event.relatedTarget)) leave()
+      }}
+    >
       <legend className="mb-1.5 text-sm font-medium">{label}</legend>
       <div className="flex items-center gap-3">
         {UNIT_SYSTEMS[units].parts.map((unit, index) => (
@@ -58,6 +71,7 @@ export function CheckedLengthField({
             unit={unit}
             value={draft[index] ?? ''}
             onChange={(value) => edit(draft.with(index, value))}
+            onEnter={leave}
             invalid={problem !== null}
             errorId={errorId}
           />
@@ -74,12 +88,14 @@ function UnitInput({
   unit,
   value,
   onChange,
+  onEnter,
   invalid,
   errorId,
 }: {
   unit: LengthUnit
   value: string
   onChange: (value: string) => void
+  onEnter: () => void
   invalid: boolean
   errorId: string
 }) {
@@ -92,8 +108,12 @@ function UnitInput({
         autoComplete="off"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onEnter()
+        }}
         aria-invalid={invalid}
         aria-describedby={errorId}
+        className="max-lg:h-11"
       />
       <Label htmlFor={id} className="font-normal text-muted-foreground">
         {unit}

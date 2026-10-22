@@ -75,21 +75,53 @@ describe('positions in the sidebar', () => {
     expect(item('Left')).toHaveTextContent('auto')
   })
 
-  it('keep an edit inside the wall clearance, and show where it went', () => {
+  it('reject an edit inside the wall clearance, showing the distances the field accepts', () => {
     renderPositions()
 
     enter(field('Center', /^From the front wall/), '0')
 
-    expect(field('Center', /^From the front wall/)).toHaveValue('0.3')
+    // 0.3 m from each end wall of the 6 m long room (our clearance).
+    expect(field('Center', /^From the front wall/)).toHaveValue('0')
+    expect(field('Center', /^From the front wall/)).toBeInvalid()
+    expect(item('Center')).toHaveTextContent(
+      'From the front wall must be between 0.3 m and 5.7 m.',
+    )
+    expect(item('Center')).toHaveTextContent('auto')
   })
 
-  it('leave the item alone when an entry is not a number', () => {
+  it('show the accepted heights in the chosen units', () => {
+    renderPositions()
+    fireEvent.click(screen.getByRole('radio', { name: 'Imperial (ft + in)' }))
+
+    enter(field('Center', /^Height/, 'ft'), '9')
+
+    // 0.3 m from the floor and the 2.6 m ceiling, rounded inward.
+    expect(item('Center')).toHaveTextContent(
+      'Height above the floor must be between 0 ft 11.9 in and 7 ft 6.5 in.',
+    )
+    expect(item('Center')).toHaveTextContent('auto')
+  })
+
+  it('leave the item alone when an entry is not a number, and say so', () => {
     renderPositions()
 
     enter(field('Center', /^Height/), 'tall')
 
-    expect(field('Center', /^Height/)).toHaveValue('1.2')
+    expect(field('Center', /^Height/)).toHaveValue('tall')
+    expect(item('Center')).toHaveTextContent('Enter the height as a number.')
     expect(item('Center')).toHaveTextContent('auto')
+  })
+
+  it('apply a value once the field is left, not while it is typed', () => {
+    renderPositions()
+    const input = field('Center', /^From the front wall/)
+
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '0.8' } })
+    expect(item('Center')).toHaveTextContent('auto')
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(item('Center')).toHaveTextContent('manual')
   })
 
   it('show subwoofers and the MLP at their fixed heights, with editable wall distances', () => {

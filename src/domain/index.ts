@@ -56,13 +56,13 @@ export {
   type CrossoverProblem,
 } from './crossover'
 export {
-  placeAtWallDistance,
   placeManually,
   withAmplifierWatts,
   withAutoPlacement,
   withCrossover,
   withLayout,
   withMlpAtRecommendedSeat,
+  withPositionLength,
   withRoom,
   withRoomDimension,
   withSpeakerSpecs,
@@ -146,9 +146,14 @@ export {
 export type { ScreenRelation } from './placement'
 export {
   MLP_ID,
+  positionLengths,
   type ManualPositions,
   type PlaceableId,
   type Placement,
+  type PositionDimension,
+  type PositionLength,
+  type PositionLengths,
+  type WallPositionLength,
 } from './manual-positions'
 export {
   OVERHEAD_CHANNEL_IDS,

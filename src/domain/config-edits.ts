@@ -15,17 +15,19 @@ import {
   keepInRoom,
   MLP_ID,
   placeablesIn,
+  positionLength,
   type PlaceableId,
+  type PositionDimension,
 } from './manual-positions'
 import { positionOf } from './placements'
 import { keepRoomObjectsInRoom } from './room-objects'
+import { checkRange } from './range'
 import { recommendSeat } from './seat-score'
 import {
   checkRoomDimension,
   type Room,
   type RoomDimension,
   type RoomPoint,
-  type Wall,
 } from './room'
 import {
   areValidSpeakerSpecs,
@@ -69,19 +71,29 @@ export function placeManually(
   }
 }
 
-/** Item `id` made manual and moved to `meters` from `wall` (see placeManually). */
-export function placeAtWallDistance(
+/**
+ * Item `id` made manual with one of its lengths (its height, or its
+ * distance to a wall) set to `meters`. The config comes back as it was
+ * when the value is outside the limits positionLengths gives (it is
+ * rejected, not moved to the limit as a drag is), the item has no such
+ * length (a fixed height) or the layout has no such item.
+ */
+export function withPositionLength(
   config: Config,
   id: PlaceableId,
-  wall: Wall,
+  dimension: PositionDimension,
   meters: number,
 ): Config {
   const current = positionOf(config, id)
-  if (!current || !Number.isFinite(meters)) return config
+  if (!current) return config
+  const length = positionLength(config.room, id, current, dimension)
+  if (!length || checkRange(meters, length.limits) !== null) return config
   return placeManually(
     config,
     id,
-    atDistanceFromWall(config.room, current, wall, meters),
+    dimension === 'height'
+      ? { z: meters }
+      : atDistanceFromWall(config.room, current, dimension, meters),
   )
 }
 

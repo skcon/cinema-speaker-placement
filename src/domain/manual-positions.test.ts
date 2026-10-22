@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   analyzeRoom,
   DEFAULT_CONFIG,
-  placeAtWallDistance,
   placeManually,
+  positionLengths,
   wallDistances,
+  withPositionLength,
   type ChannelId,
   type Config,
   type RoomAnalysis,
@@ -151,13 +152,94 @@ describe('wall distances of a speaker', () => {
     })
   })
 
-  it('move a speaker when one is set, within the clearance', () => {
-    const fromLeftWall = placeAtWallDistance(ROOM, 'L', 'left', 0.5)
-    const fromBackWall = placeAtWallDistance(fromLeftWall, 'L', 'back', 0.1)
+  it('move a speaker when one is set, making it manual', () => {
+    const fromLeftWall = withPositionLength(ROOM, 'L', 'left', 0.5)
+    const fromBackWall = withPositionLength(fromLeftWall, 'L', 'back', 0.4)
 
     expect(fromLeftWall.manualPositions.L?.x).toBeCloseTo(-1.75, 9)
-    // 0.1 m is inside the wall clearance, so it stops 0.3 m from the wall.
-    expect(fromBackWall.manualPositions.L?.y).toBeCloseTo(5.7, 9)
+    expect(fromBackWall.manualPositions.L?.y).toBeCloseTo(5.6, 9)
     expect(fromBackWall.manualPositions.L?.x).toBeCloseTo(-1.75, 9)
+  })
+})
+
+describe('the lengths of an item a field edits', () => {
+  // The default room: 4.5 m wide, 6 m long, 2.6 m high.
+  it("give a speaker's height and distances to its nearest walls, each with the range its clearances allow", () => {
+    const lengths = positionLengths(ROOM.room, 'R', { x: 1.5, y: 1, z: 1.2 })
+
+    // 0.3 m from the floor and the ceiling.
+    expect(lengths.height?.meters).toBe(1.2)
+    expect(lengths.height?.limits.min).toBeCloseTo(0.3, 9)
+    expect(lengths.height?.limits.max).toBeCloseTo(2.3, 9)
+    // 0.3 m from each wall: the width or length less both clearances.
+    const [along, across] = lengths.walls
+    expect(along.wall).toBe('front')
+    expect(along.meters).toBe(1)
+    expect(along.limits.min).toBeCloseTo(0.3, 9)
+    expect(along.limits.max).toBeCloseTo(5.7, 9)
+    expect(across.wall).toBe('right')
+    expect(across.meters).toBe(0.75)
+    expect(across.limits.min).toBeCloseTo(0.3, 9)
+    expect(across.limits.max).toBeCloseTo(4.2, 9)
+  })
+
+  it('give no height for items whose height is fixed: overheads, subwoofers and the MLP', () => {
+    for (const id of ['Ltm', 'Sub1', 'MLP'] as const) {
+      expect(positionLengths(ROOM.room, id, { x: 0, y: 3, z: 1 }).height).toBe(
+        null,
+      )
+    }
+  })
+
+  it('use the clearances of the kind of item: a subwoofer keeps its own from the walls', () => {
+    const [along] = positionLengths(ROOM.room, 'Sub1', {
+      x: 0,
+      y: 5,
+      z: 0.3,
+    }).walls
+
+    expect(along.wall).toBe('back')
+    expect(along.limits.min).toBeCloseTo(0.3, 9)
+    expect(along.limits.max).toBeCloseTo(5.7, 9)
+  })
+
+  it('accept every value a drag could reach: the clamped position is inside the limits', () => {
+    const clamped = placeManually(ROOM, 'R', { x: 9, y: -2, z: 4 })
+    const position = clamped.manualPositions.R ?? { x: 0, y: 0, z: 0 }
+    const { height, walls } = positionLengths(ROOM.room, 'R', position)
+
+    for (const { meters, limits } of [...(height ? [height] : []), ...walls]) {
+      expect(meters).toBeGreaterThanOrEqual(limits.min - 1e-9)
+      expect(meters).toBeLessThanOrEqual(limits.max + 1e-9)
+    }
+  })
+})
+
+describe('setting one of an item’s lengths', () => {
+  it('sets a speaker’s height, making it manual', () => {
+    const config = withPositionLength(ROOM, 'C', 'height', 1.5)
+
+    expect(config.manualPositions.C?.z).toBe(1.5)
+  })
+
+  it('rejects a value outside its range instead of moving the item to the limit', () => {
+    expect(withPositionLength(ROOM, 'L', 'back', 0.1)).toBe(ROOM)
+    expect(withPositionLength(ROOM, 'L', 'left', 4.3)).toBe(ROOM)
+    expect(withPositionLength(ROOM, 'C', 'height', 2.5)).toBe(ROOM)
+    expect(withPositionLength(ROOM, 'C', 'height', 0.2)).toBe(ROOM)
+  })
+
+  it('accepts the limits themselves', () => {
+    const config = withPositionLength(ROOM, 'L', 'left', 0.3)
+
+    expect(config.manualPositions.L?.x).toBeCloseTo(-1.95, 9)
+  })
+
+  it('rejects a height for an item whose height is fixed, a missing item, or text that is not a number', () => {
+    expect(withPositionLength(ROOM, 'Sub1', 'height', 1)).toBe(ROOM)
+    expect(withPositionLength(ROOM, 'MLP', 'height', 1.2)).toBe(ROOM)
+    // The default 5.1.2 has no rear surrounds.
+    expect(withPositionLength(ROOM, 'Lrs', 'left', 1)).toBe(ROOM)
+    expect(withPositionLength(ROOM, 'R', 'front', Number.NaN)).toBe(ROOM)
   })
 })

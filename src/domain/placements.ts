@@ -2,8 +2,9 @@
  * Where every item of the layout is, by its placement policy
  * (auto-place-policy.ts: a manual item where it is, an auto one where
  * auto-place puts it). Auto speakers are placed around the MLP where it
- * is, manual or auto, and L, C and R fit the Screen when the Room has one
- * (placement.ts, rule 6).
+ * is, manual or auto, or, with Speakers follow the seat off, around the
+ * seat they stay installed for; L, C and R fit the Screen when the Room
+ * has one (placement.ts, rule 6). Every speaker is graded from the MLP.
  *
  * The listener-level speakers can also be placed on their own, installed
  * for one point and heard at another (placeSpeakers): the seat score
@@ -17,6 +18,7 @@ import {
   type OverheadChannelReference,
 } from './dolby-layouts'
 import {
+  autoSpeakersInstalledFor,
   placeItem,
   placeItemWith,
   placeMlp,
@@ -64,12 +66,14 @@ export type Placements = {
   readonly mlp: Placed
   /**
    * The listener-level channels, in Dolby's channel order, installed for
+   * the MLP (or the seat they stay installed for, autoSpeakersInstalledFor)
    * and heard at the MLP.
    */
   readonly speakers: readonly InstalledSpeaker[]
   /**
    * The overhead channels, in Dolby's channel order. Auto ones are placed
-   * around the MLP and spaced by the listener-level speakers as placed.
+   * around the point the listener-level speakers are installed for, and
+   * spaced by them as placed.
    */
   readonly overheads: readonly (Placed & {
     readonly reference: OverheadChannelReference
@@ -84,8 +88,10 @@ export type Placements = {
 export function placeAll(config: Config): Placements {
   const { room, layout } = config
   const mlp = placeMlp(config)
+  // Around the MLP, or where they stay while they don't follow the seat.
+  const installedFor = autoSpeakersInstalledFor(config, mlp.position)
   const speakers = placeSpeakers(config, {
-    installedFor: mlp.position,
+    installedFor,
     heardAt: mlp.position,
   })
   const { overheadChannels } = DOLBY_LAYOUTS[layout.dolbyLayout]
@@ -93,7 +99,7 @@ export function placeAll(config: Config): Placements {
   const overheads = overheadChannels.map((reference) => ({
     reference,
     ...placeItem(config, reference.channel, () =>
-      autoPlaceOverhead(room, mlp.position, reference, width),
+      autoPlaceOverhead(room, installedFor, reference, width),
     ),
   }))
   const subwoofers = autoPlaceSubwoofers(room, layout.subwoofers).map(
@@ -118,7 +124,8 @@ export function placeAll(config: Config): Placements {
  * is placed: the seat score calls this once per candidate seat, where
  * the overheads and subwoofers would go unused.
  *
- * The analysis installs for the MLP and hears there (placeAll). The seat
+ * The analysis installs for the MLP (or the seat the speakers stay
+ * installed for) and hears at the MLP (placeAll). The seat
  * score installs for a seat's centerLineProjection and hears at the seat
  * (ADR 0005, amendment).
  */

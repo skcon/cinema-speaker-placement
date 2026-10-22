@@ -29,10 +29,14 @@
  * live `configSchema` (config.ts), which the store holds every config to.
  * New links are written with the last entry, the current version.
  *
- * Version 1 (v1.0.0) spells its field names out. Version 2 (v1.1.0 and
- * v1.2.0) spells them short, as SHORT_FIELD_NAMES gives them ("room" is
+ * Version 1 (v1.0.0) spells its field names out. Version 2 (v1.1.0 to
+ * v1.3.0) spells them short, as SHORT_FIELD_NAMES gives them ("room" is
  * "r", "width" is "w"), which keeps the worst-case link inside the URL
  * budget without dropping a digit (ADR 0003, second 1.1.0 amendment).
+ * Version 3 (#123) adds one field, the seat the auto speakers stay
+ * installed for while Speakers follow the seat is off, with a short name
+ * of its own (V3_SHORT_FIELD_NAMES) and stored to the millimeter; its
+ * links are otherwise written as version 2's.
  * Record keys (channel ids, subwoofer ids, "MLP") and values stay as they
  * are, but for one: a version 2 link writes each opening (a door or
  * window, `roomObjects.openings`) as a tuple of whole numbers, packed by
@@ -84,10 +88,12 @@ import { z } from 'zod'
 import { configSchema, DEFAULT_CONFIG, type Config } from './config'
 import { configSchemaV1 } from './config-v1'
 import { configSchemaV2 } from './config-v2'
+import { configSchemaV3 } from './config-v3'
 import {
   LINK_MILLIMETER_LENGTHS,
   MILLIMETERS_PER_METER,
   toMillimeter,
+  V2_MILLIMETER_LENGTHS,
   type MillimeterLengths,
 } from './link-precision'
 import { entries, type ManualPositions } from './manual-positions'
@@ -368,7 +374,7 @@ const VERSION_1 = configVersion({
   }),
 })
 
-// Version 2: v1.1.0 and v1.2.0.
+// Version 2: v1.1.0 to v1.3.0.
 
 /**
  * The short field names of version 2 links (see the wire format above),
@@ -533,8 +539,32 @@ const PACKED_OPENINGS: Packing = {
 const VERSION_2 = configVersion({
   schema: configSchemaV2,
   wire: {
-    millimeterLengths: LINK_MILLIMETER_LENGTHS,
+    millimeterLengths: V2_MILLIMETER_LENGTHS,
     fieldNames: SHORT_FIELD_NAMES,
+    packing: PACKED_OPENINGS,
+  },
+  // Version 2 had no Speakers follow the seat: its auto speakers always
+  // followed the MLP, as they do with it on.
+  up: (config) => ({ ...config, speakersInstalledFor: null }),
+})
+
+// Version 3: the 1.3.1 release cycle (#123).
+
+/**
+ * The short field names version 3 adds to version 2's (SHORT_FIELD_NAMES),
+ * keyed by the config's field names. Released links will depend on them:
+ * never change or reuse a short name, and give a later version's new
+ * fields a table of their own.
+ */
+export const V3_SHORT_FIELD_NAMES = {
+  speakersInstalledFor: 'si',
+} as const satisfies FieldNames
+
+const VERSION_3 = configVersion({
+  schema: configSchemaV3,
+  wire: {
+    millimeterLengths: LINK_MILLIMETER_LENGTHS,
+    fieldNames: { ...SHORT_FIELD_NAMES, ...V3_SHORT_FIELD_NAMES },
     packing: PACKED_OPENINGS,
   },
   up: null,
@@ -545,16 +575,22 @@ const VERSION_2 = configVersion({
  * means (see ConfigVersion). The last is the current version, which new
  * links are written with.
  */
-export const CONFIG_VERSIONS: readonly ConfigVersion[] = [VERSION_1, VERSION_2]
+export const CONFIG_VERSIONS: readonly ConfigVersion[] = [
+  VERSION_1,
+  VERSION_2,
+  VERSION_3,
+]
 
 /**
- * A config as a version 2 link writes it, its openings packed and its
- * field names short (see the wire format above), for tests that write
- * links by hand. Its lengths are not rounded, and an opening that is not
- * of the config's exact shape stays as it is.
+ * A config as a link of version `v` (2 or later) writes it, its openings
+ * packed and its field names short (see the wire format above), for tests
+ * that write links by hand. Its lengths are not rounded, and an opening
+ * that is not of the config's exact shape stays as it is.
  */
-export function writtenAsVersion2(config: unknown): unknown {
-  return wireCoder(VERSION_2.wire).write(config)
+export function writtenAsVersion(v: number, config: unknown): unknown {
+  const version = CONFIG_VERSIONS[v - 1]
+  if (!version) throw new Error(`No config version ${v}`)
+  return wireCoder(version.wire).write(config)
 }
 
 const configCodec = createConfigCodec({
@@ -611,6 +647,7 @@ function manualPositionsForLink(
  */
 function roundedForLink(config: Config, table: MillimeterLengths): Config {
   const { seatRow, screen, furniture, openings } = config.roomObjects
+  const { speakersInstalledFor } = config
   return {
     ...config,
     manualPositions: table.manualPositions
@@ -619,6 +656,9 @@ function roundedForLink(config: Config, table: MillimeterLengths): Config {
           table.manualPositions.lengths,
         )
       : config.manualPositions,
+    speakersInstalledFor:
+      speakersInstalledFor &&
+      roundedBy(speakersInstalledFor, table.speakersInstalledFor),
     roomObjects: {
       seatRow,
       screen: screen && roundedBy(screen, table.screen),

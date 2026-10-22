@@ -8,9 +8,11 @@ import {
   SUBWOOFER_ARRANGEMENT_SOURCE,
   SUBWOOFER_ARRANGEMENTS,
   SUBWOOFER_COUNTS,
+  speakersFollowSeat,
   V1_DOLBY_LAYOUTS,
   withAutoPlacement,
   withLayout,
+  withSpeakersFollowSeat,
   type SubwooferCount,
 } from '@/domain'
 import {
@@ -19,6 +21,7 @@ import {
   useSeatRecommendation,
 } from '@/state/config-context'
 import { Button } from '@/ui/components/button'
+import { Label } from '@/ui/components/label'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
 import { SidebarSection } from '@/ui/SidebarSection'
 
@@ -31,7 +34,8 @@ const CHOSEN_OPTION =
  * Auto-place button, which puts every manual item back to auto and the MLP
  * at the recommended seat (and is off while that would change nothing).
  * Under a ceiling of 8 ft or less it suggests Atmos-enabled speakers
- * instead of the layout's overhead speakers.
+ * instead of the layout's overhead speakers. Speakers follow the seat
+ * (GLOSSARY.md) says whether the auto speakers follow the MLP.
  */
 export function LayoutForm() {
   const subwoofersLabelId = useId()
@@ -115,6 +119,7 @@ export function LayoutForm() {
             reflect sound off the ceiling.
           </p>
         )}
+        <SpeakersFollowSeatField />
         <Button
           onClick={() => applyEdit(withAutoPlacement)}
           disabled={!canAutoPlace(config, recommendation)}
@@ -124,6 +129,44 @@ export function LayoutForm() {
         </Button>
       </div>
     </SidebarSection>
+  )
+}
+
+/**
+ * The Speakers follow the seat checkbox (on by default): on, the auto
+ * speakers are installed around the MLP and move with it; off, they stay
+ * where they are while the MLP moves. Each change is one undo step.
+ */
+function SpeakersFollowSeatField() {
+  const checkboxId = useId()
+  const hintId = useId()
+  const applyEdit = useConfig((state) => state.applyEdit)
+  const following = useConfig((state) => speakersFollowSeat(state.config))
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 max-lg:min-h-11">
+        <input
+          id={checkboxId}
+          type="checkbox"
+          checked={following}
+          aria-describedby={hintId}
+          onChange={(event) => {
+            const on = event.target.checked
+            applyEdit((config) => withSpeakersFollowSeat(config, on))
+          }}
+          className="size-4 accent-primary"
+        />
+        <Label htmlFor={checkboxId} className="font-normal">
+          Speakers follow the seat
+        </Label>
+      </div>
+      <p id={hintId} className="text-xs text-muted-foreground">
+        {following
+          ? 'Auto speakers move with the MLP. Turn this off to keep them where they are while you try other seats.'
+          : 'Auto speakers stay where they are when the MLP moves, and are graded from where it is. Turn this on to place them around the MLP again.'}
+      </p>
+    </div>
   )
 }
 

@@ -16,6 +16,7 @@ import {
   hasFixedHeight,
   keepInLayout,
   keepInRoom,
+  MLP_ID,
   placeablesIn,
   positionLength,
   type PlaceableId,
@@ -99,14 +100,18 @@ export function withPositionLength(
 }
 
 /**
- * The config in another Room; manual items and room objects the walls
+ * The config in another Room; manual items, the seat the auto speakers
+ * stay installed for (as if it were the MLP) and room objects the walls
  * moved past move in with them (and room objects shrink to fit).
  */
 export function withRoom(config: Config, room: Room): Config {
+  const { speakersInstalledFor } = config
   return {
     ...config,
     room,
     manualPositions: keepInRoom(room, config.manualPositions),
+    speakersInstalledFor:
+      speakersInstalledFor && clampToRoom(room, MLP_ID, speakersInstalledFor),
     roomObjects: keepRoomObjectsInRoom(room, config.roomObjects),
   }
 }

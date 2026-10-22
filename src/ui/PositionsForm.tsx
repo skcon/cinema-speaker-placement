@@ -2,11 +2,12 @@ import {
   checkRange,
   formatLength,
   FRONT_STAGE_WALL_DISTANCE,
+  placementLabel,
   positionLengths,
   withPositionLength,
   type PlaceableId,
   type PlacedItem,
-  type Placement,
+  type PlacementLabel,
   type PositionDimension,
   type PositionLength,
   type RoomPoint,
@@ -23,7 +24,8 @@ import { SidebarSubsection } from '@/ui/SidebarSection'
  * distances to the nearest walls, each editable (an overhead's height is the
  * ceiling's, shown with its elevation and grade). Editing an item (or
  * dragging it in the room view) makes it manual, so it stays put; auto
- * items follow the Room and the MLP until Auto-place resets them all.
+ * items follow the Room, and the MLP while Speakers follow the seat is on
+ * ("auto, stays" while it is off), until Auto-place resets them all.
  * A typed length outside the wall, floor or ceiling clearances is
  * rejected with the range the field accepts (positionLengths); a drag
  * stops at them instead.
@@ -32,16 +34,17 @@ export function PositionsForm() {
   // In the analysis's order: the channels, the overhead channels, the
   // subwoofers, then the MLP.
   const { items } = useRoomAnalysis()
-  const units = useConfig((state) => state.config.units)
+  const config = useConfig((state) => state.config)
+  const { units } = config
 
   return (
     <SidebarSubsection title="Positions">
       <p className="text-xs text-muted-foreground">
         Drag speakers and the MLP in the room view, or edit them here. Opening a
         row selects its item in the room view, with its distances. Moved items
-        are manual and stay where you put them; auto items follow the room and
-        the MLP. Auto-place puts everything back to auto and the MLP at the
-        recommended seat.
+        are manual and stay where you put them; auto items follow the room and,
+        while Speakers follow the seat is on, the MLP. Auto-place puts
+        everything back to auto and the MLP at the recommended seat.
       </p>
       <p className="text-xs text-muted-foreground">
         Auto-place keeps Dolby&rsquo;s angles and puts Left, Center and Right{' '}
@@ -60,7 +63,7 @@ export function PositionsForm() {
             abbreviation={item.kind === 'mlp' ? '' : item.id}
             name={item.name}
             position={item.position}
-            placement={item.placement}
+            placement={placementLabel(config, item)}
             {...heightOf(item)}
           />
         ))}
@@ -101,7 +104,7 @@ type PositionItemProps = {
   abbreviation: string
   name: string
   position: RoomPoint
-  placement: Placement
+  placement: PlacementLabel
   /** Editable, or fixed and shown as text with this label. */
   height: 'editable' | { fixed: string }
   /** A line shown under the height, if any. */

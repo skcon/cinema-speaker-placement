@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG, encodeConfig, type EncodedConfig } from '@/domain'
-import { IMPERIAL_ROOM, V2_LINKS } from '@/test/share-link-fixtures'
+import { IMPERIAL_ROOM, V3_LINKS } from '@/test/share-link-fixtures'
 import {
   RECENT_ROOMS_STORAGE_KEY,
   type KeyValueStorage,
 } from '@/state/recent-rooms-storage'
 import { createRecentRoomsStore } from '@/state/recent-rooms-store'
 
-const ROOM_A = V2_LINKS.imperialRoom.encoded as EncodedConfig
+const ROOM_A = V3_LINKS.imperialRoom.encoded as EncodedConfig
 const ROOM_B = encodeConfig(IMPERIAL_ROOM)
 
 /** A storage like localStorage, holding `stored` under the recent-rooms key. */

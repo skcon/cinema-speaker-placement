@@ -82,7 +82,15 @@ export {
   withSubwooferHasOwnSpecs,
   withSubwooferSpecs,
 } from './config-edits'
-export { canAutoPlace, withAutoPlacement, withMlpAt } from './auto-place'
+export {
+  canAutoPlace,
+  placementLabel,
+  speakersFollowSeat,
+  withAutoPlacement,
+  withMlpAt,
+  withSpeakersFollowSeat,
+} from './auto-place'
+export type { PlacementLabel } from './auto-place'
 export type { Placement } from './auto-place-policy'
 export {
   dragAnchors,

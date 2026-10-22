@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  analyzeRoom,
   DEFAULT_CONFIG,
   encodeConfig,
   withCrossover,
@@ -8,6 +9,7 @@ import {
   withPositionLength,
   withRoomDimension,
   withSubwooferHasOwnSpecs,
+  withSpeakersFollowSeat,
   withSubwooferSpecs,
   type Config,
   type DragTarget,
@@ -340,6 +342,60 @@ describe('undo and redo', () => {
     expect(store.getState().history.canUndo).toBe(false)
     store.getState().undo()
     expect(store.getState().config).toEqual(IMPERIAL_ROOM)
+  })
+})
+
+describe('Speakers follow the seat (#123)', () => {
+  /** Where Left is in the store's room. */
+  const left = (store: ConfigStore) =>
+    analyzeRoom(store.getState().config).speakers.find(
+      ({ channel }) => channel === 'L',
+    )?.position
+
+  it('makes turning it off and on one undo step each', () => {
+    const store = createConfigStore()
+
+    store
+      .getState()
+      .applyEdit((config) => withSpeakersFollowSeat(config, false))
+    const off = store.getState().config
+    store.getState().applyEdit((config) => withSpeakersFollowSeat(config, true))
+
+    store.getState().undo()
+    expect(store.getState().config).toEqual(off)
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('on: an MLP drag moves the speakers live, and is one undo step', () => {
+    const store = createConfigStore()
+    const before = left(store)
+
+    store.getState().beginGesture()
+    drag(store, 'MLP', { x: 0, y: 3 })
+    const during = left(store)
+    drag(store, 'MLP', { x: 0.2, y: 3.4 })
+    store.getState().endGesture()
+
+    expect(during).not.toEqual(before)
+    expect(left(store)).not.toEqual(during)
+    store.getState().undo()
+    expect(store.getState().config).toEqual(DEFAULT_CONFIG)
+    expect(store.getState().history.canUndo).toBe(false)
+  })
+
+  it('off: an MLP drag leaves the speakers where they are', () => {
+    const store = createConfigStore(
+      withSpeakersFollowSeat(DEFAULT_CONFIG, false),
+    )
+    const before = left(store)
+
+    store.getState().beginGesture()
+    drag(store, 'MLP', { x: 0.2, y: 3.4 })
+    store.getState().endGesture()
+
+    expect(left(store)).toEqual(before)
   })
 })
 

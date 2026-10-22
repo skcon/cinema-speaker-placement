@@ -44,10 +44,10 @@ describe('room view description', () => {
       'Top-down view of the room, 6 m long and 4.5 m wide, with the front ' +
         'wall at the top and the MLP 2.28 m from the front wall.',
       '5.1.2 listener-level speakers, angle from the MLP and Dolby ' +
-        'placement-range grade: Left 26° (ideal), Center 0° (ideal), Right ' +
-        '26° (ideal), Left Surround 115° (ideal), Right Surround 115° (ideal).',
-      // Left and Right at 26°, 1.78 m ahead: 1.78 / cos 26° = 1.98 m.
-      'Front speakers from the MLP: Left 1.98 m, Center 1.78 m, Right 1.98 m.',
+        'placement-range grade: Left 29° (ideal), Center 0° (ideal), Right ' +
+        '29° (ideal), Left Surround 115° (ideal), Right Surround 115° (ideal).',
+      // Left and Right at 29° (#121), 1.78 m ahead: 1.78 / cos 29° = 2.04 m.
+      'Front speakers from the MLP: Left 2.04 m, Center 1.78 m, Right 2.04 m.',
       '2 overhead speakers on the ceiling, angle and elevation from the MLP ' +
         'and Dolby placement-range grade: Left Top Middle elevation 83° ' +
         '(ideal), Right Top Middle elevation 83° (ideal).',

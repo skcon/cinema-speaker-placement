@@ -330,6 +330,45 @@ export const FRONT_STAGE_WALL_DISTANCE = {
 } as const satisfies { meters: number; note: string }
 
 /**
+ * Where auto-place aims Left and Right without a Screen (#121, ADR 0005
+ * amendment): at Dolby's 30° reference, less `edgeMargin` when that
+ * reference sits on the ideal range's edge. With every per-layout sheet's
+ * ideal 22°–30° (dolby-layouts.ts) that is 29°, so L–R spacing ÷ MLP→L is
+ * 2 sin 29° ≈ 0.97: a near-equilateral triangle with the MLP.
+ */
+export const LEFT_RIGHT_AIM = {
+  /** Dolby's L/R reference angle, on each side. */
+  nominal: 30,
+  /** Degrees kept inside the ideal range's edge. */
+  edgeMargin: 1,
+  citations: [
+    { source: 'IG', page: 7, note: 'uses ±30° as the L/R reference' },
+    {
+      source: 'IG',
+      page: 8,
+      figure: 'fig.3',
+      note: 'the 7.1.4 reference: L/R 30° nominal, range 22°–40°',
+    },
+  ],
+  note:
+    'ITU-R BS.775 also puts L/R at ±30° (docs/research/screen-and-front-' +
+    'stage.md section 3.1, from an excerpt). Dolby lists the 30° reference ' +
+    'in docs/research/dolby-speaker-placement.md section 3.',
+  assumption:
+    "Our choice, not Dolby's: 30° is the edge of the sheets' ideal " +
+    '22°–30°, and grades round to whole degrees, so a seat about 2% of the ' +
+    'way forward would already read 31°, acceptable. 1° inside the edge ' +
+    'keeps L/R ideal from a seat up to about 6% of the way forward and ' +
+    'still gives a near-equilateral triangle.',
+} as const satisfies {
+  nominal: number
+  edgeMargin: number
+  citations: readonly Citation[]
+  note: string
+  assumption: string
+}
+
+/**
  * How far a subwoofer's acoustic center stands off the wall it is placed
  * against. Auto-place keeps every subwoofer at least this far from every
  * wall.

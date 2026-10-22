@@ -116,7 +116,7 @@ describe('auto and manual items', () => {
     store.getState().moveDragTarget('MLP', { x: 0, y: 3.5 })
 
     expect(speaker(store, 'R').position).not.toEqual(autoRight)
-    expect(speaker(store, 'R').placementRange.azimuth.shown).toBe(26)
+    expect(speaker(store, 'R').placementRange.azimuth.shown).toBe(29)
     expect(speaker(store, 'L').position).toEqual({ x: -1, y: 1, z: 1.2 })
   })
 

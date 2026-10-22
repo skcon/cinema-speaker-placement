@@ -11,15 +11,15 @@ describe('distances of an item to the walls and the MLP', () => {
   it('gives Left in the default room its distances to the front and left walls and to the MLP', () => {
     // The default room is 6 m long and 4.5 m wide. The auto MLP is at 38%
     // of the length, y = 0.38 × 6 = 2.28 m, on the center line, at ear
-    // height 1.2 m. Left is auto-placed at -26° (the middle of Dolby's
-    // 22°–30°) where that angle meets the front-stage line 0.5 m from the
+    // height 1.2 m. Left is auto-placed at -29° (Dolby's 30° reference less a 1° margin,
+    // #121) where that angle meets the front-stage line 0.5 m from the
     // front wall, 2.28 − 0.5 = 1.78 m ahead, also at ear height. So
-    //   x = −1.78 × tan 26° = −1.78 × 0.48773 = −0.86816 m
+    //   x = −1.78 × tan 29° = −1.78 × 0.55431 = −0.98667 m
     //   y = 0.5 m
     // and it is
     //   0.5 m from the front wall (nearer than the back wall, 5.5 m),
-    //   2.25 − 0.86816 = 1.38184 m from the left wall (the right is 3.11816 m),
-    //   1.78 / cos 26° = 1.98043 m from the MLP (the same height).
+    //   2.25 − 0.98667 = 1.26333 m from the left wall (the right is 3.23667 m),
+    //   1.78 / cos 29° = 2.03517 m from the MLP (the same height).
     const { mlp, speakers } = analyzeRoom(DEFAULT_CONFIG)
     const left = speakers.find(({ channel }) => channel === 'L')!
 
@@ -29,8 +29,8 @@ describe('distances of an item to the walls and the MLP', () => {
     expect(along.wall).toBe('front')
     expect(along.meters).toBeCloseTo(0.5, 4)
     expect(across.wall).toBe('left')
-    expect(across.meters).toBeCloseTo(1.38184, 4)
-    expect(distances.mlp?.meters).toBeCloseTo(1.98043, 4)
+    expect(across.meters).toBeCloseTo(1.26333, 4)
+    expect(distances.mlp?.meters).toBeCloseTo(2.03517, 4)
   })
 
   it('draws each wall line straight to its wall, and the MLP line to the MLP', () => {
@@ -100,7 +100,7 @@ describe('distances of an item to the walls and the MLP', () => {
 
 describe('distances of the front-stage speakers to the MLP', () => {
   it('gives Left, Center and Right in the default room their straight-line distances to the MLP', () => {
-    // As above: Left is 1.78 / cos 26° = 1.98043 m from the MLP, Right
+    // As above: Left is 1.78 / cos 29° = 2.03517 m from the MLP, Right
     // mirrors it, and Center is straight ahead on the front-stage line,
     // 2.28 − 0.5 = 1.78 m away at the same height.
     const distances = frontStageDistances(analyzeRoom(DEFAULT_CONFIG))
@@ -110,9 +110,9 @@ describe('distances of the front-stage speakers to the MLP', () => {
       ['C', 'Center'],
       ['R', 'Right'],
     ])
-    expect(distances[0]?.meters).toBeCloseTo(1.98043, 4)
+    expect(distances[0]?.meters).toBeCloseTo(2.03517, 4)
     expect(distances[1]?.meters).toBeCloseTo(1.78, 4)
-    expect(distances[2]?.meters).toBeCloseTo(1.98043, 4)
+    expect(distances[2]?.meters).toBeCloseTo(2.03517, 4)
   })
 
   it('leaves out the surrounds, and a Center the layout does not have', () => {

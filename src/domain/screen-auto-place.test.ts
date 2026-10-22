@@ -292,7 +292,8 @@ describe('auto-place with a screen', () => {
       expect(
         noScreen.speakers.find((s) => s.channel === 'L')?.placementRange.azimuth
           .degrees,
-      ).toBeCloseTo(-26, 9)
+        // LEFT_RIGHT_AIM without a screen (#121)
+      ).toBeCloseTo(-29, 9)
     })
 
     it('leaves surrounds, overheads and subwoofers where they are without a screen', () => {

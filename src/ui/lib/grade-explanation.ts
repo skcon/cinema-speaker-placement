@@ -33,7 +33,7 @@ export type AngleExplanation = {
   readonly measuredAs: string
   /** Its grade, or null when Dolby gives no range for it. */
   readonly grade: PlacementGrade | null
-  /** The angle and its grade, for example "26°, ideal". */
+  /** The angle and its grade, for example "29°, ideal". */
   readonly reading: string
   readonly ranges: readonly RangeExplanation[]
   /** Why the angle is not graded, or null. */

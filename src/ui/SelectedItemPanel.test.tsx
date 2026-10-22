@@ -92,17 +92,17 @@ describe('the Selected item', () => {
     openPositionRow('Left')
 
     // Hand-computed in src/domain/item-distances.test.ts: 0.5 m from the
-    // front wall, 1.38184 m from the left wall, 1.98043 m from the MLP.
+    // front wall, 1.26333 m from the left wall, 2.03517 m from the MLP.
     expect(
       await within(panel()).findByRole('heading', { name: 'Left' }),
     ).toBeInTheDocument()
     expect(panel()).toHaveTextContent(
-      /Position\s*0\.5 m from the front wall, 1\.38 m from the left wall/,
+      /Position\s*0\.5 m from the front wall, 1\.26 m from the left wall/,
     )
     expect(panel()).toHaveTextContent(/Height\s*1\.2 m/)
-    expect(panel()).toHaveTextContent(/To the MLP\s*1\.98 m/)
+    expect(panel()).toHaveTextContent(/To the MLP\s*2\.04 m/)
     expect(panel()).toHaveTextContent(/Placement\s*auto/)
-    expect(await dimensionLines()).toEqual(['0.5 m', '1.38 m', '1.98 m'])
+    expect(await dimensionLines()).toEqual(['0.5 m', '1.26 m', '2.04 m'])
   })
 
   it('is selected by pressing it in the room view, which also reads out its distances', async () => {
@@ -114,7 +114,7 @@ describe('the Selected item', () => {
     expect(
       screen.getByRole('status', { name: 'Selected in the room view' }),
     ).toHaveTextContent(
-      'Left: 0.5 m to the front wall, 1.38 m to the left wall, 1.98 m to the MLP',
+      'Left: 0.5 m to the front wall, 1.26 m to the left wall, 2.04 m to the MLP',
     )
   })
 
@@ -186,7 +186,7 @@ describe('the Selected item', () => {
     const grade = await within(panel()).findByRole('region', {
       name: 'Grade',
     })
-    expect(grade).toHaveTextContent(/Angle\s*26°, ideal/)
+    expect(grade).toHaveTextContent(/Angle\s*29°, ideal/)
     expect(grade).toHaveTextContent(/Ideal range\s*22–30°/)
     expect(grade).toHaveTextContent(/Acceptable range\s*22–40°/)
     expect(grade).toHaveTextContent(

@@ -59,9 +59,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       page.getByRole('radio', { name: '5.1.2', checked: true }),
     ).toBeVisible()
     for (const label of [
-      'L 26°',
+      'L 29°',
       'C 0°',
-      'R 26°',
+      'R 29°',
       'Ls 115°',
       'Rs 115°',
       'Ltm 83°',
@@ -80,17 +80,17 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     if (!box) throw new Error('the room view has no canvas')
     // The view fits the 6 x 4.5 m room inside a 32 px margin, with the
     // front wall at the top (src/scene/top-down.ts). Left is auto-placed
-    // at (-0.868, 0.500) m (src/domain/item-distances.test.ts).
+    // at (-0.987, 0.500) m (src/domain/item-distances.test.ts).
     const zoom = Math.min((box.width - 64) / 4.5, (box.height - 64) / 6)
     await page.mouse.click(
-      box.x + box.width / 2 - 0.868 * zoom,
+      box.x + box.width / 2 - 0.987 * zoom,
       box.y + box.height / 2 + (0.5 - 3) * zoom,
     )
 
     const panel = page.getByRole('region', { name: 'Selected item' })
     await expect(panel.getByRole('heading', { name: 'Left' })).toBeVisible()
-    await expect(panel).toContainText('To the MLP1.98 m')
-    await expect(scene.getByText('1.98 m', { exact: true })).toBeVisible()
+    await expect(panel).toContainText('To the MLP2.04 m')
+    await expect(scene.getByText('2.04 m', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled()
 
     await page.keyboard.press('Escape')
@@ -235,7 +235,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('list', { name: 'Headroom' }).getByText('Rear surrounds'),
     ).toBeVisible()
-    for (const label of ['L 26°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
+    for (const label of ['L 29°', 'C 0°', 'Ls 100°', 'Lrs 143°', 'Rrs 143°']) {
       await expect(sharedScene.getByText(label, { exact: true })).toBeVisible()
     }
     // Seven listener-level speakers and two overheads.

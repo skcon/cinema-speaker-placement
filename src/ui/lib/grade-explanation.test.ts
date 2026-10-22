@@ -72,7 +72,7 @@ function defaultRoom() {
 }
 
 describe('explainGrade', () => {
-  it('explains Left in the default room: 26°, ideal, with both ranges, the conflict and the sources', () => {
+  it('explains Left in the default room: 29°, ideal, with both ranges, the conflict and the sources', () => {
     const left = defaultRoom().speakers.find(({ channel }) => channel === 'L')
 
     expect(
@@ -86,7 +86,7 @@ describe('explainGrade', () => {
           measuredAs:
             'From the MLP, from straight ahead at the screen, on the speaker’s own side.',
           grade: 'ideal',
-          reading: '26°, ideal',
+          reading: '29°, ideal',
           ranges: [
             {
               name: 'Ideal range',

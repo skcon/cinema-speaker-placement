@@ -68,7 +68,7 @@ export type SpeakerMarker = {
    */
   rotation: Vec3
   color: string
-  /** Channel and angle from the MLP, for example "L 26°". */
+  /** Channel and angle from the MLP, for example "L 29°". */
   label: string
   grade: PlacementGrade
   /**

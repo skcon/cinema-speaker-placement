@@ -177,7 +177,7 @@ describe('the Selected item', () => {
       'front',
       'left',
     ])
-    expect(item?.distances.mlp?.meters).toBeCloseTo(1.98043, 4)
+    expect(item?.distances.mlp?.meters).toBeCloseTo(2.03517, 4)
   })
 
   it('measures an overhead and a subwoofer to the MLP too', () => {

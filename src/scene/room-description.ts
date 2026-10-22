@@ -89,7 +89,7 @@ export function describeRoomView({
 
 /**
  * How far the front-stage speakers are from the MLP, for example "Front
- * speakers from the MLP: Left 1.98 m, Center 1.78 m, Right 1.98 m.", or
+ * speakers from the MLP: Left 2.04 m, Center 1.78 m, Right 2.04 m.", or
  * '' when the layout has none.
  */
 export function describeFrontStageDistances(

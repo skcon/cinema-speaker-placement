@@ -187,7 +187,7 @@ describe('front speakers in the room view', () => {
     renderRoomView()
 
     expect(scene().getAttribute('aria-label')).toContain(
-      'Front speakers from the MLP: Left 1.98 m, Center 1.78 m, Right 1.98 m.',
+      'Front speakers from the MLP: Left 2.04 m, Center 1.78 m, Right 2.04 m.',
     )
   })
 })

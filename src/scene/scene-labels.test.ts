@@ -29,9 +29,13 @@ const WIDE_ROOM: Config = {
   room: { ...DEFAULT_CONFIG.room, length: 4, width: 6 },
 }
 
-/** The room view's canvas on a 390x844 phone and on a 1440x900 desktop. */
+/**
+ * The room view's canvas on a 390x844 phone, on a 1440x900 desktop and
+ * on the 1280x720 desktop of the e2e smoke test (a very small room view).
+ */
 const PHONE: ViewportSize = { width: 326, height: 384 }
 const DESKTOP: ViewportSize = { width: 1086, height: 330 }
+const SMALL: ViewportSize = { width: 958, height: 214.4 }
 
 function labelsFor(config: Config, selected: PlaceableId | null = null) {
   const analysis = analyzeRoom(config)
@@ -285,6 +289,7 @@ describe('laid-out scene labels (issue #124)', () => {
   for (const [name, viewport] of [
     ['phone', PHONE],
     ['desktop', DESKTOP],
+    ['small desktop', SMALL],
   ] as const) {
     it(`never overlap in the 4x6 m room on a ${name}`, () => {
       expect(collisions(laidOutBoxes(WIDE_ROOM, viewport))).toEqual([])

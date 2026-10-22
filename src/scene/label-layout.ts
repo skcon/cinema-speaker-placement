@@ -63,13 +63,14 @@ const RING_STEP_PX = 6
 
 /**
  * How many rings of candidate places a label tries. With RING_STEP_PX this
- * keeps a label within about 25 px of its anchor beyond its gap, so it
- * still reads as its item's.
+ * keeps a label within about 55 px of its anchor beyond its gap; nearer
+ * places come first (see candidatePlacements), so it only goes that far in
+ * a view too small for its neighbours.
  */
-const RINGS = 5
+const RINGS = 10
 
 /** How far apart candidate places are along a ring, at most, in pixels. */
-const SLIDE_STEP_PX = 4
+const SLIDE_STEP_PX = 8
 
 /**
  * What dropping a label's secondary text counts as, in pixels moved: a
@@ -175,31 +176,66 @@ function bestPlacement(
 
 /**
  * The places a label may go, best first: all around its anchor, ring by
- * ring further out, nearest its preferred place first, with dropping its
- * secondary text (compact, if it has any) counted as COMPACT_COST_PX of
- * moving. A centered label may also stay centered.
+ * ring further out, nearest its preferred place first (to the pixel, the
+ * nearer ring first within one), with dropping its secondary text
+ * (compact, if it has any) counted as COMPACT_COST_PX of moving. A
+ * centered label may also stay centered. Lazy: a ring is only made once
+ * the places before it are used up, as most labels take one of the first
+ * few, and the layout runs on every drag frame.
  */
-function candidatePlacements(label: LabelToPlace): LabelPlacement[] {
+function* candidatePlacements(label: LabelToPlace): Generator<LabelPlacement> {
   const preferred = offsetAlong(label.direction, label.size, label.gap)
   const centered = label.direction.x === 0 && label.direction.y === 0
-  const sizes: [LabelSize, boolean][] = [[label.size, false]]
-  if (label.compactSize) sizes.push([label.compactSize, true])
-  const scored = sizes.flatMap(([size, compact]) => {
-    const offsets = Array.from({ length: RINGS }, (_, ring) =>
-      aroundAnchor(size, label.gap + ring * RING_STEP_PX),
-    ).flat()
-    if (centered) offsets.unshift({ x: 0, y: 0 })
-    return offsets.map((offset) => ({
-      placement: { offset, compact },
-      cost:
-        Math.hypot(offset.x - preferred.x, offset.y - preferred.y) +
-        (compact ? COMPACT_COST_PX : 0),
-    }))
-  })
-  // Array.prototype.sort is stable: ties keep the nearer ring first.
-  return scored
-    .sort((a, b) => a.cost - b.cost)
-    .map(({ placement }) => placement)
+  const kinds = [{ size: label.size, compact: false, extra: 0, nextRing: 0 }]
+  if (label.compactSize) {
+    // The compact rings sit inside the full ones by up to this much, so a
+    // compact ring r is at least r rings' worth minus this from `preferred`.
+    const inset = Math.max(
+      (label.size.width - label.compactSize.width) / 2,
+      (label.size.height - label.compactSize.height) / 2,
+    )
+    kinds.push({
+      size: label.compactSize,
+      compact: true,
+      extra: inset,
+      nextRing: 0,
+    })
+  }
+  // The least cost of any place in a kind's ring: the full rings grow
+  // RING_STEP_PX apart from the one `preferred` is on.
+  const leastCost = (kind: (typeof kinds)[number], ring: number) =>
+    (kind.compact ? COMPACT_COST_PX : 0) +
+    Math.max(0, ring * RING_STEP_PX - kind.extra)
+  const byCost: LabelPlacement[][] = []
+  const add = (offset: ScreenPoint, compact: boolean) => {
+    const dx = offset.x - preferred.x
+    const dy = offset.y - preferred.y
+    const cost = Math.sqrt(dx * dx + dy * dy) + (compact ? COMPACT_COST_PX : 0)
+    ;(byCost[Math.floor(cost)] ??= []).push({ offset, compact })
+  }
+  if (centered) kinds.forEach((kind) => add({ x: 0, y: 0 }, kind.compact))
+  for (let cost = 0; ; cost++) {
+    // Make every ring that may hold a place costing less than cost + 1.
+    kinds.forEach((kind) => {
+      while (
+        kind.nextRing < RINGS &&
+        leastCost(kind, kind.nextRing) < cost + 1
+      ) {
+        const gap = label.gap + kind.nextRing * RING_STEP_PX
+        for (const offset of aroundAnchor(kind.size, gap)) {
+          add(offset, kind.compact)
+        }
+        kind.nextRing++
+      }
+    })
+    yield* byCost[cost] ?? []
+    if (
+      cost >= byCost.length &&
+      kinds.every((kind) => kind.nextRing === RINGS)
+    ) {
+      return
+    }
+  }
 }
 
 /**
@@ -278,10 +314,8 @@ function area(box: ScreenBox): number {
 }
 
 function overlapArea(a: ScreenBox, b: ScreenBox): number {
-  return area({
-    left: Math.max(a.left, b.left),
-    top: Math.max(a.top, b.top),
-    right: Math.min(a.right, b.right),
-    bottom: Math.min(a.bottom, b.bottom),
-  })
+  // No box object made: it runs for every candidate place and box.
+  const width = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+  const height = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+  return width > 0 && height > 0 ? width * height : 0
 }

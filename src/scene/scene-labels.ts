@@ -105,7 +105,7 @@ export const LABEL_METRICS = {
  * pixels). The label layout keeps LABEL_MARGIN_PX of air for the rest.
  */
 const CHAR_WIDTHS = {
-  narrow: { chars: "fijlrtI1 .,:°'", em: 0.3 },
+  narrow: { chars: "fijlrtI .,:°'", em: 0.3 },
   wide: { chars: 'mwMW←→', em: 0.9 },
   digit: { em: 0.58 },
   upper: { em: 0.68 },

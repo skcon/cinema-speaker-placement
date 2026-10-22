@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { SEATING_DISTANCE } from '../src/domain/reference.ts'
 import { V1_LINKS, V2_LINKS } from '../src/test/share-link-fixtures.ts'
 
 /** The part of HTMLCanvasElement we use (e2e is typechecked without the DOM lib). */
@@ -12,7 +13,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, and reopens a recent room', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, reopens a recent room, and auto-places a wide room at phone width with the seat off the front stage', async ({
   page,
 }) => {
   await page.goto('./')
@@ -358,5 +359,49 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(dimensionInput(page, 'Length', 'm')).toHaveValue('6')
     await page.goBack()
     await expect(dimensionInput(page, 'Length', 'ft')).toHaveValue('30')
+  })
+
+  await test.step('at phone width, Auto-place in a wide 4 x 6 m room puts the seat behind the front stage, not on it', async () => {
+    // Build the link in the app: the default room made 4 m long and 6 m
+    // wide, with the MLP moved by hand up to the front stage.
+    await page.goto('./')
+    await dimensionInput(page, 'Length', 'm').fill('4')
+    await dimensionInput(page, 'Width', 'm').fill('6')
+    const mlp = page.getByRole('group', { name: 'MLP position' })
+    await mlp.locator('summary').click()
+    const fromFrontWall = mlp
+      .getByRole('group', { name: /^From the front wall/ })
+      .getByRole('textbox', { name: 'm' })
+    await fromFrontWall.fill('0.8')
+    await fromFrontWall.press('Tab')
+    await expect(mlp).toContainText('manual')
+    await expect(page).toHaveURL((url) => url.searchParams.has('config'))
+    const wideRoomLink = page.url()
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(wideRoomLink)
+    const wideScene = page
+      .getByRole('region', { name: 'Room view' })
+      .getByRole('img', {
+        name: /^Top-down view of the room, 4 m long and 6 m wide/,
+      })
+    await expect(wideScene).toBeVisible()
+
+    await page.getByRole('button', { name: 'Auto-place' }).click()
+
+    // The seat keeps the seating distances (#119): its head at least
+    // behindFrontStage behind the Left-Center-Right line, so each front
+    // speaker is at least that far from it. Thresholds, not exact
+    // distances, as seat-score tuning moves the seat.
+    await expect
+      .poll(async () => {
+        const description = (await wideScene.getAttribute('aria-label')) ?? ''
+        const front =
+          /Front speakers from the MLP: Left ([\d.]+) m, Center ([\d.]+) m, Right ([\d.]+) m\./.exec(
+            description,
+          )
+        return front ? Math.min(...front.slice(1).map(Number)) : 0
+      })
+      .toBeGreaterThanOrEqual(SEATING_DISTANCE.behindFrontStage)
   })
 })

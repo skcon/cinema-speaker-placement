@@ -1,9 +1,9 @@
 import {
   formatLength,
   FRONT_STAGE_WALL_DISTANCE,
-  MLP_ID,
   wallDistances,
   type PlaceableId,
+  type PlacedItem,
   type Placement,
   type RoomPoint,
   type UnitSystem,
@@ -23,8 +23,9 @@ import { SidebarSubsection } from '@/ui/SidebarSection'
  * items follow the Room and the MLP until Auto-place resets them all.
  */
 export function PositionsForm() {
-  const { mlp, mlpPlacement, speakers, overheads, subwoofers } =
-    useRoomAnalysis()
+  // In the analysis's order: the channels, the overhead channels, the
+  // subwoofers, then the MLP.
+  const { items } = useRoomAnalysis()
   const units = useConfig((state) => state.config.units)
 
   return (
@@ -46,56 +47,59 @@ export function PositionsForm() {
         sound arrives, exactly at the MLP and less so at other seats.
       </p>
       <ul className="flex flex-col">
-        {speakers.map(({ channel, name, position, placement }) => (
+        {[...items.values()].map((item) => (
           <PositionItem
-            key={channel}
-            id={channel}
-            abbreviation={channel}
-            name={name}
-            position={position}
-            placement={placement}
-            height="editable"
+            key={item.id}
+            id={item.id}
+            abbreviation={item.kind === 'mlp' ? '' : item.id}
+            name={item.name}
+            position={item.position}
+            placement={item.placement}
+            {...heightOf(item)}
           />
         ))}
-        {overheads.map(
-          ({ channel, name, position, placement, placementRange }) => (
-            <PositionItem
-              key={channel}
-              id={channel}
-              abbreviation={channel}
-              name={name}
-              position={position}
-              placement={placement}
-              height={{ fixed: 'Ceiling' }}
-              note={
-                `Elevation ${placementRange.elevation.shown}° ` +
-                `(${GRADE_STYLES[placementRange.elevation.grade].label})`
-              }
-            />
-          ),
-        )}
-        {subwoofers.map(({ id, name, position, placement }) => (
-          <PositionItem
-            key={id}
-            id={id}
-            abbreviation={id}
-            name={name}
-            position={position}
-            placement={placement}
-            height={{ fixed: 'Height' }}
-          />
-        ))}
-        <PositionItem
-          id={MLP_ID}
-          abbreviation=""
-          name="MLP"
-          position={mlp}
-          placement={mlpPlacement}
-          height={{ fixed: 'Ear height' }}
-        />
       </ul>
     </SidebarSubsection>
   )
+}
+
+/**
+ * How an item's height is shown, by its kind: a listener-level speaker's
+ * is editable; the others' are fixed, an overhead's with its elevation
+ * and grade under it.
+ */
+function heightOf(
+  item: PlacedItem,
+): Pick<PositionItemProps, 'height' | 'note'> {
+  switch (item.kind) {
+    case 'listenerLevel':
+      return { height: 'editable' }
+    case 'overhead': {
+      const { elevation } = item.placementRange
+      return {
+        height: { fixed: 'Ceiling' },
+        note:
+          `Elevation ${elevation.shown}° ` +
+          `(${GRADE_STYLES[elevation.grade].label})`,
+      }
+    }
+    case 'subwoofer':
+      return { height: { fixed: 'Height' } }
+    case 'mlp':
+      return { height: { fixed: 'Ear height' } }
+  }
+}
+
+type PositionItemProps = {
+  id: PlaceableId
+  abbreviation: string
+  name: string
+  position: RoomPoint
+  placement: Placement
+  /** Editable, or fixed and shown as text with this label. */
+  height: 'editable' | { fixed: string }
+  /** A line shown under the height, if any. */
+  note?: string
 }
 
 function PositionItem({
@@ -106,17 +110,7 @@ function PositionItem({
   placement,
   height,
   note,
-}: {
-  id: PlaceableId
-  abbreviation: string
-  name: string
-  position: RoomPoint
-  placement: Placement
-  /** Editable, or fixed and shown as text with this label. */
-  height: 'editable' | { fixed: string }
-  /** A line shown under the height, if any. */
-  note?: string
-}) {
+}: PositionItemProps) {
   const room = useConfig((state) => state.config.room)
   const units = useConfig((state) => state.config.units)
   const setItemHeight = useConfig((state) => state.setItemHeight)

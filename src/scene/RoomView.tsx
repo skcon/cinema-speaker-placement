@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useState } from 'react'
-import { pressSelects, UNIT_SYSTEMS, type DragTarget } from '@/domain'
+import {
+  pressSelects,
+  UNIT_SYSTEMS,
+  withDragged,
+  type DragTarget,
+} from '@/domain'
 import {
   useConfig,
   useRoomAnalysis,
@@ -50,7 +55,7 @@ export function RoomView() {
   const config = useConfig((state) => state.config)
   const { room, units } = config
   const beginGesture = useConfig((state) => state.beginGesture)
-  const moveDragTarget = useConfig((state) => state.moveDragTarget)
+  const applyEdit = useConfig((state) => state.applyEdit)
   const endGesture = useConfig((state) => state.endGesture)
   const analysis = useRoomAnalysis()
   const { overheads, seatRow, seatRuleOfThumb } = analysis
@@ -129,7 +134,9 @@ export function RoomView() {
             units={units}
             grabAreas={areas}
             onDragStart={beginGesture}
-            onDragMove={moveDragTarget}
+            onDragMove={(target, to) =>
+              applyEdit((config) => withDragged(config, target, to))
+            }
             onDragEnd={endGesture}
             selection={selection}
             onSelect={press}

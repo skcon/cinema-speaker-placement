@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { withRoomDimension } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { RoomForm } from '@/ui/RoomForm'
@@ -9,9 +10,13 @@ import { RoomForm } from '@/ui/RoomForm'
  * store, as decoding a share link or undo will.
  */
 function SetLengthElsewhere({ meters }: { meters: number }) {
-  const setRoomDimension = useConfig((state) => state.setRoomDimension)
+  const applyEdit = useConfig((state) => state.applyEdit)
   return (
-    <button onClick={() => setRoomDimension('length', meters)}>
+    <button
+      onClick={() =>
+        applyEdit((config) => withRoomDimension(config, 'length', meters))
+      }
+    >
       Set the length elsewhere
     </button>
   )

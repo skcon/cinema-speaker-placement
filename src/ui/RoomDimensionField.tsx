@@ -1,4 +1,8 @@
-import { checkRoomDimension, type RoomDimension } from '@/domain'
+import {
+  checkRoomDimension,
+  withRoomDimension,
+  type RoomDimension,
+} from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { CheckedLengthField } from '@/ui/CheckedLengthField'
 import {
@@ -20,7 +24,7 @@ export function RoomDimensionField({
 }) {
   const meters = useConfig((state) => state.config.room[dimension])
   const units = useConfig((state) => state.config.units)
-  const setRoomDimension = useConfig((state) => state.setRoomDimension)
+  const applyEdit = useConfig((state) => state.applyEdit)
 
   return (
     <CheckedLengthField
@@ -31,7 +35,9 @@ export function RoomDimensionField({
       errorMessage={(problem) =>
         roomDimensionErrorMessage(dimension, problem, units)
       }
-      onChange={(value) => setRoomDimension(dimension, value)}
+      onChange={(value) =>
+        applyEdit((config) => withRoomDimension(config, dimension, value))
+      }
     />
   )
 }

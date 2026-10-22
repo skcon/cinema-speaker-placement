@@ -191,7 +191,7 @@ export function RoomCanvas({
   const labelLayer = useRef<HTMLDivElement>(null!)
   const [cursor, setCursor] = useState<DragCursor>('auto')
   // One controller for every marker, so only one pointer drags at a time.
-  // The callbacks are store actions, which never change.
+  // The callbacks only call store actions, which never change.
   const [controller] = useState(() => createDragController(callbacks))
   // A drag can't outlive the window's focus (alt-tab mid-drag, say).
   useEffect(() => {

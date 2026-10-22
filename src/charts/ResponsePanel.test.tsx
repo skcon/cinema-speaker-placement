@@ -1,13 +1,24 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ResponsePanel } from '@/charts/ResponsePanel'
+import { withLayout } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 
 /** Stands in for the layout form: switches to four subwoofers. */
 function FourSubwoofersButton() {
-  const setSubwooferCount = useConfig((state) => state.setSubwooferCount)
-  return <button onClick={() => setSubwooferCount(4)}>Four subwoofers</button>
+  const applyEdit = useConfig((state) => state.applyEdit)
+  return (
+    <button
+      onClick={() =>
+        applyEdit((config) =>
+          withLayout(config, { ...config.layout, subwoofers: 4 }),
+        )
+      }
+    >
+      Four subwoofers
+    </button>
+  )
 }
 
 function renderPanel() {

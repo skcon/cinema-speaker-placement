@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { withRoomDimension } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
 import { LayoutForm } from '@/ui/LayoutForm'
@@ -12,11 +13,15 @@ function StoredLayout() {
 
 /** Sets the room height and the units, as the room form would. */
 function RoomControls() {
-  const setRoomDimension = useConfig((state) => state.setRoomDimension)
+  const applyEdit = useConfig((state) => state.applyEdit)
   const setUnits = useConfig((state) => state.setUnits)
   return (
     <>
-      <button onClick={() => setRoomDimension('height', 2.4)}>
+      <button
+        onClick={() =>
+          applyEdit((config) => withRoomDimension(config, 'height', 2.4))
+        }
+      >
         Ceiling 2.4 m
       </button>
       <button onClick={() => setUnits('imperial')}>Imperial</button>

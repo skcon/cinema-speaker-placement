@@ -1,7 +1,12 @@
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { analyzeRoom, encodeConfig } from '@/domain'
+import {
+  analyzeRoom,
+  encodeConfig,
+  withRoomObjectAdded,
+  type RoomObjectAddition,
+} from '@/domain'
 import { createAppRouter } from '@/router'
 import { createConfigStore } from '@/state/config-store'
 
@@ -18,7 +23,10 @@ vi.mock('@/domain', async (importOriginal) => {
 /** The share link of the default room with four furniture boxes and three openings. */
 function roomWithObjectsPath() {
   const store = createConfigStore()
-  const { addRoomObject } = store.getState()
+  const addRoomObject = (addition: RoomObjectAddition) =>
+    store
+      .getState()
+      .applyEdit((config) => withRoomObjectAdded(config, addition))
   addRoomObject({ kind: 'furniture', preset: 'cabinet' })
   addRoomObject({ kind: 'furniture', preset: 'table' })
   addRoomObject({ kind: 'furniture', preset: 'shelf' })

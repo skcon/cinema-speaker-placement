@@ -9,6 +9,8 @@ import {
   SUBWOOFER_ARRANGEMENTS,
   SUBWOOFER_COUNTS,
   V1_DOLBY_LAYOUTS,
+  withAutoPlacement,
+  withLayout,
   type SubwooferCount,
 } from '@/domain'
 import {
@@ -34,9 +36,7 @@ const CHOSEN_OPTION =
 export function LayoutForm() {
   const subwoofersLabelId = useId()
   const layout = useConfig((state) => state.config.layout)
-  const setLayout = useConfig((state) => state.setLayout)
-  const setSubwooferCount = useConfig((state) => state.setSubwooferCount)
-  const autoPlace = useConfig((state) => state.autoPlace)
+  const applyEdit = useConfig((state) => state.applyEdit)
   const config = useConfig((state) => state.config)
   const recommendation = useSeatRecommendation()
   const suggestsAtmosEnabled = useRoomAnalysis().suggestsAtmosEnabledSpeakers
@@ -57,7 +57,10 @@ export function LayoutForm() {
           onValueChange={(value) => {
             // Clicking the chosen option again sends '' (nothing chosen): ignore it.
             const dolbyLayout = V1_DOLBY_LAYOUTS.find((name) => name === value)
-            if (dolbyLayout) setLayout(dolbyLayout)
+            if (!dolbyLayout) return
+            applyEdit((config) =>
+              withLayout(config, { ...config.layout, dolbyLayout }),
+            )
           }}
           className="grid w-full grid-cols-4"
         >
@@ -84,7 +87,10 @@ export function LayoutForm() {
             onValueChange={(value) => {
               // As above, '' means the chosen count was clicked again.
               const count = SUBWOOFER_COUNTS.find((n) => String(n) === value)
-              if (count) setSubwooferCount(count)
+              if (!count) return
+              applyEdit((config) =>
+                withLayout(config, { ...config.layout, subwoofers: count }),
+              )
             }}
             className="grid w-full grid-cols-4"
           >
@@ -110,7 +116,7 @@ export function LayoutForm() {
           </p>
         )}
         <Button
-          onClick={autoPlace}
+          onClick={() => applyEdit(withAutoPlacement)}
           disabled={!canAutoPlace(config, recommendation)}
           className="self-start max-lg:h-11"
         >

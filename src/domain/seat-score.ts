@@ -25,10 +25,10 @@
  * reference.ts, issue #119, ADR 0005 amendment) can be recommended: far
  * enough from every listener-level speaker installed for the seat, every
  * subwoofer and the side and back walls, and far enough behind the
- * front-stage line. That is a
- * hard filter, not a weight: with the auto speakers installed for every
- * seat, a seat right behind a tiny front stage still has ideal angles,
- * and bass alone could win it the recommendation. When no seat of the
+ * front-stage line. That is a hard filter, not a weight: with the auto
+ * speakers installed for every seat, a seat right behind a tiny front
+ * stage still has ideal angles, and bass alone could win it the
+ * recommendation. When no seat of the
  * grid keeps them (a very small room), the seats that come nearest do.
  *
  * The best seat on the room's center line is preferred (ADR 0005:

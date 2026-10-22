@@ -71,8 +71,9 @@ export function RecommendedSeat() {
         target) and on the listener-level speakers&rsquo; Dolby placement ranges
         (auto speakers installed symmetric to the room), with the receiver
         calibrated at the MLP. Only seats at least{' '}
-        {formatLength(SEATING_DISTANCE.fromSpeaker, units)} from every speaker,
-        subwoofer, side and back wall, and{' '}
+        {formatLength(SEATING_DISTANCE.fromSpeaker, units)} from every speaker
+        and subwoofer, {formatLength(SEATING_DISTANCE.fromWall, units)} from the
+        side and back walls, and{' '}
         {formatLength(SEATING_DISTANCE.behindFrontStage, units)} behind the
         front speakers, count. The best seat on the center line is preferred, as
         in published practice, unless a seat off it scores meaningfully better.

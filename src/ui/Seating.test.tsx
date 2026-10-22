@@ -68,7 +68,7 @@ describe('seating in the sidebar', () => {
       await within(seating).findByText(/Your MLP scores/),
     ).toHaveTextContent(/too close to a speaker, a wall or the front stage/)
     expect(seating).toHaveTextContent(
-      /at least 0\.5 m from every speaker, subwoofer, side and back wall, and 1\.5 m behind the front speakers/,
+      /at least 0\.5 m from every speaker and subwoofer, 0\.5 m from the side and back walls, and 1\.5 m behind the front speakers/,
     )
   })
 

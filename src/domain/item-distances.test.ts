@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeRoom, DEFAULT_CONFIG, itemDistances } from '@/domain'
+import {
+  analyzeRoom,
+  DEFAULT_CONFIG,
+  frontStageDistances,
+  itemDistances,
+  type ChannelId,
+} from '@/domain'
 
 describe('distances of an item to the walls and the MLP', () => {
   it('gives Left in the default room its distances to the front and left walls and to the MLP', () => {
@@ -89,5 +95,46 @@ describe('distances of an item to the walls and the MLP', () => {
     expect(distances.walls[0]).toMatchObject({ wall: 'front' })
     expect(distances.walls[0].meters).toBeCloseTo(2.28, 9)
     expect(distances.walls[1]).toMatchObject({ wall: 'left', meters: 2.25 })
+  })
+})
+
+describe('distances of the front-stage speakers to the MLP', () => {
+  it('gives Left, Center and Right in the default room their straight-line distances to the MLP', () => {
+    // As above: Left is 1.78 / cos 26° = 1.98043 m from the MLP, Right
+    // mirrors it, and Center is straight ahead on the front-stage line,
+    // 2.28 − 0.5 = 1.78 m away at the same height.
+    const distances = frontStageDistances(analyzeRoom(DEFAULT_CONFIG))
+
+    expect(distances.map(({ channel, name }) => [channel, name])).toEqual([
+      ['L', 'Left'],
+      ['C', 'Center'],
+      ['R', 'Right'],
+    ])
+    expect(distances[0]?.meters).toBeCloseTo(1.98043, 4)
+    expect(distances[1]?.meters).toBeCloseTo(1.78, 4)
+    expect(distances[2]?.meters).toBeCloseTo(1.98043, 4)
+  })
+
+  it('leaves out the surrounds, and a Center the layout does not have', () => {
+    const mlp = { x: 0, y: 5, z: 1.2 }
+    const speakerAt = (channel: ChannelId, x: number, y: number) => ({
+      channel,
+      name: channel,
+      position: { x, y, z: mlp.z },
+    })
+
+    const distances = frontStageDistances({
+      mlp,
+      speakers: [
+        speakerAt('L', -3, 1),
+        speakerAt('R', 3, 1),
+        speakerAt('Ls', -1, 5),
+      ],
+    })
+
+    expect(distances).toEqual([
+      { channel: 'L', name: 'L', meters: 5 },
+      { channel: 'R', name: 'R', meters: 5 },
+    ])
   })
 })

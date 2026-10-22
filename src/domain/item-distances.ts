@@ -1,3 +1,6 @@
+import type { ChannelId } from './dolby-layouts'
+import type { PlacedSpeaker } from './placed-items'
+import { isFrontStageChannel } from './placement'
 import { distanceBetween, type Room, type RoomPoint, type Wall } from './room'
 import { atDistanceFromWall, wallDistances } from './wall-frame'
 
@@ -44,4 +47,38 @@ export function itemDistances(
     walls: [toWall(along), toWall(across)],
     mlp: mlp && { from: item, to: mlp, meters: distanceBetween(item, mlp) },
   }
+}
+
+/** How far one front-stage speaker (L, C or R) is from the MLP. */
+export type FrontStageDistance = {
+  readonly channel: ChannelId
+  /** Dolby's name for the channel, for example "Left". */
+  readonly name: string
+  /** Straight to the MLP, in 3D, in meters. */
+  readonly meters: number
+}
+
+/**
+ * How far each of the layout's front-stage speakers (L, C and R, in
+ * Dolby's channel order; a layout without a Center has none) is from the
+ * MLP, in a straight line: a bunched or lopsided front stage shows as
+ * short or uneven distances.
+ */
+export function frontStageDistances({
+  mlp,
+  speakers,
+}: {
+  readonly mlp: RoomPoint
+  readonly speakers: readonly Pick<
+    PlacedSpeaker,
+    'channel' | 'name' | 'position'
+  >[]
+}): readonly FrontStageDistance[] {
+  return speakers
+    .filter(({ channel }) => isFrontStageChannel(channel))
+    .map(({ channel, name, position }) => ({
+      channel,
+      name,
+      meters: distanceBetween(position, mlp),
+    }))
 }

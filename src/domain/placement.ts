@@ -342,6 +342,11 @@ function placeCenterAtScreen(
 /** The channels auto-place puts near the front wall (rule 2 above). */
 const FRONT_STAGE_CHANNELS: ReadonlySet<ChannelId> = new Set(['L', 'C', 'R'])
 
+/** Whether `channel` is on the front stage: L, C or R. */
+export function isFrontStageChannel(channel: ChannelId): boolean {
+  return FRONT_STAGE_CHANNELS.has(channel)
+}
+
 /** Turn a speaker at `position` to face the MLP (rule 5 above). */
 export function aimAtMlp(position: RoomPoint, mlp: RoomPoint): Aim {
   return { yaw: bearingTo(position, mlp) }

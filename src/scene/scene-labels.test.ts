@@ -120,7 +120,7 @@ describe('scene labels', () => {
         '← 6 m →',
         'MLP',
         'Recommended',
-        'L 26°',
+        'L 29°',
         'Sub1',
       ]),
     )
@@ -136,7 +136,7 @@ describe('scene labels', () => {
     for (const label of labels) {
       expect(label.detail !== undefined).toBe(label.kind === 'speaker')
     }
-    expect(labels.find((label) => label.text === 'L 26°')?.detail).toBe('ideal')
+    expect(labels.find((label) => label.text === 'L 29°')?.detail).toBe('ideal')
   })
 
   it('fix the wall labels in place and put them first', () => {

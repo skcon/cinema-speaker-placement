@@ -75,7 +75,7 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       scene.getByText('ideal', { exact: true }).first(),
     ).toBeVisible()
-    await expect(scene).toHaveAccessibleName(/Left 26° \(ideal\)/)
+    await expect(scene).toHaveAccessibleName(/Left 29° \(ideal\)/)
     await expect(
       page.getByRole('table', { name: 'Speakers' }).getByText('Left Surround'),
     ).toBeVisible()

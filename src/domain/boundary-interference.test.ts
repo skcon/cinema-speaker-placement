@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeRoom, DEFAULT_CONFIG } from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG } from './config'
 import {
   boundaryInterference,
   boundaryReflections,

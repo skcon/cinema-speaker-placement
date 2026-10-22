@@ -6,7 +6,7 @@ import {
   toInches,
   UNIT_SYSTEMS,
   type Rounding,
-} from '@/domain'
+} from './units'
 
 const { metric, imperial } = UNIT_SYSTEMS
 

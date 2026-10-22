@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  LOW_CEILING_FOR_OVERHEADS,
-  suggestsAtmosEnabledSpeakers,
-  type Config,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { suggestsAtmosEnabledSpeakers } from './atmos-enabled'
+import { DEFAULT_CONFIG, type Config } from './config'
+import { LOW_CEILING_FOR_OVERHEADS } from './reference'
 
 const WITH_OVERHEADS: Config['layout'] = { dolbyLayout: '7.1.4', subwoofers: 1 }
 const WITHOUT_OVERHEADS: Config['layout'] = {

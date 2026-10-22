@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  type Config,
-  type DolbyLayout,
-  type OverheadChannelId,
-  type Room,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import type { DolbyLayout, OverheadChannelId } from './dolby-layouts'
+import type { Room } from './room'
 
 function config(dolbyLayout: DolbyLayout, room: Room = DEFAULT_CONFIG.room) {
   return {

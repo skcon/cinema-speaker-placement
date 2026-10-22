@@ -1,21 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  type Config,
-  type ResponseRow,
-  type RoomPoint,
-  type SubwooferCount,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import type { SubwooferCount } from './layout'
 import { yardsticksFor } from '@/test/relative-speed'
 import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
 import {
   boundaryReflections,
   interferenceLevels,
 } from './boundary-interference'
-import { hearRoom } from './estimated-response'
+import { hearRoom, type ResponseRow } from './estimated-response'
 import { placeAll } from './placements'
-import { bearingTo } from './room'
+import { bearingTo, type RoomPoint } from './room'
 import { targetCurve } from './target-curve'
 
 function withSubwoofers(subwoofers: SubwooferCount): Config {

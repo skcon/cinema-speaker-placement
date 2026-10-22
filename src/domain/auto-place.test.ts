@@ -11,17 +11,12 @@ import { placeManually } from './config-edits'
 import { placeMlp } from './auto-place-policy'
 import { placeSpeakers } from './placements'
 import { LEFT_RIGHT_AIM } from './reference'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  formatLayout,
-  recommendSeat,
-  type ChannelId,
-  type Config,
-  type Layout,
-  type Room,
-  type RoomPoint,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import type { ChannelId } from './dolby-layouts'
+import { formatLayout, type Layout } from './layout'
+import type { Room, RoomPoint } from './room'
+import { recommendSeat } from './seat-score'
 import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
 import { V3_LINKS } from '@/test/share-link-fixtures'
 

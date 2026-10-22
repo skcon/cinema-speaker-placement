@@ -1,16 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  SCREEN_FRONT_STAGE,
-  type ChannelId,
-  type Config,
-  type Layout,
-  type Room,
-  type RoomScreen,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import type { ChannelId } from './dolby-layouts'
+import type { Layout } from './layout'
+import { SCREEN_FRONT_STAGE } from './reference'
+import { azimuthFromMlp, type Room } from './room'
+import type { RoomScreen } from './screen'
 import { centerLineProjection, placeSpeakers } from '@/domain/placements'
-import { azimuthFromMlp } from '@/domain/room'
 
 // The default room is 6 x 4.5 x 2.6 m with the auto MLP on the centre line
 // at 38% of the length (2.28 m from the front wall), at ear height (1.2 m).

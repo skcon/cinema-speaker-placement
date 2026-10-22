@@ -5,8 +5,8 @@ import {
   floorCenter,
   floorCorners,
   wallBases,
-} from '@/domain'
-import { azimuthFromMlp } from '@/domain/room'
+  azimuthFromMlp,
+} from './room'
 
 describe('room geometry in room coordinates', () => {
   // 6 m long, 4.5 m wide: the side walls are at x = ±2.25

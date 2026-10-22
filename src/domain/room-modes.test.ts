@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Room, RoomPoint } from '@/domain'
+import type { Room, RoomPoint } from './room'
 import { yardsticksFor } from '@/test/relative-speed'
 import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
 import { prepareModalResponse, roomModes } from './room-modes'

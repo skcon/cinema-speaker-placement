@@ -84,11 +84,13 @@ export {
 } from './config-edits'
 export {
   canAutoPlace,
+  placementLabel,
   speakersFollowSeat,
   withAutoPlacement,
   withMlpAt,
   withSpeakersFollowSeat,
 } from './auto-place'
+export type { PlacementLabel } from './auto-place'
 export type { Placement } from './auto-place-policy'
 export {
   dragAnchors,

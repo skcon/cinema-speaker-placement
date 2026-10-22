@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canAutoPlace,
+  placementLabel,
   speakersFollowSeat,
   withAutoPlacement,
   withMlpAt,
@@ -631,5 +632,46 @@ describe('Speakers follow the seat (#123)', () => {
 
     expect(rounded.speakersInstalledFor).not.toEqual(mlp)
     expect(canAutoPlace(rounded, { mlpIsRecommended: true })).toBe(false)
+  })
+})
+
+describe('how an item says where it is placed (#123)', () => {
+  const labels = (config: Config) =>
+    Object.fromEntries(
+      [...analyzeRoom(config).items.values()].map((item) => [
+        item.id,
+        placementLabel(config, item),
+      ]),
+    )
+
+  it('auto or manual while the speakers follow the seat', () => {
+    const leftMoved = withMlpAt(
+      placeManually(DEFAULT_CONFIG, 'L', { x: -1.5 }),
+      { x: 0, y: 3 },
+    )
+
+    expect(labels(leftMoved)).toMatchObject({
+      L: 'manual',
+      C: 'auto',
+      Ltm: 'auto',
+      Sub1: 'auto',
+      MLP: 'manual',
+    })
+  })
+
+  it('says the auto speakers stay where they are while they do not, but not the subwoofers or the MLP', () => {
+    const off = withSpeakersFollowSeat(DEFAULT_CONFIG, false)
+
+    expect(labels(placeManually(off, 'L', { x: -1.5 }))).toEqual({
+      L: 'manual',
+      C: 'auto, stays',
+      R: 'auto, stays',
+      Ls: 'auto, stays',
+      Rs: 'auto, stays',
+      Ltm: 'auto, stays',
+      Rtm: 'auto, stays',
+      Sub1: 'auto',
+      MLP: 'auto',
+    })
   })
 })

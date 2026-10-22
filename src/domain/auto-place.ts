@@ -19,11 +19,12 @@
  * Each gives the same config back when it changes nothing, so the store
  * records no empty undo step.
  */
-import { manualItems, placeMlp } from './auto-place-policy'
+import { manualItems, placeMlp, type Placement } from './auto-place-policy'
 import type { Config } from './config'
 import { placeManually } from './config-edits'
 import { MLP_ID } from './manual-positions'
 import { MILLIMETERS_PER_METER } from './link-precision'
+import type { PlacedItem } from './placed-items'
 import type { FloorPoint, RoomPoint } from './room'
 import { recommendSeat, type MlpComparison } from './seat-score'
 
@@ -79,6 +80,24 @@ export function withSpeakersFollowSeat(config: Config, on: boolean): Config {
     ...config,
     speakersInstalledFor: on ? null : placeMlp(config).position,
   }
+}
+
+/**
+ * How an item's placement reads in the sidebar: auto or manual, and
+ * "auto, stays" for an auto listener-level or overhead speaker while
+ * Speakers follow the seat is off (it no longer follows the MLP).
+ */
+export type PlacementLabel = Placement | 'auto, stays'
+
+/** How `item` says where it is placed in `config` (see PlacementLabel). */
+export function placementLabel(
+  config: Config,
+  { kind, placement }: Pick<PlacedItem, 'kind' | 'placement'>,
+): PlacementLabel {
+  const isSpeaker = kind === 'listenerLevel' || kind === 'overhead'
+  return placement === 'auto' && isSpeaker && !speakersFollowSeat(config)
+    ? 'auto, stays'
+    : placement
 }
 
 /**

@@ -190,10 +190,7 @@ export function RoomView() {
         >
           <RoomCanvas
             room={room}
-            mlp={mlp}
-            speakers={speakers}
-            overheads={overheads}
-            subwoofers={subwoofers}
+            items={analysis.items}
             screen={screen}
             furniture={furniture}
             openings={openings}

@@ -4,12 +4,18 @@
  */
 export {
   analyzeRoom,
-  type PlacedOverhead,
-  type PlacedSpeaker,
-  type PlacedSubwoofer,
   type ResponseAnalysis,
   type RoomAnalysis,
 } from './analyze'
+export {
+  selectedItem,
+  type PlacedItem,
+  type PlacedItems,
+  type PlacedOverhead,
+  type PlacedSpeaker,
+  type PlacedSubwoofer,
+  type SelectedItem,
+} from './placed-items'
 export type {
   EstimatedResponse,
   ResponseComponent,
@@ -56,12 +62,18 @@ export {
   type CrossoverProblem,
 } from './crossover'
 export {
-  placeAtWallDistance,
   placeManually,
+  withAmplifierWatts,
   withAutoPlacement,
+  withCrossover,
   withLayout,
   withMlpAtRecommendedSeat,
+  withPositionLength,
   withRoom,
+  withRoomDimension,
+  withSpeakerSpecs,
+  withSubwooferHasOwnSpecs,
+  withSubwooferSpecs,
 } from './config-edits'
 export {
   dragAnchors,
@@ -139,9 +151,14 @@ export {
 export type { ScreenRelation } from './placement'
 export {
   MLP_ID,
+  positionLengths,
   type ManualPositions,
   type PlaceableId,
   type Placement,
+  type PositionDimension,
+  type PositionLength,
+  type PositionLengths,
+  type WallPositionLength,
 } from './manual-positions'
 export {
   OVERHEAD_CHANNEL_IDS,

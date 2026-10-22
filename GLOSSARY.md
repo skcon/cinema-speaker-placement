@@ -163,7 +163,7 @@ The one speaker, subwoofer or MLP picked in the room view (or by opening its row
 _Avoid_: Active item, focused speaker, current selection
 
 **Drag target**:
-Anything the room view drags on the floor plan: a speaker, a subwoofer, the MLP, the seat row, the screen, a furniture box or an opening. Each has an **anchor**, the floor point a drag moves (the seat row's is the MLP), and the grab area drawn over its marker picks it up (see `src/domain/drag-targets.ts`).
+Anything the room view drags on the floor plan: a speaker, a subwoofer, the MLP, the seat row, the screen, a furniture box or an opening. Each has an **anchor**, the floor point a drag moves (the seat row's is the MLP), and its **grab area** (its marker, reaching at least a touch target) is what a press picks it up by: of the grab areas under a press, the one with the nearest marker wins, then the one drawn on top (see `src/domain/drag-targets.ts` and `src/scene/grab-areas.ts`).
 _Avoid_: Draggable, handle
 
 **Dimension line**:

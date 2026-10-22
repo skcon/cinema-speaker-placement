@@ -12,6 +12,7 @@ import {
   describeSpeaker,
   describeSubwoofer,
   GRADE_STYLES,
+  itemsInDrawOrder,
   overheadAngles,
   overheadMarker,
   speakerMarker,
@@ -163,6 +164,28 @@ describe('speakers in words', () => {
     expect(describeSpeaker(graded(placed('R'), 'acceptable'))).toBe(
       'Right 26° (acceptable)',
     )
+  })
+})
+
+describe('the order the items are drawn in', () => {
+  it('is the MLP, the subwoofers, the listener-level speakers, then the overheads', () => {
+    const { items } = analyzeRoom({
+      ...DEFAULT_CONFIG,
+      layout: { dolbyLayout: '5.1.2', subwoofers: 2 },
+    })
+
+    expect(itemsInDrawOrder(items).map(({ id }) => id)).toEqual([
+      'MLP',
+      'Sub1',
+      'Sub2',
+      'L',
+      'C',
+      'R',
+      'Ls',
+      'Rs',
+      'Ltm',
+      'Rtm',
+    ])
   })
 })
 

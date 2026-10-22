@@ -26,7 +26,10 @@
  *   ear height (EAR_HEIGHT).
  *
  * When the Room shrinks past a manual item, the item moves in with the
- * wall; otherwise it stays where it was left.
+ * wall; otherwise it stays where it was left. A drag stops at these
+ * limits (clampToRoom); a length typed in the sidebar outside them is
+ * rejected instead, and the field shows the range it accepts
+ * (positionLengths).
  */
 import {
   CHANNEL_IDS,
@@ -35,15 +38,16 @@ import {
 } from './dolby-layouts'
 import type { Layout } from './layout'
 import { linkSlack } from './link-precision'
-import { clamp } from './range'
+import { clamp, type AcceptedRange } from './range'
 import {
   EAR_HEIGHT,
   SPEAKER_WALL_CLEARANCE,
   SUBWOOFER_HEIGHT,
   SUBWOOFER_WALL_CLEARANCE,
 } from './reference'
-import type { Room, RoomPoint } from './room'
+import type { Room, RoomPoint, Wall } from './room'
 import { SUBWOOFER_IDS, subwooferIds } from './subwoofer-arrangements'
+import { distanceToWall, wallDistances } from './wall-frame'
 
 /** The key the MLP's manual position is stored under. */
 export const MLP_ID = 'MLP'
@@ -146,27 +150,134 @@ export function placeablesIn(layout: Layout): readonly PlaceableId[] {
   ]
 }
 
+/**
+ * Where item `id` may be in `room` (see above), one range per room
+ * coordinate; a fixed height is a range of one value.
+ */
+function coordinateLimits(
+  room: Room,
+  id: PlaceableId,
+): Record<keyof RoomPoint, AcceptedRange> {
+  const { wallClearance, height } = PLACEMENT_RULES[kindOf(id)]
+  const xLimit = room.width / 2 - wallClearance
+  return {
+    x: { min: -xLimit, max: xLimit },
+    y: { min: wallClearance, max: room.length - wallClearance },
+    z: heightLimits(room, height),
+  }
+}
+
+function heightLimits(
+  room: Room,
+  height: (typeof PLACEMENT_RULES)[PlaceableKind]['height'],
+): AcceptedRange {
+  if ('surfaceClearance' in height) {
+    return {
+      min: height.surfaceClearance,
+      max: room.height - height.surfaceClearance,
+    }
+  }
+  const z = height.fixed === 'ceiling' ? room.height : height.fixed
+  return { min: z, max: z }
+}
+
 /** The point moved to the nearest place where item `id` may be (see above). */
 export function clampToRoom(
   room: Room,
   id: PlaceableId,
-  { x, y, z }: RoomPoint,
+  point: RoomPoint,
 ): RoomPoint {
-  const { wallClearance, height } = PLACEMENT_RULES[kindOf(id)]
-  const xLimit = room.width / 2 - wallClearance
+  const limits = coordinateLimits(room, id)
+  const held = (axis: keyof RoomPoint) =>
+    clamp(point[axis], limits[axis].min, limits[axis].max)
+  return { x: held('x'), y: held('y'), z: held('z') }
+}
+
+/**
+ * One of an item's lengths a sidebar field edits: its height above the
+ * floor, or its distance to a wall.
+ */
+export type PositionDimension = 'height' | Wall
+
+/** One of an item's lengths as a field shows it. */
+export type PositionLength = {
+  /** How long it is now. */
+  readonly meters: number
+  /** The values the field accepts: where the item may be (see above). */
+  readonly limits: AcceptedRange
+}
+
+/** An item's distance to one wall as a field shows it. */
+export type WallPositionLength = PositionLength & { readonly wall: Wall }
+
+/** The lengths of an item a sidebar field edits, as the fields show them. */
+export type PositionLengths = {
+  /** Its height above the floor; null when its height is fixed. */
+  readonly height: PositionLength | null
+  /**
+   * Its distances to the nearer end wall (front or back), then the nearer
+   * side wall (left or right), as wallDistances measures them.
+   */
+  readonly walls: readonly [
+    along: WallPositionLength,
+    across: WallPositionLength,
+  ]
+}
+
+/**
+ * The lengths of item `id` at `position` in `room` the sidebar edits: how
+ * long each is now, and the values a field accepts, from the same rules
+ * that keep a dragged item inside the Room (see above).
+ */
+export function positionLengths(
+  room: Room,
+  id: PlaceableId,
+  position: RoomPoint,
+): PositionLengths {
+  const { along, across } = wallDistances(room, position)
+  const atWall = (wall: Wall): WallPositionLength => ({
+    ...wallDistanceLength(room, id, position, wall),
+    wall,
+  })
   return {
-    x: clamp(x, -xLimit, xLimit),
-    y: clamp(y, wallClearance, room.length - wallClearance),
-    z:
-      'fixed' in height
-        ? height.fixed === 'ceiling'
-          ? room.height
-          : height.fixed
-        : clamp(
-            z,
-            height.surfaceClearance,
-            room.height - height.surfaceClearance,
-          ),
+    height: positionLength(room, id, position, 'height'),
+    walls: [atWall(along.wall), atWall(across.wall)],
+  }
+}
+
+/**
+ * One of item `id`'s lengths at `position` (see positionLengths); null for
+ * the height of an item whose height is fixed.
+ */
+export function positionLength(
+  room: Room,
+  id: PlaceableId,
+  position: RoomPoint,
+  dimension: PositionDimension,
+): PositionLength | null {
+  if (dimension !== 'height') {
+    return wallDistanceLength(room, id, position, dimension)
+  }
+  if (hasFixedHeight(id)) return null
+  return { meters: position.z, limits: coordinateLimits(room, id).z }
+}
+
+/**
+ * Item `id`'s distance to `wall` at `position`, and the distances it may
+ * be at: its wall clearance from that wall and from the wall opposite.
+ */
+function wallDistanceLength(
+  room: Room,
+  id: PlaceableId,
+  position: RoomPoint,
+  wall: Wall,
+): PositionLength {
+  const { wallClearance } = PLACEMENT_RULES[kindOf(id)]
+  const toOppositeWall =
+    wall === 'front' || wall === 'back' ? room.length : room.width
+  return {
+    meters: distanceToWall(room, position, wall),
+    limits: { min: wallClearance, max: toOppositeWall - wallClearance },
   }
 }
 

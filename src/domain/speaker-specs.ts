@@ -16,7 +16,11 @@ import type { Layout } from './layout'
 import { checkRange, type AcceptedRange, type RangeProblem } from './range'
 import { SPEAKER_TYPE_GEOMETRY } from './reference'
 import type { RoomPoint } from './room'
-import type { SubwooferId } from './subwoofer-arrangements'
+import {
+  SUBWOOFER_IDS,
+  subwooferIds,
+  type SubwooferId,
+} from './subwoofer-arrangements'
 import { fromInches } from './units'
 
 /** How a subwoofer's driver is loaded: a closed box or a box with a port. */
@@ -50,6 +54,73 @@ export type SubwooferGroup = {
    * them; every other subwoofer uses the group's `specs`.
    */
   readonly ownSpecs: Readonly<Partial<Record<SubwooferId, SubwooferSpecs>>>
+}
+
+/**
+ * Whether subwoofer `id` may have own specs in `layout`: only a subwoofer
+ * of the layout may. The one home of this own-specs rule: the config
+ * schema and the layout and own-specs edits all follow it.
+ */
+function mayHaveOwnSpecs(layout: Layout, id: string): boolean {
+  return subwooferIds(layout.subwoofers).some((inLayout) => inLayout === id)
+}
+
+/** Whether every subwoofer with own specs may have them in `layout`. */
+export function hasOwnSpecsOnlyInLayout(
+  layout: Layout,
+  { ownSpecs }: SubwooferGroup,
+): boolean {
+  return Object.keys(ownSpecs).every((id) => mayHaveOwnSpecs(layout, id))
+}
+
+/**
+ * The group's own specs of the subwoofers that may have them in `layout`
+ * and `keep` keeps, by subwoofer id.
+ */
+function ownSpecsIn(
+  layout: Layout,
+  { ownSpecs }: SubwooferGroup,
+  keep: (id: SubwooferId) => boolean = () => true,
+): SubwooferGroup['ownSpecs'] {
+  return Object.fromEntries(
+    SUBWOOFER_IDS.flatMap((id) => {
+      const specs = ownSpecs[id]
+      return specs && mayHaveOwnSpecs(layout, id) && keep(id)
+        ? [[id, specs] as const]
+        : []
+    }),
+  )
+}
+
+/**
+ * The Subwoofers group for `layout`: subwoofers of the layout keep their
+ * own specs, the others drop theirs.
+ */
+export function keepOwnSpecsInLayout(
+  layout: Layout,
+  group: SubwooferGroup,
+): SubwooferGroup {
+  return { ...group, ownSpecs: ownSpecsIn(layout, group) }
+}
+
+/**
+ * The Subwoofers group with subwoofer `id` given own specs, starting as a
+ * copy of the group's, or using the group's again (dropping its own). The
+ * same group when `id` may not have own specs in `layout`, or already has
+ * (or has no) own specs.
+ */
+export function withOwnSpecs(
+  layout: Layout,
+  group: SubwooferGroup,
+  id: SubwooferId,
+  hasOwnSpecs: boolean,
+): SubwooferGroup {
+  if (!mayHaveOwnSpecs(layout, id)) return group
+  if ((group.ownSpecs[id] !== undefined) === hasOwnSpecs) return group
+  const ownSpecs = hasOwnSpecs
+    ? { ...group.ownSpecs, [id]: group.specs }
+    : ownSpecsIn(layout, group, (other) => other !== id)
+  return { ...group, ownSpecs }
 }
 
 /**

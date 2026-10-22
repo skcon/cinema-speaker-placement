@@ -1,13 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_ROOM,
+  DEFAULT_ROOM_OBJECTS,
   type FurnitureBox,
   type Opening,
   type RoomScreen,
 } from '@/domain'
+import { CAMERA_VIEW_KINDS, type CameraView } from '@/scene/orbit'
+import {
+  DOOR_COLOR,
+  DOOR_SWING_COLOR,
+  FURNITURE_COLOR,
+  FURNITURE_FRONT_COLOR,
+  SCENE_COLORS,
+  SCREEN_COLOR,
+  WINDOW_COLOR,
+} from '@/scene/palette'
 import {
   describeFurniture,
   describeOpenings,
+  describeRoomObjects,
   doorSwing,
   OPENING_MARK_DEPTH,
   openingMark,
@@ -17,10 +29,16 @@ import {
   furniturePlan,
   FURNITURE_FRONT_STRIP,
   describeSeatRow,
+  roomObjectDrawings,
+  roomObjectGrabs,
+  roomObjectsDragHelp,
+  roomObjectsLegend,
   SCREEN_BAR_DEPTH,
   screenBar,
   screenPanel,
+  type RoomObjectsInView,
 } from '@/scene/room-objects'
+import { FLAT_ON_FLOOR, FLOOR_LAYERS } from '@/scene/top-down'
 
 const TV: RoomScreen = {
   kind: 'tv',
@@ -295,5 +313,313 @@ describe('openings in words', () => {
         '1.2 m wide and 1.2 m high, its sill 0.9 m up, 1 m from the front wall.',
     )
     expect(describeOpenings([], 'metric')).toBe('')
+  })
+})
+
+/**
+ * The default room with one room object of every kind: the default seat
+ * row (drawn around an MLP 2.5 m back), a TV, a cabinet, a door and a
+ * window.
+ */
+const FURNISHED: RoomObjectsInView = {
+  room: DEFAULT_ROOM,
+  roomObjects: {
+    seatRow: { width: 2, depth: 0.9 },
+    screen: TV,
+    furniture: [CABINET],
+    openings: [DOOR, WINDOW],
+  },
+  seatRow: { center: { x: 0, y: 2.4 }, width: 2, depth: 0.9 },
+}
+
+/** The same room with the seat row only, as every Room starts. */
+const BARE: RoomObjectsInView = {
+  ...FURNISHED,
+  roomObjects: { ...DEFAULT_ROOM_OBJECTS, seatRow: { width: 2, depth: 0.9 } },
+}
+
+/** A rectangle lying flat on the floor at `layer`, as the room view draws one. */
+function onFloor(
+  center: { x: number; y: number },
+  size: readonly [number, number],
+  layer: number,
+  color: string,
+) {
+  return {
+    kind: 'plane',
+    position: [center.x, layer, center.y],
+    rotation: FLAT_ON_FLOOR,
+    size,
+    color,
+    opacity: 1,
+    doubleSided: false,
+  }
+}
+
+/** The shapes drawn for each room object in `view`, by its id. */
+function shapesById(objects: RoomObjectsInView, view: CameraView) {
+  return Object.fromEntries(
+    roomObjectDrawings(objects, view).map(({ id, shapes }) => [id, shapes]),
+  )
+}
+
+describe('room objects as the room view draws them', () => {
+  it('draws each one once, by its id: the seat row, the screen, the furniture and the openings', () => {
+    for (const view of CAMERA_VIEW_KINDS) {
+      expect(roomObjectDrawings(FURNISHED, view).map(({ id }) => id)).toEqual([
+        'seatRow',
+        'screen',
+        'furniture-1',
+        'opening-1',
+        'opening-2',
+      ])
+    }
+    expect(roomObjectDrawings(BARE, 'top-down').map(({ id }) => id)).toEqual([
+      'seatRow',
+    ])
+  })
+
+  it('lays each one flat on the floor from above, on its own layer, with the furniture box named', () => {
+    const bar = screenBar(TV)
+    const box = furniturePlan(CABINET)
+    const swing = doorSwing(DEFAULT_ROOM, DOOR)
+    const door = openingMark(DEFAULT_ROOM, DOOR)
+    const window = openingMark(DEFAULT_ROOM, WINDOW)
+
+    expect(shapesById(FURNISHED, 'top-down')).toEqual({
+      seatRow: [
+        onFloor(
+          { x: 0, y: 2.4 },
+          [2, 0.9],
+          FLOOR_LAYERS.seatRow,
+          SCENE_COLORS.seatRow,
+        ),
+      ],
+      screen: [
+        onFloor(
+          bar.center,
+          [bar.width, bar.depth],
+          FLOOR_LAYERS.screen,
+          SCENE_COLORS.screen,
+        ),
+      ],
+      'furniture-1': [
+        onFloor(
+          box.center,
+          box.size,
+          FLOOR_LAYERS.furniture,
+          SCENE_COLORS.furniture,
+        ),
+        onFloor(
+          box.front.center,
+          box.front.size,
+          FLOOR_LAYERS.furnitureFront,
+          SCENE_COLORS.furnitureFront,
+        ),
+        { kind: 'label', at: box.center, text: 'Cabinet' },
+      ],
+      'opening-1': [
+        onFloor(
+          swing.center,
+          swing.size,
+          FLOOR_LAYERS.doorSwing,
+          SCENE_COLORS.doorSwing,
+        ),
+        onFloor(
+          door.center,
+          door.size,
+          FLOOR_LAYERS.opening,
+          SCENE_COLORS.door,
+        ),
+      ],
+      'opening-2': [
+        onFloor(
+          window.center,
+          window.size,
+          FLOOR_LAYERS.opening,
+          SCENE_COLORS.window,
+        ),
+      ],
+    })
+  })
+
+  it('stands the screen, the furniture and the openings up in 3D, the seat row still on the floor', () => {
+    const panel = screenPanel(TV)
+    const block = furnitureBlock(CABINET)
+    const door = openingPanel(DEFAULT_ROOM, DOOR)
+    const window = openingPanel(DEFAULT_ROOM, WINDOW)
+
+    expect(shapesById(FURNISHED, '3d')).toEqual({
+      seatRow: [
+        onFloor(
+          { x: 0, y: 2.4 },
+          [2, 0.9],
+          FLOOR_LAYERS.seatRow,
+          SCENE_COLORS.seatRow,
+        ),
+      ],
+      screen: [
+        {
+          kind: 'plane',
+          position: panel.position,
+          rotation: [0, 0, 0],
+          size: panel.size,
+          color: SCENE_COLORS.screen,
+          opacity: 1,
+          doubleSided: true,
+        },
+      ],
+      'furniture-1': [
+        {
+          kind: 'box',
+          position: block.position,
+          size: block.size,
+          color: SCENE_COLORS.furniture,
+          opacity: 0.85,
+        },
+      ],
+      'opening-1': [
+        {
+          kind: 'plane',
+          ...door,
+          color: SCENE_COLORS.door,
+          opacity: 0.6,
+          doubleSided: true,
+        },
+      ],
+      'opening-2': [
+        {
+          kind: 'plane',
+          ...window,
+          color: SCENE_COLORS.window,
+          opacity: 0.6,
+          doubleSided: true,
+        },
+      ],
+    })
+  })
+})
+
+describe('room objects as grab areas', () => {
+  it('are picked up by the rectangle drawn for them from above', () => {
+    const box = furniturePlan(CABINET)
+    const door = openingMark(DEFAULT_ROOM, DOOR)
+    const window = openingMark(DEFAULT_ROOM, WINDOW)
+
+    expect(roomObjectGrabs(FURNISHED, 'seatRow')).toEqual([
+      {
+        target: 'seatRow',
+        marker: { center: { x: 0, y: 2.4 }, width: 2, depth: 0.9 },
+      },
+    ])
+    expect(roomObjectGrabs(FURNISHED, 'screen')).toEqual([
+      { target: 'screen', marker: screenBar(TV) },
+    ])
+    expect(roomObjectGrabs(FURNISHED, 'furniture')).toEqual([
+      {
+        target: 'furniture-1',
+        marker: { center: box.center, width: box.size[0], depth: box.size[1] },
+      },
+    ])
+    expect(roomObjectGrabs(FURNISHED, 'opening')).toEqual([
+      {
+        target: 'opening-1',
+        marker: { center: door.center, width: 0.9, depth: OPENING_MARK_DEPTH },
+      },
+      {
+        target: 'opening-2',
+        marker: {
+          center: window.center,
+          width: OPENING_MARK_DEPTH,
+          depth: 1.2,
+        },
+      },
+    ])
+    expect(roomObjectGrabs(BARE, 'screen')).toEqual([])
+  })
+})
+
+describe('room objects in the legend', () => {
+  it('names the screen, the furniture boxes, the doors and the windows the Room has, as drawn and not in the estimate', () => {
+    expect(roomObjectsLegend(FURNISHED)).toEqual([
+      {
+        text: 'Screen (drawn only, not in the estimate)',
+        swatch: { className: 'h-1 w-3 rounded-xs', fill: SCREEN_COLOR },
+      },
+      {
+        text: 'Furniture box, front edge darker (drawn and warned about, not in the estimate)',
+        swatch: {
+          className: 'h-2.5 w-3 rounded-xs border-b-2',
+          fill: FURNITURE_COLOR,
+          edge: FURNITURE_FRONT_COLOR,
+        },
+      },
+      {
+        text: 'Door and where it swings (drawn and warned about, not in the estimate)',
+        swatch: {
+          className: 'h-2.5 w-3 rounded-xs border-t-2',
+          fill: DOOR_SWING_COLOR,
+          edge: DOOR_COLOR,
+        },
+      },
+      {
+        text: 'Window (drawn and warned about, not in the estimate)',
+        swatch: { className: 'h-1 w-3 rounded-xs', fill: WINDOW_COLOR },
+      },
+    ])
+  })
+
+  it('leaves out what the Room has none of, and never names the seat row', () => {
+    expect(roomObjectsLegend(BARE)).toEqual([])
+    const windowsOnly: RoomObjectsInView = {
+      ...BARE,
+      roomObjects: { ...BARE.roomObjects, openings: [WINDOW, WINDOW] },
+    }
+    expect(roomObjectsLegend(windowsOnly).map(({ text }) => text)).toEqual([
+      'Window (drawn and warned about, not in the estimate)',
+    ])
+  })
+})
+
+describe('room objects in the drag help', () => {
+  it('says how to drag each kind the Room has, the seat row always', () => {
+    expect(roomObjectsDragHelp(BARE)).toBe(
+      'Drag the seat row to move it with the MLP.',
+    )
+    expect(roomObjectsDragHelp(FURNISHED)).toBe(
+      'Drag the seat row to move it with the MLP. Drag the screen along ' +
+        'the front wall. Drag the furniture boxes to move them. Drag doors ' +
+        'and windows along their wall.',
+    )
+  })
+})
+
+describe('room objects in words', () => {
+  const NOTE =
+    'Room objects are drawn and used for placement warnings, not part of the estimated response.'
+
+  it('describes each kind the Room has, then says they are not in the estimate', () => {
+    expect(describeRoomObjects(BARE, 'metric')).toBe(
+      `${describeSeatRow({ width: 2, depth: 0.9 }, 'metric')} ${NOTE}`,
+    )
+    expect(describeRoomObjects(FURNISHED, 'metric')).toBe(
+      [
+        describeSeatRow({ width: 2, depth: 0.9 }, 'metric'),
+        describeScreen(TV, 'metric'),
+        describeFurniture([CABINET], 'metric'),
+        describeOpenings([DOOR, WINDOW], 'metric'),
+        NOTE,
+      ].join(' '),
+    )
+  })
+
+  it('gives the seat row its own size, not where the walls cut it off', () => {
+    const cutOff: RoomObjectsInView = {
+      ...BARE,
+      seatRow: { center: { x: 0, y: 5.7 }, width: 2, depth: 0.6 },
+    }
+    expect(describeRoomObjects(cutOff, 'metric')).toMatch(
+      /^A seat row 2 m wide and 0\.9 m deep/,
+    )
   })
 })

@@ -1,20 +1,19 @@
 import { temporal } from 'zundo'
 import { createStore } from 'zustand/vanilla'
 import {
-  areValidSpeakerSpecs,
-  areValidSubwooferSpecs,
-  checkAmplifierWatts,
-  checkCrossover,
-  checkRoomDimension,
   decodeConfig,
   DEFAULT_CONFIG,
   MLP_ID,
-  placeAtWallDistance,
-  placeManually,
+  withAmplifierWatts,
   withAutoPlacement,
+  withCrossover,
   withLayout,
   withMlpAtRecommendedSeat,
-  withRoom,
+  withPositionLength,
+  withRoomDimension,
+  withSpeakerSpecs,
+  withSubwooferHasOwnSpecs,
+  withSubwooferSpecs,
   withDragged,
   withRoomObjectAdded,
   withRoomObjectDimension,
@@ -25,6 +24,7 @@ import {
   type DragTarget,
   type FloorPoint,
   type PlaceableId,
+  type PositionDimension,
   type RoomPoint,
   type RoomDimension,
   type RoomObjectAddition,
@@ -35,18 +35,18 @@ import {
   type ShareLinkProblem,
   type SpeakerGroupId,
   type SpeakerGroups,
-  subwooferIds,
   type SubwooferCount,
-  type SubwooferGroup,
   type SubwooferId,
   type SubwooferSpecs,
   type TargetCurveKind,
   type UnitSystem,
-  type Wall,
 } from '@/domain'
 
 export type ConfigState = {
-  /** The current config. Always valid: actions reject out-of-range input. */
+  /**
+   * The current config. Always valid: every edit of the room is a domain
+   * config edit (config-edits.ts), which rejects invalid input.
+   */
   config: Config
   /**
    * Why the last share link opened couldn't be used (the default config is
@@ -76,41 +76,50 @@ export type ConfigState = {
    * A view preference: not an undo step.
    */
   setUnits: (units: UnitSystem) => void
-  /** Set one room dimension, in meters. Out-of-range values are ignored. */
+  /**
+   * Set one room dimension, in meters (withRoomDimension in the domain).
+   * Out-of-range values are ignored.
+   */
   setRoomDimension: (dimension: RoomDimension, meters: number) => void
-  /** Switch to another v1 Dolby layout (X and Z), keeping the subwoofers. */
+  /**
+   * Switch to another v1 Dolby layout (X and Z), keeping the subwoofers
+   * (withLayout in the domain).
+   */
   setLayout: (dolbyLayout: DolbyLayout) => void
   /**
-   * Set how many subwoofers the layout has (the Y). Subwoofers that stay
-   * keep their own specs; removed ones drop theirs, and added ones use the
-   * group's.
+   * Set how many subwoofers the layout has (the Y), as withLayout in the
+   * domain says. Subwoofers that stay keep their own specs; removed ones
+   * drop theirs, and added ones use the group's.
    */
   setSubwooferCount: (subwoofers: SubwooferCount) => void
   /**
    * Change specs of the Subwoofers group, or the own specs of one
-   * subwoofer. Ignored when a spec would be out of range (or the peak power
-   * below the RMS power), or the subwoofer has no own specs.
+   * subwoofer (withSubwooferSpecs in the domain). Ignored when a spec would
+   * be out of range (or the peak power below the RMS power), or the
+   * subwoofer has no own specs.
    */
   setSubwooferSpecs: (
     target: 'group' | SubwooferId,
     change: Partial<SubwooferSpecs>,
   ) => void
   /**
-   * Change specs of one other speaker group (Front L/R ... Overheads).
-   * Ignored when a spec would be out of range.
+   * Change specs of one other speaker group (Front L/R ... Overheads), as
+   * withSpeakerSpecs in the domain says. Ignored when a spec would be out
+   * of range.
    */
   setSpeakerSpecs: <G extends SpeakerGroupId>(
     group: G,
     change: Partial<SpeakerGroups[G]['specs']>,
   ) => void
   /**
-   * Set the amplifier power per channel, in watts. Out-of-range values are
-   * ignored.
+   * Set the amplifier power per channel, in watts (withAmplifierWatts in
+   * the domain). Out-of-range values are ignored.
    */
   setAmplifierWatts: (watts: number) => void
   /**
    * Give a subwoofer of the layout own specs, starting as a copy of the
-   * group's, or make it use the group's again (dropping its own).
+   * group's, or make it use the group's again, dropping its own
+   * (withSubwooferHasOwnSpecs in the domain).
    */
   setSubwooferHasOwnSpecs: (
     subwoofer: SubwooferId,
@@ -122,8 +131,8 @@ export type ConfigState = {
    */
   setTargetCurve: (targetCurve: TargetCurveKind) => void
   /**
-   * Set the crossover between the Speakers and the Subwoofers, in Hz.
-   * Out-of-range values are ignored.
+   * Set the crossover between the Speakers and the Subwoofers, in Hz
+   * (withCrossover in the domain). Out-of-range values are ignored.
    */
   setCrossover: (crossoverHz: number) => void
   /**
@@ -137,16 +146,16 @@ export type ConfigState = {
    */
   moveDragTarget: (target: DragTarget, to: FloorPoint) => void
   /**
-   * Set a listener-level speaker's height above the floor, in meters,
-   * making it manual. Kept inside the floor and ceiling clearances;
-   * subwoofers and the MLP keep their fixed heights.
+   * Set one of an item's lengths, its height above the floor or its
+   * distance to a wall, in meters, making it manual. Ignored when the
+   * value is outside the limits positionLengths gives (unlike a drag, it
+   * isn't moved to the limit), or the item's height is fixed.
    */
-  setItemHeight: (id: PlaceableId, meters: number) => void
-  /**
-   * Move an item until it is `meters` from `wall`, making it manual. Kept
-   * inside the wall clearances.
-   */
-  setWallDistance: (id: PlaceableId, wall: Wall, meters: number) => void
+  setPositionLength: (
+    id: PlaceableId,
+    dimension: PositionDimension,
+    meters: number,
+  ) => void
   /**
    * Add a room object: the Screen (the default TV, centred on the front
    * wall), a furniture box from a preset, or a door or window (see
@@ -254,27 +263,6 @@ export function canAutoPlace(
   return manual.some((id) => id !== MLP_ID) || !recommendation.mlpIsRecommended
 }
 
-/** The group's own specs, kept only for the subwoofers in `ids`. */
-function ownSpecsOf(
-  { ownSpecs }: SubwooferGroup,
-  ids: readonly SubwooferId[],
-): SubwooferGroup['ownSpecs'] {
-  return Object.fromEntries(
-    ids.flatMap((id) => {
-      const specs = ownSpecs[id]
-      return specs ? [[id, specs] as const] : []
-    }),
-  )
-}
-
-/** The config with its Subwoofers speaker group replaced. */
-function withSubwooferGroup(
-  config: Config,
-  subwoofers: SubwooferGroup,
-): Config {
-  return { ...config, speakerGroups: { ...config.speakerGroups, subwoofers } }
-}
-
 /** How many edits undo can take back. */
 const UNDO_LIMIT = 100
 
@@ -330,92 +318,41 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
           gesture: null,
           setUnits: (units) =>
             setUntracked({ config: { ...get().config, units } }),
-          setRoomDimension: (dimension, meters) => {
-            if (checkRoomDimension(dimension, meters) !== null) return
-            set(({ config }) => ({
-              config: withRoom(config, { ...config.room, [dimension]: meters }),
-            }))
-          },
+          setRoomDimension: (dimension, meters) =>
+            setConfigIfChanged((config) =>
+              withRoomDimension(config, dimension, meters),
+            ),
           setLayout: (dolbyLayout) =>
-            set(({ config }) => ({
-              config: withLayout(config, { ...config.layout, dolbyLayout }),
-            })),
+            setConfigIfChanged((config) =>
+              withLayout(config, { ...config.layout, dolbyLayout }),
+            ),
           setSubwooferCount: (subwoofers) =>
-            set(({ config }) => {
-              const group = config.speakerGroups.subwoofers
-              const ownSpecs = ownSpecsOf(group, subwooferIds(subwoofers))
-              return {
-                config: withLayout(
-                  withSubwooferGroup(config, { ...group, ownSpecs }),
-                  { ...config.layout, subwoofers },
-                ),
-              }
-            }),
-          setSubwooferSpecs: (target, change) => {
-            const { config } = get()
-            const group = config.speakerGroups.subwoofers
-            if (target === 'group') {
-              const specs = { ...group.specs, ...change }
-              if (!areValidSubwooferSpecs(specs)) return
-              set({ config: withSubwooferGroup(config, { ...group, specs }) })
-              return
-            }
-            const ownSpecs = group.ownSpecs[target]
-            if (!ownSpecs) return
-            const specs = { ...ownSpecs, ...change }
-            if (!areValidSubwooferSpecs(specs)) return
-            set({
-              config: withSubwooferGroup(config, {
-                ...group,
-                ownSpecs: { ...group.ownSpecs, [target]: specs },
-              }),
-            })
-          },
-          setSpeakerSpecs: (group, change) => {
-            const { config } = get()
-            const specs = { ...config.speakerGroups[group].specs, ...change }
-            if (!areValidSpeakerSpecs(specs)) return
-            set({
-              config: {
-                ...config,
-                speakerGroups: { ...config.speakerGroups, [group]: { specs } },
-              },
-            })
-          },
-          setAmplifierWatts: (amplifierWatts) => {
-            if (checkAmplifierWatts(amplifierWatts) !== null) return
-            set(({ config }) => ({ config: { ...config, amplifierWatts } }))
-          },
-          setSubwooferHasOwnSpecs: (subwoofer, hasOwnSpecs) => {
-            const { config } = get()
-            const group = config.speakerGroups.subwoofers
-            const inLayout = subwooferIds(config.layout.subwoofers)
-            if (!inLayout.includes(subwoofer)) return
-            if ((group.ownSpecs[subwoofer] !== undefined) === hasOwnSpecs)
-              return
-            const ownSpecs = hasOwnSpecs
-              ? { ...group.ownSpecs, [subwoofer]: group.specs }
-              : ownSpecsOf(
-                  group,
-                  inLayout.filter((id) => id !== subwoofer),
-                )
-            set({ config: withSubwooferGroup(config, { ...group, ownSpecs }) })
-          },
+            setConfigIfChanged((config) =>
+              withLayout(config, { ...config.layout, subwoofers }),
+            ),
+          setSubwooferSpecs: (target, change) =>
+            setConfigIfChanged((config) =>
+              withSubwooferSpecs(config, target, change),
+            ),
+          setSpeakerSpecs: (group, change) =>
+            setConfigIfChanged((config) =>
+              withSpeakerSpecs(config, group, change),
+            ),
+          setAmplifierWatts: (watts) =>
+            setConfigIfChanged((config) => withAmplifierWatts(config, watts)),
+          setSubwooferHasOwnSpecs: (subwoofer, hasOwnSpecs) =>
+            setConfigIfChanged((config) =>
+              withSubwooferHasOwnSpecs(config, subwoofer, hasOwnSpecs),
+            ),
           setTargetCurve: (targetCurve) =>
             setUntracked({ config: { ...get().config, targetCurve } }),
-          setCrossover: (crossoverHz) => {
-            if (checkCrossover(crossoverHz) !== null) return
-            set(({ config }) => ({ config: { ...config, crossoverHz } }))
-          },
+          setCrossover: (hz) =>
+            setConfigIfChanged((config) => withCrossover(config, hz)),
           moveDragTarget: (target, to) =>
             setConfigIfChanged((config) => withDragged(config, target, to)),
-          setItemHeight: (id, meters) =>
+          setPositionLength: (id, dimension, meters) =>
             setConfigIfChanged((config) =>
-              placeManually(config, id, { z: meters }),
-            ),
-          setWallDistance: (id, wall, meters) =>
-            setConfigIfChanged((config) =>
-              placeAtWallDistance(config, id, wall, meters),
+              withPositionLength(config, id, dimension, meters),
             ),
           addRoomObject: (addition) =>
             setConfigIfChanged((config) =>

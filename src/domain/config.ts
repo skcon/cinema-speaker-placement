@@ -33,13 +33,14 @@ import {
   DEFAULT_AMPLIFIER_WATTS,
   DEFAULT_SPEAKER_GROUPS,
   ENCLOSURES,
+  hasOwnSpecsOnlyInLayout,
   SPEAKER_TYPES,
   type OverheadSpecs,
   type SpeakerGroups,
   type SpeakerSpecs,
   type SubwooferSpecs,
 } from './speaker-specs'
-import { SUBWOOFER_IDS, subwooferIds } from './subwoofer-arrangements'
+import { SUBWOOFER_IDS } from './subwoofer-arrangements'
 import { TARGET_CURVE_KINDS } from './target-curve'
 import { UNIT_SYSTEM_NAMES } from './units'
 
@@ -142,8 +143,10 @@ const seatRowSchema = z.strictObject({
  *
  * The `Config` type is inferred from it, so a new field is added here and
  * the compiler asks for its value in DEFAULT_CONFIG and the test fixtures.
- * Share links are released, so a change here extends the unreleased schema
- * version or starts a new one, with a migration (see share-link.ts).
+ * It accepts exactly what the current config version's frozen schema
+ * (config-v2.ts) accepts. That version is released, so a change here, or
+ * to a limit or rule it reads (reference.ts, the room-object modules), is
+ * a new config version with a migration (see share-link.ts).
  */
 export const configSchema = z
   .strictObject({
@@ -192,12 +195,9 @@ export const configSchema = z
     }) satisfies z.ZodType<RoomObjects>,
   })
   // The subwoofer count lives in the layout: own specs only for its subwoofers.
-  .refine(({ layout, speakerGroups }) => {
-    const inLayout = subwooferIds(layout.subwoofers)
-    return Object.keys(speakerGroups.subwoofers.ownSpecs).every((id) =>
-      inLayout.some((layoutId) => layoutId === id),
-    )
-  })
+  .refine(({ layout, speakerGroups }) =>
+    hasOwnSpecsOnlyInLayout(layout, speakerGroups.subwoofers),
+  )
   // Manual positions only for items of the layout, each where it may go.
   .refine(({ room, layout, manualPositions }) => {
     const inLayout = placeablesIn(layout)

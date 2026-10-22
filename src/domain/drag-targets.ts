@@ -7,13 +7,14 @@
  * its meaning live together: where a target's anchor is (the floor point
  * a drag moves), what the config becomes when the anchor is dragged to
  * `to`, and what pressing the target selects. The room view only grabs a
- * target by its anchor, keeping the grab offset, and draws the grab area
- * over what it draws; the store applies the drag.
+ * target by its anchor, keeping the grab offset, and works out which
+ * target a press picks up (src/scene/grab-areas.ts); the store applies
+ * the drag.
  */
 import type { Config } from './config'
 import { placeManually, samePositions } from './config-edits'
 import { MLP_ID, type PlaceableId } from './manual-positions'
-import { placeAll } from './placements'
+import type { PlacedItems } from './placed-items'
 import type { FloorPoint } from './room'
 import { fromWallFrame } from './wall-frame'
 import {
@@ -33,8 +34,9 @@ export type DragTarget = PlaceableId | RoomObjectId
  * Every drag target the config has, with its anchor: the floor point a
  * drag moves, which withDragged takes `to` as the new place of. In order:
  * the layout's items (its channels, overhead channels, subwoofers and
- * the MLP, as placeAll gives them), then the Seat row, the Screen, the
- * furniture boxes and the openings the Room has.
+ * the MLP, where `items` has them: the config's Room analysis), then
+ * the Seat row, the Screen, the furniture boxes and the openings the Room
+ * has.
  *
  * - An item is anchored at its position.
  * - The Seat row is anchored at the MLP: it has no position of its own,
@@ -45,23 +47,14 @@ export type DragTarget = PlaceableId | RoomObjectId
  */
 export function dragAnchors(
   config: Config,
+  { mlp, items }: Pick<PlacedItems, 'mlp' | 'items'>,
 ): ReadonlyMap<DragTarget, FloorPoint> {
   const { room, roomObjects } = config
-  const { mlp, speakers, overheads, subwoofers } = placeAll(config)
   const onFloor = ({ x, y }: FloorPoint): FloorPoint => ({ x, y })
-  const anchors = new Map<DragTarget, FloorPoint>([
-    ...speakers.map(
-      ({ reference, position }) =>
-        [reference.channel, onFloor(position)] as const,
-    ),
-    ...overheads.map(
-      ({ reference, position }) =>
-        [reference.channel, onFloor(position)] as const,
-    ),
-    ...subwoofers.map(({ id, position }) => [id, onFloor(position)] as const),
-    [MLP_ID, onFloor(mlp.position)],
-  ])
-  anchors.set(SEAT_ROW_ID, onFloor(mlp.position))
+  const anchors = new Map<DragTarget, FloorPoint>(
+    [...items.values()].map(({ id, position }) => [id, onFloor(position)]),
+  )
+  anchors.set(SEAT_ROW_ID, onFloor(mlp))
   const { screen, furniture, openings } = roomObjects
   if (screen) {
     anchors.set(SCREEN_ID, {

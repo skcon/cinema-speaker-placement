@@ -137,11 +137,12 @@ export default defineConfig([
       ],
     },
   },
-  // A frozen config schema (src/domain/share-link.ts) keeps the rules of a
-  // released version, so it copies everything it uses: importing live code
-  // would let later changes reach links already shared.
+  // A frozen config schema (config-v1.ts, config-v2.ts...; see
+  // src/domain/share-link.ts) keeps the rules of a released version, so it
+  // copies everything it uses: importing live code would let later changes
+  // reach links already shared.
   {
-    files: ['src/domain/config-v*.ts'],
+    files: ['src/domain/config-v[0-9]*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',

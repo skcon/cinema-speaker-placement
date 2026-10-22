@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useState } from 'react'
 import {
-  dragAnchors,
   formatLength,
   pressSelects,
   UNIT_SYSTEMS,
@@ -25,22 +24,14 @@ import {
   GRADE_STYLES,
   UNGRADED_STYLE,
 } from '@/scene/speakers'
+import { RECOMMENDED_SEAT_COLOR, RULE_OF_THUMB_COLOR } from '@/scene/palette'
 import {
-  DOOR_COLOR,
-  DOOR_SWING_COLOR,
-  FURNITURE_COLOR,
-  FURNITURE_FRONT_COLOR,
-  RECOMMENDED_SEAT_COLOR,
-  RULE_OF_THUMB_COLOR,
-  SCREEN_COLOR,
-  WINDOW_COLOR,
-} from '@/scene/palette'
-import {
-  describeFurniture,
-  describeOpenings,
-  describeScreen,
-  describeSeatRow,
+  describeRoomObjects,
+  roomObjectsDragHelp,
+  roomObjectsLegend,
+  type RoomObjectsInView,
 } from '@/scene/room-objects'
+import { grabAreas } from '@/scene/grab-areas'
 import { canUseWebGL } from '@/scene/webgl'
 import { describeHeatmap, heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
@@ -69,13 +60,10 @@ export function RoomView() {
   const [webGL] = useState(canUseWebGL)
   const config = useConfig((state) => state.config)
   const { room, units } = config
-  const screen = useConfig((state) => state.config.roomObjects.screen)
-  const furniture = useConfig((state) => state.config.roomObjects.furniture)
-  const openings = useConfig((state) => state.config.roomObjects.openings)
-  const seatRowSize = useConfig((state) => state.config.roomObjects.seatRow)
   const beginGesture = useConfig((state) => state.beginGesture)
   const moveDragTarget = useConfig((state) => state.moveDragTarget)
   const endGesture = useConfig((state) => state.endGesture)
+  const analysis = useRoomAnalysis()
   const {
     layout,
     mlp,
@@ -84,12 +72,17 @@ export function RoomView() {
     subwoofers,
     seatRow,
     seatRuleOfThumb,
-  } = useRoomAnalysis()
+  } = analysis
+  const objectsInView: RoomObjectsInView = {
+    room,
+    roomObjects: config.roomObjects,
+    seatRow,
+  }
   const recommendation = useSeatRecommendation()
   const { select, clear } = useSelection()
-  // Where each drag target is grabbed from, and what a press on it selects
-  // (a room object is never the Selected item: pressing one clears it).
-  const anchors = useMemo(() => dragAnchors(config), [config])
+  // What a press picks up, and what a press on it selects (a room object
+  // is never the Selected item: pressing one clears it).
+  const areas = useMemo(() => grabAreas(config, analysis), [config, analysis])
   const press = (target: DragTarget) => {
     const item = pressSelects(target)
     if (item) select(item)
@@ -133,15 +126,7 @@ export function RoomView() {
         `elevation from the MLP and Dolby placement-range grade: ` +
         `${overheads.map(describeOverhead).join(', ')}.`
       : ''
-  const roomObjectsDescription = [
-    describeSeatRow(seatRowSize, units),
-    screen && describeScreen(screen, units),
-    describeFurniture(furniture, units),
-    describeOpenings(openings, units),
-    ROOM_OBJECTS_NOTE,
-  ]
-    .filter(Boolean)
-    .join(' ')
+  const roomObjectsDescription = describeRoomObjects(objectsInView, units)
   const subwoofersDescription =
     `${subwoofers.length} ${subwoofers.length === 1 ? 'subwoofer' : 'subwoofers'}, ` +
     `not graded as Dolby gives subwoofers no placement range: ` +
@@ -189,21 +174,15 @@ export function RoomView() {
         >
           <RoomCanvas
             room={room}
-            mlp={mlp}
-            speakers={speakers}
-            overheads={overheads}
-            subwoofers={subwoofers}
-            screen={screen}
-            furniture={furniture}
-            openings={openings}
+            items={analysis.items}
+            roomObjects={objectsInView}
             gridSpacing={baseUnit.meters}
-            seatRow={seatRow}
             recommendedSeat={recommendation?.recommended.position ?? null}
             heatmap={heatmap}
             ruleOfThumbFromFrontWall={seatRuleOfThumb.fromFrontWall}
             view={view}
             units={units}
-            dragAnchors={anchors}
+            grabAreas={areas}
             onDragStart={beginGesture}
             onDragMove={moveDragTarget}
             onDragEnd={endGesture}
@@ -230,10 +209,7 @@ export function RoomView() {
           <p>
             To scale, seen from above. Grid squares are 1 {baseUnit.unit}. Drag
             the speakers and the MLP to move them; click or tap one to see its
-            distances. Drag the seat row to move it with the MLP.
-            {screen && ' Drag the screen along the front wall.'}
-            {furniture.length > 0 && ' Drag the furniture boxes to move them.'}
-            {openings.length > 0 && ' Drag doors and windows along their wall.'}
+            distances. {roomObjectsDragHelp(objectsInView)}
           </p>
         )}
         <div className="flex items-center gap-2">
@@ -308,65 +284,24 @@ export function RoomView() {
             />
             Subwoofer: {UNGRADED_STYLE.label}
           </p>
-          {screen && (
-            <p className="flex items-center gap-1.5">
+          {roomObjectsLegend(objectsInView).map(({ text, swatch }) => (
+            <p key={text} className="flex items-center gap-1.5">
               <span
                 aria-hidden
-                className="h-1 w-3 rounded-xs"
-                style={{ backgroundColor: SCREEN_COLOR }}
-              />
-              Screen (drawn only, not in the estimate)
-            </p>
-          )}
-          {furniture.length > 0 && (
-            <p className="flex items-center gap-1.5">
-              <span
-                aria-hidden
-                className="h-2.5 w-3 rounded-xs border-b-2"
+                className={swatch.className}
                 style={{
-                  backgroundColor: FURNITURE_COLOR,
-                  borderColor: FURNITURE_FRONT_COLOR,
+                  backgroundColor: swatch.fill,
+                  borderColor: swatch.edge,
                 }}
               />
-              Furniture box, front edge darker (drawn and warned about, not in
-              the estimate)
+              {text}
             </p>
-          )}
-          {openings.some(({ kind }) => kind === 'door') && (
-            <p className="flex items-center gap-1.5">
-              <span
-                aria-hidden
-                className="h-2.5 w-3 rounded-xs border-t-2"
-                style={{
-                  backgroundColor: DOOR_SWING_COLOR,
-                  borderColor: DOOR_COLOR,
-                }}
-              />
-              Door and where it swings (drawn and warned about, not in the
-              estimate)
-            </p>
-          )}
-          {openings.some(({ kind }) => kind === 'window') && (
-            <p className="flex items-center gap-1.5">
-              <span
-                aria-hidden
-                className="h-1 w-3 rounded-xs"
-                style={{ backgroundColor: WINDOW_COLOR }}
-              />
-              Window (drawn and warned about, not in the estimate)
-            </p>
-          )}
+          ))}
         </div>
       </div>
     </div>
   )
 }
-
-/**
- * What the room view says wherever it lists room objects (ADR 0006).
- */
-const ROOM_OBJECTS_NOTE =
-  'Room objects are drawn and used for placement warnings, not part of the estimated response.'
 
 /**
  * Clears the selection when Escape is pressed anywhere on the page while

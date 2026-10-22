@@ -37,78 +37,6 @@ export function toFloorPoint({ x, z }: { x: number; z: number }): FloorPoint {
   return { x, y: z }
 }
 
-/**
- * The smallest touch target, in pixels: the size WCAG 2.5.5 (AAA) and the
- * Apple and Android guidelines give for something a finger has to hit.
- */
-const TOUCH_TARGET_PX = 44
-
-/**
- * The radius, in meters, of the area that picks up a marker for dragging:
- * at least `radius`, and never smaller on screen than a touch target at
- * this zoom (pixels per meter).
- */
-export function grabRadius(radius: number, zoom: number): number {
-  return Math.max(radius, TOUCH_TARGET_PX / 2 / zoom)
-}
-
-/**
- * The length, in meters, of a side of the area that picks up a long marker
- * (the Screen's bar) for dragging: at least `length`, and never shorter on
- * screen than a touch target at this zoom (pixels per meter).
- */
-export function grabLength(length: number, zoom: number): number {
-  return Math.max(length, TOUCH_TARGET_PX / zoom)
-}
-
-/**
- * Where a marker is drawn on the floor plan, in meters: an item's round
- * one (`radius`), or a room object's rectangle, `width` along x and
- * `depth` along y.
- */
-export type GrabShape =
-  | { readonly center: FloorPoint; readonly radius: number }
-  | {
-      readonly center: FloorPoint
-      readonly width: number
-      readonly depth: number
-    }
-
-/** How far `point` is from `shape`, in meters: 0 on or inside it. */
-export function distanceToShape(shape: GrabShape, point: FloorPoint): number {
-  const dx = point.x - shape.center.x
-  const dy = point.y - shape.center.y
-  if ('radius' in shape) return Math.max(0, Math.hypot(dx, dy) - shape.radius)
-  return Math.hypot(
-    Math.max(0, Math.abs(dx) - shape.width / 2),
-    Math.max(0, Math.abs(dy) - shape.depth / 2),
-  )
-}
-
-/**
- * Which of the grab areas under a press at `pointer` picks it up: the one
- * whose drawn marker is nearest the pointer, so a press on a marker picks
- * that marker, even where another's touch target (see grabRadius)
- * reaches over it. Where two markers are equally near (the press is on
- * both), the first in `under` wins: the grab areas in hit order, top
- * first. Null when nothing is under the press.
- */
-export function pickGrab<T>(
-  pointer: FloorPoint,
-  under: readonly { readonly target: T; readonly shape: GrabShape }[],
-): T | null {
-  let picked: T | null = null
-  let nearest = Infinity
-  for (const { target, shape } of under) {
-    const distance = distanceToShape(shape, pointer)
-    if (distance < nearest) {
-      picked = target
-      nearest = distance
-    }
-  }
-  return picked
-}
-
 /** From the pointer to a marker's center when it is grabbed. */
 export function grabOffset(at: FloorPoint, pointer: FloorPoint): FloorPoint {
   return { x: at.x - pointer.x, y: at.y - pointer.y }
@@ -126,6 +54,24 @@ export function draggedTo(pointer: FloorPoint, offset: FloorPoint): FloorPoint {
  * its up vector toward the front wall.
  */
 export const FLAT_ON_FLOOR: Vec3 = [-Math.PI / 2, 0, 0]
+
+/**
+ * Small heights (in meters) that stack the flat floor layers so they don't
+ * z-fight. The top-down camera is orthographic, so they don't move anything.
+ */
+export const FLOOR_LAYERS = {
+  grid: 0.005,
+  seatRow: 0.007,
+  ruleOfThumb: 0.008,
+  heatmap: 0.009,
+  doorSwing: 0.0092,
+  furniture: 0.0094,
+  furnitureFront: 0.0097,
+  walls: 0.01,
+  opening: 0.0105,
+  screen: 0.011,
+  recommended: 0.012,
+} as const
 
 /** A Three.js plane covering the floor: its center, rotation and size. */
 export function floorPlane(room: Room) {

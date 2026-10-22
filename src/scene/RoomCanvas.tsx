@@ -21,6 +21,7 @@ import {
 import {
   Color,
   DoubleSide,
+  FrontSide,
   InstancedMesh,
   Object3D,
   Plane,
@@ -28,23 +29,18 @@ import {
 } from 'three'
 import {
   type DragTarget,
+  floorCenter,
   floorCorners,
-  MLP_ID,
-  type Opening,
   type FloorPoint,
-  type FurnitureBox,
   wallBases,
+  type PlaceableId,
+  type PlacedItem,
   type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
   type Room,
   type RoomPoint,
-  type RoomScreen,
-  roomObjectId,
-  SCREEN_ID,
-  SEAT_ROW_ID,
   type SeatHeatmap,
-  type SeatRowFootprint,
   type UnitSystem,
 } from '@/domain'
 import { roomDimensions, type SelectionDimensions } from '@/scene/dimensions'
@@ -58,6 +54,8 @@ import {
 } from '@/scene/palette'
 import {
   GRADE_STYLES,
+  itemsInDrawOrder,
+  MLP_MARKER_RADIUS,
   OVERHEAD_MARKER_DOT,
   OVERHEAD_MARKER_RADIUS,
   OVERHEAD_MARKER_RING_INNER,
@@ -74,25 +72,19 @@ import {
   type DragController,
 } from '@/scene/drag'
 import {
-  doorSwing,
-  furnitureBlock,
-  furniturePlan,
-  openingMark,
-  openingPanel,
-  screenBar,
-  screenPanel,
+  roomObjectDrawings,
+  type RoomObjectShape,
+  type RoomObjectsInView,
 } from '@/scene/room-objects'
+import { pressAt, type GrabArea } from '@/scene/grab-areas'
 import {
   FLAT_ON_FLOOR,
+  FLOOR_LAYERS,
   floorGrid,
   floorPlane,
-  grabLength,
-  grabRadius,
-  pickGrab,
   toFloorPoint,
   toScenePosition,
   topDownCamera,
-  type GrabShape,
 } from '@/scene/top-down'
 import {
   orbitCamera,
@@ -101,39 +93,11 @@ import {
   type CameraView,
 } from '@/scene/orbit'
 
-/**
- * Small heights (in meters) that stack the flat floor layers so they don't
- * z-fight. The top-down camera is orthographic, so they don't move anything.
- */
-const LAYER = {
-  grid: 0.005,
-  seatRow: 0.007,
-  ruleOfThumb: 0.008,
-  heatmap: 0.009,
-  doorSwing: 0.0092,
-  furniture: 0.0094,
-  furnitureFront: 0.0097,
-  walls: 0.01,
-  opening: 0.0105,
-  screen: 0.011,
-  recommended: 0.012,
-  /**
-   * A room object's grab area: under the items' grab discs, so where a
-   * press is on both markers (a speaker in front of the screen) the item
-   * is picked up; otherwise the nearer marker is (see pickGrab).
-   */
-  objectGrab: 0.013,
-  grab: 0.015,
-} as const
-
 /** The ring around the Selected item, inner and outer radius in meters. */
 const SELECTION_RING = { inner: 0.33, outer: 0.38 } as const
 
 /** How far the ring and Dimension lines sit above the item, so they draw over it. */
 const SELECTION_LIFT = 0.02
-
-/** Radius of the MLP marker, in meters. */
-const MLP_MARKER_RADIUS = 0.18
 
 /** The ring around the recommended seat, inner and outer radius in meters. */
 const RECOMMENDED_RING = { inner: 0.24, outer: 0.3 } as const
@@ -151,6 +115,13 @@ const RAISED_LABEL_Z_INDEX = [16777272, 16777272]
 const FLOOR = new Plane(new Vector3(0, 1, 0), 0)
 
 /**
+ * The side of the invisible square that takes presses in the top-down
+ * view, in meters: far wider than any room and the margin around it, so
+ * it covers the whole view.
+ */
+const PRESS_SURFACE_SIZE = 1000
+
+/**
  * The react-three-fiber scene: the Room drawn to scale, with the MLP marker
  * and the speakers colored by grade. From straight above (`view`
  * "top-down", fit to the panel) every marker can be dragged; in the 3D
@@ -160,21 +131,15 @@ const FLOOR = new Plane(new Vector3(0, 1, 0), 0)
  */
 export function RoomCanvas({
   room,
-  mlp,
-  speakers,
-  overheads,
-  subwoofers,
-  screen,
-  furniture,
-  openings,
+  items,
+  roomObjects,
   gridSpacing,
-  seatRow,
   recommendedSeat,
   heatmap,
   ruleOfThumbFromFrontWall,
   view,
   units,
-  dragAnchors,
+  grabAreas,
   selection,
   onSelect,
   onDeselect,
@@ -183,24 +148,19 @@ export function RoomCanvas({
   /** Which camera looks at the room; only the top-down view drags. */
   view: CameraView
   room: Room
-  mlp: RoomPoint
-  speakers: readonly PlacedSpeaker[]
-  /** On the ceiling: drawn over everything else from straight above. */
-  overheads: readonly PlacedOverhead[]
-  subwoofers: readonly PlacedSubwoofer[]
-  /** The Screen on the front wall, or null: drawn only. */
-  screen: RoomScreen | null
-  /** The furniture boxes, in the config's order: drawn, and dragged from above. */
-  furniture: readonly FurnitureBox[]
   /**
-   * The doors and windows, in the config's order: drawn on their walls,
-   * and dragged along them from above.
+   * The speakers, subwoofers and the MLP by id, as the Room analysis has
+   * them. The overheads are on the ceiling: drawn over everything else
+   * from straight above.
    */
-  openings: readonly Opening[]
+  items: ReadonlyMap<PlaceableId, PlacedItem>
+  /**
+   * The room objects: the Seat row around the MLP, the Screen, the
+   * furniture boxes and the openings. Drawn, and dragged from above.
+   */
+  roomObjects: RoomObjectsInView
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
-  /** The Seat row around the MLP. */
-  seatRow: SeatRowFootprint
   /** The recommended MLP, or null while it is worked out. */
   recommendedSeat: RoomPoint | null
   /** The seat-score heatmap, or null when it is off or not worked out yet. */
@@ -210,11 +170,10 @@ export function RoomCanvas({
   /** How the room's measurements are written. */
   units: UnitSystem
   /**
-   * Where each drag target is grabbed from (see dragAnchors in the
-   * domain): a drag moves its anchor, keeping the grab offset. A marker
-   * without one is only drawn.
+   * What a press in the top-down view picks up (see grabAreas): a drag
+   * moves the picked target's anchor, keeping the grab offset.
    */
-  dragAnchors: ReadonlyMap<DragTarget, FloorPoint>
+  grabAreas: readonly GrabArea[]
   /** The Selected item, highlighted with its Dimension lines, or null. */
   selection: SelectionDimensions | null
   /**
@@ -249,9 +208,6 @@ export function RoomCanvas({
     if (view !== 'top-down') controller.cancel()
   }, [controller, view])
   const dragging = view === 'top-down'
-  const markerDrag: MarkerDrag | null = dragging
-    ? { room, anchors: dragAnchors, controller, setCursor, onSelect }
-    : null
   return (
     <div
       className="absolute inset-0"
@@ -267,11 +223,6 @@ export function RoomCanvas({
         flat
         dpr={[1, 2]}
         style={{ touchAction: 'none' }}
-        // A click that hits no marker (and doesn't move) clears the
-        // selection; only from above, where markers can be pressed.
-        onPointerMissed={() => {
-          if (dragging) onDeselect()
-        }}
       >
         {view === '3d' ? (
           <OrbitView room={room} />
@@ -280,38 +231,20 @@ export function RoomCanvas({
         )}
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
-        <SeatRow footprint={seatRow} markerDrag={markerDrag} />
         <RuleOfThumbLine room={room} fromFrontWall={ruleOfThumbFromFrontWall} />
         {heatmap && heatmap.cells.length > 0 && (
           // Remounted when the number of cells changes: an instanced
           // mesh's count is fixed.
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
         )}
-        {view === '3d' ? (
-          <FurnitureBlocks furniture={furniture} />
-        ) : (
-          <FurniturePlans
-            furniture={furniture}
-            labelLayer={labelLayer}
-            markerDrag={markerDrag}
-          />
-        )}
+        {/* Remounted when the view changes, as each view draws them anew. */}
+        <RoomObjects
+          key={view}
+          objects={roomObjects}
+          view={view}
+          labelLayer={labelLayer}
+        />
         <Walls room={room} labelLayer={labelLayer} />
-        {view === '3d' ? (
-          <OpeningPanels room={room} openings={openings} />
-        ) : (
-          <OpeningMarks
-            room={room}
-            openings={openings}
-            markerDrag={markerDrag}
-          />
-        )}
-        {screen &&
-          (view === '3d' ? (
-            <ScreenPanel screen={screen} />
-          ) : (
-            <ScreenBar screen={screen} markerDrag={markerDrag} />
-          ))}
         <RoomDimensionLabels
           room={room}
           units={units}
@@ -321,22 +254,17 @@ export function RoomCanvas({
         {recommendedSeat && (
           <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
         )}
-        <MlpMarker mlp={mlp} labelLayer={labelLayer} markerDrag={markerDrag} />
-        <SubwooferMarkers
-          subwoofers={subwoofers}
-          labelLayer={labelLayer}
-          markerDrag={markerDrag}
-        />
-        <SpeakerMarkers
-          speakers={speakers}
-          labelLayer={labelLayer}
-          markerDrag={markerDrag}
-        />
-        <OverheadMarkers
-          overheads={overheads}
-          labelLayer={labelLayer}
-          markerDrag={markerDrag}
-        />
+        <ItemMarkers items={items} labelLayer={labelLayer} />
+        {dragging && (
+          <PressSurface
+            room={room}
+            grabAreas={grabAreas}
+            controller={controller}
+            setCursor={setCursor}
+            onSelect={onSelect}
+            onDeselect={onDeselect}
+          />
+        )}
         {selection && (
           <SelectionMarks selection={selection} labelLayer={labelLayer} />
         )}
@@ -349,19 +277,6 @@ export function RoomCanvas({
 type LabelLayer = RefObject<HTMLDivElement>
 
 type DragCursor = 'auto' | 'grab' | 'grabbing'
-
-/**
- * What a draggable marker needs: the Room, where each drag target is
- * grabbed from, the drag controller, the cursor, and the selection, which
- * pressing a marker sets.
- */
-type MarkerDrag = {
-  room: Room
-  anchors: ReadonlyMap<DragTarget, FloorPoint>
-  controller: DragController
-  setCursor: (cursor: DragCursor) => void
-  onSelect: (id: DragTarget) => void
-}
 
 /**
  * The pointer-capture methods of a react-three-fiber event's `target`:
@@ -388,67 +303,42 @@ function leaveTextField() {
   }
 }
 
-type DraggableProps = {
-  id: DragTarget
-  /**
-   * The area that picks the marker up, where the marker is drawn, in
-   * meters: an item's round one (`radius`), or a room object's
-   * rectangular one, `width` along x and `depth` along y (which items'
-   * grab areas are stacked over).
-   */
-  grab: GrabShape
-  children: ReactNode
-}
-
-/** What a draggable group keeps in its userData: its target and grab shape. */
-type GrabUnder = { target: DragTarget; shape: GrabShape }
-
 /**
- * The draggable groups under a pointer event, in hit order (top first),
- * each once: what pickGrab picks from.
+ * An invisible square on the floor under the whole top-down view that
+ * takes every press, so markers can be dragged: it turns the pointer into
+ * a floor point and asks pressAt (see grabAreas) which drag target that
+ * picks up, if any. A press on a target tells onSelect and picks it up by
+ * its anchor (see dragAnchors); the anchor follows the pointer, keeping
+ * where it was grabbed, until released, and the store keeps the target
+ * where it may go. A click (that doesn't move) on no target clears the
+ * selection.
  */
-function grabsUnder(event: ThreeEvent<PointerEvent>): GrabUnder[] {
-  const grabs = new Map<DragTarget, GrabUnder>()
-  for (const { eventObject } of event.intersections) {
-    const { grab } = eventObject.userData as { grab?: GrabUnder }
-    if (grab && !grabs.has(grab.target)) grabs.set(grab.target, grab)
-  }
-  return [...grabs.values()]
-}
-
-/**
- * Makes its markers draggable on the floor plan as drag target `id`.
- * Pressing on a marker (or within a touch target of its center, see
- * grabRadius) tells onSelect and picks the target up by its anchor (see
- * dragAnchors), unless another target's marker is nearer the press (see
- * pickGrab), which then picks it up instead; the anchor follows the
- * pointer, keeping where it was grabbed, until released, and the store
- * keeps the target where it may go. Without `markerDrag` (the 3D view), or without an anchor, the
- * markers are only drawn, with no grab area.
- */
-function Draggable({
-  markerDrag,
-  ...props
-}: DraggableProps & { markerDrag: MarkerDrag | null }) {
-  const at = markerDrag?.anchors.get(props.id)
-  if (!markerDrag || !at) return props.children
-  return <DraggableGroup markerDrag={markerDrag} at={at} {...props} />
-}
-
-function DraggableGroup({
-  id,
-  at,
-  grab,
-  markerDrag: { room, controller, setCursor, onSelect },
-  children,
-}: DraggableProps & { at: FloorPoint; markerDrag: MarkerDrag }) {
+function PressSurface({
+  room,
+  grabAreas,
+  controller,
+  setCursor,
+  onSelect,
+  onDeselect,
+}: {
+  room: Room
+  grabAreas: readonly GrabArea[]
+  controller: DragController
+  setCursor: (cursor: DragCursor) => void
+  onSelect: (id: DragTarget) => void
+  onDeselect: () => void
+}) {
   const size = useThree((state) => state.size)
   const zoom = topDownCamera(room, size).zoom
   const hit = new Vector3()
 
-  function floorPoint(event: ThreeEvent<PointerEvent>): FloorPoint | null {
+  function floorPoint(event: ThreeEvent<PointerEvent | MouseEvent>) {
     const point = event.ray.intersectPlane(FLOOR, hit)
     return point && toFloorPoint(point)
+  }
+
+  function pressed(pointer: FloorPoint | null): GrabArea | null {
+    return pointer && pressAt(grabAreas, pointer, zoom)
   }
 
   // Release, cancel and lost capture all end the drag (once).
@@ -462,62 +352,53 @@ function DraggableGroup({
     if (!controller.isDragging()) setCursor('grab')
   }
 
+  // A click that is on no target and doesn't move clears the selection.
+  function clickOff(event: ThreeEvent<MouseEvent>) {
+    if (event.delta <= 2 && !pressed(floorPoint(event))) onDeselect()
+  }
+
   return (
-    <group
-      userData={{ grab: { target: id, shape: grab } satisfies GrabUnder }}
+    <mesh
+      position={toScenePosition({ ...floorCenter(room), z: 0 })}
+      rotation={FLAT_ON_FLOOR}
       onPointerDown={(event) => {
         const pointer = floorPoint(event)
         if (!pointer || event.button !== 0) return
-        // Not ours: the event goes on to the target pickGrab picked.
-        if (pickGrab(pointer, grabsUnder(event)) !== id) return
+        const area = pressed(pointer)
+        if (!area) return
         leaveTextField()
-        if (!controller.press(event.pointerId, id, at, pointer)) return
+        if (
+          !controller.press(event.pointerId, area.target, area.anchor, pointer)
+        )
+          return
         // A press selects the item, whether it then moves (a drag) or not.
-        onSelect(id)
+        onSelect(area.target)
         event.stopPropagation()
         captureTarget(event).setPointerCapture(event.pointerId)
         setCursor('grabbing')
       }}
       onPointerMove={(event) => {
-        if (!controller.isDragging()) return
         const pointer = floorPoint(event)
         if (!pointer) return
-        event.stopPropagation()
-        controller.move(event.pointerId, pointer)
+        if (controller.isDragging()) {
+          event.stopPropagation()
+          controller.move(event.pointerId, pointer)
+        } else {
+          setCursor(pressed(pointer) ? 'grab' : 'auto')
+        }
       }}
       onPointerUp={release}
       onPointerCancel={release}
       onLostPointerCapture={release}
-      onPointerOver={(event) => {
-        event.stopPropagation()
-        if (!controller.isDragging()) setCursor('grab')
-      }}
       onPointerOut={() => {
         if (!controller.isDragging()) setCursor('auto')
       }}
+      onClick={clickOff}
+      onContextMenu={clickOff}
     >
-      {children}
-      {/* An invisible disc (or rectangle) on the floor, under every
-          marker, so a marker is easy to pick up with a finger; markers
-          drawn above it win. */}
-      <mesh
-        position={toScenePosition({
-          x: grab.center.x,
-          y: grab.center.y,
-          z: 'radius' in grab ? LAYER.grab : LAYER.objectGrab,
-        })}
-        rotation={FLAT_ON_FLOOR}
-      >
-        {'radius' in grab ? (
-          <circleGeometry args={[grabRadius(grab.radius, zoom), 32]} />
-        ) : (
-          <planeGeometry
-            args={[grabLength(grab.width, zoom), grabLength(grab.depth, zoom)]}
-          />
-        )}
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-    </group>
+      <planeGeometry args={[PRESS_SURFACE_SIZE, PRESS_SURFACE_SIZE]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
   )
 }
 
@@ -628,7 +509,7 @@ function FloorGrid({ room, spacing }: { room: Room; spacing: number }) {
     <FloorLine
       key={index}
       points={segment}
-      z={LAYER.grid}
+      z={FLOOR_LAYERS.grid}
       color={SCENE_COLORS.grid}
       width={1}
     />
@@ -641,13 +522,13 @@ function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
     <>
       <FloorLine
         points={[...corners, corners[0]]}
-        z={LAYER.walls}
+        z={FLOOR_LAYERS.walls}
         color={SCENE_COLORS.walls}
         width={2}
       />
       <FloorLine
         points={wallBases(room).front}
-        z={LAYER.walls}
+        z={FLOOR_LAYERS.walls}
         color={SCENE_COLORS.frontWall}
         width={5}
       />
@@ -724,215 +605,69 @@ function FloorLine({
 }
 
 /**
- * The Seat row: a pale rectangle on the floor with the MLP near its back.
- * Seen from above it is dragged like the other markers; dragging it moves
- * the MLP (see withDragged), so the couch and the MLP move together.
+ * The room objects as roomObjectDrawings has them for `view`: the Seat
+ * row, the Screen, the furniture boxes and the openings, drawn shape by
+ * shape. Seen from above they are dragged like the other markers (see
+ * grabAreas); the store keeps each where it may go.
  */
-function SeatRow({
-  footprint,
-  markerDrag,
-}: {
-  footprint: SeatRowFootprint
-  markerDrag: MarkerDrag | null
-}) {
-  const { center, width, depth } = footprint
-  return (
-    <Draggable
-      id={SEAT_ROW_ID}
-      grab={{ center, width, depth }}
-      markerDrag={markerDrag}
-    >
-      <mesh
-        position={toScenePosition({ ...center, z: LAYER.seatRow })}
-        rotation={FLAT_ON_FLOOR}
-      >
-        <planeGeometry args={[width, depth]} />
-        <meshBasicMaterial color={SCENE_COLORS.seatRow} />
-      </mesh>
-    </Draggable>
-  )
-}
-
-/**
- * The Screen seen from above: a bar along the front wall (see screenBar),
- * dragged along the wall like the other markers; the store keeps it on the
- * wall.
- */
-function ScreenBar({
-  screen,
-  markerDrag,
-}: {
-  screen: RoomScreen
-  markerDrag: MarkerDrag | null
-}) {
-  const { center, width, depth } = screenBar(screen)
-  return (
-    <Draggable
-      id={SCREEN_ID}
-      grab={{ center, width, depth }}
-      markerDrag={markerDrag}
-    >
-      <mesh
-        position={toScenePosition({ ...center, z: LAYER.screen })}
-        rotation={FLAT_ON_FLOOR}
-      >
-        <planeGeometry args={[width, depth]} />
-        <meshBasicMaterial color={SCENE_COLORS.screen} />
-      </mesh>
-    </Draggable>
-  )
-}
-
-/**
- * The furniture boxes seen from above: each a rectangle with a darker
- * strip along its front and its name, dragged by its middle like the
- * other markers; the store keeps it inside the Room.
- */
-function FurniturePlans({
-  furniture,
+function RoomObjects({
+  objects,
+  view,
   labelLayer,
-  markerDrag,
 }: {
-  furniture: readonly FurnitureBox[]
+  objects: RoomObjectsInView
+  view: CameraView
   labelLayer: LabelLayer
-  markerDrag: MarkerDrag | null
 }) {
-  return furniture.map((box, index) => {
-    const { center, size, front } = furniturePlan(box)
-    return (
-      <Draggable
-        // Keyed by place: the room view names a box by it (roomObjectId).
-        key={index}
-        id={roomObjectId('furniture', index)}
-        grab={{ center, width: size[0], depth: size[1] }}
-        markerDrag={markerDrag}
-      >
-        <mesh
-          position={toScenePosition({ ...center, z: LAYER.furniture })}
-          rotation={FLAT_ON_FLOOR}
-        >
-          <planeGeometry args={size} />
-          <meshBasicMaterial color={SCENE_COLORS.furniture} />
+  return roomObjectDrawings(objects, view).map(({ id, shapes }) => (
+    // Keyed by id: the room view names an object by it (roomObjectId).
+    <Fragment key={id}>
+      {shapes.map((shape, index) => (
+        <RoomObjectPart key={index} shape={shape} labelLayer={labelLayer} />
+      ))}
+    </Fragment>
+  ))
+}
+
+/** One shape drawn for a room object (see RoomObjectShape). */
+function RoomObjectPart({
+  shape,
+  labelLayer,
+}: {
+  shape: RoomObjectShape
+  labelLayer: LabelLayer
+}) {
+  switch (shape.kind) {
+    case 'plane':
+      return (
+        <mesh position={shape.position} rotation={shape.rotation}>
+          <planeGeometry args={shape.size} />
+          <meshBasicMaterial
+            color={shape.color}
+            side={shape.doubleSided ? DoubleSide : FrontSide}
+            transparent={shape.opacity < 1}
+            opacity={shape.opacity}
+          />
         </mesh>
-        <mesh
-          position={toScenePosition({
-            ...front.center,
-            z: LAYER.furnitureFront,
-          })}
-          rotation={FLAT_ON_FLOOR}
-        >
-          <planeGeometry args={front.size} />
-          <meshBasicMaterial color={SCENE_COLORS.furnitureFront} />
+      )
+    case 'box':
+      return (
+        <mesh position={shape.position}>
+          <boxGeometry args={shape.size} />
+          <meshBasicMaterial
+            color={shape.color}
+            transparent={shape.opacity < 1}
+            opacity={shape.opacity}
+          />
         </mesh>
-        <SceneLabel at={center} layer={labelLayer} tone="muted" className="">
-          {box.name}
+      )
+    case 'label':
+      return (
+        <SceneLabel at={shape.at} layer={labelLayer} tone="muted" className="">
+          {shape.text}
         </SceneLabel>
-      </Draggable>
-    )
-  })
-}
-
-/** The furniture boxes in 3D: solid boxes standing on the floor. */
-function FurnitureBlocks({
-  furniture,
-}: {
-  furniture: readonly FurnitureBox[]
-}) {
-  return furniture.map((box, index) => {
-    const { position, size } = furnitureBlock(box)
-    return (
-      <mesh key={index} position={position}>
-        <boxGeometry args={size} />
-        <meshBasicMaterial
-          color={SCENE_COLORS.furniture}
-          transparent
-          opacity={0.85}
-        />
-      </mesh>
-    )
-  })
-}
-
-/**
- * The doors and windows seen from above: each a mark along the inside of
- * its wall, dragged along the wall like the other markers (the store keeps
- * it on its wall), and a door's swing as a pale square in front of it.
- */
-function OpeningMarks({
-  room,
-  openings,
-  markerDrag,
-}: {
-  room: Room
-  openings: readonly Opening[]
-  markerDrag: MarkerDrag | null
-}) {
-  return openings.map((opening, index) => {
-    const { center, size } = openingMark(room, opening)
-    const swing = opening.kind === 'door' && doorSwing(room, opening)
-    return (
-      // Keyed by place: the room view names an opening by it (roomObjectId).
-      <group key={index}>
-        {swing && (
-          <mesh
-            position={toScenePosition({ ...swing.center, z: LAYER.doorSwing })}
-            rotation={FLAT_ON_FLOOR}
-          >
-            <planeGeometry args={swing.size} />
-            <meshBasicMaterial color={SCENE_COLORS.doorSwing} />
-          </mesh>
-        )}
-        <Draggable
-          id={roomObjectId('opening', index)}
-          grab={{ center, width: size[0], depth: size[1] }}
-          markerDrag={markerDrag}
-        >
-          <mesh
-            position={toScenePosition({ ...center, z: LAYER.opening })}
-            rotation={FLAT_ON_FLOOR}
-          >
-            <planeGeometry args={size} />
-            <meshBasicMaterial color={SCENE_COLORS[opening.kind]} />
-          </mesh>
-        </Draggable>
-      </group>
-    )
-  })
-}
-
-/** The doors and windows in 3D: panels on their walls, at their height. */
-function OpeningPanels({
-  room,
-  openings,
-}: {
-  room: Room
-  openings: readonly Opening[]
-}) {
-  return openings.map((opening, index) => {
-    const { position, size, rotation } = openingPanel(room, opening)
-    return (
-      <mesh key={index} position={position} rotation={rotation}>
-        <planeGeometry args={size} />
-        <meshBasicMaterial
-          color={SCENE_COLORS[opening.kind]}
-          side={DoubleSide}
-          transparent
-          opacity={0.6}
-        />
-      </mesh>
-    )
-  })
-}
-
-/** The Screen in 3D: an upright panel at its height on the front wall. */
-function ScreenPanel({ screen }: { screen: RoomScreen }) {
-  const { position, size } = screenPanel(screen)
-  return (
-    <mesh position={position}>
-      <planeGeometry args={size} />
-      <meshBasicMaterial color={SCENE_COLORS.screen} side={DoubleSide} />
-    </mesh>
-  )
+      )
+  }
 }
 
 /**
@@ -948,7 +683,7 @@ function RuleOfThumbLine({
   fromFrontWall: number
 }) {
   const half = room.width / 2
-  const z = LAYER.ruleOfThumb
+  const z = FLOOR_LAYERS.ruleOfThumb
   return (
     <Line
       points={[
@@ -977,7 +712,9 @@ function HeatmapCells({ heatmap }: { heatmap: SeatHeatmap }) {
     const cell = new Object3D()
     const color = new Color()
     heatmap.cells.forEach(({ center, width, depth, relativeScore }, index) => {
-      cell.position.set(...toScenePosition({ ...center, z: LAYER.heatmap }))
+      cell.position.set(
+        ...toScenePosition({ ...center, z: FLOOR_LAYERS.heatmap }),
+      )
       cell.rotation.set(...FLAT_ON_FLOOR)
       cell.scale.set(width, depth, 1)
       cell.updateMatrix()
@@ -1017,7 +754,7 @@ function RecommendedSeatMarker({
   return (
     <>
       <mesh
-        position={toScenePosition({ ...at, z: LAYER.recommended })}
+        position={toScenePosition({ ...at, z: FLOOR_LAYERS.recommended })}
         rotation={FLAT_ON_FLOOR}
       >
         <ringGeometry
@@ -1037,27 +774,64 @@ function RecommendedSeatMarker({
   )
 }
 
+/**
+ * Every placed item's marker, by its kind, in the order the room view
+ * draws them (itemsInDrawOrder), so their labels stack that way too.
+ */
+function ItemMarkers({
+  items,
+  labelLayer,
+}: {
+  items: ReadonlyMap<PlaceableId, PlacedItem>
+  labelLayer: LabelLayer
+}) {
+  return itemsInDrawOrder(items).map((item) => {
+    switch (item.kind) {
+      case 'mlp':
+        return (
+          <MlpMarker
+            key={item.id}
+            mlp={item.position}
+            labelLayer={labelLayer}
+          />
+        )
+      case 'subwoofer':
+        return (
+          <SubwooferMarker
+            key={item.id}
+            subwoofer={item}
+            labelLayer={labelLayer}
+          />
+        )
+      case 'listenerLevel':
+        return (
+          <SpeakerMarker key={item.id} speaker={item} labelLayer={labelLayer} />
+        )
+      case 'overhead':
+        return (
+          <OverheadMarker
+            key={item.id}
+            overhead={item}
+            labelLayer={labelLayer}
+          />
+        )
+    }
+  })
+}
+
 function MlpMarker({
   mlp,
   labelLayer,
-  markerDrag,
 }: {
   mlp: RoomPoint
   labelLayer: LabelLayer
-  markerDrag: MarkerDrag | null
 }) {
   return (
     <>
-      <Draggable
-        id={MLP_ID}
-        grab={{ center: mlp, radius: MLP_MARKER_RADIUS }}
-        markerDrag={markerDrag}
-      >
-        <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
-          <circleGeometry args={[MLP_MARKER_RADIUS, 32]} />
-          <meshBasicMaterial color={SCENE_COLORS.mlp} />
-        </mesh>
-      </Draggable>
+      <mesh position={toScenePosition(mlp)} rotation={FLAT_ON_FLOOR}>
+        <circleGeometry args={[MLP_MARKER_RADIUS, 32]} />
+        <meshBasicMaterial color={SCENE_COLORS.mlp} />
+      </mesh>
       {/* Shifted below the marker by CSS, so it never covers it. */}
       <SceneLabel
         at={mlp}
@@ -1071,153 +845,120 @@ function MlpMarker({
   )
 }
 
-function SpeakerMarkers({
-  speakers,
+function SpeakerMarker({
+  speaker,
   labelLayer,
-  markerDrag,
 }: {
-  speakers: readonly PlacedSpeaker[]
+  speaker: PlacedSpeaker
   labelLayer: LabelLayer
-  markerDrag: MarkerDrag | null
 }) {
-  return speakers.map((speaker) => {
-    const { position, rotation, color, label, grade, labelDirection } =
-      speakerMarker(speaker)
-    return (
-      <Fragment key={speaker.channel}>
-        <Draggable
-          id={speaker.channel}
-          grab={{
-            center: speaker.position,
-            radius: SPEAKER_FOOTPRINT.width / 2,
-          }}
-          markerDrag={markerDrag}
-        >
-          <mesh position={position} rotation={rotation}>
-            <planeGeometry
-              args={[SPEAKER_FOOTPRINT.width, SPEAKER_FOOTPRINT.depth]}
-            />
-            <meshBasicMaterial color={color} />
-          </mesh>
-        </Draggable>
-        <SceneLabel
-          at={speaker.position}
-          layer={labelLayer}
-          tone="text"
-          className="flex flex-col items-center leading-tight"
-          style={{ transform: besideMarker(labelDirection) }}
-        >
-          <span className="font-medium">{label}</span>
-          <span style={{ color: LABEL_COLORS.muted }}>
-            {GRADE_STYLES[grade].label}
-          </span>
-        </SceneLabel>
-      </Fragment>
-    )
-  })
+  const { position, rotation, color, label, grade, labelDirection } =
+    speakerMarker(speaker)
+  return (
+    <>
+      <mesh position={position} rotation={rotation}>
+        <planeGeometry
+          args={[SPEAKER_FOOTPRINT.width, SPEAKER_FOOTPRINT.depth]}
+        />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      <SceneLabel
+        at={speaker.position}
+        layer={labelLayer}
+        tone="text"
+        className="flex flex-col items-center leading-tight"
+        style={{ transform: besideMarker(labelDirection) }}
+      >
+        <span className="font-medium">{label}</span>
+        <span style={{ color: LABEL_COLORS.muted }}>
+          {GRADE_STYLES[grade].label}
+        </span>
+      </SceneLabel>
+    </>
+  )
 }
 
 /**
- * The overhead speakers as rings with a center dot, colored by grade, on
- * the ceiling: round, so they read apart from the rectangular
- * listener-level cabinets. Drawn on both faces, so the 3D view sees them
+ * An overhead speaker as a ring with a center dot, colored by grade, on
+ * the ceiling: round, so it reads apart from the rectangular
+ * listener-level cabinets. Drawn on both faces, so the 3D view sees it
  * from below. Dragged on the floor plan like the others (top-down only);
- * the store keeps them on the ceiling.
+ * the store keeps it on the ceiling.
  */
-function OverheadMarkers({
-  overheads,
+function OverheadMarker({
+  overhead,
   labelLayer,
-  markerDrag,
 }: {
-  overheads: readonly PlacedOverhead[]
+  overhead: PlacedOverhead
   labelLayer: LabelLayer
-  markerDrag: MarkerDrag | null
 }) {
-  return overheads.map((overhead) => {
-    const { position, rotation, color, label, grade, labelDirection } =
-      overheadMarker(overhead)
-    return (
-      <Fragment key={overhead.channel}>
-        <Draggable
-          id={overhead.channel}
-          grab={{ center: overhead.position, radius: OVERHEAD_MARKER_RADIUS }}
-          markerDrag={markerDrag}
-        >
-          <mesh position={position} rotation={rotation}>
-            <ringGeometry
-              args={[
-                OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_RING_INNER,
-                OVERHEAD_MARKER_RADIUS,
-                32,
-              ]}
-            />
-            <meshBasicMaterial color={color} side={DoubleSide} />
-          </mesh>
-          <mesh position={position} rotation={rotation}>
-            <circleGeometry
-              args={[OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_DOT, 24]}
-            />
-            <meshBasicMaterial color={color} side={DoubleSide} />
-          </mesh>
-        </Draggable>
-        <SceneLabel
-          at={overhead.position}
-          layer={labelLayer}
-          tone="text"
-          className="flex flex-col items-center leading-tight"
-          style={{ transform: besideMarker(labelDirection) }}
-        >
-          <span className="font-medium">{label}</span>
-          <span style={{ color: LABEL_COLORS.muted }}>
-            {GRADE_STYLES[grade].label}
-          </span>
-        </SceneLabel>
-      </Fragment>
-    )
-  })
+  const { position, rotation, color, label, grade, labelDirection } =
+    overheadMarker(overhead)
+  return (
+    <>
+      <mesh position={position} rotation={rotation}>
+        <ringGeometry
+          args={[
+            OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_RING_INNER,
+            OVERHEAD_MARKER_RADIUS,
+            32,
+          ]}
+        />
+        <meshBasicMaterial color={color} side={DoubleSide} />
+      </mesh>
+      <mesh position={position} rotation={rotation}>
+        <circleGeometry
+          args={[OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_DOT, 24]}
+        />
+        <meshBasicMaterial color={color} side={DoubleSide} />
+      </mesh>
+      <SceneLabel
+        at={overhead.position}
+        layer={labelLayer}
+        tone="text"
+        className="flex flex-col items-center leading-tight"
+        style={{ transform: besideMarker(labelDirection) }}
+      >
+        <span className="font-medium">{label}</span>
+        <span style={{ color: LABEL_COLORS.muted }}>
+          {GRADE_STYLES[grade].label}
+        </span>
+      </SceneLabel>
+    </>
+  )
 }
 
 /**
- * The subwoofers as neutral squares on the floor plan. They sit lower than
+ * A subwoofer as a neutral square on the floor plan. It sits lower than
  * the listener-level speakers, so a speaker above one (the Center over
  * Subwoofer 1) is drawn on top, with the subwoofer's outline around it.
  */
-function SubwooferMarkers({
-  subwoofers,
+function SubwooferMarker({
+  subwoofer,
   labelLayer,
-  markerDrag,
 }: {
-  subwoofers: readonly PlacedSubwoofer[]
+  subwoofer: PlacedSubwoofer
   labelLayer: LabelLayer
-  markerDrag: MarkerDrag | null
 }) {
-  return subwoofers.map((subwoofer) => {
-    const { position, rotation, color, label, labelDirection } =
-      subwooferMarker(subwoofer)
-    return (
-      <Fragment key={subwoofer.id}>
-        <Draggable
-          id={subwoofer.id}
-          grab={{ center: subwoofer.position, radius: SUBWOOFER_FOOTPRINT / 2 }}
-          markerDrag={markerDrag}
-        >
-          <mesh position={position} rotation={rotation}>
-            <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />
-            <meshBasicMaterial color={color} />
-          </mesh>
-        </Draggable>
-        <SceneLabel
-          at={subwoofer.position}
-          layer={labelLayer}
-          tone="text"
-          className="leading-tight font-medium"
-          style={{ transform: besideMarker(labelDirection) }}
-        >
-          {label}
-        </SceneLabel>
-      </Fragment>
-    )
-  })
+  const { position, rotation, color, label, labelDirection } =
+    subwooferMarker(subwoofer)
+  return (
+    <>
+      <mesh position={position} rotation={rotation}>
+        <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      <SceneLabel
+        at={subwoofer.position}
+        layer={labelLayer}
+        tone="text"
+        className="leading-tight font-medium"
+        style={{ transform: besideMarker(labelDirection) }}
+      >
+        {label}
+      </SceneLabel>
+    </>
+  )
 }
 
 /**

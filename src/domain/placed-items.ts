@@ -23,11 +23,11 @@ import {
 } from './dolby-layouts'
 import { itemDistances, type ItemDistances } from './item-distances'
 import { subwooferSpecsOf, wooferOf } from './listening'
+import type { Placement } from './auto-place-policy'
 import {
   MLP_ID,
   type PlaceableId,
   type PlaceableKind,
-  type Placement,
 } from './manual-positions'
 import { aimAtMlp, type Aim, type ScreenRelation } from './placement'
 import {

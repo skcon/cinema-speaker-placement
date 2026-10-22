@@ -1,16 +1,24 @@
 import { describe, expect, it } from 'vitest'
+import { canAutoPlace, withAutoPlacement, withMlpAt } from './auto-place'
+import { placeMlp } from './auto-place-policy'
 import { placeSpeakers } from './placements'
 import { LEFT_RIGHT_AIM } from './reference'
 import {
   analyzeRoom,
   DEFAULT_CONFIG,
   formatLayout,
+  recommendSeat,
   type ChannelId,
   type Config,
   type Layout,
   type Room,
   type RoomPoint,
 } from '@/domain'
+import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
+import { V2_LINKS } from '@/test/share-link-fixtures'
+
+/** The 24 x 15 ft 7.1.2 room of the share-link fixtures, nothing manual. */
+const IMPERIAL_7_1_2 = V2_LINKS.imperialRoom.config as Config
 
 function config(room: Room, layout: Layout = DEFAULT_CONFIG.layout): Config {
   return { ...DEFAULT_CONFIG, room, layout }
@@ -304,4 +312,139 @@ describe('the front stage and the auto MLP form a near-equilateral triangle (#12
       expect(left?.placementRange.azimuth.shown).toBe(30)
     },
   )
+})
+
+describe('moving the MLP (a drag, "Move MLP here")', () => {
+  it('makes the MLP manual at the floor point, at ear height, keeping the other items as they are', () => {
+    const withLeft: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { L: { x: -1, y: 1, z: 1.2 } },
+    }
+
+    expect(withMlpAt(withLeft, { x: 0.4, y: 3.1 }).manualPositions).toEqual({
+      L: { x: -1, y: 1, z: 1.2 },
+      MLP: { x: 0.4, y: 3.1, z: 1.2 },
+    })
+  })
+
+  it('keeps the MLP inside its wall clearance', () => {
+    // 0.3 m from the back wall of the 6 m long default room.
+    expect(
+      withMlpAt(DEFAULT_CONFIG, { x: 0, y: 9 }).manualPositions.MLP,
+    ).toEqual({ x: 0, y: 5.7, z: 1.2 })
+  })
+
+  it('lands on the seat it is given ("Move MLP here"), not one worked out again', () => {
+    // A seat shown for a config from before an edit, say.
+    const shown = { x: -1, y: 2, z: 1.2 }
+
+    expect(placeMlp(withMlpAt(DEFAULT_CONFIG, shown))).toEqual({
+      position: shown,
+      placement: 'manual',
+    })
+  })
+
+  it('puts the MLP at the recommended seat on "Move MLP here", and the auto speakers follow it', () => {
+    const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
+
+    const moved = withMlpAt(ROOM_WITH_A_BETTER_SEAT, recommended.position)
+
+    expect(moved.manualPositions).toEqual({ MLP: recommended.position })
+    expect(recommendSeat(moved).mlpIsRecommended).toBe(true)
+    const surround = (config: Config) => speaker(analyzeRoom(config), 'Ls')
+    expect(surround(moved).placement).toBe('auto')
+    expect(surround(moved).position).not.toEqual(
+      surround(ROOM_WITH_A_BETTER_SEAT).position,
+    )
+  })
+
+  it('gives the same config back when the MLP already is there, so no empty undo step is recorded', () => {
+    const moved = withMlpAt(DEFAULT_CONFIG, { x: 0.4, y: 3.1 })
+
+    expect(withMlpAt(moved, { x: 0.4, y: 3.1 })).toBe(moved)
+  })
+})
+
+describe('Auto-place', () => {
+  it('puts every item back to auto and the MLP at the recommended seat, keeping the rest of the config', () => {
+    // The recommended seat is about 3.26 m back, not at the 2.85 m auto MLP.
+    const { recommended, mlpIsRecommended } = recommendSeat(
+      ROOM_WITH_A_BETTER_SEAT,
+    )
+    expect(mlpIsRecommended).toBe(false)
+    const edited: Config = {
+      ...ROOM_WITH_A_BETTER_SEAT,
+      manualPositions: {
+        L: { x: -1, y: 1, z: 1.2 },
+        Ltm: { x: -1, y: 2, z: 2.6 },
+        Sub1: { x: 1, y: 5, z: 0.25 },
+        MLP: { x: 0, y: 3, z: 1.2 },
+      },
+    }
+
+    const placed = withAutoPlacement(edited)
+
+    expect(placed).toEqual({
+      ...ROOM_WITH_A_BETTER_SEAT,
+      manualPositions: { MLP: recommended.position },
+    })
+    expect(placeMlp(placed).position).toEqual(recommended.position)
+  })
+
+  it('places the speakers as auto-place does around the recommended seat', () => {
+    const { recommended } = recommendSeat(ROOM_WITH_A_BETTER_SEAT)
+    const placed = withAutoPlacement(ROOM_WITH_A_BETTER_SEAT)
+
+    expect(analyzeRoom(placed).speakers).toEqual(
+      analyzeRoom({
+        ...ROOM_WITH_A_BETTER_SEAT,
+        manualPositions: { MLP: recommended.position },
+      }).speakers,
+    )
+  })
+
+  it('leaves the MLP auto when the 38% seed already is the recommended seat', () => {
+    // In the 24 x 15 ft 7.1.2 room no seat is meaningfully better than
+    // the seed (see the seat score tests).
+    const placed = withAutoPlacement({
+      ...IMPERIAL_7_1_2,
+      manualPositions: { L: { x: -1, y: 1, z: 1.2 } },
+    })
+
+    expect(placed.manualPositions).toEqual({})
+    expect(placeMlp(placed).placement).toBe('auto')
+  })
+
+  it('gives the same config back when it changes nothing, so no empty undo step is recorded', () => {
+    const placed = withAutoPlacement(ROOM_WITH_A_BETTER_SEAT)
+
+    expect(withAutoPlacement(placed)).toBe(placed)
+    expect(withAutoPlacement(IMPERIAL_7_1_2)).toBe(IMPERIAL_7_1_2)
+  })
+})
+
+describe('whether Auto-place has something to do', () => {
+  const MLP_AT_SEAT = { mlpIsRecommended: true }
+  const MLP_ELSEWHERE = { mlpIsRecommended: false }
+  const withManual = (manualPositions: Config['manualPositions']): Config => ({
+    ...DEFAULT_CONFIG,
+    manualPositions,
+  })
+
+  it('until the recommendation is ready: whether anything is manual', () => {
+    const mlpByHand = withManual({ MLP: { x: 0, y: 3, z: 1.2 } })
+
+    expect(canAutoPlace(DEFAULT_CONFIG, null)).toBe(false)
+    expect(canAutoPlace(mlpByHand, null)).toBe(true)
+  })
+
+  it('then: whether an item other than the MLP is manual, or the MLP is not at the recommended seat', () => {
+    const mlpByHand = withManual({ MLP: { x: 0, y: 3, z: 1.2 } })
+    const leftByHand = withManual({ L: { x: -1, y: 1, z: 1.2 } })
+
+    expect(canAutoPlace(DEFAULT_CONFIG, MLP_AT_SEAT)).toBe(false)
+    expect(canAutoPlace(mlpByHand, MLP_AT_SEAT)).toBe(false)
+    expect(canAutoPlace(DEFAULT_CONFIG, MLP_ELSEWHERE)).toBe(true)
+    expect(canAutoPlace(leftByHand, MLP_AT_SEAT)).toBe(true)
+  })
 })

@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import {
+  canAutoPlace,
   evenerSubwooferCounts,
   formatLayout,
   formatLength,
@@ -15,7 +16,6 @@ import {
   useRoomAnalysis,
   useSeatRecommendation,
 } from '@/state/config-context'
-import { canAutoPlace } from '@/state/config-store'
 import { Button } from '@/ui/components/button'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
 import { SidebarSection } from '@/ui/SidebarSection'

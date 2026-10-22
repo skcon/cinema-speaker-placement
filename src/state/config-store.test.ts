@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  encodeConfig,
-  recommendSeat,
-} from '@/domain'
+import { DEFAULT_CONFIG, encodeConfig } from '@/domain'
 import {
   createConfigStore,
   isShowingLinkFallback,
@@ -53,34 +48,6 @@ describe('config store', () => {
       units: 'imperial',
       room: { length: 6, width: 4.5, height: 2.6 },
     })
-  })
-
-  it('auto-place keeps the room and layout, puts every speaker at its auto-placed position and the MLP at the recommended seat', () => {
-    const store = createConfigStore()
-    store.getState().setLayout('7.1')
-    store.getState().setRoomDimension('length', 7.5)
-    store.getState().setRoomDimension('width', 5)
-
-    store.getState().autoPlace()
-
-    // A room whose recommended seat is not the auto MLP (3.26 m back, not
-    // 2.85 m). 6 x 4 m until #121: with Left and Right at 29° its auto MLP
-    // became the recommended seat, which Auto-place leaves auto.
-    const sevenOne = {
-      ...DEFAULT_CONFIG,
-      room: { length: 7.5, width: 5, height: 2.6 },
-      layout: { dolbyLayout: '7.1', subwoofers: 1 },
-    } as const
-    const { recommended, mlpIsRecommended } = recommendSeat(sevenOne)
-    expect(mlpIsRecommended).toBe(false)
-    const autoPlaced = {
-      ...sevenOne,
-      manualPositions: { MLP: recommended.position },
-    }
-    expect(store.getState().config).toEqual(autoPlaced)
-    expect(analyzeRoom(store.getState().config).speakers).toEqual(
-      analyzeRoom(autoPlaced).speakers,
-    )
   })
 
   it('auto-place changes nothing when everything is already where it puts it, so undo has nothing to record', () => {

@@ -42,3 +42,30 @@ With a Screen in the Room, auto-place fits L, C and R to it. **Dolby's cited ran
 - **Front-stage line.** In front of a TV or solid screen it stays 0.5 m from the front wall. Behind a transparent screen it moves nearer the wall when needed to stay 0.1 m behind the screen (SV-AT's about 4 in for a woven screen). With less than the 0.3 m wall clearance left behind it (a standoff under 0.4 m), there is no room behind the screen, and it counts as solid.
 - **New numbers**, all ours and in `SCREEN_FRONT_STAGE` (reference.ts): the 0.15 m edge clearance and 0.15 m Center clearance (about half a cabinet plus a small gap; the sources give the rules but no distances) and the 0.1 m gap behind a transparent screen.
 - **No config or share-link change.** Only auto positions move. The seat score places each candidate seat's auto speakers by the same rule, around the seat's projection onto the centre line (amendment above). Auto-place doesn't avoid openings or furniture (ADR 0006 warns about them instead).
+
+## Amendment (1.3.1): the recommended seat keeps the seating distances (#119)
+
+Installing the auto speakers for every candidate seat (the first amendment) has a gap: the angles from a seat are always ideal, and placement fit judges equidistance only against the farthest of L, C and R. So a seat just behind a tiny front stage scored a perfect placement fit, and bass smoothness decided. In rooms wider than long that put the recommendation 4–40 cm behind the front stage, on the Center and Sub1 (17 of 108 rooms swept, 3.5–9 × 3–7 m). The grid also started 0.3 m from the front wall, in front of the 0.5 m front-stage line, where auto-place silently falls back to the wall clearance.
+
+So the recommended seat must keep the **seating distances** (`SEATING_DISTANCE` in reference.ts), as a **hard filter** on the candidates, not a weight in the seat score:
+
+- **0.5 m from every listener-level speaker and every subwoofer, and from the side walls and the back wall.** RP22's Level 1 head clearance: more than 0.5 m from the centre of the head to the nearest side wall, back wall or protruding speaker baffle (`docs/research/seating-and-mlp.md` section 3, from an extract; RP22's higher levels ask 0.8, 1.2 and 1.5 m). The speakers are the ones installed for the seat (auto ones around its centre-line projection, manual ones where they are). We measure to the speaker's position, not its baffle, and count subwoofers as speakers: ours. The wall distance also keeps the Seat row (0.35 m head offset) inside the room.
+- **1.5 m behind the front-stage line.** **Ours**: no source we have gives a minimum distance from the front stage. 1.5 m is the distance Dolby calls ideal between listeners and enabled speakers (IG p.13), borrowed as a round number, not as Dolby's rule for the front stage. The line is the auto front stage's (0.5 m, or nearer the wall behind a transparent screen), or the farthest back of L, C and R as installed, whichever is farther back. Seats in front of it are dropped.
+
+The current MLP is kept as the recommended seat only when it keeps the distances too; otherwise the best candidate that keeps them is recommended, whatever the meaningful difference. When no seat of the grid keeps them (a room under about 2.5 m deep), the seats that come nearest are the candidates. The centre-line preference and the meaningful difference are unchanged.
+
+`ScoredSeat.distances` exposes each seat's installed stage: every speaker's and subwoofer's distance, the L–R spread, the distance behind the front-stage line, the nearest side or back wall, and the shortfall. The heatmap shows only the candidates that keep the distances, so the area in front of them and along the walls is blank.
+
+### Considered options
+
+- **A penalty weight in the seat score**: rejected. A weight trades distance against bass, and the bass term (60%) can still win; the ticket and the report are about a hard limit.
+- **A fraction of the room length** (for example 25%) instead of a fixed 1.5 m: rejected. It is just as much ours, and a fixed distance from the speakers is what the listener notices; in a 9 m room 25% would still allow 1.75 m.
+- **RP22's higher levels** (0.8–1.5 m): not used. Level 1 is the minimum, and the larger ones would leave no seat in small rooms.
+
+### Consequences
+
+- The default room (6 × 4.5 × 2.6 m, 5.1.2) still recommends its 38% MLP; its pinned values don't change. Its heatmap has 111 of the 225 seats.
+- Across the sweep and every v1 layout, the recommended seat keeps every distance. In short rooms wider than long the bass term now usually picks the back of the allowed area, 0.5 m from the back wall (for example 3.46 m back in the 4 × 6 m room).
+- The seating panel says when the MLP is too close to a speaker, a wall or the front stage to stay the recommended seat (`SeatRecommendation.mlpKeepsSeatingDistances`), and its note lists the distances.
+- No new config field or share-link change: the filter reads the config as it is.
+- RP22's numbers come from an extract. Re-check the table, and Dolby IG p.13, when a session can reach them; changing the constants is cheap.

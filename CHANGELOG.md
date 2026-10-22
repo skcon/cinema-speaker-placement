@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented here. The project follows [Semantic Versioning](https://semver.org/). Every release is a `vX.Y.Z` tag on `main`, which deploys the site to GitHub Pages.
 
+## [1.3.0] - 2026-10-22
+
+A second architecture release (spec #99, from the improve-codebase-architecture review after 1.2.0), plus clearer position fields.
+
+### Changed
+
+- **Position fields show their accepted range.** Typing a speaker, subwoofer or MLP height or wall distance outside the clearances now shows an inline error with the range in your units, instead of silently clamping. Values still apply when you leave the field or press Enter; dragging still stops at the walls (#107).
+- An edit that changes nothing (for example typing `6.0` over 6 m) no longer adds an empty undo step (#103).
+- Internal restructuring with no change to results or share links:
+  - one module decides which grab area a press picks; ties between room objects now follow a fixed order (furniture box, Screen, opening, Seat row) (#100);
+  - room objects are drawn from one per-kind table in the room view (#101);
+  - share-link version 2 is frozen and each link version is described in one place (#102, ADR 0003 amendment);
+  - speaker, subwoofer, room, amplifier and crossover edits are domain config edits (#103);
+  - the analysis and the seat score share one heard-room interface (#104);
+  - the Room analysis looks up any placed item by id, and the Selected item is worked out in the domain (#105);
+  - every sidebar field uses one draft-field hook (#106).
+
+### Notes
+
+- Share links are unchanged: links from 1.0.0 to 1.2.0 open exactly as before.
+
 ## [1.2.0] - 2026-10-17
 
 An architecture release: the same app, built from deeper modules so the next features are cheaper to add and easier to test (spec #76, from the improve-codebase-architecture review).
@@ -100,6 +121,7 @@ The first complete release: plan a rectangular home theater room from Dolby's pl
 - CI for pull requests to `develop`, and the GitHub Pages deploy on release tags (#18).
 - Planning documents: CLAUDE.md, GLOSSARY.md, ADRs 0001–0002 and the cited Dolby placement research (#3).
 
+[1.3.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/skcon/cinema-speaker-placement/compare/v0.1.0...v1.0.0

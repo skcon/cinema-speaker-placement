@@ -15,6 +15,14 @@ function seat(x: number, y: number, score: number): ScoredSeat {
     score,
     responseDeviationDb: 0,
     placementFit: 1,
+    distances: {
+      speakers: [],
+      subwoofers: [],
+      leftRightSpread: 0,
+      behindFrontStage: y,
+      fromWall: 1,
+      shortfall: 0,
+    },
   }
 }
 
@@ -161,18 +169,32 @@ describe('seat-score heatmap', () => {
     ).toMatchObject({ cells: [], scoresAboutTheSame: true })
   })
 
-  it('covers exactly the default room inside the 0.3 m wall clearance, leaving the clearance blank', () => {
+  it('covers only the default room’s seats that keep the seating distances, leaving the rest blank (#119)', () => {
+    // The 15 x 15 grid inside the 0.3 m wall clearance is 0.279 m apart
+    // across and 0.386 m down the room. The seats kept are at least 0.5 m
+    // from the side and back walls (the outermost columns and the back row
+    // go) and 1.5 m behind the 0.5 m front-stage line (from the sixth row,
+    // 2.23 m back). Six seats of the last row kept go too: the surrounds
+    // installed for them stand on the back wall, within 0.5 m.
     const { room } = DEFAULT_CONFIG
-    const { cells } = seatHeatmap(recommendSeat(DEFAULT_CONFIG))
+    const recommendation = recommendSeat(DEFAULT_CONFIG)
+    const { cells } = seatHeatmap(recommendation)
+    const across = (room.width - 0.6) / 14
+    const down = (room.length - 0.6) / 14
+    const halfWidth = room.width / 2 - 0.3 - across
+    const front = 0.3 + 5 * down
+    const back = room.length - 0.3 - down
 
+    expect(cells).toHaveLength(13 * 9 - 6)
+    expect(cells).toHaveLength(recommendation.candidates.length)
     const area = cells.reduce((sum, c) => sum + c.width * c.depth, 0)
-    expect(area).toBeCloseTo((room.width - 0.6) * (room.length - 0.6))
+    expect(area).toBeLessThan(2 * halfWidth * (back - front))
     for (const { center, width, depth } of cells) {
       expect(Math.abs(center.x) + width / 2).toBeLessThanOrEqual(
-        room.width / 2 - 0.3 + 1e-9,
+        halfWidth + 1e-9,
       )
-      expect(center.y - depth / 2).toBeGreaterThanOrEqual(0.3 - 1e-9)
-      expect(center.y + depth / 2).toBeLessThanOrEqual(room.length - 0.3 + 1e-9)
+      expect(center.y - depth / 2).toBeGreaterThanOrEqual(front - 1e-9)
+      expect(center.y + depth / 2).toBeLessThanOrEqual(back + 1e-9)
     }
   })
 })

@@ -657,6 +657,67 @@ export const SEAT_SCORE = {
 }
 
 /**
+ * The seating distances (GLOSSARY.md, issue #119, ADR 0005 amendment):
+ * how far a seat must be from the speakers and the walls to be
+ * recommended. They are a hard filter on the recommended seat's
+ * candidates, not part of the seat score, so a seat right next to a
+ * speaker can't win on bass.
+ *
+ * - **fromSpeaker** and **fromWall**: from the centre of the listener's
+ *   head to every listener-level speaker and every subwoofer, and to the
+ *   nearest side wall or the back wall. RP22's Level 1 minimum: "> 0.5 m"
+ *   from the head to the nearest side wall, back wall or protruding
+ *   speaker baffle (docs/research/seating-and-mlp.md section 3; read from
+ *   an extract, confirm against RP22's table). Level 1 is RP22's lowest
+ *   level; its higher levels ask for 0.8, 1.2 and 1.5 m. We measure to the
+ *   speaker's position (its acoustic centre), not its baffle, and count
+ *   subwoofers as speakers: our simplifications. The Seat row's head
+ *   offset (0.35 m) also needs more than the 0.3 m wall clearance behind
+ *   the MLP.
+ * - **behindFrontStage**: how far the head must be behind the front-stage
+ *   line (Left, Center and Right). **Ours**: no source we have gives a
+ *   minimum distance from the front stage. 1.5 m is the distance Dolby
+ *   calls ideal between listeners and Atmos enabled speakers (IG p.13),
+ *   borrowed as a round, plausible number, not Dolby's rule for the front
+ *   stage. The default room's 38% MLP is 1.78 m behind the line.
+ */
+export const SEATING_DISTANCE = {
+  fromSpeaker: 0.5,
+  fromWall: 0.5,
+  behindFrontStage: 1.5,
+  note:
+    'fromSpeaker and fromWall are RP22 Level 1 (head > 0.5 m from the ' +
+    'nearest side wall, back wall or protruding speaker baffle; from an ' +
+    'extract). Measuring to the acoustic centre and counting subwoofers as ' +
+    'speakers are ours. behindFrontStage is ours: no source gives a minimum ' +
+    'distance from the front stage; 1.5 m borrows the number Dolby calls ' +
+    "ideal for enabled speakers' distance from listeners (IG p.13), not a " +
+    'Dolby rule for the front stage (docs/research/seating-and-mlp.md ' +
+    'section 3; ADR 0005).',
+  citations: [
+    {
+      source: 'RP22',
+      note:
+        'Level 1: head centre > 0.5 m from the nearest side wall, back wall ' +
+        'or protruding speaker baffle (extract)',
+    },
+    {
+      source: 'IG',
+      page: 13,
+      note:
+        'enabled speakers at least 0.9 m, ideally 1.5 m from listeners; ' +
+        'borrowed for behindFrontStage, which is ours',
+    },
+  ],
+} as const satisfies {
+  fromSpeaker: number
+  fromWall: number
+  behindFrontStage: number
+  note: string
+  citations: readonly Citation[]
+}
+
+/**
  * The Seat row (GLOSSARY.md): the couch or row of seats the MLP sits on,
  * a room object that is drawn but never part of the estimated response
  * (ADR 0006). Its width and depth are in the config; where it is follows

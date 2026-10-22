@@ -182,6 +182,18 @@ export function manualScreenRelation(
     : null
 }
 
+/**
+ * How far from the front wall the front stage (Left, Center and Right)
+ * stands when auto-placed: FRONT_STAGE_WALL_DISTANCE, or nearer the wall
+ * behind an acoustically transparent screen (rule 2; "With a screen"
+ * above). The seat score keeps its seats behind it (SEATING_DISTANCE).
+ */
+export function frontStageLine(screen: RoomScreen | null): number {
+  return screen === null
+    ? FRONT_STAGE_WALL_DISTANCE.meters
+    : frontStageAt(screen).line
+}
+
 /** The middle of a channel's ideal range in whole degrees, signed on its side (rule 1). */
 function middleAzimuth({
   channel,
@@ -339,8 +351,15 @@ function placeCenterAtScreen(
   }
 }
 
-/** The channels auto-place puts near the front wall (rule 2 above). */
-const FRONT_STAGE_CHANNELS: ReadonlySet<ChannelId> = new Set(['L', 'C', 'R'])
+/**
+ * The front-stage channels, Left, Center and Right: the ones auto-place
+ * puts near the front wall (rule 2 above).
+ */
+export const FRONT_STAGE_CHANNELS: ReadonlySet<ChannelId> = new Set([
+  'L',
+  'C',
+  'R',
+])
 
 /** Turn a speaker at `position` to face the MLP (rule 5 above). */
 export function aimAtMlp(position: RoomPoint, mlp: RoomPoint): Aim {

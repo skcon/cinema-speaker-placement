@@ -41,8 +41,10 @@ export {
   recommendSeat,
   scoreSeat,
   type CenterLineWidthMode,
+  type ItemFromSeat,
   type OffCenterLine,
   type ScoredSeat,
+  type SeatDistances,
   type SeatRecommendation,
 } from './seat-score'
 export { seatHeatmap, type HeatmapCell, type SeatHeatmap } from './seat-heatmap'
@@ -267,6 +269,7 @@ export {
   SCREEN,
   SCREEN_FRONT_STAGE,
   SEAT_SCORE,
+  SEATING_DISTANCE,
   sourceOf,
   SPEAKER_TYPE_GEOMETRY,
   TARGET_TOLERANCE,

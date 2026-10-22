@@ -4,13 +4,12 @@ import {
   decodeConfig,
   DEFAULT_CONFIG,
   MLP_ID,
-  placeAtWallDistance,
-  placeManually,
   withAmplifierWatts,
   withAutoPlacement,
   withCrossover,
   withLayout,
   withMlpAtRecommendedSeat,
+  withPositionLength,
   withRoomDimension,
   withSpeakerSpecs,
   withSubwooferHasOwnSpecs,
@@ -25,6 +24,7 @@ import {
   type DragTarget,
   type FloorPoint,
   type PlaceableId,
+  type PositionDimension,
   type RoomPoint,
   type RoomDimension,
   type RoomObjectAddition,
@@ -40,7 +40,6 @@ import {
   type SubwooferSpecs,
   type TargetCurveKind,
   type UnitSystem,
-  type Wall,
 } from '@/domain'
 
 export type ConfigState = {
@@ -147,16 +146,16 @@ export type ConfigState = {
    */
   moveDragTarget: (target: DragTarget, to: FloorPoint) => void
   /**
-   * Set a listener-level speaker's height above the floor, in meters,
-   * making it manual. Kept inside the floor and ceiling clearances;
-   * subwoofers and the MLP keep their fixed heights.
+   * Set one of an item's lengths, its height above the floor or its
+   * distance to a wall, in meters, making it manual. Ignored when the
+   * value is outside the limits positionLengths gives (unlike a drag, it
+   * isn't moved to the limit), or the item's height is fixed.
    */
-  setItemHeight: (id: PlaceableId, meters: number) => void
-  /**
-   * Move an item until it is `meters` from `wall`, making it manual. Kept
-   * inside the wall clearances.
-   */
-  setWallDistance: (id: PlaceableId, wall: Wall, meters: number) => void
+  setPositionLength: (
+    id: PlaceableId,
+    dimension: PositionDimension,
+    meters: number,
+  ) => void
   /**
    * Add a room object: the Screen (the default TV, centred on the front
    * wall), a furniture box from a preset, or a door or window (see
@@ -351,13 +350,9 @@ export function createConfigStore(initialConfig: Config = DEFAULT_CONFIG) {
             setConfigIfChanged((config) => withCrossover(config, hz)),
           moveDragTarget: (target, to) =>
             setConfigIfChanged((config) => withDragged(config, target, to)),
-          setItemHeight: (id, meters) =>
+          setPositionLength: (id, dimension, meters) =>
             setConfigIfChanged((config) =>
-              placeManually(config, id, { z: meters }),
-            ),
-          setWallDistance: (id, wall, meters) =>
-            setConfigIfChanged((config) =>
-              placeAtWallDistance(config, id, wall, meters),
+              withPositionLength(config, id, dimension, meters),
             ),
           addRoomObject: (addition) =>
             setConfigIfChanged((config) =>

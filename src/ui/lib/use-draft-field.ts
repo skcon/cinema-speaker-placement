@@ -37,8 +37,8 @@ export type DraftField<T, P> = {
  * while the store keeps the last value it accepted. Accepted values go to
  * `onCommit` as they are typed (`commitOn: 'edit'`, the default), or when
  * the field is left (`'leave'`: one edit is one undo step, and the value
- * isn't moved, by clamping say, while it is typed); text left with a
- * rejected value is dropped. When the stored value changes elsewhere
+ * isn't moved while it is typed); text left with a rejected value stays,
+ * with its problem, as it does while typed. When the stored value changes elsewhere
  * (undo, a drag, a share link) or the codec does (a unit switch) the text
  * starts over from the stored value, as TextCodec says.
  *
@@ -91,8 +91,11 @@ export function useDraftField<V, T, P>({
       if (commitOn === 'edit') commit(next)
     },
     leave() {
-      if (commitOn !== 'leave') return
-      if (typed !== null) commit(typed)
+      if (commitOn !== 'leave' || typed === null) return
+      const accepted = accept(codec.read(typed, value), value)
+      // A rejected value stays, so its problem still shows.
+      if (accepted === null) return
+      onCommit(accepted)
       setTyped(null)
     },
   }

@@ -14,16 +14,47 @@ import {
   screenSurface,
   SEAT_ROW_HEAD_OFFSET,
   type FurnitureBox,
+  type FloorPoint,
+  type RoomObjectId,
+  type RoomObjectKind,
+  type RoomObjects,
   type RoomPoint,
   type RoomScreen,
+  roomObjectId,
+  SCREEN_ID,
+  SEAT_ROW_ID,
   type SeatRow,
+  type SeatRowFootprint,
   type UnitSystem,
 } from '@/domain'
-import { toScenePosition, type Vec3 } from '@/scene/top-down'
+import type { CameraView } from '@/scene/orbit'
+import {
+  DOOR_COLOR,
+  DOOR_SWING_COLOR,
+  FURNITURE_COLOR,
+  FURNITURE_FRONT_COLOR,
+  SCENE_COLORS,
+  SCREEN_COLOR,
+  WINDOW_COLOR,
+} from '@/scene/palette'
+import {
+  FLAT_ON_FLOOR,
+  FLOOR_LAYERS,
+  toScenePosition,
+  type Vec3,
+} from '@/scene/top-down'
 
 /**
  * Pure geometry and words for the room objects in the room view (ADR
  * 0006): drawn, never part of the estimated response.
+ *
+ * Each kind of room object is described once, in ROOM_OBJECT_DRAWINGS
+ * (at the end): what is drawn for one from above and in 3D, the
+ * rectangle a press picks it up by, its legend entries, its drag help
+ * and its words for screen readers. The room view only reads them
+ * through roomObjectDrawings, roomObjectGrabs, roomObjectsLegend,
+ * roomObjectsDragHelp and describeRoomObjects, and draws the shapes with
+ * one renderer per shape kind.
  */
 
 /**
@@ -303,4 +334,426 @@ export function describeOpenings(
     )
   })
   return `Doors and windows: ${described.join('; ')}.`
+}
+
+/**
+ * What the room view says wherever it lists room objects (ADR 0006).
+ */
+const ROOM_OBJECTS_NOTE =
+  'Room objects are drawn and used for placement warnings, not part of the estimated response.'
+
+/**
+ * How opaque a furniture box is drawn in 3D, so what stands behind it
+ * shows through: a drawing choice only.
+ */
+const FURNITURE_BLOCK_OPACITY = 0.85
+
+/** How opaque a door or window is drawn in 3D: a drawing choice only. */
+const OPENING_PANEL_OPACITY = 0.6
+
+/** The room objects as the room view shows them. */
+export type RoomObjectsInView = {
+  readonly room: Room
+  /** As the config holds them. */
+  readonly roomObjects: RoomObjects
+  /**
+   * Where the Seat row is drawn: around the MLP, cut off at the walls
+   * (seatRowFootprint).
+   */
+  readonly seatRow: SeatRowFootprint
+}
+
+/**
+ * One thing drawn for a room object, in Three.js coordinates (see
+ * toScenePosition): a flat rectangle (`plane`, seen from its front only
+ * unless `doubleSided`), a solid `box`, or a text `label` pinned to a
+ * room point. An `opacity` under 1 draws it see-through.
+ */
+export type RoomObjectShape =
+  | {
+      readonly kind: 'plane'
+      readonly position: Vec3
+      readonly rotation: Vec3
+      readonly size: [width: number, height: number]
+      readonly color: string
+      readonly opacity: number
+      readonly doubleSided: boolean
+    }
+  | {
+      readonly kind: 'box'
+      readonly position: Vec3
+      readonly size: Vec3
+      readonly color: string
+      readonly opacity: number
+    }
+  | { readonly kind: 'label'; readonly at: RoomPoint; readonly text: string }
+
+/** What is drawn for one room object, named by its id. */
+export type RoomObjectDrawing = {
+  readonly id: RoomObjectId
+  readonly shapes: readonly RoomObjectShape[]
+}
+
+/**
+ * The rectangle on the floor plan a press picks a room object up by, at
+ * least: `width` along x and `depth` along y (see grabAreas).
+ */
+export type GrabRectangle = {
+  readonly center: FloorPoint
+  readonly width: number
+  readonly depth: number
+}
+
+/** A room object's grab rectangle, with the id a press on it picks up. */
+export type RoomObjectGrab = {
+  readonly target: RoomObjectId
+  readonly marker: GrabRectangle
+}
+
+/**
+ * One line of the room view's legend: its words, and its swatch, as
+ * Tailwind classes for its shape and its fill and edge colors.
+ */
+export type LegendEntry = {
+  readonly text: string
+  readonly swatch: {
+    readonly className: string
+    readonly fill: string
+    readonly edge?: string
+  }
+}
+
+/** The Seat row as the view has it: its own size, and where it is drawn. */
+type ViewedSeatRow = {
+  readonly size: SeatRow
+  readonly footprint: SeatRowFootprint
+}
+
+/**
+ * Everything the room view shows of one kind of room object, `T` being
+ * one object of the kind as the view has it.
+ */
+type KindDrawing<T> = {
+  /** The kind's objects in the Room, in the config's order. */
+  readonly of: (objects: RoomObjectsInView) => readonly T[]
+  /** The id of the one at `index` (from 0) in that list. */
+  readonly id: (index: number) => RoomObjectId
+  /** What is drawn for one in each camera view. */
+  readonly shapes: {
+    readonly [V in CameraView]: (
+      object: T,
+      room: Room,
+    ) => readonly RoomObjectShape[]
+  }
+  /** The rectangle a press picks one up by. */
+  readonly grab: (object: T, room: Room) => GrabRectangle
+  /** What the drag help says when the Room has any. */
+  readonly help: string
+  /**
+   * The legend's entries for the kind, each shown when the Room has one
+   * it is `for` (any of the kind without `for`).
+   */
+  readonly legend: readonly (LegendEntry & {
+    readonly for?: (object: T) => boolean
+  })[]
+  /** The Room's ones in words, or '' when it has none. */
+  readonly describe: (objects: readonly T[], units: UnitSystem) => string
+}
+
+/** A KindDrawing whose object type no longer shows. */
+type AnyKindDrawing = {
+  readonly drawings: (
+    objects: RoomObjectsInView,
+    view: CameraView,
+  ) => readonly RoomObjectDrawing[]
+  readonly grabs: (objects: RoomObjectsInView) => readonly RoomObjectGrab[]
+  readonly legend: (objects: RoomObjectsInView) => readonly LegendEntry[]
+  readonly help: (objects: RoomObjectsInView) => readonly string[]
+  readonly describe: (objects: RoomObjectsInView, units: UnitSystem) => string
+}
+
+/** The room view's functions for one kind, from its KindDrawing. */
+function kindDrawing<T>(kind: KindDrawing<T>): AnyKindDrawing {
+  return {
+    drawings: (objects, view) =>
+      kind.of(objects).map((object, index) => ({
+        id: kind.id(index),
+        shapes: kind.shapes[view](object, objects.room),
+      })),
+    grabs: (objects) =>
+      kind.of(objects).map((object, index) => ({
+        target: kind.id(index),
+        marker: kind.grab(object, objects.room),
+      })),
+    legend: (objects) => {
+      const list = kind.of(objects)
+      return kind.legend
+        .filter((entry) => list.some(entry.for ?? (() => true)))
+        .map(({ text, swatch }) => ({ text, swatch }))
+    },
+    help: (objects) => (kind.of(objects).length > 0 ? [kind.help] : []),
+    describe: (objects, units) => kind.describe(kind.of(objects), units),
+  }
+}
+
+/** A rectangle lying flat on the floor at layer height `layer`. */
+function onFloor(
+  center: FloorPoint,
+  size: [alongX: number, alongY: number],
+  layer: number,
+  color: string,
+): RoomObjectShape {
+  return {
+    kind: 'plane',
+    position: toScenePosition({ x: center.x, y: center.y, z: layer }),
+    rotation: FLAT_ON_FLOOR,
+    size,
+    color,
+    opacity: 1,
+    doubleSided: false,
+  }
+}
+
+/** The Seat row, drawn flat on the floor in either view. */
+function seatRowShapes({ footprint }: ViewedSeatRow) {
+  const { center, width, depth } = footprint
+  return [
+    onFloor(center, [width, depth], FLOOR_LAYERS.seatRow, SCENE_COLORS.seatRow),
+  ]
+}
+
+/** A rectangle on the floor plan as a grab rectangle. */
+function grabRectangle({ center, size }: FloorRect): GrabRectangle {
+  return { center, width: size[0], depth: size[1] }
+}
+
+/**
+ * Every kind of room object in the room view, in the order the view
+ * draws, lists and describes them.
+ */
+const ROOM_OBJECT_DRAWINGS: { readonly [K in RoomObjectKind]: AnyKindDrawing } =
+  {
+    // A pale rectangle on the floor with the MLP near its back, in both
+    // views; dragging it moves the MLP (see withDragged). It has no legend
+    // entry: the MLP's marker sits on it.
+    seatRow: kindDrawing<ViewedSeatRow>({
+      of: ({ roomObjects, seatRow }) => [
+        { size: roomObjects.seatRow, footprint: seatRow },
+      ],
+      id: () => SEAT_ROW_ID,
+      shapes: { 'top-down': seatRowShapes, '3d': seatRowShapes },
+      grab: ({ footprint }) => footprint,
+      help: 'Drag the seat row to move it with the MLP.',
+      legend: [],
+      describe: (seatRows, units) =>
+        seatRows.map(({ size }) => describeSeatRow(size, units)).join(' '),
+    }),
+    // A bar along the front wall from above (screenBar), dragged along the
+    // wall; an upright panel at its height in 3D.
+    screen: kindDrawing<RoomScreen>({
+      of: ({ roomObjects }) => (roomObjects.screen ? [roomObjects.screen] : []),
+      id: () => SCREEN_ID,
+      shapes: {
+        'top-down': (screen) => {
+          const { center, width, depth } = screenBar(screen)
+          return [
+            onFloor(
+              center,
+              [width, depth],
+              FLOOR_LAYERS.screen,
+              SCENE_COLORS.screen,
+            ),
+          ]
+        },
+        '3d': (screen) => {
+          const { position, size } = screenPanel(screen)
+          return [
+            {
+              kind: 'plane',
+              position,
+              rotation: [0, 0, 0],
+              size,
+              color: SCENE_COLORS.screen,
+              opacity: 1,
+              doubleSided: true,
+            },
+          ]
+        },
+      },
+      grab: screenBar,
+      help: 'Drag the screen along the front wall.',
+      legend: [
+        {
+          text: 'Screen (drawn only, not in the estimate)',
+          swatch: { className: 'h-1 w-3 rounded-xs', fill: SCREEN_COLOR },
+        },
+      ],
+      describe: (screens, units) =>
+        screens.map((screen) => describeScreen(screen, units)).join(' '),
+    }),
+    // From above, a rectangle with a darker strip along its front and its
+    // name, dragged by its middle; a solid box standing on the floor in 3D.
+    furniture: kindDrawing<FurnitureBox>({
+      of: ({ roomObjects }) => roomObjects.furniture,
+      id: (index) => roomObjectId('furniture', index),
+      shapes: {
+        'top-down': (box) => {
+          const { center, size, front } = furniturePlan(box)
+          return [
+            onFloor(
+              center,
+              size,
+              FLOOR_LAYERS.furniture,
+              SCENE_COLORS.furniture,
+            ),
+            onFloor(
+              front.center,
+              front.size,
+              FLOOR_LAYERS.furnitureFront,
+              SCENE_COLORS.furnitureFront,
+            ),
+            { kind: 'label', at: center, text: box.name },
+          ]
+        },
+        '3d': (box) => {
+          const { position, size } = furnitureBlock(box)
+          return [
+            {
+              kind: 'box',
+              position,
+              size,
+              color: SCENE_COLORS.furniture,
+              opacity: FURNITURE_BLOCK_OPACITY,
+            },
+          ]
+        },
+      },
+      grab: (box) => grabRectangle(furniturePlan(box)),
+      help: 'Drag the furniture boxes to move them.',
+      legend: [
+        {
+          text: 'Furniture box, front edge darker (drawn and warned about, not in the estimate)',
+          swatch: {
+            className: 'h-2.5 w-3 rounded-xs border-b-2',
+            fill: FURNITURE_COLOR,
+            edge: FURNITURE_FRONT_COLOR,
+          },
+        },
+      ],
+      describe: describeFurniture,
+    }),
+    // From above, a mark along the inside of its wall, dragged along it,
+    // and a door's swing as a pale square in front of it; a see-through
+    // upright panel at its height in 3D.
+    opening: kindDrawing<Opening>({
+      of: ({ roomObjects }) => roomObjects.openings,
+      id: (index) => roomObjectId('opening', index),
+      shapes: {
+        'top-down': (opening, room) => {
+          const mark = openingMark(room, opening)
+          const markShape = onFloor(
+            mark.center,
+            mark.size,
+            FLOOR_LAYERS.opening,
+            SCENE_COLORS[opening.kind],
+          )
+          if (opening.kind !== 'door') return [markShape]
+          const swing = doorSwing(room, opening)
+          return [
+            onFloor(
+              swing.center,
+              swing.size,
+              FLOOR_LAYERS.doorSwing,
+              SCENE_COLORS.doorSwing,
+            ),
+            markShape,
+          ]
+        },
+        '3d': (opening, room) => [
+          {
+            kind: 'plane',
+            ...openingPanel(room, opening),
+            color: SCENE_COLORS[opening.kind],
+            opacity: OPENING_PANEL_OPACITY,
+            doubleSided: true,
+          },
+        ],
+      },
+      grab: (opening, room) => grabRectangle(openingMark(room, opening)),
+      help: 'Drag doors and windows along their wall.',
+      legend: [
+        {
+          text: 'Door and where it swings (drawn and warned about, not in the estimate)',
+          swatch: {
+            className: 'h-2.5 w-3 rounded-xs border-t-2',
+            fill: DOOR_SWING_COLOR,
+            edge: DOOR_COLOR,
+          },
+          for: ({ kind }) => kind === 'door',
+        },
+        {
+          text: 'Window (drawn and warned about, not in the estimate)',
+          swatch: { className: 'h-1 w-3 rounded-xs', fill: WINDOW_COLOR },
+          for: ({ kind }) => kind === 'window',
+        },
+      ],
+      describe: describeOpenings,
+    }),
+  }
+
+const DRAWN_KINDS = Object.values(ROOM_OBJECT_DRAWINGS)
+
+/**
+ * What the room view draws for every room object in `view`, one entry
+ * per object: the seat row, the screen, the furniture boxes and the
+ * openings, each list in the config's order.
+ */
+export function roomObjectDrawings(
+  objects: RoomObjectsInView,
+  view: CameraView,
+): readonly RoomObjectDrawing[] {
+  return DRAWN_KINDS.flatMap((kind) => kind.drawings(objects, view))
+}
+
+/**
+ * The grab rectangle of each room object of `kind`, in the config's
+ * order, with the id a press on it picks up (see grabAreas).
+ */
+export function roomObjectGrabs(
+  objects: RoomObjectsInView,
+  kind: RoomObjectKind,
+): readonly RoomObjectGrab[] {
+  return ROOM_OBJECT_DRAWINGS[kind].grabs(objects)
+}
+
+/** The legend's entries for the room objects the Room has. */
+export function roomObjectsLegend(
+  objects: RoomObjectsInView,
+): readonly LegendEntry[] {
+  return DRAWN_KINDS.flatMap((kind) => kind.legend(objects))
+}
+
+/**
+ * How to drag the room objects the Room has, for the top-down view's
+ * help, for example "Drag the seat row to move it with the MLP."
+ */
+export function roomObjectsDragHelp(objects: RoomObjectsInView): string {
+  return DRAWN_KINDS.flatMap((kind) => kind.help(objects)).join(' ')
+}
+
+/**
+ * The room objects in words, for the room view's screen-reader
+ * description: each kind the Room has, then that they are drawn and
+ * warned about but not part of the estimate (ADR 0006).
+ */
+export function describeRoomObjects(
+  objects: RoomObjectsInView,
+  units: UnitSystem,
+): string {
+  return [
+    ...DRAWN_KINDS.map((kind) => kind.describe(objects, units)),
+    ROOM_OBJECTS_NOTE,
+  ]
+    .filter(Boolean)
+    .join(' ')
 }

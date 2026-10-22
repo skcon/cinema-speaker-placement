@@ -21,6 +21,7 @@ import {
 import {
   Color,
   DoubleSide,
+  FrontSide,
   InstancedMesh,
   Object3D,
   Plane,
@@ -30,9 +31,7 @@ import {
   type DragTarget,
   floorCenter,
   floorCorners,
-  type Opening,
   type FloorPoint,
-  type FurnitureBox,
   wallBases,
   type PlaceableId,
   type PlacedItem,
@@ -41,9 +40,7 @@ import {
   type PlacedSubwoofer,
   type Room,
   type RoomPoint,
-  type RoomScreen,
   type SeatHeatmap,
-  type SeatRowFootprint,
   type UnitSystem,
 } from '@/domain'
 import { roomDimensions, type SelectionDimensions } from '@/scene/dimensions'
@@ -75,17 +72,14 @@ import {
   type DragController,
 } from '@/scene/drag'
 import {
-  doorSwing,
-  furnitureBlock,
-  furniturePlan,
-  openingMark,
-  openingPanel,
-  screenBar,
-  screenPanel,
+  roomObjectDrawings,
+  type RoomObjectShape,
+  type RoomObjectsInView,
 } from '@/scene/room-objects'
 import { pressAt, type GrabArea } from '@/scene/grab-areas'
 import {
   FLAT_ON_FLOOR,
+  FLOOR_LAYERS,
   floorGrid,
   floorPlane,
   toFloorPoint,
@@ -98,24 +92,6 @@ import {
   roomBoxEdges,
   type CameraView,
 } from '@/scene/orbit'
-
-/**
- * Small heights (in meters) that stack the flat floor layers so they don't
- * z-fight. The top-down camera is orthographic, so they don't move anything.
- */
-const LAYER = {
-  grid: 0.005,
-  seatRow: 0.007,
-  ruleOfThumb: 0.008,
-  heatmap: 0.009,
-  doorSwing: 0.0092,
-  furniture: 0.0094,
-  furnitureFront: 0.0097,
-  walls: 0.01,
-  opening: 0.0105,
-  screen: 0.011,
-  recommended: 0.012,
-} as const
 
 /** The ring around the Selected item, inner and outer radius in meters. */
 const SELECTION_RING = { inner: 0.33, outer: 0.38 } as const
@@ -156,11 +132,8 @@ const PRESS_SURFACE_SIZE = 1000
 export function RoomCanvas({
   room,
   items,
-  screen,
-  furniture,
-  openings,
+  roomObjects,
   gridSpacing,
-  seatRow,
   recommendedSeat,
   heatmap,
   ruleOfThumbFromFrontWall,
@@ -181,19 +154,13 @@ export function RoomCanvas({
    * from straight above.
    */
   items: ReadonlyMap<PlaceableId, PlacedItem>
-  /** The Screen on the front wall, or null: drawn only. */
-  screen: RoomScreen | null
-  /** The furniture boxes, in the config's order: drawn, and dragged from above. */
-  furniture: readonly FurnitureBox[]
   /**
-   * The doors and windows, in the config's order: drawn on their walls,
-   * and dragged along them from above.
+   * The room objects: the Seat row around the MLP, the Screen, the
+   * furniture boxes and the openings. Drawn, and dragged from above.
    */
-  openings: readonly Opening[]
+  roomObjects: RoomObjectsInView
   /** Distance between floor grid lines, in meters. */
   gridSpacing: number
-  /** The Seat row around the MLP. */
-  seatRow: SeatRowFootprint
   /** The recommended MLP, or null while it is worked out. */
   recommendedSeat: RoomPoint | null
   /** The seat-score heatmap, or null when it is off or not worked out yet. */
@@ -264,30 +231,20 @@ export function RoomCanvas({
         )}
         <Floor room={room} />
         <FloorGrid room={room} spacing={gridSpacing} />
-        <SeatRow footprint={seatRow} />
         <RuleOfThumbLine room={room} fromFrontWall={ruleOfThumbFromFrontWall} />
         {heatmap && heatmap.cells.length > 0 && (
           // Remounted when the number of cells changes: an instanced
           // mesh's count is fixed.
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
         )}
-        {view === '3d' ? (
-          <FurnitureBlocks furniture={furniture} />
-        ) : (
-          <FurniturePlans furniture={furniture} labelLayer={labelLayer} />
-        )}
+        {/* Remounted when the view changes, as each view draws them anew. */}
+        <RoomObjects
+          key={view}
+          objects={roomObjects}
+          view={view}
+          labelLayer={labelLayer}
+        />
         <Walls room={room} labelLayer={labelLayer} />
-        {view === '3d' ? (
-          <OpeningPanels room={room} openings={openings} />
-        ) : (
-          <OpeningMarks room={room} openings={openings} />
-        )}
-        {screen &&
-          (view === '3d' ? (
-            <ScreenPanel screen={screen} />
-          ) : (
-            <ScreenBar screen={screen} />
-          ))}
         <RoomDimensionLabels
           room={room}
           units={units}
@@ -552,7 +509,7 @@ function FloorGrid({ room, spacing }: { room: Room; spacing: number }) {
     <FloorLine
       key={index}
       points={segment}
-      z={LAYER.grid}
+      z={FLOOR_LAYERS.grid}
       color={SCENE_COLORS.grid}
       width={1}
     />
@@ -565,13 +522,13 @@ function Walls({ room, labelLayer }: { room: Room; labelLayer: LabelLayer }) {
     <>
       <FloorLine
         points={[...corners, corners[0]]}
-        z={LAYER.walls}
+        z={FLOOR_LAYERS.walls}
         color={SCENE_COLORS.walls}
         width={2}
       />
       <FloorLine
         points={wallBases(room).front}
-        z={LAYER.walls}
+        z={FLOOR_LAYERS.walls}
         color={SCENE_COLORS.frontWall}
         width={5}
       />
@@ -648,176 +605,69 @@ function FloorLine({
 }
 
 /**
- * The Seat row: a pale rectangle on the floor with the MLP near its back.
- * Seen from above it is dragged like the other markers; dragging it moves
- * the MLP (see withDragged), so the couch and the MLP move together.
+ * The room objects as roomObjectDrawings has them for `view`: the Seat
+ * row, the Screen, the furniture boxes and the openings, drawn shape by
+ * shape. Seen from above they are dragged like the other markers (see
+ * grabAreas); the store keeps each where it may go.
  */
-function SeatRow({ footprint }: { footprint: SeatRowFootprint }) {
-  const { center, width, depth } = footprint
-  return (
-    <mesh
-      position={toScenePosition({ ...center, z: LAYER.seatRow })}
-      rotation={FLAT_ON_FLOOR}
-    >
-      <planeGeometry args={[width, depth]} />
-      <meshBasicMaterial color={SCENE_COLORS.seatRow} />
-    </mesh>
-  )
-}
-
-/**
- * The Screen seen from above: a bar along the front wall (see screenBar),
- * dragged along the wall like the other markers; the store keeps it on the
- * wall.
- */
-function ScreenBar({ screen }: { screen: RoomScreen }) {
-  const { center, width, depth } = screenBar(screen)
-  return (
-    <mesh
-      position={toScenePosition({ ...center, z: LAYER.screen })}
-      rotation={FLAT_ON_FLOOR}
-    >
-      <planeGeometry args={[width, depth]} />
-      <meshBasicMaterial color={SCENE_COLORS.screen} />
-    </mesh>
-  )
-}
-
-/**
- * The furniture boxes seen from above: each a rectangle with a darker
- * strip along its front and its name, dragged by its middle like the
- * other markers; the store keeps it inside the Room.
- */
-function FurniturePlans({
-  furniture,
+function RoomObjects({
+  objects,
+  view,
   labelLayer,
 }: {
-  furniture: readonly FurnitureBox[]
+  objects: RoomObjectsInView
+  view: CameraView
   labelLayer: LabelLayer
 }) {
-  return furniture.map((box, index) => {
-    const { center, size, front } = furniturePlan(box)
-    return (
-      // Keyed by place: the room view names a box by it (roomObjectId).
-      <Fragment key={index}>
-        <mesh
-          position={toScenePosition({ ...center, z: LAYER.furniture })}
-          rotation={FLAT_ON_FLOOR}
-        >
-          <planeGeometry args={size} />
-          <meshBasicMaterial color={SCENE_COLORS.furniture} />
+  return roomObjectDrawings(objects, view).map(({ id, shapes }) => (
+    // Keyed by id: the room view names an object by it (roomObjectId).
+    <Fragment key={id}>
+      {shapes.map((shape, index) => (
+        <RoomObjectPart key={index} shape={shape} labelLayer={labelLayer} />
+      ))}
+    </Fragment>
+  ))
+}
+
+/** One shape drawn for a room object (see RoomObjectShape). */
+function RoomObjectPart({
+  shape,
+  labelLayer,
+}: {
+  shape: RoomObjectShape
+  labelLayer: LabelLayer
+}) {
+  switch (shape.kind) {
+    case 'plane':
+      return (
+        <mesh position={shape.position} rotation={shape.rotation}>
+          <planeGeometry args={shape.size} />
+          <meshBasicMaterial
+            color={shape.color}
+            side={shape.doubleSided ? DoubleSide : FrontSide}
+            transparent={shape.opacity < 1}
+            opacity={shape.opacity}
+          />
         </mesh>
-        <mesh
-          position={toScenePosition({
-            ...front.center,
-            z: LAYER.furnitureFront,
-          })}
-          rotation={FLAT_ON_FLOOR}
-        >
-          <planeGeometry args={front.size} />
-          <meshBasicMaterial color={SCENE_COLORS.furnitureFront} />
+      )
+    case 'box':
+      return (
+        <mesh position={shape.position}>
+          <boxGeometry args={shape.size} />
+          <meshBasicMaterial
+            color={shape.color}
+            transparent={shape.opacity < 1}
+            opacity={shape.opacity}
+          />
         </mesh>
-        <SceneLabel at={center} layer={labelLayer} tone="muted" className="">
-          {box.name}
+      )
+    case 'label':
+      return (
+        <SceneLabel at={shape.at} layer={labelLayer} tone="muted" className="">
+          {shape.text}
         </SceneLabel>
-      </Fragment>
-    )
-  })
-}
-
-/** The furniture boxes in 3D: solid boxes standing on the floor. */
-function FurnitureBlocks({
-  furniture,
-}: {
-  furniture: readonly FurnitureBox[]
-}) {
-  return furniture.map((box, index) => {
-    const { position, size } = furnitureBlock(box)
-    return (
-      <mesh key={index} position={position}>
-        <boxGeometry args={size} />
-        <meshBasicMaterial
-          color={SCENE_COLORS.furniture}
-          transparent
-          opacity={0.85}
-        />
-      </mesh>
-    )
-  })
-}
-
-/**
- * The doors and windows seen from above: each a mark along the inside of
- * its wall, dragged along the wall like the other markers (the store keeps
- * it on its wall), and a door's swing as a pale square in front of it.
- */
-function OpeningMarks({
-  room,
-  openings,
-}: {
-  room: Room
-  openings: readonly Opening[]
-}) {
-  return openings.map((opening, index) => {
-    const { center, size } = openingMark(room, opening)
-    const swing = opening.kind === 'door' && doorSwing(room, opening)
-    return (
-      // Keyed by place: the room view names an opening by it (roomObjectId).
-      <group key={index}>
-        {swing && (
-          <mesh
-            position={toScenePosition({ ...swing.center, z: LAYER.doorSwing })}
-            rotation={FLAT_ON_FLOOR}
-          >
-            <planeGeometry args={swing.size} />
-            <meshBasicMaterial color={SCENE_COLORS.doorSwing} />
-          </mesh>
-        )}
-        <mesh
-          position={toScenePosition({ ...center, z: LAYER.opening })}
-          rotation={FLAT_ON_FLOOR}
-        >
-          <planeGeometry args={size} />
-          <meshBasicMaterial color={SCENE_COLORS[opening.kind]} />
-        </mesh>
-      </group>
-    )
-  })
-}
-
-/** The doors and windows in 3D: panels on their walls, at their height. */
-function OpeningPanels({
-  room,
-  openings,
-}: {
-  room: Room
-  openings: readonly Opening[]
-}) {
-  return openings.map((opening, index) => {
-    const { position, size, rotation } = openingPanel(room, opening)
-    return (
-      <mesh key={index} position={position} rotation={rotation}>
-        <planeGeometry args={size} />
-        <meshBasicMaterial
-          color={SCENE_COLORS[opening.kind]}
-          side={DoubleSide}
-          transparent
-          opacity={0.6}
-        />
-      </mesh>
-    )
-  })
-}
-
-/** The Screen in 3D: an upright panel at its height on the front wall. */
-function ScreenPanel({ screen }: { screen: RoomScreen }) {
-  const { position, size } = screenPanel(screen)
-  return (
-    <mesh position={position}>
-      <planeGeometry args={size} />
-      <meshBasicMaterial color={SCENE_COLORS.screen} side={DoubleSide} />
-    </mesh>
-  )
+      )
+  }
 }
 
 /**
@@ -833,7 +683,7 @@ function RuleOfThumbLine({
   fromFrontWall: number
 }) {
   const half = room.width / 2
-  const z = LAYER.ruleOfThumb
+  const z = FLOOR_LAYERS.ruleOfThumb
   return (
     <Line
       points={[
@@ -862,7 +712,9 @@ function HeatmapCells({ heatmap }: { heatmap: SeatHeatmap }) {
     const cell = new Object3D()
     const color = new Color()
     heatmap.cells.forEach(({ center, width, depth, relativeScore }, index) => {
-      cell.position.set(...toScenePosition({ ...center, z: LAYER.heatmap }))
+      cell.position.set(
+        ...toScenePosition({ ...center, z: FLOOR_LAYERS.heatmap }),
+      )
       cell.rotation.set(...FLAT_ON_FLOOR)
       cell.scale.set(width, depth, 1)
       cell.updateMatrix()
@@ -902,7 +754,7 @@ function RecommendedSeatMarker({
   return (
     <>
       <mesh
-        position={toScenePosition({ ...at, z: LAYER.recommended })}
+        position={toScenePosition({ ...at, z: FLOOR_LAYERS.recommended })}
         rotation={FLAT_ON_FLOOR}
       >
         <ringGeometry

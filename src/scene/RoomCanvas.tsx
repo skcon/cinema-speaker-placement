@@ -34,6 +34,8 @@ import {
   type FloorPoint,
   type FurnitureBox,
   wallBases,
+  type PlaceableId,
+  type PlacedItem,
   type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
@@ -55,6 +57,7 @@ import {
 } from '@/scene/palette'
 import {
   GRADE_STYLES,
+  itemsInDrawOrder,
   MLP_MARKER_RADIUS,
   OVERHEAD_MARKER_DOT,
   OVERHEAD_MARKER_RADIUS,
@@ -152,10 +155,7 @@ const PRESS_SURFACE_SIZE = 1000
  */
 export function RoomCanvas({
   room,
-  mlp,
-  speakers,
-  overheads,
-  subwoofers,
+  items,
   screen,
   furniture,
   openings,
@@ -175,11 +175,12 @@ export function RoomCanvas({
   /** Which camera looks at the room; only the top-down view drags. */
   view: CameraView
   room: Room
-  mlp: RoomPoint
-  speakers: readonly PlacedSpeaker[]
-  /** On the ceiling: drawn over everything else from straight above. */
-  overheads: readonly PlacedOverhead[]
-  subwoofers: readonly PlacedSubwoofer[]
+  /**
+   * The speakers, subwoofers and the MLP by id, as the Room analysis has
+   * them. The overheads are on the ceiling: drawn over everything else
+   * from straight above.
+   */
+  items: ReadonlyMap<PlaceableId, PlacedItem>
   /** The Screen on the front wall, or null: drawn only. */
   screen: RoomScreen | null
   /** The furniture boxes, in the config's order: drawn, and dragged from above. */
@@ -296,10 +297,7 @@ export function RoomCanvas({
         {recommendedSeat && (
           <RecommendedSeatMarker at={recommendedSeat} labelLayer={labelLayer} />
         )}
-        <MlpMarker mlp={mlp} labelLayer={labelLayer} />
-        <SubwooferMarkers subwoofers={subwoofers} labelLayer={labelLayer} />
-        <SpeakerMarkers speakers={speakers} labelLayer={labelLayer} />
-        <OverheadMarkers overheads={overheads} labelLayer={labelLayer} />
+        <ItemMarkers items={items} labelLayer={labelLayer} />
         {dragging && (
           <PressSurface
             room={room}
@@ -924,6 +922,51 @@ function RecommendedSeatMarker({
   )
 }
 
+/**
+ * Every placed item's marker, by its kind, in the order the room view
+ * draws them (itemsInDrawOrder), so their labels stack that way too.
+ */
+function ItemMarkers({
+  items,
+  labelLayer,
+}: {
+  items: ReadonlyMap<PlaceableId, PlacedItem>
+  labelLayer: LabelLayer
+}) {
+  return itemsInDrawOrder(items).map((item) => {
+    switch (item.kind) {
+      case 'mlp':
+        return (
+          <MlpMarker
+            key={item.id}
+            mlp={item.position}
+            labelLayer={labelLayer}
+          />
+        )
+      case 'subwoofer':
+        return (
+          <SubwooferMarker
+            key={item.id}
+            subwoofer={item}
+            labelLayer={labelLayer}
+          />
+        )
+      case 'listenerLevel':
+        return (
+          <SpeakerMarker key={item.id} speaker={item} labelLayer={labelLayer} />
+        )
+      case 'overhead':
+        return (
+          <OverheadMarker
+            key={item.id}
+            overhead={item}
+            labelLayer={labelLayer}
+          />
+        )
+    }
+  })
+}
+
 function MlpMarker({
   mlp,
   labelLayer,
@@ -950,126 +993,120 @@ function MlpMarker({
   )
 }
 
-function SpeakerMarkers({
-  speakers,
+function SpeakerMarker({
+  speaker,
   labelLayer,
 }: {
-  speakers: readonly PlacedSpeaker[]
+  speaker: PlacedSpeaker
   labelLayer: LabelLayer
 }) {
-  return speakers.map((speaker) => {
-    const { position, rotation, color, label, grade, labelDirection } =
-      speakerMarker(speaker)
-    return (
-      <Fragment key={speaker.channel}>
-        <mesh position={position} rotation={rotation}>
-          <planeGeometry
-            args={[SPEAKER_FOOTPRINT.width, SPEAKER_FOOTPRINT.depth]}
-          />
-          <meshBasicMaterial color={color} />
-        </mesh>
-        <SceneLabel
-          at={speaker.position}
-          layer={labelLayer}
-          tone="text"
-          className="flex flex-col items-center leading-tight"
-          style={{ transform: besideMarker(labelDirection) }}
-        >
-          <span className="font-medium">{label}</span>
-          <span style={{ color: LABEL_COLORS.muted }}>
-            {GRADE_STYLES[grade].label}
-          </span>
-        </SceneLabel>
-      </Fragment>
-    )
-  })
+  const { position, rotation, color, label, grade, labelDirection } =
+    speakerMarker(speaker)
+  return (
+    <>
+      <mesh position={position} rotation={rotation}>
+        <planeGeometry
+          args={[SPEAKER_FOOTPRINT.width, SPEAKER_FOOTPRINT.depth]}
+        />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      <SceneLabel
+        at={speaker.position}
+        layer={labelLayer}
+        tone="text"
+        className="flex flex-col items-center leading-tight"
+        style={{ transform: besideMarker(labelDirection) }}
+      >
+        <span className="font-medium">{label}</span>
+        <span style={{ color: LABEL_COLORS.muted }}>
+          {GRADE_STYLES[grade].label}
+        </span>
+      </SceneLabel>
+    </>
+  )
 }
 
 /**
- * The overhead speakers as rings with a center dot, colored by grade, on
- * the ceiling: round, so they read apart from the rectangular
- * listener-level cabinets. Drawn on both faces, so the 3D view sees them
+ * An overhead speaker as a ring with a center dot, colored by grade, on
+ * the ceiling: round, so it reads apart from the rectangular
+ * listener-level cabinets. Drawn on both faces, so the 3D view sees it
  * from below. Dragged on the floor plan like the others (top-down only);
- * the store keeps them on the ceiling.
+ * the store keeps it on the ceiling.
  */
-function OverheadMarkers({
-  overheads,
+function OverheadMarker({
+  overhead,
   labelLayer,
 }: {
-  overheads: readonly PlacedOverhead[]
+  overhead: PlacedOverhead
   labelLayer: LabelLayer
 }) {
-  return overheads.map((overhead) => {
-    const { position, rotation, color, label, grade, labelDirection } =
-      overheadMarker(overhead)
-    return (
-      <Fragment key={overhead.channel}>
-        <mesh position={position} rotation={rotation}>
-          <ringGeometry
-            args={[
-              OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_RING_INNER,
-              OVERHEAD_MARKER_RADIUS,
-              32,
-            ]}
-          />
-          <meshBasicMaterial color={color} side={DoubleSide} />
-        </mesh>
-        <mesh position={position} rotation={rotation}>
-          <circleGeometry
-            args={[OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_DOT, 24]}
-          />
-          <meshBasicMaterial color={color} side={DoubleSide} />
-        </mesh>
-        <SceneLabel
-          at={overhead.position}
-          layer={labelLayer}
-          tone="text"
-          className="flex flex-col items-center leading-tight"
-          style={{ transform: besideMarker(labelDirection) }}
-        >
-          <span className="font-medium">{label}</span>
-          <span style={{ color: LABEL_COLORS.muted }}>
-            {GRADE_STYLES[grade].label}
-          </span>
-        </SceneLabel>
-      </Fragment>
-    )
-  })
+  const { position, rotation, color, label, grade, labelDirection } =
+    overheadMarker(overhead)
+  return (
+    <>
+      <mesh position={position} rotation={rotation}>
+        <ringGeometry
+          args={[
+            OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_RING_INNER,
+            OVERHEAD_MARKER_RADIUS,
+            32,
+          ]}
+        />
+        <meshBasicMaterial color={color} side={DoubleSide} />
+      </mesh>
+      <mesh position={position} rotation={rotation}>
+        <circleGeometry
+          args={[OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_DOT, 24]}
+        />
+        <meshBasicMaterial color={color} side={DoubleSide} />
+      </mesh>
+      <SceneLabel
+        at={overhead.position}
+        layer={labelLayer}
+        tone="text"
+        className="flex flex-col items-center leading-tight"
+        style={{ transform: besideMarker(labelDirection) }}
+      >
+        <span className="font-medium">{label}</span>
+        <span style={{ color: LABEL_COLORS.muted }}>
+          {GRADE_STYLES[grade].label}
+        </span>
+      </SceneLabel>
+    </>
+  )
 }
 
 /**
- * The subwoofers as neutral squares on the floor plan. They sit lower than
+ * A subwoofer as a neutral square on the floor plan. It sits lower than
  * the listener-level speakers, so a speaker above one (the Center over
  * Subwoofer 1) is drawn on top, with the subwoofer's outline around it.
  */
-function SubwooferMarkers({
-  subwoofers,
+function SubwooferMarker({
+  subwoofer,
   labelLayer,
 }: {
-  subwoofers: readonly PlacedSubwoofer[]
+  subwoofer: PlacedSubwoofer
   labelLayer: LabelLayer
 }) {
-  return subwoofers.map((subwoofer) => {
-    const { position, rotation, color, label, labelDirection } =
-      subwooferMarker(subwoofer)
-    return (
-      <Fragment key={subwoofer.id}>
-        <mesh position={position} rotation={rotation}>
-          <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />
-          <meshBasicMaterial color={color} />
-        </mesh>
-        <SceneLabel
-          at={subwoofer.position}
-          layer={labelLayer}
-          tone="text"
-          className="leading-tight font-medium"
-          style={{ transform: besideMarker(labelDirection) }}
-        >
-          {label}
-        </SceneLabel>
-      </Fragment>
-    )
-  })
+  const { position, rotation, color, label, labelDirection } =
+    subwooferMarker(subwoofer)
+  return (
+    <>
+      <mesh position={position} rotation={rotation}>
+        <planeGeometry args={[SUBWOOFER_FOOTPRINT, SUBWOOFER_FOOTPRINT]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      <SceneLabel
+        at={subwoofer.position}
+        layer={labelLayer}
+        tone="text"
+        className="leading-tight font-medium"
+        style={{ transform: besideMarker(labelDirection) }}
+      >
+        {label}
+      </SceneLabel>
+    </>
+  )
 }
 
 /**

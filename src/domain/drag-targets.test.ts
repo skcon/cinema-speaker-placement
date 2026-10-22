@@ -10,7 +10,7 @@ import {
 import { newFurnitureBox } from './furniture'
 import type { PlaceableId } from './manual-positions'
 import { newOpening } from './openings'
-import { positionOf } from './placements'
+import { positionOf } from './placed-items'
 import { DEFAULT_ROOM, type FloorPoint } from './room'
 import {
   DEFAULT_ROOM_OBJECTS,

@@ -255,8 +255,9 @@ export function positionLength(
   position: RoomPoint,
   dimension: PositionDimension,
 ): PositionLength | null {
-  if (dimension !== 'height')
+  if (dimension !== 'height') {
     return wallDistanceLength(room, id, position, dimension)
+  }
   if (hasFixedHeight(id)) return null
   return { meters: position.z, limits: coordinateLimits(room, id).z }
 }

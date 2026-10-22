@@ -19,7 +19,7 @@ import {
   type PlaceableId,
   type PositionDimension,
 } from './manual-positions'
-import { positionOf } from './placements'
+import { positionOf } from './placed-items'
 import { keepRoomObjectsInRoom } from './room-objects'
 import { checkRange } from './range'
 import { recommendSeat } from './seat-score'

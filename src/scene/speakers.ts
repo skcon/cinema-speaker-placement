@@ -1,6 +1,8 @@
 import {
   type FloorPoint,
   overheadSideSign,
+  type PlaceableId,
+  type PlacedItem,
   type PlacedOverhead,
   type PlacedSpeaker,
   type PlacedSubwoofer,
@@ -8,6 +10,26 @@ import {
   type Wall,
 } from '@/domain'
 import { FLAT_ON_FLOOR, toScenePosition, type Vec3 } from '@/scene/top-down'
+
+/**
+ * The order the room view draws the kinds of item in, and so the order
+ * their labels stack in: the MLP, the subwoofers, the listener-level
+ * speakers, then the overheads on the ceiling.
+ */
+const DRAW_ORDER = [
+  'mlp',
+  'subwoofer',
+  'listenerLevel',
+  'overhead',
+] as const satisfies readonly PlacedItem['kind'][]
+
+/** The placed items, by id, in the order the room view draws them (DRAW_ORDER). */
+export function itemsInDrawOrder(
+  items: ReadonlyMap<PlaceableId, PlacedItem>,
+): readonly PlacedItem[] {
+  const all = [...items.values()]
+  return DRAW_ORDER.flatMap((kind) => all.filter((item) => item.kind === kind))
+}
 
 /**
  * How each placement-range grade is drawn. Every marker also carries its

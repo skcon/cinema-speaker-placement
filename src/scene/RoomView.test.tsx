@@ -182,6 +182,16 @@ describe('overhead speakers in the room view', () => {
   })
 })
 
+describe('front speakers in the room view', () => {
+  it('are described for screen readers with their distances from the MLP', () => {
+    renderRoomView()
+
+    expect(scene().getAttribute('aria-label')).toContain(
+      'Front speakers from the MLP: Left 1.98 m, Center 1.78 m, Right 1.98 m.',
+    )
+  })
+})
+
 describe('the seat row in the room view', () => {
   it('is described for screen readers as a room object the MLP sits on, and can be dragged', async () => {
     renderRoomView()

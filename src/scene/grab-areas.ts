@@ -31,15 +31,16 @@
  */
 import {
   dragAnchors,
-  MLP_ID,
   type Config,
   type DragTarget,
   type FloorPoint,
+  type PlacedItem,
   type RoomAnalysis,
   type RoomObjectKind,
 } from '@/domain'
 import { roomObjectGrabs, type GrabRectangle } from '@/scene/room-objects'
 import {
+  itemsInDrawOrder,
   MLP_MARKER_RADIUS,
   OVERHEAD_MARKER_DOT,
   OVERHEAD_MARKER_RADIUS,
@@ -95,10 +96,7 @@ export type GrabArea = {
 }
 
 /** What grabAreas needs from the config's Room analysis (analyzeRoom). */
-export type GrabAnalysis = Pick<
-  RoomAnalysis,
-  'mlp' | 'speakers' | 'overheads' | 'subwoofers' | 'seatRow'
->
+export type GrabAnalysis = Pick<RoomAnalysis, 'mlp' | 'items' | 'seatRow'>
 
 /**
  * Where each kind of room object goes when ties between them go (see the
@@ -156,57 +154,58 @@ export function grabAreas(
     }
   }
 
-  const { mlp, subwoofers, speakers, overheads } = analysis
-  add(
-    MLP_ID,
-    { center: mlp, radius: MLP_MARKER_RADIUS },
-    { drawn: { kind: 'disc', radius: MLP_MARKER_RADIUS }, height: mlp.z },
-  )
-  for (const { id, position } of subwoofers) {
+  for (const item of itemsInDrawOrder(analysis.items)) {
+    const { radius, drawn } = itemMarker(item)
     add(
-      id,
-      { center: position, radius: SUBWOOFER_FOOTPRINT / 2 },
-      {
+      item.id,
+      { center: item.position, radius },
+      { drawn, height: item.position.z },
+    )
+  }
+  return areas
+}
+
+/**
+ * An item's marker as the nearest-marker rule measures it (round, of
+ * `radius`) and what is drawn for it, by its kind.
+ */
+function itemMarker(item: PlacedItem): { radius: number; drawn: Drawn } {
+  switch (item.kind) {
+    case 'mlp':
+      return {
+        radius: MLP_MARKER_RADIUS,
+        drawn: { kind: 'disc', radius: MLP_MARKER_RADIUS },
+      }
+    case 'subwoofer':
+      return {
+        radius: SUBWOOFER_FOOTPRINT / 2,
         drawn: {
           kind: 'box',
           width: SUBWOOFER_FOOTPRINT,
           depth: SUBWOOFER_FOOTPRINT,
           facing: { x: 0, y: 1 },
         },
-        height: position.z,
-      },
-    )
-  }
-  for (const { channel, position, aim } of speakers) {
-    add(
-      channel,
-      { center: position, radius: SPEAKER_FOOTPRINT.width / 2 },
-      {
+      }
+    case 'listenerLevel':
+      return {
+        radius: SPEAKER_FOOTPRINT.width / 2,
         drawn: {
           kind: 'box',
           ...SPEAKER_FOOTPRINT,
-          facing: speakerFacing(aim),
+          facing: speakerFacing(item.aim),
         },
-        height: position.z,
-      },
-    )
-  }
-  for (const { channel, position } of overheads) {
-    add(
-      channel,
-      { center: position, radius: OVERHEAD_MARKER_RADIUS },
-      {
+      }
+    case 'overhead':
+      return {
+        radius: OVERHEAD_MARKER_RADIUS,
         drawn: {
           kind: 'ring',
           inner: OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_RING_INNER,
           outer: OVERHEAD_MARKER_RADIUS,
           dot: OVERHEAD_MARKER_RADIUS * OVERHEAD_MARKER_DOT,
         },
-        height: position.z,
-      },
-    )
+      }
   }
-  return areas
 }
 
 /**

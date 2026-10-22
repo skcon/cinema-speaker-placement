@@ -4,12 +4,18 @@
  */
 export {
   analyzeRoom,
-  type PlacedOverhead,
-  type PlacedSpeaker,
-  type PlacedSubwoofer,
   type ResponseAnalysis,
   type RoomAnalysis,
 } from './analyze'
+export {
+  selectedItem,
+  type PlacedItem,
+  type PlacedItems,
+  type PlacedOverhead,
+  type PlacedSpeaker,
+  type PlacedSubwoofer,
+  type SelectedItem,
+} from './placed-items'
 export type {
   EstimatedResponse,
   ResponseComponent,
@@ -58,17 +64,22 @@ export {
 export {
   placeAtWallDistance,
   placeManually,
+  withAmplifierWatts,
   withAutoPlacement,
+  withCrossover,
   withLayout,
   withMlpAtRecommendedSeat,
   withRoom,
+  withRoomDimension,
+  withSpeakerSpecs,
+  withSubwooferHasOwnSpecs,
+  withSubwooferSpecs,
 } from './config-edits'
 export {
   dragAnchors,
   pressSelects,
   withDragged,
   type DragTarget,
-  type PlacedItems,
 } from './drag-targets'
 export {
   DEFAULT_ROOM_OBJECTS,

@@ -174,10 +174,7 @@ export function RoomView() {
         >
           <RoomCanvas
             room={room}
-            mlp={mlp}
-            speakers={speakers}
-            overheads={overheads}
-            subwoofers={subwoofers}
+            items={analysis.items}
             roomObjects={objectsInView}
             gridSpacing={baseUnit.meters}
             recommendedSeat={recommendation?.recommended.position ?? null}

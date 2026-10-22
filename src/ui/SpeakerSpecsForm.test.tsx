@@ -209,11 +209,12 @@ describe('speaker specs form', () => {
   it('offers specs per subwoofer only with more than one subwoofer', () => {
     renderSpecsForm()
 
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    const ownSpecs = { name: /has its own specs/ }
+    expect(screen.queryByRole('checkbox', ownSpecs)).not.toBeInTheDocument()
 
     chooseSubwooferCount('2')
 
-    expect(screen.getAllByRole('checkbox')).toHaveLength(2)
+    expect(screen.getAllByRole('checkbox', ownSpecs)).toHaveLength(2)
     expect(
       screen.getByRole('checkbox', { name: 'Subwoofer 2 has its own specs' }),
     ).not.toBeChecked()

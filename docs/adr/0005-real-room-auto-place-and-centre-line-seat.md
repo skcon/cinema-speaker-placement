@@ -69,3 +69,13 @@ The current MLP is kept as the recommended seat only when it keeps the distances
 - The seating panel says when the MLP is too close to a speaker, a wall or the front stage to stay the recommended seat (`SeatRecommendation.mlpKeepsSeatingDistances`), and its note lists the distances.
 - No new config field or share-link change: the filter reads the config as it is.
 - RP22's numbers come from an extract. Re-check the table, and Dolby IG p.13, when a session can reach them; changing the constants is cheap.
+
+## Amendment (1.3.1): candidates are scored with every speaker auto (#120)
+
+The first amendment above says manual speakers stay where they are while candidates are scored and that the MLP is scored the same way; the #119 amendment says the current MLP is kept as the recommended seat when it keeps the seating distances. Both made the recommendation follow the MLP and manual speakers (ADR 0004, amendment 1.3.1). Now:
+
+- **Candidates** install every listener-level speaker auto, around their projection onto the centre line, as before for auto ones. Manual speaker positions and the MLP are not read; manual subwoofers still are.
+- **The reference seat** (the 38% seed, on the centre line) takes the MLP's old place: it counts as a centre-line seat and stays recommended unless a seat beats it by the meaningful difference, and only when it keeps the seating distances as well as the candidates do.
+- **The current MLP** is still scored with manual speakers where they are, and `mlpKeepsSeatingDistances` and the new `mlpWithinMeaningfulDifference` compare it with the recommended seat for the seating panel, without choosing it.
+
+The centre-line preference, the seating distances and their numbers are unchanged. The default room still recommends its 38% seat at 2.28 m; with Left manual at (−1.8, 0.5) or the MLP at 3.0 m it now recommends the same seat.

@@ -43,6 +43,7 @@ function recommendation(
     current,
     mlpIsRecommended: recommended === current,
     mlpKeepsSeatingDistances: true,
+    mlpWithinMeaningfulDifference: recommended === current,
     candidates,
   }
 }
@@ -166,6 +167,7 @@ describe('seat-score heatmap', () => {
         current: mlp,
         mlpIsRecommended: true,
         mlpKeepsSeatingDistances: true,
+        mlpWithinMeaningfulDifference: true,
         candidates: [],
       }),
     ).toMatchObject({ cells: [], scoresAboutTheSame: true })

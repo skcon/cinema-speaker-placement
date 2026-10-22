@@ -363,7 +363,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
 
   await test.step('at phone width, Auto-place in a wide 4 x 6 m room puts the seat behind the front stage, not on it', async () => {
     // Build the link in the app: the default room made 4 m long and 6 m
-    // wide, with the MLP moved by hand up to the front stage.
+    // wide, with the MLP moved by hand up to the front stage. Before the
+    // seating distances (#119), Auto-place put the seat a few centimeters
+    // from the Center in this room.
     await page.goto('./')
     await dimensionInput(page, 'Length', 'm').fill('4')
     await dimensionInput(page, 'Width', 'm').fill('6')
@@ -375,11 +377,26 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await fromFrontWall.fill('0.8')
     await fromFrontWall.press('Tab')
     await expect(mlp).toContainText('manual')
-    await expect(page).toHaveURL((url) => url.searchParams.has('config'))
+    // A speaker moved by hand too, so Auto-place has work to do even when
+    // the seat score would keep the MLP where it is.
+    const center = page.getByRole('group', { name: 'Center position' })
+    await center.locator('summary').click()
+    const centerFromLeftWall = center
+      .getByRole('group', { name: /^From the left wall/ })
+      .getByRole('textbox', { name: 'm' })
+    const addressBefore = page.url()
+    await centerFromLeftWall.fill('2.5')
+    await centerFromLeftWall.press('Tab')
+    await expect(center).toContainText('manual')
+    await expect(page).toHaveURL((url) => url.href !== addressBefore)
     const wideRoomLink = page.url()
 
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto(wideRoomLink)
+    // The link keeps the hand-placed MLP and Center.
+    await expect(
+      page.getByRole('group', { name: 'MLP position' }),
+    ).toContainText('manual')
     const wideScene = page
       .getByRole('region', { name: 'Room view' })
       .getByRole('img', {

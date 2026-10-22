@@ -18,7 +18,7 @@ import {
 import { yardsticksFor } from '@/test/relative-speed'
 import { HEAVY_TEST_TIMEOUT_MS } from '@/test/timeouts'
 import { ROOM_WITH_A_BETTER_SEAT } from '@/test/seat-fixtures'
-import { V2_LINKS } from '@/test/share-link-fixtures'
+import { V3_LINKS } from '@/test/share-link-fixtures'
 
 /** The default room with the front speakers left by hand where auto-place puts them today. */
 function withManualFront(): Config {
@@ -341,7 +341,7 @@ describe('recommended seat on the center line (ADR 0005)', () => {
   it('counts the 38% seed seat as a center-line seat, and keeps it when no seat beats it meaningfully', () => {
     // The 24 x 15 ft fixture room: its 38% MLP is on the center line and
     // scores about as well as the grid's best center-line seat.
-    const config = V2_LINKS.imperialRoom.config as Config
+    const config = V3_LINKS.imperialRoom.config as Config
     const { recommended, current, offCenterLine } = recommendSeat(config)
 
     expect(current.position.x).toBe(0)
@@ -760,6 +760,10 @@ describe('seat score input and its memo key (#127)', () => {
       'an opening, which is not modelled (ADR 0006)',
       withRoomObjects({ openings: [door] }),
     ],
+    [
+      'Speakers follow the seat off, the speakers installed for another seat (#123)',
+      { speakersInstalledFor: { x: 0.5, y: 3.5, z: 1.2 } },
+    ],
   ])(
     'stays the same with %s, which the recommended seat does not read',
     (_, change) => {
@@ -794,6 +798,54 @@ describe('seat score input and its memo key (#127)', () => {
     expect(keyOf(imperialWithObjects)).toBe(key)
     expect(recommendSeat(imperialWithObjects).recommended).toEqual(
       recommendSeat(DEFAULT_CONFIG).recommended,
+    )
+  })
+
+  it('gives the same recommended seat whether the speakers follow the seat or not (#123)', () => {
+    const held: Config = {
+      ...DEFAULT_CONFIG,
+      speakersInstalledFor: { x: 0.5, y: 3.5, z: 1.2 },
+    }
+    const { recommended, offCenterLine, candidates } = recommendSeat(held)
+    const following = recommendSeat(DEFAULT_CONFIG)
+
+    expect(recommended).toEqual(following.recommended)
+    expect(offCenterLine).toEqual(following.offCenterLine)
+    expect(candidates).toEqual(following.candidates)
+  })
+})
+
+describe('the current MLP with Speakers follow the seat off (#123)', () => {
+  it('is scored with the auto speakers where they are installed, not around the MLP', () => {
+    const mlp = { x: 0, y: 3, z: 1.2 }
+    const installedFor = { x: 0, y: 2, z: 1.2 }
+    const following: Config = {
+      ...DEFAULT_CONFIG,
+      manualPositions: { MLP: mlp },
+    }
+    const held: Config = { ...following, speakersInstalledFor: installedFor }
+
+    const { current } = recommendSeat(held)
+
+    expect(current.position).toEqual(mlp)
+    expect(current.score).not.toBeCloseTo(
+      recommendSeat(following).current.score,
+      6,
+    )
+    // As if the speakers were installed there by hand.
+    expect(current.distances).toEqual(
+      recommendSeat({
+        ...following,
+        manualPositions: {
+          ...Object.fromEntries(
+            analyzeRoom({
+              ...following,
+              manualPositions: { MLP: installedFor },
+            }).speakers.map(({ channel, position }) => [channel, position]),
+          ),
+          MLP: mlp,
+        },
+      }).current.distances,
     )
   })
 })

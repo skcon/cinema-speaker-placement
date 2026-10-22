@@ -5,6 +5,7 @@ import { DEFAULT_LAYOUT, SUBWOOFER_COUNTS, type Layout } from './layout'
 import {
   entries,
   mayBeAt,
+  MLP_ID,
   PLACEABLE_IDS,
   placeablesIn,
   type ManualPositions,
@@ -144,7 +145,7 @@ const seatRowSchema = z.strictObject({
  * The `Config` type is inferred from it, so a new field is added here and
  * the compiler asks for its value in DEFAULT_CONFIG and the test fixtures.
  * It accepts exactly what the current config version's frozen schema
- * (config-v2.ts) accepts. That version is released, so a change here, or
+ * (config-v3.ts) accepts. That version is released, so a change here, or
  * to a limit or rule it reads (reference.ts, the room-object modules), is
  * a new config version with a migration (see share-link.ts).
  */
@@ -184,6 +185,10 @@ export const configSchema = z
       z.enum(PLACEABLE_IDS),
       roomPointSchema,
     ) satisfies z.ZodType<ManualPositions>,
+    // Speakers follow the seat (auto-place-policy.ts): null while the auto
+    // speakers follow the MLP; turned off, the seat they stay installed
+    // for, which may be where the MLP may be.
+    speakersInstalledFor: roomPointSchema.nullable(),
     // Room objects (ADR 0006): drawn and warned about, never part of the
     // estimate. A Room starts with DEFAULT_ROOM_OBJECTS; a version 1 link
     // with those and its seat row width.
@@ -205,6 +210,12 @@ export const configSchema = z
       ([id, point]) => inLayout.includes(id) && mayBeAt(room, id, point),
     )
   })
+  // The seat the speakers are installed for, where the MLP may be.
+  .refine(
+    ({ room, speakersInstalledFor }) =>
+      speakersInstalledFor === null ||
+      mayBeAt(room, MLP_ID, speakersInstalledFor),
+  )
   // Every room object inside the Room, each within its own limits.
   .refine(({ room, roomObjects }) => areValidRoomObjects(room, roomObjects))
 
@@ -226,5 +237,6 @@ export const DEFAULT_CONFIG: Config = {
   targetCurve: 'flat',
   crossoverHz: DEFAULT_CROSSOVER_HZ,
   manualPositions: {},
+  speakersInstalledFor: null,
   roomObjects: DEFAULT_ROOM_OBJECTS,
 }

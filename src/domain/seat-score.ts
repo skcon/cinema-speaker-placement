@@ -326,7 +326,9 @@ export function findRecommendedSeat(auto: SeatScoreInput): RecommendedSeat {
 
 /**
  * The current MLP of `config` scored where it is, with the items where
- * they are (scoreSeat), and compared with `seat`, the recommended seat
+ * they are (as scoreSeat, but with Speakers follow the seat off the auto
+ * speakers installed for their stored seat), and compared with `seat`,
+ * the recommended seat
  * found for the same room and layout (findRecommendedSeat). Cheap: one
  * seat, not the grid.
  */
@@ -334,7 +336,14 @@ export function compareMlp(
   config: Config,
   { recommended, candidates }: RecommendedSeat,
 ): MlpComparison {
-  const current = scoreSeat(config, placeMlp(config).position)
+  const { install, installFor, scoreInstalled } = scoringFor(config)
+  const mlp = placeMlp(config).position
+  // With Speakers follow the seat off, the auto speakers stay installed
+  // for their own seat, not the MLP's (#123).
+  const { speakersInstalledFor } = config
+  const current = scoreInstalled(
+    speakersInstalledFor ? installFor(mlp, speakersInstalledFor) : install(mlp),
+  )
   // The candidates are the seats that keep the distances, or come nearest.
   const allowedShortfall =
     Math.min(...candidates.map(({ distances }) => distances.shortfall)) +
@@ -373,6 +382,8 @@ export type SeatScoreInput = Config & { readonly [SEAT_SCORE_INPUT]: true }
  *   neither moving the MLP nor moving a speaker changes the recommendation
  *   (#120); manual subwoofers stay where they are, as the bass at every
  *   seat comes from them and they don't depend on the MLP;
+ * - Speakers follow the seat on (no seat stored), as every candidate seat
+ *   has its own speakers installed for it (#123);
  * - the units metric, as the domain works in meters whatever they are;
  * - the seat row, the furniture and the openings as in a new Room: the
  *   seat row follows the MLP, and neither furniture nor openings change
@@ -388,6 +399,7 @@ export function seatScoreInput(config: Config): SeatScoreInput {
   return {
     ...config,
     units: 'metric',
+    speakersInstalledFor: null,
     manualPositions: Object.fromEntries(
       entries(config.manualPositions).filter(
         ([id]) => kindOf(id) === 'subwoofer',
@@ -448,6 +460,7 @@ function isOnCenterLine({ x }: RoomPoint): boolean {
 function scoringFor(config: Config): {
   reference: ScoredSeat
   install: (seat: RoomPoint) => InstalledSeat
+  installFor: (seat: RoomPoint, installedFor: RoomPoint) => InstalledSeat
   scoreInstalled: (seat: InstalledSeat) => ScoredSeat
   widthModeOffCenterLine: (
     centerLine: ScoredSeat,
@@ -460,6 +473,7 @@ function scoringFor(config: Config): {
   return {
     reference: seats.score(seed, calibration),
     install: seats.install,
+    installFor: seats.installFor,
     scoreInstalled: (seat) => seats.score(seats.hear(seat), calibration),
     widthModeOffCenterLine: (centerLine, offCenter) =>
       seats.widthModeBetween(centerLine, offCenter, calibration),
@@ -562,10 +576,15 @@ function seatScoring(
     // Auto speakers are installed symmetric to the room: around the seat's
     // projection onto the center line, not around the seat (ADR 0005,
     // amendment), so an off-center seat hears them at its skewed angles.
-    const speakers = placeSpeakers(config, {
-      installedFor: centerLineProjection(seat),
-      heardAt: seat,
-    })
+    return installFor(seat, centerLineProjection(seat))
+  }
+
+  /**
+   * The seat as the MLP, as install has it, with the auto speakers
+   * installed for `installedFor` instead.
+   */
+  function installFor(seat: RoomPoint, installedFor: RoomPoint): InstalledSeat {
+    const speakers = placeSpeakers(config, { installedFor, heardAt: seat })
     return {
       position: seat,
       speakers,
@@ -680,7 +699,7 @@ function seatScoring(
     )
   }
 
-  return { install, hear, calibrateAt, score, widthModeBetween }
+  return { install, installFor, hear, calibrateAt, score, widthModeBetween }
 }
 
 /** What a seat's distances are measured to (seatDistances). */

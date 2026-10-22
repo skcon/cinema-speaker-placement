@@ -15,9 +15,14 @@
  *   config (manual-positions.ts says where it may go).
  *
  * Manual wins over auto here, once: placeItem and placeItemWith place an
- * item by its policy, and never auto-place a manual one. A "follows the
- * seat" policy (#123) would join PlacementPolicy, and nothing that places
- * items by it would change.
+ * item by its policy, and never auto-place a manual one.
+ *
+ * Where the auto speakers (listener-level and overhead) are installed for
+ * is the config's one other placement input, **Speakers follow the seat**
+ * (GLOSSARY.md, #123): on (the default, `speakersInstalledFor` null) they
+ * are installed around the MLP and follow it; off, around the seat stored
+ * when it was turned off, and a moved MLP only hears them from elsewhere
+ * (autoSpeakersInstalledFor). Subwoofers and the MLP don't depend on it.
  *
  * The auto MLP is the "38% rule" seed (defaultMlp, mlp.ts), never the
  * recommended seat: that would make the analysis wait for the seat score
@@ -111,4 +116,16 @@ export function placeMlp(
   config: Pick<Config, 'manualPositions' | 'room'>,
 ): Placed {
   return placeItem(config, MLP_ID, () => defaultMlp(config.room))
+}
+
+/**
+ * The point the auto speakers are installed for, with the MLP at `mlp`:
+ * the MLP while the speakers follow the seat, else the seat stored when
+ * that was turned off (see above).
+ */
+export function autoSpeakersInstalledFor(
+  { speakersInstalledFor }: Pick<Config, 'speakersInstalledFor'>,
+  mlp: RoomPoint,
+): RoomPoint {
+  return speakersInstalledFor ?? mlp
 }

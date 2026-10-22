@@ -44,6 +44,26 @@ describe('a room dimension edit', () => {
     expect(edited.manualPositions.Sub2?.y).toBeLessThan(6)
   })
 
+  it('moves the seat the speakers are installed for in with a wall that moved past it, as the MLP', () => {
+    // Speakers follow the seat off, installed for a seat 7 m back.
+    const held: Config = {
+      ...ROOM,
+      speakersInstalledFor: { x: 2, y: 7, z: 1.2 },
+    }
+
+    expect(withRoomDimension(held, 'length', 6).speakersInstalledFor).toEqual({
+      x: 2,
+      y: 5.7,
+      z: 1.2,
+    })
+    expect(withRoomDimension(held, 'width', 4).speakersInstalledFor).toEqual({
+      x: 1.7,
+      y: 7,
+      z: 1.2,
+    })
+    expect(withRoomDimension(ROOM, 'length', 6).speakersInstalledFor).toBeNull()
+  })
+
   it.each([
     ['width', 20],
     ['height', 1.5],

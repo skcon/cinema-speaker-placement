@@ -472,6 +472,7 @@ type AnyKindDrawing = {
   readonly describe: (objects: RoomObjectsInView, units: UnitSystem) => string
 }
 
+/** The room view's functions for one kind, from its KindDrawing. */
 function kindDrawing<T>(kind: KindDrawing<T>): AnyKindDrawing {
   return {
     drawings: (objects, view) =>

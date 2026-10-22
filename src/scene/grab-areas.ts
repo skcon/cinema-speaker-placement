@@ -101,16 +101,21 @@ export type GrabAnalysis = Pick<
 >
 
 /**
- * The room object kinds in the order ties between them go (see the module
- * comment); each kind's grab rectangle is the one it is drawn as from
- * above (roomObjectGrabs).
+ * Where each kind of room object goes when ties between them go (see the
+ * module comment), first to last: every kind has a place, so each one's
+ * grab rectangle (roomObjectGrabs, the one it is drawn as from above) is
+ * a grab area.
  */
-const ROOM_OBJECT_TIE_ORDER: readonly RoomObjectKind[] = [
-  'furniture',
-  'screen',
-  'opening',
-  'seatRow',
-]
+const ROOM_OBJECT_TIES: { readonly [K in RoomObjectKind]: number } = {
+  furniture: 0,
+  screen: 1,
+  opening: 2,
+  seatRow: 3,
+}
+
+const ROOM_OBJECT_TIE_ORDER = (
+  Object.keys(ROOM_OBJECT_TIES) as RoomObjectKind[]
+).sort((a, b) => ROOM_OBJECT_TIES[a] - ROOM_OBJECT_TIES[b])
 
 /**
  * The smallest touch target, in pixels: the size WCAG 2.5.5 (AAA) and the

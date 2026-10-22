@@ -1,28 +1,8 @@
 import type { Config } from './config'
-import {
-  CHANNELS,
-  OVERHEAD_CHANNELS,
-  type ChannelId,
-  type OverheadChannelId,
-} from './dolby-layouts'
 import { summarizeLayout, type LayoutSummary } from './layout'
-import type { Placement } from './manual-positions'
-import {
-  checkOverheadPlacementRange,
-  type OverheadPlacementRangeCheck,
-  type PlacementRangeCheck,
-} from './placement-range'
-import type { Aim, ScreenRelation } from './placement'
-import { placeAll } from './placements'
-import {
-  azimuthFromMlp,
-  sideViewElevation,
-  type RoomPoint,
-  type Wall,
-} from './room'
+import { placeItems, type PlacedItems } from './placed-items'
 import { estimateHeadroom, type HeadroomAnalysis } from './headroom'
-import { speakerGroupsIn, type SubwooferSpecs } from './speaker-specs'
-import { SUBWOOFERS, type SubwooferId } from './subwoofer-arrangements'
+import { speakerGroupsIn } from './speaker-specs'
 import {
   hearRoom,
   type EstimatedResponse,
@@ -34,81 +14,12 @@ import {
   type ResponseSummary,
 } from './response-summary'
 import type { TargetCurveKind } from './target-curve'
-import { hearSpeaker, isCharted, subwooferSpecsOf } from './listening'
+import { hearSpeaker, isCharted } from './listening'
 import { frontWallFraction, seatRuleOfThumb, type SeatRuleOfThumb } from './mlp'
 import { seatRowFootprint, type SeatRowFootprint } from './seat-row'
 import { responseNotes, type ResponseNotes } from './response-notes'
 import { suggestsAtmosEnabledSpeakers } from './atmos-enabled'
 import { placementWarnings, type PlacementWarning } from './placement-warnings'
-
-/** A listener-level speaker of the layout, placed and checked. */
-export type PlacedSpeaker = {
-  readonly channel: ChannelId
-  /** Dolby's name for the channel, for example "Left Surround". */
-  readonly name: string
-  /** Where the speaker is, in room coordinates (its acoustic center). */
-  readonly position: RoomPoint
-  /**
-   * Where its woofer is: below the acoustic center by its speaker group's
-   * type (bookshelf or tower). Boundary interference starts from here.
-   */
-  readonly woofer: RoomPoint
-  /** Auto-placed, or left by the user where it is. */
-  readonly placement: Placement
-  /** Which way it faces: at the MLP. */
-  readonly aim: Aim
-  /** Its angle from the MLP, graded against Dolby's placement range. */
-  readonly placementRange: PlacementRangeCheck
-  /**
-   * How auto-place fitted it to the Screen (placement.ts, rule 6), or that
-   * it is manual: null without a screen, or for a channel other than L, C
-   * and R.
-   */
-  readonly screenRelation: ScreenRelation | null
-}
-
-/**
- * An overhead speaker of the layout, on the ceiling. Dolby's placement
- * range grades its elevation and, for the top front and top rear pairs,
- * its azimuth. ADR 0002 models boundary interference for listener-level
- * speakers only, so an overhead is not in the estimated response or the
- * seat score.
- */
-export type PlacedOverhead = {
-  readonly channel: OverheadChannelId
-  /** Dolby's name for the channel, for example "Left Top Front". */
-  readonly name: string
-  /** Where the speaker is, in room coordinates: on the ceiling. */
-  readonly position: RoomPoint
-  /** Auto-placed, or left by the user where it is. */
-  readonly placement: Placement
-  /** Its azimuth and elevation from the MLP, graded against Dolby's placement range. */
-  readonly placementRange: OverheadPlacementRangeCheck
-}
-
-/**
- * A subwoofer of the layout, auto-placed in the cited multi-subwoofer
- * arrangement or left by the user where it is. Dolby gives subwoofers no placement range, so it is not
- * graded.
- */
-export type PlacedSubwoofer = {
-  /** Its short id, for example "Sub2". */
-  readonly id: SubwooferId
-  /** For example "Subwoofer 2". */
-  readonly name: string
-  /** Where it is, in room coordinates (its acoustic center). */
-  readonly position: RoomPoint
-  /** Auto-placed, or left by the user where it is. */
-  readonly placement: Placement
-  /** The wall it stands against (for a manual one, the nearest wall). */
-  readonly wall: Wall
-  /**
-   * The specs it is modelled with: its own specs, or the Subwoofers
-   * group's. Resolved here for the acoustic estimates of #11-#13, which
-   * need each subwoofer's enclosure, driver size and power.
-   */
-  readonly specs: SubwooferSpecs
-}
 
 /** The estimated response at the MLP and the target curve it is compared against. */
 export type ResponseAnalysis = {
@@ -124,40 +35,34 @@ export type ResponseAnalysis = {
   readonly notes: ResponseNotes
 }
 
-/** Everything derived from a config. */
-export type RoomAnalysis = {
+/**
+ * Everything derived from a config. It is a PlacedItems (placed-items.ts):
+ * the MLP, the speakers, overheads and subwoofers by kind, and every item
+ * by id (`items`), the one by-id lookup for a placed item.
+ */
+export type RoomAnalysis = PlacedItems & {
   /** The layout's name and channel counts. */
-  layout: LayoutSummary
-  /** The MLP in room coordinates. */
-  mlp: RoomPoint
-  /** Whether the MLP is auto-placed or left by the user where it is. */
-  mlpPlacement: Placement
+  readonly layout: LayoutSummary
   /** The Seat row the MLP sits on (a room object, not analyzed). */
-  seatRow: SeatRowFootprint
+  readonly seatRow: SeatRowFootprint
   /** Where the informal "38% rule" puts the seat: a reference only. */
-  seatRuleOfThumb: SeatRuleOfThumb
+  readonly seatRuleOfThumb: SeatRuleOfThumb
   /** How far back the MLP is, as a share of the room length. */
-  mlpFrontWallFraction: number
-  /** The layout's listener-level speakers, in Dolby's channel order. */
-  speakers: readonly PlacedSpeaker[]
-  /** The layout's overhead speakers, in Dolby's channel order. */
-  overheads: readonly PlacedOverhead[]
-  /** The layout's subwoofers, Subwoofer 1 first. */
-  subwoofers: readonly PlacedSubwoofer[]
+  readonly mlpFrontWallFraction: number
   /** The estimated response at the MLP against the target curve. */
-  response: ResponseAnalysis
+  readonly response: ResponseAnalysis
   /** Whether the Speakers and Subwoofers can reach reference level at the MLP. */
-  headroom: HeadroomAnalysis
+  readonly headroom: HeadroomAnalysis
   /**
    * Whether the ceiling is low enough (8 ft or less) that Dolby suggests
    * Atmos-enabled speakers instead of the layout's overheads.
    */
-  suggestsAtmosEnabledSpeakers: boolean
+  readonly suggestsAtmosEnabledSpeakers: boolean
   /**
    * Hints where a room object makes a speaker or the MLP worse off (ADR
    * 0006): never a block, and not part of the estimated response.
    */
-  placementWarnings: readonly PlacementWarning[]
+  readonly placementWarnings: readonly PlacementWarning[]
 }
 
 /** The domain entry point: derive the room plan from a config. */
@@ -170,68 +75,32 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     amplifierWatts,
   } = config
   // The one place positions come from: manual where the user put an item,
-  // else auto-placed (placements.ts). Everything below follows from them.
-  const placements = placeAll(config)
-  const mlp = placements.mlp.position
+  // else auto-placed (placements.ts), each with its per-item facts
+  // (placed-items.ts). Everything below follows from them.
+  const placed = placeItems(config)
+  const { mlp, speakers, overheads, subwoofers } = placed
   // The room with the subwoofers where they are, heard at the MLP: the
   // same heard room the seat score hears its candidate seats in.
-  const heardRoom = hearRoom(config, placements)
+  const heardRoom = hearRoom(config, placed)
   const { frequencies } = heardRoom
 
   // Each speaker is installed for and graded from the current MLP, and
   // faces it; its reflections follow from that aim and are worked out
   // once, for both the estimate and the notes.
-  const heardSpeakers = placements.speakers.map(
-    ({ reference, position, placement, screenRelation, placementRange }) => {
-      const { aim, woofer, reflections, levels } = hearSpeaker(
-        config,
-        { channel: reference.channel, position },
-        mlp,
-        frequencies,
-      )
-      const speaker: PlacedSpeaker = {
-        channel: reference.channel,
-        name: CHANNELS[reference.channel].name,
-        position,
-        woofer,
-        placement,
-        aim,
-        placementRange,
-        screenRelation,
-      }
-      return {
-        speaker,
-        charted: isCharted(reference.channel),
-        reflections,
-        levels,
-      }
-    },
-  )
-
-  const overheads = placements.overheads.map(
-    ({ reference, position, placement }): PlacedOverhead => ({
-      channel: reference.channel,
-      name: OVERHEAD_CHANNELS[reference.channel].name,
-      position,
-      placement,
-      placementRange: checkOverheadPlacementRange(
-        reference,
-        azimuthFromMlp(mlp, position),
-        sideViewElevation(mlp, position),
-      ),
-    }),
-  )
-
-  const subwoofers = placements.subwoofers.map(
-    ({ id, position, placement, wall }): PlacedSubwoofer => ({
-      id,
-      name: SUBWOOFERS[id].name,
-      position,
-      placement,
-      wall,
-      specs: subwooferSpecsOf(config, id),
-    }),
-  )
+  const heardSpeakers = speakers.map((speaker) => {
+    const { reflections, levels } = hearSpeaker(
+      config,
+      speaker,
+      mlp,
+      frequencies,
+    )
+    return {
+      speaker,
+      charted: isCharted(speaker.channel),
+      reflections,
+      levels,
+    }
+  })
 
   const estimated = heardRoom.estimateAt(
     heardRoom.hear({
@@ -258,8 +127,6 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     ),
     enclosures: subwoofers.map(({ specs }) => specs.enclosure),
   })
-  const layoutSummary = summarizeLayout(layout)
-  const speakers = heardSpeakers.map(({ speaker }) => speaker)
   const headroom = estimateHeadroom({
     mlp,
     speakerGroups,
@@ -269,15 +136,11 @@ export function analyzeRoom(config: Config): RoomAnalysis {
     subwoofers,
   })
   return {
-    layout: layoutSummary,
-    mlp,
-    mlpPlacement: placements.mlp.placement,
+    ...placed,
+    layout: summarizeLayout(layout),
     seatRow: seatRowFootprint(config.room, mlp, config.roomObjects.seatRow),
     seatRuleOfThumb: seatRuleOfThumb(config.room),
     mlpFrontWallFraction: frontWallFraction(config.room, mlp),
-    speakers,
-    overheads,
-    subwoofers,
     response: {
       estimated,
       targetCurve: targetCurveKind,

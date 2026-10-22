@@ -1,17 +1,5 @@
 import { createContext, useContext, useMemo } from 'react'
-import {
-  itemDistances,
-  MLP_ID,
-  type ItemDistances,
-  type PlaceableId,
-  type PlacedOverhead,
-  type PlacedSpeaker,
-  type PlacedSubwoofer,
-  type Placement,
-  type PlacementGrading,
-  type RoomPoint,
-  type ScreenRelation,
-} from '@/domain'
+import { selectedItem, type PlaceableId, type SelectedItem } from '@/domain'
 import { useConfig, useRoomAnalysis } from './config-context'
 
 /**
@@ -37,30 +25,10 @@ export function useSelection(): Selection {
   return selection
 }
 
-/** The Selected item as the details panel and the room view show it. */
-export type SelectedItem = {
-  readonly id: PlaceableId
-  /** Its name, for example "Left", "Subwoofer 1" or "MLP". */
-  readonly name: string
-  /** Where it is, in room coordinates. */
-  readonly position: RoomPoint
-  /** Auto-placed, or left by the user where it is. */
-  readonly placement: Placement
-  /** To its two nearest walls and (unless it is the MLP) the MLP. */
-  readonly distances: ItemDistances
-  /** Its placement-range check, or null for the MLP. */
-  readonly grading: PlacementGrading | null
-  /**
-   * How it relates to the Screen (L, C and R in a Room with one), else
-   * null.
-   */
-  readonly screenRelation: ScreenRelation | null
-}
-
 /**
- * The Selected item, shared by every component under the config store
- * (ConfigStoreProvider provides it), so it is derived once per change.
- * Undefined outside the provider.
+ * The Selected item (selectedItem in the domain), shared by every
+ * component under the config store (ConfigStoreProvider provides it), so
+ * it is derived once per change. Undefined outside the provider.
  */
 export const SelectedItemContext = createContext<
   SelectedItem | null | undefined
@@ -86,62 +54,9 @@ export function useSelectedItem(): SelectedItem | null {
 export function useComputedSelectedItem(): SelectedItem | null {
   const { selected } = useSelection()
   const room = useConfig((state) => state.config.room)
-  const { mlp, mlpPlacement, speakers, overheads, subwoofers } =
-    useRoomAnalysis()
-  return useMemo(() => {
-    if (!selected) return null
-    if (selected === MLP_ID) {
-      return {
-        id: MLP_ID,
-        name: 'MLP',
-        position: mlp,
-        placement: mlpPlacement,
-        distances: itemDistances(room, mlp, null),
-        grading: null,
-        screenRelation: null,
-      }
-    }
-    const item = gradedItem(selected, speakers, overheads, subwoofers)
-    if (!item) return null
-    return {
-      id: selected,
-      name: item.name,
-      position: item.position,
-      placement: item.placement,
-      distances: itemDistances(room, item.position, mlp),
-      grading: item.grading,
-      screenRelation: item.screenRelation,
-    }
-  }, [selected, room, mlp, mlpPlacement, speakers, overheads, subwoofers])
-}
-
-/** A placed speaker, overhead or subwoofer by id, with its placement-range check. */
-function gradedItem(
-  id: PlaceableId,
-  speakers: readonly PlacedSpeaker[],
-  overheads: readonly PlacedOverhead[],
-  subwoofers: readonly PlacedSubwoofer[],
-) {
-  const speaker = speakers.find(({ channel }) => channel === id)
-  if (speaker) {
-    const grading: PlacementGrading = {
-      kind: 'speaker',
-      check: speaker.placementRange,
-    }
-    return { ...speaker, grading }
-  }
-  const overhead = overheads.find(({ channel }) => channel === id)
-  if (overhead) {
-    const grading: PlacementGrading = {
-      kind: 'overhead',
-      check: overhead.placementRange,
-    }
-    return { ...overhead, grading, screenRelation: null }
-  }
-  const subwoofer = subwoofers.find((sub) => sub.id === id)
-  if (subwoofer) {
-    const grading: PlacementGrading = { kind: 'subwoofer' }
-    return { ...subwoofer, grading, screenRelation: null }
-  }
-  return null
+  const analysis = useRoomAnalysis()
+  return useMemo(
+    () => selectedItem(room, analysis, selected),
+    [room, analysis, selected],
+  )
 }

@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  type Config,
-  type SpeakerGroupId,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import type { SpeakerGroupId } from './speaker-specs'
 
 /**
  * The default 5.1.2 room with every item moved by hand to round distances

@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  placeManually,
-  positionLengths,
-  wallDistances,
-  withPositionLength,
-  type ChannelId,
-  type Config,
-  type RoomAnalysis,
-} from '@/domain'
+import { analyzeRoom, type RoomAnalysis } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import { placeManually, withPositionLength } from './config-edits'
+import type { ChannelId } from './dolby-layouts'
+import { positionLengths } from './manual-positions'
+import { wallDistances } from './wall-frame'
 
 function speaker(analysis: RoomAnalysis, channel: ChannelId) {
   const found = analysis.speakers.find((s) => s.channel === channel)

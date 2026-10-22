@@ -77,16 +77,6 @@ export type Aim = {
   readonly yaw: number
 }
 
-/** Where a listener-level channel goes around the MLP (see the rule above). */
-export function autoPlaceSpeaker(
-  room: Room,
-  mlp: RoomPoint,
-  reference: ChannelReference,
-  screen: RoomScreen | null = null,
-): RoomPoint {
-  return autoPlaceSpeakerAtScreen(room, mlp, reference, screen).position
-}
-
 /**
  * How a front-stage speaker relates to the Screen (rule 6), for the
  * details panel. Only Left, Center and Right have one, and only when the

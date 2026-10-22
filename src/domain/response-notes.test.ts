@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeRoom, DEFAULT_CONFIG, type Config } from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
 import {
   interferenceLevels,
   type BoundaryReflection,

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_ROOM, seatRowFootprint } from '@/domain'
+import { DEFAULT_ROOM } from './room'
 import { checkLength, withLength } from './object-lengths'
-import { DEFAULT_SEAT_ROW, isValidSeatRow, SEAT_ROW_LENGTHS } from './seat-row'
+import {
+  DEFAULT_SEAT_ROW,
+  isValidSeatRow,
+  SEAT_ROW_LENGTHS,
+  seatRowFootprint,
+} from './seat-row'
 
 /** The default room: the seat row's limits don't depend on it. */
 const ROOM = DEFAULT_ROOM

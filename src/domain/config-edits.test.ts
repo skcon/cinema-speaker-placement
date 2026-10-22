@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_CONFIG, type Config } from './config'
 import {
-  DEFAULT_CONFIG,
   withAmplifierWatts,
   withCrossover,
   withLayout,
@@ -8,8 +8,7 @@ import {
   withSpeakerSpecs,
   withSubwooferHasOwnSpecs,
   withSubwooferSpecs,
-  type Config,
-} from '@/domain'
+} from './config-edits'
 import { IMPERIAL_ROOM } from '@/test/share-link-fixtures'
 
 const PORTED_15 = {

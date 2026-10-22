@@ -1,13 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import {
-  analyzeRoom,
-  DEFAULT_CONFIG,
-  formatLayout,
-  V1_DOLBY_LAYOUTS,
-  withRoomObjectAdded,
-  type Config,
-  type RoomObjectAddition,
-} from '@/domain'
+import { analyzeRoom } from './analyze'
+import { DEFAULT_CONFIG, type Config } from './config'
+import { V1_DOLBY_LAYOUTS } from './dolby-layouts'
+import { formatLayout } from './layout'
+import { withRoomObjectAdded, type RoomObjectAddition } from './room-objects'
 import { hearRoom } from './estimated-response'
 import { placeAll } from './placements'
 import { bearingTo } from './room'

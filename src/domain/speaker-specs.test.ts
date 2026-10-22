@@ -4,7 +4,7 @@ import {
   DEFAULT_SUBWOOFER_SPECS,
   speakerGroupsIn,
   type SubwooferSpecs,
-} from '@/domain'
+} from './speaker-specs'
 
 /** 1 in in meters (exact). */
 const INCH = 0.0254

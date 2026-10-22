@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CONFIG, type Config } from '@/domain'
+import { DEFAULT_CONFIG, type Config } from './config'
 import { itemDistances } from '@/domain/item-distances'
 import { placeItems, positionOf, selectedItem } from '@/domain/placed-items'
 import { placeAll } from '@/domain/placements'

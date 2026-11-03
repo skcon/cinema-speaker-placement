@@ -93,6 +93,7 @@ Room coordinates (origin, axes, azimuth, elevation) are defined once in `src/dom
 
 ## CI and releases
 
-- Every pull request to `develop` runs lint, format check, typecheck, unit tests, build and the Playwright smoke test (`.github/workflows/ci.yml`).
-- Pushing a `vX.Y.Z` tag on `main` builds and deploys the site to GitHub Pages (`.github/workflows/deploy.yml`). The workflow refuses tags that are not on `main`.
+- Every pull request to `develop` or `main` runs lint, format check, typecheck, unit tests, build and the Playwright smoke test (`.github/workflows/ci.yml`).
+- The release PR from `develop` into `main` also runs a release check, and needs the `release` label.
+- Merging it releases: `.github/workflows/release.yml` tests and builds `main`, deploys it to GitHub Pages, then tags `vX.Y.Z` and publishes the GitHub Release with the changelog section as notes.
 - Releases are listed in [CHANGELOG.md](CHANGELOG.md); `docs/workflow.md` has the release steps.

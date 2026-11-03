@@ -2,7 +2,10 @@ name: CI
 
 on:
   pull_request:
-    branches: [develop]
+    # Feature PRs into develop, and the release PR from develop into main.
+    branches: [develop, main]
+    # labeled/unlabeled re-run the release check when the release label changes.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -12,6 +15,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-check:
+    name: Release check
+    # Only the release PR into main. Make this a required check on main.
+    if: github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check the release PR
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HAS_RELEASE_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'release') }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          errors=0
+          if [ "$HEAD_REF" != "develop" ] && [[ "$HEAD_REF" != hotfix/* ]]; then
+            echo "::error::Release PRs come from develop (or a hotfix/ branch), not $HEAD_REF (docs/workflow.md)."
+            errors=1
+          fi
+          if [ "$HAS_RELEASE_LABEL" != "true" ]; then
+            echo "::error::Add the 'release' label: merging this PR publishes v$version."
+            errors=1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "::error::v$version is already released. Bump the version in package.json (release prep PR into develop)."
+            errors=1
+          fi
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section."
+            errors=1
+          fi
+          [ "$errors" -eq 0 ] && echo "Merging this PR releases v$version."
+          exit "$errors"
+
   checks:
     name: Lint, typecheck, unit tests
     runs-on: ubuntu-latest

@@ -4,6 +4,11 @@
  */
 export { analyzeRoom, type RoomAnalysis } from './analyze'
 export {
+  responseScore,
+  type ResponseScore,
+  type ResponseScoreBand,
+} from './response-summary'
+export {
   selectedItem,
   type PlacedItem,
   type PlacedOverhead,

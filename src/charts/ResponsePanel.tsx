@@ -1,7 +1,17 @@
 import { lazy, Suspense, useId } from 'react'
-import { formatDb, formatHz, formatHzRange } from '@/charts/format'
+import {
+  formatDb,
+  formatHz,
+  formatHzRange,
+  RESPONSE_SCORE_BAND_STYLES,
+} from '@/charts/format'
 import { strengthText, weaknessText } from '@/charts/notes-text'
-import { TARGET_CURVE_KINDS, TARGET_CURVES, TARGET_TOLERANCE } from '@/domain'
+import {
+  RESPONSE_SCORE_BANDS,
+  TARGET_CURVE_KINDS,
+  TARGET_CURVES,
+  TARGET_TOLERANCE,
+} from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
 
@@ -74,10 +84,11 @@ const CHOSEN_OPTION =
 export function ResponsePanel() {
   const pickerLabelId = useId()
   const summaryId = useId()
+  const scoreId = useId()
   const targetCurve = useConfig((state) => state.config.targetCurve)
   const setTargetCurve = useConfig((state) => state.setTargetCurve)
   const { response } = useRoomAnalysis()
-  const { summary, estimated, tableRows } = response
+  const { summary, score, estimated, tableRows } = response
   const { rows, reliableFrom, model } = estimated
   const target = TARGET_CURVES[targetCurve].name
   const lowest = rows[0]?.frequency ?? 0
@@ -88,9 +99,14 @@ export function ResponsePanel() {
     highest,
   )
 
+  const band = RESPONSE_SCORE_BAND_STYLES[score.band]
+  const scoreBasis =
+    `the share of ${summarized} within ±${TARGET_TOLERANCE.db} dB of ` +
+    `the ${target}.`
+
   const summaryText =
     `Within ±${TARGET_TOLERANCE.db} dB of the ${target} over ` +
-    `${Math.round(summary.withinTolerance * 100)}% of ${summarized}. ` +
+    `${score.value}% of ${summarized}. ` +
     `Largest peak: ${formatDb(summary.largestPeak.deviation)} at ` +
     `${formatHz(summary.largestPeak.frequency)}. ` +
     `Deepest dip: ${formatDb(summary.deepestDip.deviation)} at ` +
@@ -124,10 +140,31 @@ export function ResponsePanel() {
           ))}
         </ToggleGroup>
       </div>
+      <div id={scoreId} className="flex flex-col gap-0.5">
+        {/* Read out once, in words, by the sr-only text below. */}
+        <p
+          aria-hidden="true"
+          className="flex items-center gap-2 text-lg font-semibold tabular-nums"
+        >
+          <span
+            className="inline-block size-3 rounded-full"
+            style={{ backgroundColor: band.color }}
+          />
+          Response score {score.value}/100 · {band.label}
+        </p>
+        <p className="sr-only">
+          Response score {score.value} out of 100, {band.label.toLowerCase()}.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          An estimate, not a measurement: {scoreBasis} Good from{' '}
+          {RESPONSE_SCORE_BANDS.goodFrom}, fair from{' '}
+          {RESPONSE_SCORE_BANDS.fairFrom} (our bands, not a standard).
+        </p>
+      </div>
       <div
         role="img"
         aria-label={`Chart of the estimated response at the MLP against the ${target}, ${formatHzRange(lowest, highest)} on a log frequency axis.`}
-        aria-describedby={summaryId}
+        aria-describedby={`${scoreId} ${summaryId}`}
         className="relative h-64 w-full lg:h-auto lg:min-h-60 lg:flex-1"
       >
         <Suspense fallback={null}>

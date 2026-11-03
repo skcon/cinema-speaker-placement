@@ -51,6 +51,16 @@ function renderRoomViewWith(recommendation: SeatRecommendation | null) {
   return screen.getByRole('button', { name: 'Seat-score heatmap' })
 }
 
+/** The heatmap legend, as assistive technology finds it (null while hidden). */
+function heatmapLegend() {
+  return screen.queryByRole('group', { name: 'Seat score (estimate)' })
+}
+
+/** The legend's note, laid out (to hold its space) even while hidden. */
+function aboutTheSameNote() {
+  return screen.getByText('Seats score about the same.')
+}
+
 function scene() {
   return screen.getByRole('img', { name: /^Top-down view of the room/ })
 }
@@ -61,7 +71,7 @@ describe('seat-score heatmap in the room view', () => {
 
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(await screen.findByText('no heatmap')).toBeInTheDocument()
-    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(heatmapLegend()).toBeNull()
     expect(scene()).not.toHaveAccessibleName(/heatmap/)
   })
 
@@ -86,7 +96,7 @@ describe('seat-score heatmap in the room view', () => {
     fireEvent.click(renderRoomViewWith(null))
 
     expect(screen.getByText('no heatmap')).toBeInTheDocument()
-    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(heatmapLegend()).toBeNull()
     expect(scene()).not.toHaveAccessibleName(/heatmap/)
   })
 
@@ -103,14 +113,32 @@ describe('seat-score heatmap in the room view', () => {
     fireEvent.click(renderRoomViewWith(even))
 
     expect(screen.getByText('heatmap drawn')).toBeInTheDocument()
-    expect(screen.getByText('Seats score about the same.')).toBeInTheDocument()
+    expect(aboutTheSameNote()).not.toHaveAttribute('aria-hidden')
   })
 
   it('has no such note when the seats score meaningfully apart', async () => {
     fireEvent.click(renderRoomView())
 
     expect(await screen.findByText('heatmap drawn')).toBeInTheDocument()
-    expect(screen.queryByText('Seats score about the same.')).toBeNull()
+    expect(aboutTheSameNote()).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('keeps the legend laid out but hidden while off, so toggling moves nothing else', async () => {
+    const toggle = renderRoomView()
+    await screen.findByText('no heatmap')
+
+    const slot = toggle.parentElement
+    const hidden = screen.getByText('Seat score (estimate)').closest('div')
+    expect(hidden?.closest('[aria-hidden="true"]')).toHaveClass('invisible')
+    expect(slot).toContainElement(hidden)
+
+    fireEvent.click(toggle)
+    await screen.findByText('heatmap drawn')
+
+    const legend = heatmapLegend()
+    expect(slot).toContainElement(legend)
+    expect(legend?.closest('[aria-hidden="true"]')).toBeNull()
+    expect(legend?.parentElement).not.toHaveClass('invisible')
   })
 
   it('turns back off, and never enters the undo history', async () => {
@@ -120,7 +148,7 @@ describe('seat-score heatmap in the room view', () => {
     fireEvent.click(toggle)
 
     expect(await screen.findByText('no heatmap')).toBeInTheDocument()
-    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(heatmapLegend()).toBeNull()
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
   })
 })

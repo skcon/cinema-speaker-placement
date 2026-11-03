@@ -4,19 +4,37 @@
  * seating areas show. Nothing is scored or picked twice here: the cells
  * come from the candidates the recommendation already has, and its top
  * seat is the recommended seat, so the heatmap and the ring agree (#34).
+ *
+ * The grid's seats that break the seating distances get cells of their
+ * own, unscored, so the view can say why they are blank (#155).
  */
 import type { FloorPoint, RoomPoint } from './room'
 import { SEAT_SCORE } from './reference'
-import type { SeatRecommendation } from './seat-score'
+import {
+  weakerSeatScorePart,
+  type SeatRecommendation,
+  type WeakerSeatScorePart,
+} from './seat-score'
 
-/** One candidate seat's area on the floor plan. */
-export type HeatmapCell = {
-  /** The middle of the cell (not always the candidate: edge cells are cut). */
+/** One grid seat's area on the floor plan. */
+type HeatmapArea = {
+  /** The grid seat the cell is around, at ear height. */
+  readonly seat: RoomPoint
+  /** The middle of the cell (not always the seat: edge cells are cut). */
   readonly center: FloorPoint
   /** Across the room (x), in meters. */
   readonly width: number
   /** Down the room (y), in meters. */
   readonly depth: number
+}
+
+/** One candidate seat's area on the floor plan, with its score. */
+export type HeatmapCell = HeatmapArea & {
+  readonly kind: 'scored'
+  /** The candidate's seat score, 0 (worst) to 1 (best). */
+  readonly score: number
+  /** The part of the seat score that pulls the seat down most. */
+  readonly weaker: WeakerSeatScorePart
   /**
    * The candidate's seat score on the heatmap's scale, 0 to 1: the lowest
    * in the grid at 0 and the highest at 1, or nearer the middle when the
@@ -25,8 +43,24 @@ export type HeatmapCell = {
   readonly relativeScore: number
 }
 
+/**
+ * A grid seat left blank because it breaks the seating distances: too
+ * close to a speaker, a subwoofer, a wall or the front stage. Unscored.
+ */
+export type TooCloseCell = HeatmapArea & { readonly kind: 'tooClose' }
+
 export type SeatHeatmap = {
   readonly cells: readonly HeatmapCell[]
+  /** The grid's seats that break the seating distances, unscored. */
+  readonly tooClose: readonly TooCloseCell[]
+  /**
+   * The lowest and highest seat score of the cells (0 to 1), or null
+   * without cells. The colors are relative; these are the scores.
+   */
+  readonly scoreRange: {
+    readonly lowest: number
+    readonly highest: number
+  } | null
   /** The recommended seat (recommendSeat's), the one the view rings. */
   readonly recommended: RoomPoint
   /** Whether the MLP stays the recommended seat: no seat beats it meaningfully. */
@@ -40,10 +74,11 @@ export type SeatHeatmap = {
 }
 
 /**
- * The heatmap of a recommendation's candidates. Each cell reaches halfway
- * to the neighbouring candidates and no further than the outermost ones,
- * so the cells tile the candidate area exactly and the wall clearance
- * around it (where no seat is scored) stays blank.
+ * The heatmap of a recommendation's candidates, and of the grid seats
+ * left out as too close. Each cell reaches halfway to the neighbouring
+ * grid seats and no further than the outermost ones, so the cells tile
+ * the grid exactly and the wall clearance around it (where no seat is
+ * scored) stays blank.
  *
  * The scores are relative (made with the calibration at the current MLP),
  * so they are spread across this grid only, over at least SEAT_SCORE's
@@ -53,6 +88,7 @@ export type SeatHeatmap = {
  */
 export function seatHeatmap({
   candidates,
+  tooClose,
   recommended,
   mlpIsRecommended,
 }: SeatRecommendation): SeatHeatmap {
@@ -63,24 +99,54 @@ export function seatHeatmap({
   const scale = Math.max(spread, SEAT_SCORE.meaningfulDifference)
   // Where the lowest score sits: 0, or above it to center a narrow spread.
   const bottom = (1 - spread / scale) / 2
-  const spanX = cellSpans(candidates.map(({ position }) => position.x))
-  const spanY = cellSpans(candidates.map(({ position }) => position.y))
-  const cells = candidates.map(({ position, score }): HeatmapCell => {
-    const [left, right] = spanX.get(position.x)!
-    const [front, back] = spanY.get(position.y)!
+  const grid = [...candidates.map(({ position }) => position), ...tooClose]
+  const spanX = cellSpans(grid.map(({ x }) => x))
+  const spanY = cellSpans(grid.map(({ y }) => y))
+  const areaOf = (seat: RoomPoint): HeatmapArea => {
+    const [left, right] = spanX.get(seat.x)!
+    const [front, back] = spanY.get(seat.y)!
     return {
+      seat,
       center: { x: (left + right) / 2, y: (front + back) / 2 },
       width: right - left,
       depth: back - front,
-      relativeScore: bottom + (score - lowest) / scale,
     }
-  })
+  }
+  const cells = candidates.map((candidate): HeatmapCell => ({
+    kind: 'scored',
+    ...areaOf(candidate.position),
+    score: candidate.score,
+    weaker: weakerSeatScorePart(candidate),
+    relativeScore: bottom + (candidate.score - lowest) / scale,
+  }))
   return {
     cells,
+    tooClose: tooClose.map((seat): TooCloseCell => ({
+      kind: 'tooClose',
+      ...areaOf(seat),
+    })),
+    scoreRange: candidates.length > 0 ? { lowest, highest } : null,
     recommended: recommended.position,
     mlpIsRecommended,
     scoresAboutTheSame: spread < SEAT_SCORE.meaningfulDifference,
   }
+}
+
+/**
+ * The heatmap cell under a floor point, scored or too close, or null
+ * outside the grid. On a shared edge, the first cell found wins.
+ */
+export function heatmapCellAt(
+  { cells, tooClose }: SeatHeatmap,
+  { x, y }: FloorPoint,
+): HeatmapCell | TooCloseCell | null {
+  return (
+    [...cells, ...tooClose].find(
+      ({ center, width, depth }) =>
+        Math.abs(x - center.x) <= width / 2 &&
+        Math.abs(y - center.y) <= depth / 2,
+    ) ?? null
+  )
 }
 
 /**

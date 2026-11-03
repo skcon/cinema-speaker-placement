@@ -10,6 +10,7 @@ import {
   scoreSeat,
   seatScoreInput,
   seatScoreKey,
+  weakerSeatScorePart,
   type ScoredSeat,
 } from './seat-score'
 import { yardsticksFor } from '@/test/relative-speed'
@@ -454,6 +455,27 @@ describe('seating distances (#119)', () => {
     }
   })
 
+  it('list the grid seats left out for breaking the seating distances, unscored (#155)', () => {
+    const { candidates, tooClose } = recommendSeat(DEFAULT_CONFIG)
+
+    // The default room's 15 x 15 grid: every seat is a candidate or too close.
+    expect(candidates.length + tooClose.length).toBe(15 * 15)
+    expect(tooClose.length).toBeGreaterThan(0)
+    // Scoring a seat is costly: a few are enough to check.
+    for (const seat of tooClose.slice(0, 5)) {
+      expect(
+        scoreSeat(DEFAULT_CONFIG, seat).distances.shortfall,
+      ).toBeGreaterThan(0)
+    }
+    for (const seat of tooClose) {
+      expect(
+        candidates.some(
+          ({ position }) => position.x === seat.x && position.y === seat.y,
+        ),
+      ).toBe(false)
+    }
+  })
+
   it('say when the MLP is too close to the front stage, and recommend a seat that keeps the distances', () => {
     const config: Config = {
       ...DEFAULT_CONFIG,
@@ -844,5 +866,33 @@ describe('the current MLP with Speakers follow the seat off (#123)', () => {
         },
       }).current.distances,
     )
+  })
+})
+
+describe('weaker part of a seat score (#155)', () => {
+  // The bass smoothness is 1 - deviation / 12 dB, weighted 0.6; the
+  // placement fit is weighted 0.4 (SEAT_SCORE).
+  const seat = (responseDeviationDb: number, placementFit: number) => ({
+    responseDeviationDb,
+    placementFit,
+  })
+
+  it('names the bass when it loses more of the score than the placement', () => {
+    // Bass loses 0.6 x 0.5 = 0.3, placement 0.4 x 0.5 = 0.2.
+    expect(weakerSeatScorePart(seat(6, 0.5))).toBe('bass')
+  })
+
+  it('names the placement when it loses more, weighted, even with a weaker raw value', () => {
+    // Bass loses 0.6 x 0.25 = 0.15, placement 0.4 x 0.5 = 0.2.
+    expect(weakerSeatScorePart(seat(3, 0.5))).toBe('placement')
+  })
+
+  it('counts a deviation past the scale, or none at all, as no bass smoothness', () => {
+    expect(weakerSeatScorePart(seat(30, 0))).toBe('bass')
+    expect(weakerSeatScorePart(seat(Number.NaN, 0))).toBe('bass')
+  })
+
+  it('names neither when the seat loses nothing', () => {
+    expect(weakerSeatScorePart(seat(0, 1))).toBe('neither')
   })
 })

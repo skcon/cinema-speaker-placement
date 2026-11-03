@@ -162,3 +162,41 @@ The owner pressed Auto-place and found speakers that weren't green, while draggi
 - In the sweep above every position, grade, recommended seat and seat score is unchanged to the micrometre: the recommended seat moves nowhere, because no speaker was below ideal there.
 - `LISTENER_LEVEL_AIM` joins the typed reference data as our choice. No Dolby value is new.
 - `all-ideal-auto-place.test.ts` sweeps the rooms above around the auto MLP (every ceiling, every layout) and after Auto-place (every bed, per ceiling): every listener-level speaker ideal, and an ideal gap for exactly the overheads that aren't. It names the rooms with none (the top front, as #150 found them) and checks the sidebar's words for one.
+
+## Amendment (1.4.0): the front stage's distance from the front wall follows the seat (#158)
+
+The front stage (Left, Center and Right) stood 0.5 m from the front wall in every room (`FRONT_STAGE_WALL_DISTANCE`, ours, above). The wall behind it reflects its sound, and the first notch of that reflection lands at about c/(4d): 172 Hz at 0.5 m, inside the Speakers' band of the chart (boundary interference, ADR 0002). The owner got a better curve by moving the speakers by hand (#149). So auto-place now **chooses** that distance, as part of the deterministic auto rule (`front-wall-distance.ts`, placement.ts rule 2):
+
+- **One distance for all three**, on the same front-stage line as before: each speaker keeps its angle from the seat (rule 1) and only moves along it, so every grade stays as it was (the #151 rule). KEF asks for both front speakers the same distance from the wall (`docs/research/real-room-placement.md` section 6).
+- **The range** (`FRONT_STAGE_WALL_DISTANCE_RANGE`): whole centimetres from the 0.3 m wall clearance (ours) to 0.6 m, Genelec's "preferably under 0.6 m" (from excerpts; inside KEF's 0.3–1 m), and never so far out that the seat falls short of the 1.5 m `SEATING_DISTANCE.behindFrontStage`. A seat too near the front wall to keep 1.5 m from the usual 0.5 m line keeps 0.5 m, so the choice never lets in a seat the seating distances keep out (#119). Using Genelec's number as the limit and the 1 cm step are ours.
+- **The criterion** (ours): the auto front stage at each distance, heard at the seat it is installed for, with only its boundary interference (the chart's Speakers' part, power averaged), over the Speakers' pass band (from the crossover to the top of the response band), its level set to the band's mean as the calibration does: the share of that band outside the target's ±3 dB tolerance, which is how the Response score counts. Closed form, a few milliseconds per seat, no modal sum.
+- **The choice**: the least share; ties go to the distance nearest 0.5 m, then nearer the wall. 0.5 m stays unless the best distance leaves at least 5 points less of the band outside (`meaningfulShare`, ours), so a choice made on one or two frequencies of a simplified model doesn't move the speakers.
+- **It follows the seat.** The distance is a function of the room, the layout, the speakers' types, the crossover, the target curve and the point the stage is installed for, never of manual speakers. `placeSpeakers` serves the room view, the analysis and the seat score's candidate stages, so a candidate stage and the drawn stage for the same install point are the same speakers, and the seat score measures the seating distance behind the chosen line (no new mismatch of the kind #147 describes; #147 itself is a separate decision).
+- **With a Screen the screen rule wins** (the amendment for #58): the front stage stays on the screen's line and nothing is tuned.
+
+**Measured** (pinned in `front-wall-distance.test.ts`; the Response score is `analysis.response.score`, #152):
+
+| Room, layout | MLP | Distance | Response score before → after |
+|---|---|---|---|
+| 6 × 4.5 × 2.6 m (default), 5.1.2 | auto (0, 2.28), also after Auto-place | 0.5 m | 53 → 53 |
+| default, 2.1 | auto (0, 2.28) | 0.3 m | 35 → 54 |
+| default, 2.1 | after Auto-place: (−0.84, 2.23) before, (−0.56, 2.23) now | 0.3 m | 67 → 67 |
+| 4.5 × 3 × 2.6 m (owner), 5.1.2 | auto (0, 1.71); after Auto-place (0, 3.09) | 0.5 m | 64 → 64; 77 → 77 |
+| owner, 2.1 | auto (0, 1.71); after Auto-place (−0.72, 3.09) | 0.5 m | 59 → 59; 77 → 77 |
+| 3.5 × 3 × 2.4 m, 5.1.4 | after Auto-place (0, 2.23) | 0.6 m | 57 → 64 |
+
+In the owner's room no distance is better by 5 points of the band at either recommended seat (at the 5.1.2 seat 0.55 m is best, 2 points better), so nothing moves there, and the 2.1 Left stops at the side wall's clearance before the line anyway. A hand-placed setup that leaves the auto rule (other angles, a different distance per speaker) can still do better; this rule only chooses the line. In the default 5.1.2 room the best distance at the 38% seat (0.51 m) is better by one frequency of the band, not by 5 points, so the default room is unchanged.
+
+### Considered options
+
+- **Minimise the mean square of the band's deviation** (an RMS, like the seat score's bass smoothness): rejected after measuring. In the default 5.1.2 room it chose 0.46 m and the Response score fell from 53 to 44; the share outside the tolerance follows the Response score.
+- **Up to KEF's 1 m**: rejected. The seats far from the front wall get more distances to choose from, so the seat score moved the default 5.1.2 room's recommended seat from 2.28 m to 4.16 m (front stage 0.87 m out), and short rooms with low ceilings lost their top rear's ideal grade after Auto-place. About 1 m out is also where the first notch meets the 80 Hz crossover (research section 2.1).
+- **No 5-point threshold**: rejected. The default room's front stage moved 1 cm for one frequency and its Response score fell a point.
+- **The full estimate (modal sum) per distance**: rejected. It would cost the seat score a modal sum per distance per candidate seat, and the issue asks for a cheap closed form.
+
+### Consequences
+
+- No config or share-link change: only auto positions move. The default 5.1.2 room is unchanged; with a Screen nothing changes.
+- The seat score now sees each candidate seat with its own chosen front stage, so some recommended seats move: the 2.1 room 6 × 5 m now recommends a seat 1.26 m off the centre line, 3.4 points better than the centre line (0.94 m and 5.8 before); the 7.1.4 room with two subwoofers keeps its seat, its score 0.860 → 0.852; `ROOM_WITH_A_BETTER_SEAT`'s 7.5 × 5 m room now recommends its own auto MLP, so the fixture is a 9.5 × 3.5 m room. After Auto-place, the rooms where a top rear has no ideal point change a little (fewer at 2.6 m and 3 m ceilings; `overhead-placement.test.ts` names them).
+- The choice is memoized by its input (a few milliseconds each, about 0.8 yardsticks for the largest grid's 15 install points, next to about 9 for that room's whole seat score).
+- `FRONT_STAGE_WALL_DISTANCE_RANGE` joins the typed reference data; `FRONT_STAGE_WALL_DISTANCE` (0.5 m) stays as the screen's line, the tie-break and the fallback. No Dolby value is new.

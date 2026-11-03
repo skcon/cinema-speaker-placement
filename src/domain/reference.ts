@@ -330,6 +330,42 @@ export const FRONT_STAGE_WALL_DISTANCE = {
 } as const satisfies { meters: number; note: string }
 
 /**
+ * The front-wall distances auto-place tries for the front stage without a
+ * Screen (#158, ADR 0005 amendment), in steps of `stepMeters`: from
+ * `fromMeters` (the wall clearance) up to `toMeters`, but never so far out
+ * that the seat the stage is installed for falls short of
+ * SEATING_DISTANCE.behindFrontStage (a seat too near the front wall for
+ * that keeps FRONT_STAGE_WALL_DISTANCE). It keeps the one whose boundary
+ * interference leaves the least of the Speakers' band outside the target's
+ * tolerance at that seat (front-wall-distance.ts); ties go to the distance
+ * nearest FRONT_STAGE_WALL_DISTANCE. It stays at FRONT_STAGE_WALL_DISTANCE
+ * unless the best distance leaves at least `meaningfulShare` less of the
+ * band outside.
+ */
+export const FRONT_STAGE_WALL_DISTANCE_RANGE = {
+  fromMeters: SPEAKER_WALL_CLEARANCE.meters,
+  toMeters: 0.6,
+  stepMeters: 0.01,
+  meaningfulShare: 0.05,
+  note:
+    "fromMeters is the wall clearance (ours). toMeters is Genelec's " +
+    '"preferably under 0.6 m" from the wall behind (GEN-SUP, GEN-GUIDE, ' +
+    "read from excerpts), inside KEF's 300-1000 mm; about 1 m out puts " +
+    'the first notch near the 80 Hz crossover, the worst of both ' +
+    '(docs/research/real-room-placement.md section 2.1). Using it as the ' +
+    'limit, the 1 cm step, the criterion and meaningfulShare (5 points of ' +
+    'the band, so the usual 0.5 m stays unless another distance is clearly ' +
+    'better in the model) are ours. Dolby gives no distance from the ' +
+    'front wall.',
+} as const satisfies {
+  fromMeters: number
+  toMeters: number
+  stepMeters: number
+  meaningfulShare: number
+  note: string
+}
+
+/**
  * Where auto-place aims Left and Right without a Screen (#121, ADR 0005
  * amendment): at Dolby's 30° reference, less `edgeMargin` when that
  * reference sits on the ideal range's edge. With every per-layout sheet's

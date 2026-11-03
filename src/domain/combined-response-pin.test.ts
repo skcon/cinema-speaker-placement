@@ -50,7 +50,7 @@ describe('the combined estimated response (pinned)', () => {
     ])
   })
 
-  it('leaves the seat score unchanged', () => {
+  it('pins the seat score (the 7.1.4 seat moved with #158)', () => {
     const fivePointOne = recommendSeat(DEFAULT_CONFIG).recommended
     expect(fivePointOne.position.x).toBe(0)
     expect(fivePointOne.position.y).toBeCloseTo(2.28, 10)
@@ -60,6 +60,10 @@ describe('the combined estimated response (pinned)', () => {
       withLayout(DEFAULT_CONFIG, { dolbyLayout: '7.1.4', subwoofers: 2 }),
     ).recommended
     expect(sevenPointOne.position.y).toBeCloseTo(4.157143, 5)
-    expect(sevenPointOne.score).toBeCloseTo(0.859899, 5)
+    // 0.859899 until #158: the seat's front stage now stands where its
+    // boundary interference strays least from the target in the Speakers'
+    // band (front-wall-distance.ts), which the bass smoothness, over the
+    // whole band, need not agree with.
+    expect(sevenPointOne.score).toBeCloseTo(0.85231, 5)
   })
 })

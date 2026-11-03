@@ -39,7 +39,7 @@ export function SidebarSection({
     <section
       aria-labelledby={headingId}
       aria-describedby={descriptionId}
-      className="flex flex-col border-t pt-3 first:border-t-0 first:pt-0"
+      className="flex flex-col border-t pt-3"
     >
       <h2 id={headingId} className="font-semibold">
         <button

@@ -20,18 +20,50 @@
  *    to the nearest whole degree (top middle: 83° for 65°–100°). That puts
  *    it (ceiling − ear height) / tan(elevation) ahead of the MLP.
  * 4. **Walls**: the speaker keeps SPEAKER_WALL_CLEARANCE from every wall
- *    (our modelling assumption, as for listener-level speakers). Where
- *    that moves it, its elevation and azimuth change, and are graded as
- *    they are.
+ *    (our modelling assumption, as for listener-level speakers).
+ * 5. **Its own ranges win** (#150, ADR 0005 amendment): where rules 2–4
+ *    leave the speaker outside its own azimuth or elevation range (the
+ *    layout width says nothing about the overheads' azimuth, so a narrow
+ *    room put the top front at 27°, outside 30°–60°), it moves to the
+ *    nearest point on the ceiling, inside the wall clearance, where both
+ *    angles are OVERHEAD_AIM.edgeMargin inside their ideal ranges:
+ *    sideways only where that is enough, so the elevation stays as rule 3
+ *    put it. Without room for the margin, the range edges are used. Where
+ *    no point of the ceiling inside the clearance is ideal (the MLP too
+ *    near a wall for the ceiling height), the overhead still can't grade
+ *    better than outside (Dolby gives overheads no acceptable range); it
+ *    then goes to the nearest point where its azimuth alone is ideal,
+ *    else its elevation alone, else stays where rules 2–4 put it, and its
+ *    angles are graded as they are.
  */
+import { clamp } from './range'
 import {
+  azimuthFromSide,
+  OVERHEAD_CHANNELS,
   OVERHEAD_SPACING,
   overheadSideSign,
+  type AngleRange,
   type OverheadChannelReference,
 } from './dolby-layouts'
-import { clamp } from './range'
-import { SPEAKER_WALL_CLEARANCE } from './reference'
-import { toRadians, type Room, type RoomPoint } from './room'
+import {
+  clipToHalfPlanes,
+  nearestPointIn,
+  rectangle,
+  xRangeAt,
+  type ConvexPolygon,
+  type HalfPlane,
+} from './convex-region'
+import { checkOverheadPlacementRange } from './placement-range'
+import { OVERHEAD_AIM, SPEAKER_WALL_CLEARANCE } from './reference'
+import {
+  azimuthFromMlp,
+  directionAtAzimuth,
+  sideViewElevation,
+  toRadians,
+  type FloorPoint,
+  type Room,
+  type RoomPoint,
+} from './room'
 
 /**
  * The layout width (rule 2): the lateral distance between the outermost
@@ -57,6 +89,57 @@ export function autoPlaceOverhead(
   reference: OverheadChannelReference,
   width: number,
 ): RoomPoint {
+  const usual = usualPosition(room, mlp, reference, width)
+  const onCeiling = (point: FloorPoint): RoomPoint => ({
+    x: point.x,
+    y: point.y,
+    z: room.height,
+  })
+  if (isIdeal(mlp, reference, onCeiling(usual))) return onCeiling(usual)
+
+  const clearance = clearanceRectangle(room)
+  for (const planes of preferredRegions(room, mlp, reference)) {
+    const region = clipToHalfPlanes(clearance, planes)
+    const along = xRangeAt(region, usual.y)
+    if (along) {
+      return onCeiling({ x: clamp(usual.x, along.min, along.max), y: usual.y })
+    }
+    const nearest = nearestPointIn(region, usual)
+    if (nearest) return onCeiling(nearest)
+  }
+  return onCeiling(usual)
+}
+
+/**
+ * Rule 5's regions of the ceiling, best first: both angles ideal with the
+ * margin, then without it; where neither fits inside the clearance, the
+ * azimuth alone and then the elevation alone, so as few angles as
+ * possible grade outside.
+ */
+function preferredRegions(
+  room: Room,
+  mlp: RoomPoint,
+  reference: OverheadChannelReference,
+): HalfPlane[][] {
+  const { edgeMargin } = OVERHEAD_AIM
+  const elevation = (margin: number) =>
+    elevationHalfPlanes(room, mlp, reference, margin)
+  const azimuth = (margin: number) => azimuthHalfPlanes(mlp, reference, margin)
+  return [
+    [...elevation(edgeMargin), ...azimuth(edgeMargin)],
+    [...elevation(0), ...azimuth(0)],
+    azimuth(edgeMargin),
+    elevation(edgeMargin),
+  ]
+}
+
+/** Rules 2–4: the spacing, the elevation target and the wall clearance. */
+function usualPosition(
+  room: Room,
+  mlp: RoomPoint,
+  reference: OverheadChannelReference,
+  width: number,
+): FloorPoint {
   const clearance = SPEAKER_WALL_CLEARANCE.meters
   const { min, max } = OVERHEAD_SPACING.range
   const half = (((min + max) / 2) * width) / 2
@@ -67,6 +150,92 @@ export function autoPlaceOverhead(
   return {
     x: clamp(mlp.x + side * half, -xLimit, xLimit),
     y: clamp(mlp.y - ahead, clearance, room.length - clearance),
-    z: room.height,
   }
+}
+
+/** Whether `position` grades ideal from the MLP, as the analysis grades it. */
+function isIdeal(
+  mlp: RoomPoint,
+  reference: OverheadChannelReference,
+  position: RoomPoint,
+): boolean {
+  return (
+    checkOverheadPlacementRange(
+      reference,
+      azimuthFromMlp(mlp, position),
+      sideViewElevation(mlp, position),
+    ).grade === 'ideal'
+  )
+}
+
+/** The ceiling inside the wall clearance, seen from above. */
+function clearanceRectangle(room: Room): ConvexPolygon {
+  const clearance = SPEAKER_WALL_CLEARANCE.meters
+  const xLimit = room.width / 2 - clearance
+  return rectangle(-xLimit, xLimit, clearance, room.length - clearance)
+}
+
+/** A range `margin` degrees in from each edge, or the range when that leaves nothing. */
+function inset({ min, max }: AngleRange, margin: number): AngleRange {
+  return max - min > 2 * margin
+    ? { min: min + margin, max: max - margin }
+    : { min, max }
+}
+
+/**
+ * The ceiling points whose elevation from the MLP is inside the channel's
+ * ideal range, `margin` degrees in from each edge: two lines across the
+ * room. Elevation e is seen (ceiling − ear height) / tan(e) ahead of the
+ * MLP (rule 3), and grows toward the back wall. None when the ceiling is
+ * not above the ears.
+ */
+function elevationHalfPlanes(
+  room: Room,
+  mlp: RoomPoint,
+  { elevation }: OverheadChannelReference,
+  margin: number,
+): HalfPlane[] {
+  const above = room.height - mlp.z
+  if (above <= 0) return []
+  const { min, max } = inset(elevation.ideal.range, margin)
+  const aheadAt = (degrees: number) => above / Math.tan(toRadians(degrees))
+  return [
+    { through: { x: mlp.x, y: mlp.y - aheadAt(min) }, normal: { x: 0, y: 1 } },
+    { through: { x: mlp.x, y: mlp.y - aheadAt(max) }, normal: { x: 0, y: -1 } },
+  ]
+}
+
+/**
+ * The ceiling points whose azimuth from the MLP is inside the channel's
+ * ideal range, `margin` degrees in from each edge: a wedge from the MLP.
+ * None where Dolby gives no azimuth range (top middle).
+ */
+function azimuthHalfPlanes(
+  mlp: RoomPoint,
+  { channel, azimuth }: OverheadChannelReference,
+  margin: number,
+): HalfPlane[] {
+  if (azimuth.ideal === null) return []
+  const side = OVERHEAD_CHANNELS[channel].side
+  const { min, max } = inset(azimuth.ideal.range, margin)
+  const toward = (angle: number): FloorPoint => {
+    const { dx, dy } = directionAtAzimuth(mlp, azimuthFromSide(side, angle))
+    return { x: dx, y: dy }
+  }
+  return wedge(mlp, toward(min), toward(max))
+}
+
+/**
+ * The wedge between two rays from `apex` (unit directions less than 180°
+ * apart), as two half-planes: each ray's side that faces the other.
+ */
+function wedge(apex: FloorPoint, a: FloorPoint, b: FloorPoint): HalfPlane[] {
+  const facing = (from: FloorPoint, to: FloorPoint): FloorPoint => {
+    const along = to.x * from.x + to.y * from.y
+    return { x: to.x - along * from.x, y: to.y - along * from.y }
+  }
+  return [
+    { through: apex, normal: facing(a, b) },
+    { through: apex, normal: facing(b, a) },
+  ]
 }

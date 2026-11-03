@@ -134,7 +134,7 @@ The maximum Dolby Atmos home layout is 24.1.10, which is 34 speakers (IG p.51; W
 | Lrh / Rrh (11.1.8, wall) | 150°–160° | none | S-1118-OH |
 
 - **Overhead azimuth (top view)**: the front overhead pair sits at 30°–60° azimuth and the rear pair at 120°–150°. The array is centered front-to-back over the listener and spaced to hit the target elevation (IG p.9 fig.4).
-- **Overhead lateral spacing**: about the same as the L/R spacing at ±30°, which works out to 0.5–0.7 × the overall layout width (IG p.7; p.8 fig.3).
+- **Overhead lateral spacing**: about the same as the L/R spacing at ±30°, which works out to 0.5–0.7 × the overall layout width (IG p.7; p.8 fig.3). Our reading, not Dolby's: in a narrow room the spacing and the azimuth ranges above disagree (the pairs end up too close together for 30°/150°), and the app lets the azimuth range win (ADR 0005, amendment for #150).
 - **Overhead mounting height**: H3 = 2–3 × H1, where H1 is the listener-level speaker height of about 1.2 m. That gives roughly 2.4–3.6 m (IG p.7, p.8 fig.2).
 - **Front-to-back placement (white paper)**: with four overheads, put the front pair ahead of the seat and the rear pair behind it, each about one third of the way in from the front or rear wall. With two overheads, mount them slightly in front of the seat (WP p.8). The plan diagrams in S-512-OH, S-712-OH and S-912-OH also draw Ltm/Rtm ahead of the seat, in line with L/R.
 - **Aiming and dispersion**: an overhead with wide dispersion (about ±45° from 100 Hz to 10 kHz) can point straight down. Narrower or aimable speakers should be angled toward the MLP (IG p.7; WP p.7–8). For 8–14 ft (2.4–4.3 m) ceilings, use ±45° dispersion. Above 14 ft, most speakers have dispersed enough by the time sound reaches the listener (WP p.7).

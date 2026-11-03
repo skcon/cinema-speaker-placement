@@ -23,6 +23,11 @@ export function formatHz(frequency: number): string {
   return `${hzNumber(frequency)} Hz`
 }
 
+/** The crossover marker's label on the chart: "Crossover 80 Hz". */
+export function crossoverLabel(crossoverHz: number): string {
+  return `Crossover ${formatHz(crossoverHz)}`
+}
+
 /** "28.6–200 Hz". */
 export function formatHzRange(low: number, high: number): string {
   return `${hzNumber(low)}–${hzNumber(high)} Hz`

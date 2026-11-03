@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { useId, type ReactNode } from 'react'
-import { ResponsePanel } from '@/charts/ResponsePanel'
+import { ResponsePanel, ResponseTitle } from '@/charts/ResponsePanel'
 import type { Config } from '@/domain'
 import { RoomView } from '@/scene/RoomView'
 import { CopyLinkButton } from '@/ui/CopyLinkButton'
@@ -100,7 +100,7 @@ export function AppShell({
           <RoomView />
         </Panel>
         <Panel
-          title="Estimated response"
+          title={<ResponseTitle />}
           note="An estimate from a simplified model, never a measurement."
           className="lg:min-h-0 lg:flex-2 lg:overflow-y-auto"
         >
@@ -117,7 +117,7 @@ function Panel({
   className,
   children,
 }: {
-  title: string
+  title: ReactNode
   note?: string
   className?: string
   children: ReactNode

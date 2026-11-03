@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { ResponsePanel } from '@/charts/ResponsePanel'
-import { withLayout } from '@/domain'
+import { ResponsePanel, ResponseTitle } from '@/charts/ResponsePanel'
+import { withLayout, type PlaceableId } from '@/domain'
 import { useConfig } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
+import { useSelection } from '@/state/selection-context'
 
 /** Stands in for the layout form: switches to four subwoofers. */
 function FourSubwoofersButton() {
@@ -169,5 +170,93 @@ describe('response panel', () => {
         'The subwoofers cancel the first width mode (38.1 Hz).',
       ),
     ).toBeVisible()
+  })
+})
+
+/** Stands in for the room view: selects an item, or clears the selection. */
+function SelectButtons({ ids }: { ids: readonly PlaceableId[] }) {
+  const { select, clear } = useSelection()
+  return (
+    <>
+      {ids.map((id) => (
+        <button key={id} onClick={() => select(id)}>
+          Select {id}
+        </button>
+      ))}
+      <button onClick={clear}>Deselect</button>
+    </>
+  )
+}
+
+describe('the channel response', () => {
+  /** The default 5.1.2 room: L, Ls, an overhead and one subwoofer. */
+  const IDS = ['L', 'Ls', 'Ltm', 'Sub1', 'MLP'] as const
+
+  function renderWithSelection() {
+    render(
+      <ConfigStoreProvider>
+        <h2 data-testid="title">
+          <ResponseTitle />
+        </h2>
+        <ResponsePanel />
+        <SelectButtons ids={IDS} />
+      </ConfigStoreProvider>,
+    )
+  }
+
+  const title = () => screen.getByTestId('title').textContent
+  const select = (name: string) =>
+    fireEvent.click(screen.getByRole('button', { name }))
+
+  it('follows the selected speaker or subwoofer: title, curve and score', () => {
+    renderWithSelection()
+    const combined = summary()
+    expect(title()).toBe('Estimated response')
+
+    const seen = new Set([combined])
+    for (const [id, name] of [
+      ['L', 'Left'],
+      ['Ls', 'Left Surround'],
+      ['Ltm', 'Left Top Middle'],
+      ['Sub1', 'Subwoofer 1'],
+    ] as const) {
+      select(`Select ${id}`)
+      expect(title()).toBe(`Channel response: ${name}`)
+      expect(
+        screen.getByRole('img', {
+          name: new RegExp(
+            `^Chart of the channel response of ${name} at the MLP`,
+          ),
+        }),
+      ).toBeVisible()
+      expect(
+        screen.getByText(/^Response score \d{1,3}\/100 · (Good|Fair|Poor)$/),
+      ).toBeVisible()
+      seen.add(summary())
+    }
+    // Each channel's numbers differ from the others' and the combined.
+    expect(seen.size).toBe(5)
+
+    // A subwoofer alone is charted up to the crossover.
+    expect(summary()).toMatch(/ of 28\.6–79\.\d Hz\./)
+    expect(screen.getByText(/Subwoofer 1 alone/)).toBeVisible()
+  })
+
+  it('shows the combined estimate again once deselected, or with the MLP selected', () => {
+    renderWithSelection()
+    const combined = summary()
+
+    select('Select Ls')
+    expect(summary()).not.toBe(combined)
+    expect(screen.queryByRole('list', { name: 'Weaknesses' })).toBeNull()
+
+    select('Deselect')
+    expect(title()).toBe('Estimated response')
+    expect(summary()).toBe(combined)
+    expect(screen.getByRole('list', { name: 'Weaknesses' })).toBeVisible()
+
+    select('Select MLP')
+    expect(title()).toBe('Estimated response')
+    expect(summary()).toBe(combined)
   })
 })

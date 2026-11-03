@@ -626,6 +626,12 @@ export const ENCLOSURE_ROLL_OFF = {
  *   weight the reflections.
  * - **Only first-order reflections** and no room modes for the Speakers:
  *   ours.
+ * - **Overheads**, in their Channel response only: the ceiling's two
+ *   nearest walls, the nearer end wall and the nearer side wall (both
+ *   when equally near). The ceiling they sit on doubles the direct sound
+ *   and every reflection alike (no notch) and the floor is the farthest
+ *   boundary, so neither is summed: ours
+ *   (docs/research/crossover-enclosure-boundaries.md section 4).
  */
 export const BOUNDARY_INTERFERENCE = {
   reflectionCoefficient: 1,

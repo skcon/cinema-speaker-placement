@@ -197,8 +197,41 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toEqual(boxesBefore)
     // The MLP was just moved to the recommended seat, so it stays recommended.
     await expect(scene).toHaveAccessibleName(
-      /Seat-score heatmap shown \(a relative estimate\): no seat scores meaningfully better than the MLP, so it stays the recommended seat\./,
+      /Seat-score heatmap shown \(a relative estimate\): no seat scores meaningfully better than the MLP, so it stays the recommended seat\. Seat scores run from \d+ to \d+ of 100\..* Seats left blank are too close to a speaker, a wall or the front stage\./,
     )
+    // The legend gives the real range, and explains the hatched seats (#155).
+    await expect(
+      page.getByRole('group', { name: 'Seat score (estimate)' }),
+    ).toHaveText(/\d+\s*to\s*\d+ of 100/)
+    await expect(
+      page.getByText('Too close to a speaker, a wall or the front stage'),
+    ).toBeVisible()
+  })
+
+  await test.step('hovering a heatmap seat reads it out, and clicking one moves nothing', async () => {
+    const readout = page.getByRole('status', { name: 'Heatmap seat' })
+    const box = (await scene.boundingBox())!
+    const addressBefore = page.url()
+    // The front of the room, within 1.5 m of the front stage, is too close;
+    // somewhere across the middle of the drawing is a scored seat.
+    let found = false
+    for (const fx of [0.3, 0.5, 0.7]) {
+      for (const fy of [0.3, 0.5, 0.7]) {
+        await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy)
+        const text = (await readout.textContent()) ?? ''
+        if (/^Seat score \d+ of 100 here/.test(text)) {
+          found = true
+          await page.mouse.down()
+          await page.mouse.up()
+          break
+        }
+      }
+      if (found) break
+    }
+    expect(found).toBe(true)
+    await expect(readout).toHaveText(/pulls it down|Neither/)
+    expect(page.url()).toBe(addressBefore)
+    await page.mouse.move(0, 0)
   })
 
   await test.step('at 1440 x 900 the sidebar takes about 2/5 of the window, with its sections in two columns', async () => {

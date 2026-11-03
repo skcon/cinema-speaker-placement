@@ -171,6 +171,14 @@ export function ResponsePanel() {
           <ResponsePlot estimated={estimated} />
         </Suspense>
       </div>
+      <p className="text-xs text-muted-foreground">
+        The chart covers {formatHzRange(lowest, highest)}, where the room shapes
+        the sound through room modes and boundary interference. Above it the
+        speakers&rsquo; directivity and reflections dominate, which this
+        simplified model doesn&rsquo;t simulate. The combined curve: the
+        subwoofers and the front stage (Left, Center, Right) through the
+        crossover at {formatHz(model.crossoverHz)}, marked on the chart.
+      </p>
       <div id={summaryId} className="flex flex-col gap-1 text-sm">
         <p>{summaryText}</p>
         {hasUnreliable && (

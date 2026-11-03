@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_CONFIG } from './config'
 import { SEAT_SCORE } from './reference'
-import { seatHeatmap } from './seat-heatmap'
+import type { RoomPoint } from './room'
+import { heatmapCellAt, seatHeatmap } from './seat-heatmap'
 import {
   recommendSeat,
   type ScoredSeat,
@@ -35,7 +36,12 @@ function recommendation(
   {
     recommended = candidates[0]!,
     current = recommended,
-  }: { recommended?: ScoredSeat; current?: ScoredSeat } = {},
+    tooClose = [],
+  }: {
+    recommended?: ScoredSeat
+    current?: ScoredSeat
+    tooClose?: readonly RoomPoint[]
+  } = {},
 ): SeatRecommendation {
   return {
     recommended,
@@ -45,6 +51,7 @@ function recommendation(
     mlpKeepsSeatingDistances: true,
     mlpWithinMeaningfulDifference: recommended === current,
     candidates,
+    tooClose,
   }
 }
 
@@ -169,36 +176,120 @@ describe('seat-score heatmap', () => {
         mlpKeepsSeatingDistances: true,
         mlpWithinMeaningfulDifference: true,
         candidates: [],
+        tooClose: [],
       }),
-    ).toMatchObject({ cells: [], scoresAboutTheSame: true })
+    ).toMatchObject({
+      cells: [],
+      tooClose: [],
+      scoreRange: null,
+      scoresAboutTheSame: true,
+    })
   })
 
-  it('covers only the default room’s seats that keep the seating distances, leaving the rest blank (#119)', () => {
-    // The 15 x 15 grid inside the 0.3 m wall clearance is 0.279 m apart
-    // across and 0.386 m down the room. The seats kept are at least 0.5 m
-    // from the side and back walls (the outermost columns and the back row
-    // go) and 1.5 m behind the 0.5 m front-stage line (from the sixth row,
-    // 2.23 m back). Six seats of the last row kept go too: the surrounds
-    // installed for them stand on the back wall, within 0.5 m.
+  it('covers the default room’s seats that keep the seating distances, and marks the rest of the grid too close (#119, #155)', () => {
+    // The 15 x 15 grid inside the 0.3 m wall clearance. The seats kept are
+    // at least 0.5 m from the side and back walls (the outermost columns
+    // and the back row go) and 1.5 m behind the 0.5 m front-stage line
+    // (from the sixth row). Six seats of the last row kept go too: the
+    // surrounds installed for them stand on the back wall, within 0.5 m.
     const { room } = DEFAULT_CONFIG
     const recommendation = recommendSeat(DEFAULT_CONFIG)
-    const { cells } = seatHeatmap(recommendation)
-    const across = (room.width - 0.6) / 14
-    const down = (room.length - 0.6) / 14
-    const halfWidth = room.width / 2 - 0.3 - across
-    const front = 0.3 + 5 * down
-    const back = room.length - 0.3 - down
+    const { cells, tooClose } = seatHeatmap(recommendation)
+    const halfWidth = room.width / 2 - 0.3
+    const front = 0.3
+    const back = room.length - 0.3
 
     expect(cells).toHaveLength(13 * 9 - 6)
     expect(cells).toHaveLength(recommendation.candidates.length)
-    const area = cells.reduce((sum, c) => sum + c.width * c.depth, 0)
-    expect(area).toBeLessThan(2 * halfWidth * (back - front))
-    for (const { center, width, depth } of cells) {
+    expect(tooClose).toHaveLength(15 * 15 - cells.length)
+    // Together they tile the grid area exactly, and the wall clearance
+    // stays blank.
+    const area = [...cells, ...tooClose].reduce(
+      (sum, c) => sum + c.width * c.depth,
+      0,
+    )
+    expect(area).toBeCloseTo(2 * halfWidth * (back - front), 9)
+    for (const { center, width, depth } of [...cells, ...tooClose]) {
       expect(Math.abs(center.x) + width / 2).toBeLessThanOrEqual(
         halfWidth + 1e-9,
       )
       expect(center.y - depth / 2).toBeGreaterThanOrEqual(front - 1e-9)
       expect(center.y + depth / 2).toBeLessThanOrEqual(back + 1e-9)
     }
+    // The front rows, within 1.5 m of the front stage, are too close.
+    expect(tooClose.some(({ seat }) => seat.y === front)).toBe(true)
+    expect(cells.every(({ seat }) => seat.y > 2)).toBe(true)
+  })
+})
+
+describe('seat-score heatmap numbers (#155)', () => {
+  const grid = [
+    seat(0, 1, 0.8),
+    seat(0, 2, 0.6),
+    seat(0.5, 1, 0.7),
+    seat(0.5, 2, 0.5),
+  ]
+
+  it('gives the range of the shown seats’ scores, on the seat score’s own 0 to 1 scale', () => {
+    const { scoreRange } = seatHeatmap(recommendation(grid))
+
+    expect(scoreRange).toEqual({ lowest: 0.5, highest: 0.8 })
+  })
+
+  it('keeps each cell’s seat, its seat score and the part that pulls it down most', () => {
+    const weakBass = { ...seat(0, 1, 0.5), responseDeviationDb: 9 }
+    const weakPlacement = { ...seat(0, 2, 0.5), placementFit: 0.2 }
+    const { cells } = seatHeatmap(recommendation([weakBass, weakPlacement]))
+
+    expect(cells[0]).toMatchObject({
+      kind: 'scored',
+      seat: { x: 0, y: 1, z: 1.2 },
+      score: 0.5,
+      weaker: 'bass',
+    })
+    expect(cells[1]).toMatchObject({
+      seat: { x: 0, y: 2 },
+      weaker: 'placement',
+    })
+  })
+
+  it('gives each seat too close its own cell on the same grid, so the candidates’ cells stop halfway to it', () => {
+    const { cells, tooClose } = seatHeatmap(
+      recommendation([seat(0, 2, 0.6), seat(0, 3, 0.5)], {
+        tooClose: [{ x: 0, y: 1, z: 1.2 }],
+      }),
+    )
+
+    expect(tooClose).toEqual([
+      {
+        kind: 'tooClose',
+        seat: { x: 0, y: 1, z: 1.2 },
+        center: { x: 0, y: 1.25 },
+        width: SEAT_SCORE.gridSpacing,
+        depth: 0.5,
+      },
+    ])
+    expect(cells[0]).toMatchObject({ center: { x: 0, y: 2 }, depth: 1 })
+  })
+
+  it('finds the cell under a floor point, scored or too close, and none outside the grid', () => {
+    const heatmap = seatHeatmap(
+      recommendation(grid, { tooClose: [{ x: -0.5, y: 1, z: 1.2 }] }),
+    )
+
+    expect(heatmapCellAt(heatmap, { x: 0.1, y: 1.2 })).toMatchObject({
+      kind: 'scored',
+      seat: { x: 0, y: 1 },
+    })
+    expect(heatmapCellAt(heatmap, { x: 0.4, y: 1.9 })).toMatchObject({
+      kind: 'scored',
+      seat: { x: 0.5, y: 2 },
+    })
+    expect(heatmapCellAt(heatmap, { x: -0.4, y: 1.1 })).toMatchObject({
+      kind: 'tooClose',
+      seat: { x: -0.5, y: 1 },
+    })
+    expect(heatmapCellAt(heatmap, { x: 0, y: 0.5 })).toBeNull()
+    expect(heatmapCellAt(heatmap, { x: 2, y: 1.5 })).toBeNull()
   })
 })

@@ -116,6 +116,22 @@ describe('response panel', () => {
     )
   })
 
+  it('explains the chart’s range and what the curve is', () => {
+    renderPanel()
+
+    const note = screen.getByText(/^The chart covers 20–502 Hz/)
+    expect(note).toBeVisible()
+    expect(note).toHaveTextContent(
+      /where the room shapes the sound through room modes and boundary interference/,
+    )
+    expect(note).toHaveTextContent(
+      /directivity and reflections dominate, which this simplified model doesn’t simulate/,
+    )
+    expect(note).toHaveTextContent(
+      /the subwoofers and the front stage \(Left, Center, Right\) through the crossover at 80 Hz, marked on the chart/,
+    )
+  })
+
   it('names the model and its assumptions', () => {
     renderPanel()
 

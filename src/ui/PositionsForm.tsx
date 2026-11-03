@@ -1,7 +1,7 @@
 import {
   checkRange,
   formatLength,
-  FRONT_STAGE_WALL_DISTANCE,
+  FRONT_STAGE_WALL_DISTANCE_RANGE,
   placementLabel,
   positionLengths,
   withPositionLength,
@@ -48,12 +48,15 @@ export function PositionsForm() {
       </p>
       <p className="text-xs text-muted-foreground">
         Auto-place keeps Dolby&rsquo;s angles and puts Left, Center and Right{' '}
-        {formatLength(FRONT_STAGE_WALL_DISTANCE.meters, units)} from the front
-        wall and the other speakers at the walls, as most home theaters do. So
-        they aren&rsquo;t all the same distance from the MLP: set each
-        speaker&rsquo;s distance in your receiver (its distance or delay
-        setting, which room calibration usually does). That evens out when their
-        sound arrives, exactly at the MLP and less so at other seats.
+        {formatLength(FRONT_STAGE_WALL_DISTANCE_RANGE.fromMeters, units)} to{' '}
+        {formatLength(FRONT_STAGE_WALL_DISTANCE_RANGE.toMeters, units)} from the
+        front wall, all three at the distance where the wall&rsquo;s reflection
+        disturbs the estimated response least, and the other speakers at the
+        walls, as most home theaters do. So they aren&rsquo;t all the same
+        distance from the MLP: set each speaker&rsquo;s distance in your
+        receiver (its distance or delay setting, which room calibration usually
+        does). That evens out when their sound arrives, exactly at the MLP and
+        less so at other seats.
       </p>
       <ul className="flex flex-col">
         {[...items.values()].map((item) => (

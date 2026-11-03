@@ -13,9 +13,13 @@
  *    (LEFT_RIGHT_AIM: L at -29°), so they form a near-equilateral triangle
  *    with the MLP instead of a narrow stage.
  * 2. **Front stage near the front wall**: Left, Center and Right go along
- *    their angle to where it meets a line FRONT_STAGE_WALL_DISTANCE (0.5 m,
- *    our choice after the manufacturers' advice) from the front wall
- *    (ADR 0005). Where a side wall's clearance comes first (a narrow room),
+ *    their angle to where it meets a line parallel to the front wall, the
+ *    same for all three (ADR 0005). Without a Screen its distance from the
+ *    wall is chosen for the seat they are installed for, between the wall
+ *    clearance and 0.6 m, where their reflection off the front wall leaves
+ *    the response nearest the target (#158, front-wall-distance.ts;
+ *    FRONT_STAGE_WALL_DISTANCE, 0.5 m, when the seat is too near the wall
+ *    for that). Where a side wall's clearance comes first (a narrow room),
  *    or the MLP is itself nearer the front wall than that line, they stop
  *    at the walls' clearance instead.
  * 3. **Everything else at the walls**: surrounds and rear surrounds go
@@ -168,6 +172,7 @@ export function autoPlaceSpeakerAtScreen(
   mlp: RoomPoint,
   reference: ChannelReference,
   screen: RoomScreen | null,
+  frontStageDistance: number,
 ): AutoPlacedSpeaker {
   const { channel } = reference
   if (screen === null || !FRONT_STAGE_CHANNELS.has(channel)) {
@@ -177,7 +182,7 @@ export function autoPlaceSpeakerAtScreen(
         mlp,
         reference,
         autoAzimuth(reference),
-        frontLineFor(channel),
+        frontLineFor(channel, frontStageDistance),
       ),
       screenRelation: null,
     }
@@ -200,9 +205,11 @@ export function manualScreenRelation(
 
 /**
  * How far from the front wall the front stage (Left, Center and Right)
- * stands when auto-placed: FRONT_STAGE_WALL_DISTANCE, or nearer the wall
- * behind an acoustically transparent screen (rule 2; "With a screen"
- * above). The seat score keeps its seats behind it (SEATING_DISTANCE).
+ * stands when auto-placed with `screen`: FRONT_STAGE_WALL_DISTANCE, or
+ * nearer the wall behind an acoustically transparent screen ("With a
+ * screen" above). Without a screen this is only the fallback: auto-place
+ * chooses the distance per seat (rule 2, frontStageDistance in
+ * front-wall-distance.ts).
  */
 export function frontStageLine(screen: RoomScreen | null): number {
   return screen === null
@@ -235,10 +242,14 @@ function leftRightAngle({ min, max }: AngleRange): number {
   return clamp(nominal, min, max - edgeMargin)
 }
 
-/** How far from the front wall a channel stops without a screen (rules 2 and 3). */
-function frontLineFor(channel: ChannelId): number {
+/**
+ * How far from the front wall a channel stops without a screen (rules 2
+ * and 3): the front stage at `frontStageDistance`, every other channel at
+ * the wall clearance.
+ */
+function frontLineFor(channel: ChannelId, frontStageDistance: number): number {
   return FRONT_STAGE_CHANNELS.has(channel)
-    ? FRONT_STAGE_WALL_DISTANCE.meters
+    ? frontStageDistance
     : SPEAKER_WALL_CLEARANCE.meters
 }
 

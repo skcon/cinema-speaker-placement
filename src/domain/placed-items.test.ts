@@ -137,9 +137,9 @@ describe('where one item is', () => {
     }
 
     expect(positionOf(config, 'MLP')).toEqual({ x: 0.5, y: 3, z: 1.2 })
-    // The Center sits on the front-stage line, 0.5 m from the front wall,
-    // whatever the MLP.
-    expect(positionOf(config, 'C')?.y).toBeCloseTo(0.5, 9)
+    // The Center sits on the front-stage line, the distance from the front
+    // wall auto-place chooses for the MLP (#158): 0.39 m here.
+    expect(positionOf(config, 'C')?.y).toBeCloseTo(0.39, 9)
     expect(positionOf(config, 'C')?.z).toBe(1.2)
     expect(positionOf(config, 'Sub2')).toEqual(
       placeAll(config).subwoofers[1]?.position,

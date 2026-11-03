@@ -144,7 +144,9 @@ describe('auto-placed listener-level speakers', () => {
   it('bring a front speaker closer along its angle when a side wall comes before the front-stage line', () => {
     // 2 m wide: 0.7 m from the center line to the side clearance. Left at
     // -29° meets it 0.7 / sin 29° = 1.444 m from the MLP, long before the
-    // front-stage line 5.2 m ahead.
+    // front-stage line about 5 m ahead. The Center does reach the line,
+    // which the boundary interference puts 0.6 m from the front wall here
+    // (#158, front-wall-distance.test.ts).
     const analysis = analyzeRoom(config({ length: 15, width: 2, height: 2.4 }))
     const left = speaker(analysis, 'L')
 
@@ -154,7 +156,7 @@ describe('auto-placed listener-level speakers', () => {
       3,
     )
     expect(left.placementRange.azimuth.degrees).toBeCloseTo(-29, 9)
-    expect(speaker(analysis, 'C').position.y).toBeCloseTo(0.5, 9)
+    expect(speaker(analysis, 'C').position.y).toBeCloseTo(0.6, 9)
   })
 
   it('fall back to the wall clearance for the front stage when the MLP is nearer the front wall than 0.5 m', () => {
@@ -370,7 +372,7 @@ describe('moving the MLP (a drag, "Move MLP here")', () => {
 
 describe('Auto-place', () => {
   it('puts every item back to auto and the MLP at the recommended seat, keeping the rest of the config', () => {
-    // The recommended seat is about 3.26 m back, not at the 2.85 m auto MLP.
+    // The recommended seat is about 2.21 m back, not at the 3.61 m auto MLP.
     const { recommended, mlpIsRecommended } = recommendSeat(
       ROOM_WITH_A_BETTER_SEAT,
     )

@@ -78,7 +78,8 @@ import { hearSpeaker, isCharted } from './listening'
 import { entries, kindOf } from './manual-positions'
 import { defaultMlp } from './mlp'
 import { DEFAULT_ROOM_OBJECTS } from './room-objects'
-import { FRONT_STAGE_CHANNELS, frontStageLine } from './placement'
+import { frontStageDistance } from './front-wall-distance'
+import { FRONT_STAGE_CHANNELS } from './placement'
 import {
   centerLineProjection,
   placeAll,
@@ -123,8 +124,9 @@ export type SeatDistances = {
   /**
    * How far the seat is behind the front-stage line, in meters (negative
    * in front of it). The line is where auto-place puts the front stage
-   * (frontStageLine), or the farthest back of Left, Center and Right as
-   * installed, whichever is farther from the front wall.
+   * for the point the speakers are installed for (frontStageDistance), or
+   * the farthest back of Left, Center and Right as installed, whichever
+   * is farther from the front wall.
    */
   readonly behindFrontStage: number
   /** From the nearest side wall or the back wall, in meters. */
@@ -611,8 +613,6 @@ function seatScoring(
   const room = hearRoom(config, placements)
   const { frequencies, reliable } = room
 
-  const stageLine = frontStageLine(config.roomObjects.screen)
-
   /**
    * The seat as the MLP: the listener-level speakers installed for it,
    * auto ones placed and manual ones where they are, each graded from the
@@ -638,7 +638,8 @@ function seatScoring(
         room: config.room,
         speakers,
         subwoofers: placements.subwoofers,
-        stageLine,
+        // Where auto-place puts the front stage for this install point.
+        stageLine: frontStageDistance(config, installedFor),
       }),
     }
   }
@@ -751,7 +752,10 @@ type SeatSurroundings = {
   /** The listener-level speakers installed for the seat. */
   readonly speakers: readonly InstalledSpeaker[]
   readonly subwoofers: Placements['subwoofers']
-  /** The auto front stage's distance from the front wall (frontStageLine). */
+  /**
+   * The auto front stage's distance from the front wall, for the point the
+   * speakers are installed for (frontStageDistance).
+   */
   readonly stageLine: number
 }
 

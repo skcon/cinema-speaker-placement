@@ -58,7 +58,7 @@ describe('positions in the sidebar', () => {
 
     expect(
       screen.getByText(
-        /Left, Center and Right 0\.5 m from the front wall and the other speakers at the walls/,
+        /Left, Center and Right 0\.3 m to 0\.6 m from the front wall, all three at the distance where the wall’s reflection disturbs the estimated response least, and the other speakers at the walls/,
       ),
     ).toHaveTextContent(/set each speaker’s distance in your receiver/)
   })

@@ -85,11 +85,9 @@ export function hearSpeaker(
   listener: RoomPoint,
   frequencies: readonly number[],
 ): HeardSpeaker {
-  const aim = aimAtMlp(position, listener)
-  const woofer = wooferOf(config, channel, position)
-  const reflections = boundaryReflections(
-    config.room,
-    { position: woofer, aim },
+  const { aim, woofer, reflections } = speakerReflections(
+    config,
+    { channel, position },
     listener,
   )
   return {
@@ -97,6 +95,29 @@ export function hearSpeaker(
     woofer,
     reflections,
     levels: interferenceLevels(reflections, frequencies),
+  }
+}
+
+/**
+ * Channel `channel`'s Speaker at `position`, aimed at `listener`: its aim,
+ * its woofer and the reflections heard there, as hearSpeaker has them,
+ * without working out any frequency.
+ */
+export function speakerReflections(
+  config: Config,
+  { channel, position }: { channel: SpeakerChannelId; position: RoomPoint },
+  listener: RoomPoint,
+): Omit<HeardSpeaker, 'levels'> {
+  const aim = aimAtMlp(position, listener)
+  const woofer = wooferOf(config, channel, position)
+  return {
+    aim,
+    woofer,
+    reflections: boundaryReflections(
+      config.room,
+      { position: woofer, aim },
+      listener,
+    ),
   }
 }
 

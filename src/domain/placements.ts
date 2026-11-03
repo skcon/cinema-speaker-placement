@@ -23,6 +23,7 @@ import {
   placeMlp,
   type Placed,
 } from './auto-place-policy'
+import { frontStageDistance } from './front-wall-distance'
 import type { IdealGap } from './ideal-gap'
 import { layoutWidth, placeOverhead } from './overhead-placement'
 import {
@@ -148,12 +149,21 @@ export function placeSpeakers(
     layout,
     roomObjects: { screen },
   } = config
+  // Worked out once, and only when an auto speaker needs it.
+  let chosen: number | undefined
+  const frontStage = () => (chosen ??= frontStageDistance(config, installedFor))
   return DOLBY_LAYOUTS[layout.dolbyLayout].channels.map(
     (reference): InstalledSpeaker => {
       const { channel } = reference
       const placed = placeItemWith(config, channel, {
         auto: () =>
-          autoPlaceSpeakerAtScreen(room, installedFor, reference, screen),
+          autoPlaceSpeakerAtScreen(
+            room,
+            installedFor,
+            reference,
+            screen,
+            frontStage(),
+          ),
         manual: (): Omit<AutoPlacedSpeaker, 'position'> => ({
           screenRelation: manualScreenRelation(channel, screen),
           idealGap: null,

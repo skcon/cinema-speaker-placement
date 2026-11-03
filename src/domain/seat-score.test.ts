@@ -3,6 +3,7 @@ import { analyzeRoom } from './analyze'
 import { withAutoPlacement } from './auto-place'
 import { DEFAULT_CONFIG, type Config } from './config'
 import { V1_DOLBY_LAYOUTS, type DolbyLayout } from './dolby-layouts'
+import { frontStageDistance } from './front-wall-distance'
 import { SUBWOOFER_COUNTS, type SubwooferCount } from './layout'
 import { SEATING_DISTANCE } from './reference'
 import {
@@ -259,7 +260,9 @@ describe('recommended seat on the center line (ADR 0005)', () => {
   })
 
   it('recommends an off-center seat that beats every center-line seat meaningfully, with the margin and the center-line seat it beat', () => {
-    // About 5.8 points better 0.94 m off the center line (4.3 before #121).
+    // About 3.4 points better 1.26 m off the center line (5.8 at 0.94 m
+    // before #158 tuned the front stage's wall distance per seat, which
+    // helps the center line too; 4.3 before #121).
     const { recommended, current, candidates, offCenterLine } =
       recommendSeat(wideStereo)
     const bestOnCenterLine = bestOf([
@@ -267,7 +270,7 @@ describe('recommended seat on the center line (ADR 0005)', () => {
       ...candidates.filter(onCenterLine),
     ])
 
-    expect(Math.abs(recommended.position.x)).toBeCloseTo(0.94, 2)
+    expect(Math.abs(recommended.position.x)).toBeCloseTo(1.26, 2)
     expect(recommended).toBe(bestOf(candidates))
     expect(offCenterLine?.centerLine).toEqual(bestOnCenterLine)
     expect(offCenterLine?.margin).toBeCloseTo(
@@ -851,21 +854,27 @@ describe('the current MLP with Speakers follow the seat off (#123)', () => {
       recommendSeat(following).current.score,
       6,
     )
-    // As if the speakers were installed there by hand.
-    expect(current.distances).toEqual(
-      recommendSeat({
-        ...following,
-        manualPositions: {
-          ...Object.fromEntries(
-            analyzeRoom({
-              ...following,
-              manualPositions: { MLP: installedFor },
-            }).speakers.map(({ channel, position }) => [channel, position]),
-          ),
-          MLP: mlp,
-        },
-      }).current.distances,
-    )
+    // As if the speakers were installed there by hand, but measured from
+    // the front stage as installed for (0, 2): 0.37 m from the front wall
+    // there (#158), where the stage drawn by hand counts from the line
+    // auto-place would choose for the MLP, 0.5 m.
+    const { behindFrontStage, ...distances } = current.distances
+    expect(frontStageDistance(held, installedFor)).toBe(0.37)
+    expect(behindFrontStage).toBeCloseTo(3 - 0.37, 9)
+    const { behindFrontStage: byHand, ...byHandDistances } = recommendSeat({
+      ...following,
+      manualPositions: {
+        ...Object.fromEntries(
+          analyzeRoom({
+            ...following,
+            manualPositions: { MLP: installedFor },
+          }).speakers.map(({ channel, position }) => [channel, position]),
+        ),
+        MLP: mlp,
+      },
+    }).current.distances
+    expect(byHand).toBeCloseTo(2.5, 9)
+    expect(distances).toEqual(byHandDistances)
   })
 })
 

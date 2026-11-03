@@ -29,6 +29,7 @@ import { grabAreas } from '@/scene/grab-areas'
 import { canUseWebGL } from '@/scene/webgl'
 import { heatmapGradient } from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
+import { cn } from 'cn'
 import { Button } from '@/ui/components/button'
 import { Toggle } from '@/ui/components/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
@@ -189,19 +190,24 @@ export function RoomView() {
             ))}
           </ToggleGroup>
         </div>
-        <Toggle
-          variant="outline"
-          size="sm"
-          className={CHOSEN_OPTION}
-          pressed={showHeatmap}
-          onPressedChange={setShowHeatmap}
-        >
-          Seat-score heatmap
-        </Toggle>
+        {/* A fixed slot: the legend keeps its space while the heatmap is
+            off, so turning it on or off moves nothing else (#154). */}
+        <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1">
+          <Toggle
+            variant="outline"
+            size="sm"
+            className={CHOSEN_OPTION}
+            pressed={showHeatmap}
+            onPressedChange={setShowHeatmap}
+          >
+            Seat-score heatmap
+          </Toggle>
+          <HeatmapLegend
+            shown={heatmap !== null}
+            scoresAboutTheSame={heatmap?.scoresAboutTheSame ?? false}
+          />
+        </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          {heatmap && (
-            <HeatmapLegend scoresAboutTheSame={heatmap.scoresAboutTheSame} />
-          )}
           <GradeLegend />
           {overheads.length > 0 && (
             <p className="flex items-center gap-1.5">
@@ -311,15 +317,27 @@ function SelectionReadout({
  * What the heatmap colors mean, and what the scores are: relative to one
  * calibration for the room (at the "38% rule" seat), and an estimate. When the seats score about
  * the same, the colors sit near the middle of the scale and a note says so.
+ *
+ * Always laid out, so it holds its space: hidden (and out of the
+ * accessibility tree) while no heatmap is `shown`, and the note likewise
+ * while the seats score apart.
  */
 function HeatmapLegend({
+  shown,
   scoresAboutTheSame,
 }: {
+  shown: boolean
   scoresAboutTheSame: boolean
 }) {
   const headingId = useId()
   return (
-    <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1">
+    <div
+      aria-hidden={!shown || undefined}
+      className={cn(
+        'flex flex-1 flex-wrap items-center gap-x-3 gap-y-1',
+        !shown && 'invisible',
+      )}
+    >
       <div
         role="group"
         aria-labelledby={headingId}
@@ -334,7 +352,12 @@ function HeatmapLegend({
         />
         <span>high</span>
       </div>
-      {scoresAboutTheSame && <p>Seats score about the same.</p>}
+      <p
+        aria-hidden={!scoresAboutTheSame || undefined}
+        className={cn(!scoresAboutTheSame && 'invisible')}
+      >
+        Seats score about the same.
+      </p>
       <p>
         Relative to one calibration for the room, at the &ldquo;38% rule&rdquo;
         seat: an estimate from a simplified model.

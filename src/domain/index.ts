@@ -4,6 +4,11 @@
  */
 export { analyzeRoom, type RoomAnalysis } from './analyze'
 export {
+  responseScore,
+  type ResponseScore,
+  type ResponseScoreBand,
+} from './response-summary'
+export {
   selectedItem,
   type PlacedItem,
   type PlacedOverhead,
@@ -196,6 +201,7 @@ export {
 export {
   FRONT_STAGE_WALL_DISTANCE,
   LOW_CEILING_FOR_OVERHEADS,
+  RESPONSE_SCORE_BANDS,
   SEAT_SCORE,
   SEATING_DISTANCE,
   sourceOf,

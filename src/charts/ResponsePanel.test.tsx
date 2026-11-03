@@ -44,6 +44,27 @@ describe('response panel', () => {
     )
   })
 
+  it('shows the response score out of 100 with its band, as an estimate', () => {
+    renderPanel()
+
+    expect(
+      screen.getByText(/^Response score \d{1,3}\/100 · (Good|Fair|Poor)$/),
+    ).toBeVisible()
+    expect(
+      screen.getByText(/^Response score \d{1,3}\/100/).parentElement,
+    ).toHaveTextContent(/an estimate, not a measurement/i)
+  })
+
+  it('includes the response score in the chart’s text alternative', () => {
+    renderPanel()
+
+    expect(
+      screen.getByRole('img', { name: /^Chart of the estimated response/ }),
+    ).toHaveAccessibleDescription(
+      /^Response score \d{1,3} out of 100, (good|fair|poor)\. An estimate, not a measurement: the share of 28\.6–502 Hz within ±3 dB of the flat target\. Good from 80, fair from 60 \(our bands, not a standard\)\. Within ±3 dB/,
+    )
+  })
+
   it('says below which frequency the estimate is unreliable, and why', () => {
     renderPanel()
 

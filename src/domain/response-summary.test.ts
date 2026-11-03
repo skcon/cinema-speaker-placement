@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { analyzeRoom } from './analyze'
 import { DEFAULT_CONFIG } from './config'
 import type { ResponseRow } from './estimated-response'
-import { responseTable, summarizeResponse } from './response-summary'
+import {
+  responseScore,
+  responseTable,
+  summarizeResponse,
+} from './response-summary'
 
 /** A row against a flat target with its ±3 dB band. */
 function row(
@@ -52,6 +56,59 @@ describe('response summary', () => {
     const { response } = analyzeRoom(DEFAULT_CONFIG)
 
     expect(response.summary).toEqual(summarizeResponse(response.estimated.rows))
+  })
+})
+
+describe('response score', () => {
+  it('scores a response wholly inside the band 100, good', () => {
+    const summary = summarizeResponse([row(20, 1), row(40, -2), row(60, 3)])
+
+    expect(responseScore(summary)).toEqual({ value: 100, band: 'good' })
+  })
+
+  it('scores a response wholly outside the band 0, poor', () => {
+    const summary = summarizeResponse([row(20, 6), row(40, -8)])
+
+    expect(responseScore(summary)).toEqual({ value: 0, band: 'poor' })
+  })
+
+  it('is the share of the reliable frequencies inside the band, out of 100', () => {
+    // 3 of 4 reliable rows inside; the unreliable ones are left out.
+    const summary = summarizeResponse([
+      row(20, -20, false),
+      row(25, 12, false),
+      row(40, 2),
+      row(60, 0),
+      row(80, -1),
+      row(100, 5),
+    ])
+
+    expect(responseScore(summary)).toEqual({ value: 75, band: 'fair' })
+  })
+
+  it('rounds to a whole number', () => {
+    // 2 of 3 inside: 66.7.
+    const summary = summarizeResponse([row(20, 0), row(40, 0), row(60, 9)])
+
+    expect(responseScore(summary).value).toBe(67)
+  })
+
+  it.each([
+    [1, 'good'],
+    [0.8, 'good'],
+    [0.795, 'good'], // rounds to 80, so the band matches the shown number
+    [0.79, 'fair'],
+    [0.6, 'fair'],
+    [0.59, 'poor'],
+    [0, 'poor'],
+  ] as const)('puts a share of %s in the %s band', (withinTolerance, band) => {
+    expect(responseScore({ withinTolerance }).band).toBe(band)
+  })
+
+  it('is part of the analysis', () => {
+    const { response } = analyzeRoom(DEFAULT_CONFIG)
+
+    expect(response.score).toEqual(responseScore(response.summary))
   })
 })
 

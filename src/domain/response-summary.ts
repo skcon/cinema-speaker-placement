@@ -3,6 +3,7 @@
  * text summary and its screen-reader fallback.
  */
 import type { ResponseRow } from './estimated-response'
+import { RESPONSE_SCORE_BANDS } from './reference'
 
 /** How far the estimate is from the target at one frequency, in dB. */
 export type ResponseDeviation = {
@@ -46,6 +47,34 @@ export function summarizeResponse(
     largestPeak: extreme((a, b) => a > b),
     deepestDip: extreme((a, b) => a < b),
   }
+}
+
+/** The response score's band (reference.ts RESPONSE_SCORE_BANDS). */
+export type ResponseScoreBand = 'good' | 'fair' | 'poor'
+
+/** How close a response is to the target curve, out of 100 (GLOSSARY.md). */
+export type ResponseScore = {
+  /** The share of the reliable frequencies inside the tolerance band, 0 to 100, whole. */
+  readonly value: number
+  readonly band: ResponseScoreBand
+}
+
+/**
+ * The response score of a summarized response: the estimated response at
+ * the MLP or any single response summarized the same way. The band follows
+ * the rounded value, so it always matches the number shown.
+ */
+export function responseScore(
+  summary: Pick<ResponseSummary, 'withinTolerance'>,
+): ResponseScore {
+  const value = Math.round(summary.withinTolerance * 100)
+  const band: ResponseScoreBand =
+    value >= RESPONSE_SCORE_BANDS.goodFrom
+      ? 'good'
+      : value >= RESPONSE_SCORE_BANDS.fairFrom
+        ? 'fair'
+        : 'poor'
+  return { value, band }
 }
 
 /** Half a base-10 third octave, in decades: how near a row must be. */

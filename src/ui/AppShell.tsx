@@ -20,11 +20,12 @@ import { SpeakerList } from '@/ui/SpeakerList'
 import { SpeakerSpecsForm } from '@/ui/SpeakerSpecsForm'
 
 /**
- * Page layout: a sidebar (about 2/5 width, 24 to 44rem) for the room and
+ * Page layout: a sidebar (about 30% width, 20 to 36rem) for the room and
  * layout config on the left, the room view top-right and the response chart
  * below it. When the sidebar is at least 32rem wide inside its padding, its
  * sections flow into two columns, under the header and the Selected item
- * panel that span both (#153). On narrow
+ * panel that span both (#153; from about 1800 px wide since it was
+ * narrowed from 2/5 in 1.4.1). On narrow
  * screens the areas stack vertically, with the room view and the chart right
  * under the page header and the config forms after them, so a phone shows the
  * room without scrolling past every form (#125). Only the visual order
@@ -39,7 +40,7 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground lg:h-svh lg:flex-row">
-      <div className="text-sidebar-foreground max-lg:contents lg:relative lg:flex lg:w-2/5 lg:max-w-176 lg:min-w-96 lg:flex-col lg:gap-6 lg:overflow-y-auto lg:border-r lg:bg-sidebar lg:p-4">
+      <div className="text-sidebar-foreground max-lg:contents lg:relative lg:flex lg:w-[30%] lg:max-w-144 lg:min-w-80 lg:flex-col lg:gap-6 lg:overflow-y-auto lg:border-r lg:bg-sidebar lg:p-4">
         <div className="flex flex-col gap-6 max-lg:border-b max-lg:bg-sidebar max-lg:p-4">
           <header className="flex flex-col gap-3">
             <div>

@@ -13,7 +13,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, shows the sidebar in two columns on a wide screen, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, reopens a recent room, and auto-places a wide room at phone width with the seat off the front stage', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, shows the sidebar at about 30% width, in two columns on a very wide screen, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, reopens a recent room, and auto-places a wide room at phone width with the seat off the front stage', async ({
   page,
 }) => {
   await page.goto('./')
@@ -234,28 +234,41 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await page.mouse.move(0, 0)
   })
 
-  await test.step('at 1440 x 900 the sidebar takes about 2/5 of the window, with its sections in two columns', async () => {
+  await test.step('the sidebar takes about 30% of the window, with its sections in two columns on a very wide screen', async () => {
     const desktop = page.viewportSize()
-    await page.setViewportSize({ width: 1440, height: 900 })
-
     const sidebar = page.getByRole('complementary', { name: 'Room plan' })
-    const sidebarWidth = (await sidebar.boundingBox())?.width ?? 0
-    expect(sidebarWidth).toBeGreaterThan(1440 * 0.35)
-    expect(sidebarWidth).toBeLessThan(1440 * 0.45)
-    // Room heads the first column, Seating the second (#153).
-    const room = await sidebar
-      .getByRole('region', { name: 'Room', exact: true })
-      .boundingBox()
-    const seating = await sidebar
-      .getByRole('region', { name: 'Seating', exact: true })
-      .boundingBox()
-    expect(seating?.x).toBeGreaterThan((room?.x ?? 0) + (room?.width ?? 0))
-    expect(seating?.y).toBe(room?.y)
-    expect(
-      await page.evaluate(
+    const sectionBoxes = async () => ({
+      room: await sidebar
+        .getByRole('region', { name: 'Room', exact: true })
+        .boundingBox(),
+      seating: await sidebar
+        .getByRole('region', { name: 'Seating', exact: true })
+        .boundingBox(),
+    })
+    const noHorizontalScroll = () =>
+      page.evaluate(
         'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
-      ),
-    ).toBe(true)
+      )
+
+    // At 1440 px: about 30% wide, one column (Seating below Room).
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const width = (await sidebar.boundingBox())?.width ?? 0
+    expect(width).toBeGreaterThan(1440 * 0.27)
+    expect(width).toBeLessThan(1440 * 0.33)
+    const oneColumn = await sectionBoxes()
+    expect(oneColumn.seating?.y).toBeGreaterThan(oneColumn.room?.y ?? 0)
+    expect(await noHorizontalScroll()).toBe(true)
+
+    // At 1920 px: Room heads the first column, Seating the second (#153).
+    await page.setViewportSize({ width: 1920, height: 1080 })
+    const twoColumns = await sectionBoxes()
+    expect(twoColumns.seating?.x).toBeGreaterThan(
+      (twoColumns.room?.x ?? 0) + (twoColumns.room?.width ?? 0),
+    )
+    expect(
+      Math.abs((twoColumns.seating?.y ?? 0) - (twoColumns.room?.y ?? 0)),
+    ).toBeLessThan(1)
+    expect(await noHorizontalScroll()).toBe(true)
 
     if (desktop) await page.setViewportSize(desktop)
   })

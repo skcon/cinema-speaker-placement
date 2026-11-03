@@ -317,7 +317,10 @@ describe('auto-placed overhead speakers across rooms (#150)', () => {
 
   it.each([
     [2.4, []],
-    [2.6, ['4.5 x 4 x 2.6 5.1.4', '5 x 7 x 2.6 5.1.4']],
+    // #158 moved some recommended seats (the front stage's chosen distance
+    // from the front wall): 4.5 x 4 x 2.6, 4.5 x 3 x 3 and 5.5 x 7 x 3 left
+    // the list, 5 x 7 x 3 7.1.4 joined it.
+    [2.6, ['5 x 7 x 2.6 5.1.4']],
     [
       3,
       [
@@ -331,11 +334,10 @@ describe('auto-placed overhead speakers across rooms (#150)', () => {
         '3.5 x 7 x 3 7.1.4',
         '4 x 3 x 3 5.1.4',
         '4 x 3 x 3 7.1.4',
-        '4.5 x 3 x 3 5.1.4',
         '4.5 x 5 x 3 5.1.4',
         '4.5 x 5 x 3 7.1.4',
         '5 x 7 x 3 5.1.4',
-        '5.5 x 7 x 3 5.1.4',
+        '5 x 7 x 3 7.1.4',
       ],
     ],
   ] as const)(

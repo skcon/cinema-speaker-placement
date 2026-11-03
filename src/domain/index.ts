@@ -213,7 +213,7 @@ export {
   type SubwooferSpecs,
 } from './speaker-specs'
 export {
-  FRONT_STAGE_WALL_DISTANCE,
+  FRONT_STAGE_WALL_DISTANCE_RANGE,
   LOW_CEILING_FOR_OVERHEADS,
   RESPONSE_SCORE_BANDS,
   SEAT_SCORE,

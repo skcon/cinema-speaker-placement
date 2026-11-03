@@ -293,7 +293,7 @@ export function hearRoom(
  * Frequencies evenly spaced on a log axis, lowest first: the response band
  * (20 Hz to about 500 Hz, 225 points).
  */
-function responseFrequencies(): number[] {
+export function responseFrequencies(): number[] {
   const { lowestHz, highestHz, steps } = RESPONSE_BAND
   return Array.from(
     { length: steps + 1 },

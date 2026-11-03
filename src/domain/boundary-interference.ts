@@ -244,6 +244,28 @@ export function boundaryInterference(
   )
 }
 
+/**
+ * The speaker's boundary interference as a power ratio at each frequency:
+ * |1 + Σ a·e^(−j·2π·f·Δ/c)|², as boundaryInterference, without its
+ * complex values (front-wall-distance.ts works it out for many distances).
+ */
+export function interferencePowers(
+  reflections: readonly BoundaryReflection[],
+  frequencies: readonly number[],
+): number[] {
+  const c = SPEED_OF_SOUND.metersPerSecond
+  return frequencies.map((f) => {
+    let re = 1
+    let im = 0
+    for (const { pathDifference, relativeLevel } of reflections) {
+      const radians = (-2 * Math.PI * f * pathDifference) / c
+      re += relativeLevel * Math.cos(radians)
+      im += relativeLevel * Math.sin(radians)
+    }
+    return re * re + im * im
+  })
+}
+
 /** The speaker's boundary interference as a level in dB at each frequency. */
 export function interferenceLevels(
   reflections: readonly BoundaryReflection[],

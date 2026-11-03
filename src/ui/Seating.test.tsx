@@ -87,8 +87,8 @@ describe('seating in the sidebar', () => {
   })
 
   it('says why the recommended seat is off the center line', async () => {
-    // A 2.1 room 5 m wide: the best seat beats the center line by about 6
-    // points, on the bass.
+    // A 2.1 room 5 m wide: the best seat beats the center line by about 3
+    // points, on the bass (about 6 before #158).
     const seating = renderSeating({
       ...DEFAULT_CONFIG,
       room: { length: 6, width: 5, height: 2.6 },
@@ -98,7 +98,7 @@ describe('seating in the sidebar', () => {
     expect(
       await within(seating).findByText(/off the center line/),
     ).toHaveTextContent(
-      /scores 5\.8 points more than the best seat on the center line \(2\.23 m from the front wall, 81\/100\), more than the 2 points.*second width mode \(68\.6 Hz\) is strongest on the center line/,
+      /scores 3\.4 points more than the best seat on the center line \(2\.28 m from the front wall, 84\/100\), more than the 2 points.*second width mode \(68\.6 Hz\) is strongest on the center line/,
     )
   })
 

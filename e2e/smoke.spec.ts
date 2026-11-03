@@ -380,6 +380,16 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
 
   await test.step('a reload restores the dragged speaker', async () => {
     const draggedLabel = await centerLabel.textContent()
+    // The address follows the store 300 ms after the last edit
+    // (ShareLinkProvider), so on a busy machine it can first hold a
+    // position from mid-drag. Reload only once it has settled on the drop.
+    await expect
+      .poll(async () => {
+        const address = page.url()
+        await page.waitForTimeout(500)
+        return page.url() === address
+      })
+      .toBe(true)
 
     await page.reload()
 

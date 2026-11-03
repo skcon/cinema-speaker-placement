@@ -4,7 +4,7 @@
 
 | Branch | Purpose | Who merges into it |
 |---|---|---|
-| `main` | Release branch and GitHub default branch. Released code only. Every merge gets a tag `vX.Y.Z`. | `develop` (release PR, merge commit) |
+| `main` | Release branch and GitHub default branch. Released code only. Every merge is tagged `vX.Y.Z` and released by the Release workflow. | `develop` (release PR, merge commit) |
 | `develop` | Staging: finished features waiting for the next release. | `feature/*` PRs (squash) |
 | `feature/<short-name>` | One ticket or one vertical slice. | Nobody, it is merged and deleted |
 
@@ -28,14 +28,18 @@ Feature PRs are squash-merged; the `develop` ruleset allows nothing else.
 
 ### Releasing
 
-1. Open a PR `develop` → `main` named `release: vX.Y.Z`.
-2. Merge it with **Create a merge commit**. The `main` ruleset allows nothing else. A squash or rebase would give `main` commits that `develop` doesn't know, and the next release would conflict.
-3. Tag the merge: `git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
-4. The deploy workflow (`.github/workflows/deploy.yml`) publishes the tagged build to GitHub Pages. It fails if the tag is not on `main`.
+Releases are automatic once the release PR is merged; nobody tags by hand.
+
+1. On `develop`, merge a release prep PR (`chore: release X.Y.Z`) that bumps `version` in `package.json` and adds the `## [X.Y.Z]` section to `CHANGELOG.md`.
+2. Open a PR `develop` → `main` named `Release X.Y.Z` and give it the **`release`** label. CI runs the full checks on it, plus a **Release check**: the PR comes from `develop` (or a `hotfix/` branch), has the label, the version isn't tagged yet, and `CHANGELOG.md` has its section.
+3. Merge it with **Create a merge commit**. The `main` ruleset allows nothing else. A squash or rebase would give `main` commits that `develop` doesn't know, and the next release would conflict.
+4. The push to `main` runs `.github/workflows/release.yml`: it confirms the merged PR had the `release` label, runs lint, typecheck, unit tests, the build and the Playwright smoke test, deploys to GitHub Pages, and **only then** tags the merge commit `vX.Y.Z` and publishes the GitHub Release, with that version's changelog section as its notes. Everything is one workflow because a tag created by the workflow's own token can't start another workflow.
+
+To deploy `main` again without a new release (say, after a Pages outage), run the Release workflow by hand (Actions → Release → Run workflow); it tags only if the version isn't released yet.
 
 Never merge `main` into `develop`; with merge-commit releases it is never needed.
 
-**Hotfixes** (rare): branch `hotfix/<name>` off `main` and PR it into `main` (merge commit). Tag a patch release, then PR the same branch into `develop` too, so the fix isn't lost at the next release.
+**Hotfixes** (rare): branch `hotfix/<name>` off `main`, bump the patch version and changelog on it, and PR it into `main` with the `release` label (merge commit); the release workflow publishes it. Then PR the same branch into `develop` too, so the fix isn't lost at the next release.
 
 ## Planning flow (Matt Pocock skills)
 

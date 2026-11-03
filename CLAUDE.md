@@ -70,7 +70,7 @@ Dolby's placement guides are PDFs full of angle tables. Turning them into actual
 
 ## Git workflow
 
-- `main`: the release branch and GitHub's default branch. It only receives release PRs from `develop`, merged with a **merge commit** (never squash or rebase) and then tagged `vX.Y.Z`.
+- `main`: the release branch and GitHub's default branch. It only receives release PRs from `develop`, labelled `release` and merged with a **merge commit** (never squash or rebase); the Release workflow then tests, deploys, tags `vX.Y.Z` and publishes the GitHub Release.
 - `develop`: staging. Feature PRs are **squash-merged** into it. It never takes merges from `main`.
 - `feature/<short-name>`: branch off `develop`, open a PR back to `develop` (`--base develop`, because `develop` is not the default branch). After it merges, close its ticket with `gh issue close`. GitHub doesn't auto-close issues on merges into a non-default branch.
 - GitHub rulesets enforce this: both branches accept changes only through PRs, with no force-push or deletion; `main` allows only merge commits and `develop` only squash.

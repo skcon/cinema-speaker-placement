@@ -115,3 +115,25 @@ Auto speakers have always been installed around the MLP, so they move with every
 - **Auto-place** installs the auto speakers around the recommended seat either way: with the toggle off it stores that seat and stays off, and it counts a stored seat more than a millimeter from the MLP as something to do.
 - **The recommended seat doesn't read it**: every candidate seat has its own speakers installed for it (the #120 amendment), so `seatScoreInput` fixes the toggle on. The current MLP's comparison (`compareMlp`) is scored with the auto speakers where they are installed for, when it is off.
 - The config change is config version 3 (ADR 0003, amendment for #123). No new numbers.
+
+## Amendment (1.4.0): overheads keep their own ranges (#150)
+
+"Overheads are unchanged" (above) kept the overheads' lateral spacing at 0.6 × the layout width (`OVERHEAD_SPACING`, IG p.7, IG p.8 fig.3), the distance between the outermost listener-level speakers. That width says nothing about the overheads' own azimuth range. In a 3 m wide room the surrounds sit on the side walls' clearance lines, the pairs end up 0.72 m off the centre line, and the top front reads 27° (ideal 30°–60°, IG p.9 fig.4) in a 4.5 × 3 × 2.6 m room after Auto-place; from 5 m long the top rear reads 153° (ideal 120°–150°). Both grade outside, although ideal points exist on that ceiling.
+
+So **each overhead's own ranges win**:
+
+- **The usual position stays first.** Spacing, elevation target (the nominal, else the middle of the range) and wall clearance are as before. Where that grades ideal it is kept, so the default room (6 × 4.5 × 2.6 m: 40° and 140°) and every room it already suited are unchanged.
+- **Otherwise the nearest ideal point.** The overhead moves to the nearest point of the ceiling, inside the 0.3 m wall clearance, where its azimuth and its elevation are both inside their ideal ranges, 1° in from each edge (`OVERHEAD_AIM.edgeMargin`, ours, for the same whole-degree reason as `LEFT_RIGHT_AIM`). It moves sideways only, keeping the elevation, wherever that is enough: in the 4.5 × 3 × 2.6 m room the top front goes out to 31° at 45°. Where the margin doesn't fit, the range edges are used.
+- **When no point is ideal**, the speaker can't grade better than outside: Dolby gives overheads no acceptable range. It then goes to the nearest point where its azimuth alone is ideal, else its elevation alone, else stays at the usual position, and is graded as it is. This happens where the seat is too near a wall for the ceiling height: around the auto MLP, the top front in rooms 3.5 m long with a ceiling of 2.8 m or more, and 4 m long with 3 m; after Auto-place, the top rear where the recommended seat is near the back wall, in a few short rooms (the sweeps in `overhead-placement.test.ts` name them).
+- The ideal region is the clearance rectangle clipped to the half-planes of the two angle ranges (a wedge from the MLP for the azimuth, two lines across the room for the elevation): `convex-region.ts`, pure geometry. Auto-place for every speaker (#151) can reuse it.
+
+### Considered options
+
+- **Aim at the middle of the azimuth range (45°, 135°) always**: rejected. It would move the overheads in the default room and every room the spacing already suits, and the spacing is Dolby's own guidance (IG p.7).
+- **Clamp the azimuth only, keeping the elevation target**: rejected. It fails where the side wall stops the speaker before the azimuth range (a narrow room under a high ceiling); trading some elevation inside its range is still ideal.
+- **A wider seat search so the top rear always fits**: out of scope here. Where the recommended seat goes is ADR 0004's and #151's.
+
+### Consequences
+
+- No config or share-link change: only auto positions move, and only where they graded outside. No pinned default-room value changes.
+- `OVERHEAD_AIM` joins the typed reference data as our choice. No Dolby value is new: the ranges, the nominal and the spacing are the cited ones in `dolby-layouts.ts`.

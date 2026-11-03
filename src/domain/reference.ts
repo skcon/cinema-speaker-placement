@@ -369,6 +369,24 @@ export const LEFT_RIGHT_AIM = {
 }
 
 /**
+ * How far inside Dolby's ideal ranges auto-place keeps an overhead's
+ * angles when it has to move it there: where the overhead's usual position
+ * (OVERHEAD_SPACING's middle, at its elevation target) grades outside, it
+ * moves to the nearest point on the ceiling where its azimuth and its
+ * elevation are both this many degrees inside their ideal ranges (ADR
+ * 0005, amendment for #150).
+ */
+export const OVERHEAD_AIM = {
+  /** Degrees kept inside each ideal range's edge. */
+  edgeMargin: 1,
+  assumption:
+    "Our choice, not Dolby's, as for LEFT_RIGHT_AIM: grades round to " +
+    'whole degrees, so a position on the edge of a range reads outside ' +
+    'after the smallest step. 1° inside keeps it ideal; where the room ' +
+    'leaves no room for the margin, the range edge itself is used.',
+} as const satisfies { edgeMargin: number; assumption: string }
+
+/**
  * How far a subwoofer's acoustic center stands off the wall it is placed
  * against. Auto-place keeps every subwoofer at least this far from every
  * wall.
@@ -1163,6 +1181,21 @@ export const TARGET_TOLERANCE = {
     'Product choice from the v1 spec (issue #2, user story 41), not a ' +
     'cited standard.',
 } as const satisfies { db: number; note: string }
+
+/**
+ * The response score's bands (GLOSSARY.md, response-summary.ts): a score
+ * of `goodFrom` or more out of 100 is good, `fairFrom` or more fair, less
+ * poor. The score itself is the share of the reliable frequencies inside
+ * the TARGET_TOLERANCE band, an estimate from the simplified model, never
+ * a measurement.
+ */
+export const RESPONSE_SCORE_BANDS = {
+  goodFrom: 80,
+  fairFrom: 60,
+  note:
+    'Our bands, not a cited standard: chosen in the v1.4.0 spec (issue ' +
+    '#149, decision 5), as is the score itself.',
+} as const satisfies { goodFrom: number; fairFrom: number; note: string }
 
 /**
  * The house curve: a smooth bass shelf, level = boost / (1 + (f / corner)²)

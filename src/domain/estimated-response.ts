@@ -471,8 +471,8 @@ function levelCalibration(
 }
 
 /**
- * The average of the finite `values` the first pick that picks any picks
- * (by frequency and index), or 0 if none does.
+ * The average of the finite `values` picked by the first of `picks` (each
+ * by frequency and index) that picks any, or 0 if none does.
  */
 function averageOverFirst(
   frequencies: readonly number[],

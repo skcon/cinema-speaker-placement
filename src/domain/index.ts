@@ -4,6 +4,11 @@
  */
 export { analyzeRoom, type RoomAnalysis } from './analyze'
 export {
+  responseScore,
+  type ResponseScore,
+  type ResponseScoreBand,
+} from './response-summary'
+export {
   selectedItem,
   type PlacedItem,
   type PlacedOverhead,
@@ -12,6 +17,11 @@ export {
   type SelectedItem,
 } from './placed-items'
 export type { EstimatedResponse } from './estimated-response'
+export {
+  channelResponse,
+  type ChannelKind,
+  type ChannelResponse,
+} from './channel-response'
 export type {
   ResponseCause,
   ResponseStrength,
@@ -26,12 +36,20 @@ export {
   recommendSeat,
   seatScoreInput,
   seatScoreKey,
+  weakerSeatScorePart,
   type OffCenterLine,
   type RecommendedSeat,
   type ScoredSeat,
   type SeatRecommendation,
+  type WeakerSeatScorePart,
 } from './seat-score'
-export { seatHeatmap, type SeatHeatmap } from './seat-heatmap'
+export {
+  heatmapCellAt,
+  seatHeatmap,
+  type HeatmapCell,
+  type SeatHeatmap,
+  type TooCloseCell,
+} from './seat-heatmap'
 export {
   SEAT_ROW_HEAD_OFFSET,
   type SeatRow,
@@ -118,6 +136,7 @@ export {
   type ScreenKind,
 } from './screen'
 export type { ScreenRelation } from './placement'
+export { idealGapMessage, type IdealGap } from './ideal-gap'
 export {
   MLP_ID,
   positionLengths,
@@ -194,8 +213,9 @@ export {
   type SubwooferSpecs,
 } from './speaker-specs'
 export {
-  FRONT_STAGE_WALL_DISTANCE,
+  FRONT_STAGE_WALL_DISTANCE_RANGE,
   LOW_CEILING_FOR_OVERHEADS,
+  RESPONSE_SCORE_BANDS,
   SEAT_SCORE,
   SEATING_DISTANCE,
   sourceOf,

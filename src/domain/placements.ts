@@ -19,15 +19,17 @@ import {
 } from './dolby-layouts'
 import {
   autoSpeakersInstalledFor,
-  placeItem,
   placeItemWith,
   placeMlp,
   type Placed,
 } from './auto-place-policy'
-import { autoPlaceOverhead, layoutWidth } from './overhead-placement'
+import { frontStageDistance } from './front-wall-distance'
+import type { IdealGap } from './ideal-gap'
+import { layoutWidth, placeOverhead } from './overhead-placement'
 import {
   autoPlaceSpeakerAtScreen,
   manualScreenRelation,
+  type AutoPlacedSpeaker,
   type ScreenRelation,
 } from './placement'
 import {
@@ -52,6 +54,12 @@ export type InstalledSpeaker = Placed & {
   readonly screenRelation: ScreenRelation | null
   /** Its angle from the listening point, graded against Dolby's placement range. */
   readonly placementRange: PlacementRangeCheck
+  /**
+   * Why auto-place found no position for it with its grade ideal, from the
+   * point it is installed for (placement.ts, rule 7): null when it found
+   * one, and for a manual speaker.
+   */
+  readonly idealGap: IdealGap | null
 }
 
 /** Where the speakers are installed for, and where they are heard. */
@@ -77,6 +85,8 @@ export type Placements = {
    */
   readonly overheads: readonly (Placed & {
     readonly reference: OverheadChannelReference
+    /** As a listener-level speaker's (overhead-placement.ts, rule 5). */
+    readonly idealGap: IdealGap | null
   })[]
   /** The subwoofers, Subwoofer 1 first, with the wall each stands against. */
   readonly subwoofers: readonly (Placed & {
@@ -98,9 +108,10 @@ export function placeAll(config: Config): Placements {
   const width = layoutWidth(speakers.map(({ position }) => position))
   const overheads = overheadChannels.map((reference) => ({
     reference,
-    ...placeItem(config, reference.channel, () =>
-      autoPlaceOverhead(room, installedFor, reference, width),
-    ),
+    ...placeItemWith(config, reference.channel, {
+      auto: () => placeOverhead(room, installedFor, reference, width),
+      manual: (): { idealGap: IdealGap | null } => ({ idealGap: null }),
+    }),
   }))
   const subwoofers = autoPlaceSubwoofers(room, layout.subwoofers).map(
     ({ id, position, wall }) => ({
@@ -138,14 +149,24 @@ export function placeSpeakers(
     layout,
     roomObjects: { screen },
   } = config
+  // Worked out once, and only when an auto speaker needs it.
+  let chosen: number | undefined
+  const frontStage = () => (chosen ??= frontStageDistance(config, installedFor))
   return DOLBY_LAYOUTS[layout.dolbyLayout].channels.map(
     (reference): InstalledSpeaker => {
       const { channel } = reference
       const placed = placeItemWith(config, channel, {
         auto: () =>
-          autoPlaceSpeakerAtScreen(room, installedFor, reference, screen),
-        manual: () => ({
+          autoPlaceSpeakerAtScreen(
+            room,
+            installedFor,
+            reference,
+            screen,
+            frontStage(),
+          ),
+        manual: (): Omit<AutoPlacedSpeaker, 'position'> => ({
           screenRelation: manualScreenRelation(channel, screen),
+          idealGap: null,
         }),
       })
       return {

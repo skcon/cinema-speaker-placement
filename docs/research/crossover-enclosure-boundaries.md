@@ -38,6 +38,8 @@ Researched 2026-10-13 for issue #12 (boundary interference, crossover, roll-off 
   - Reflection coefficient 1 (rigid surfaces), as in the room-mode model. Real notches are shallower.
   - Omnidirectional speakers. Real cabinets send less sound backwards as the frequency rises, so notches from the wall behind are overstated toward 500 Hz.
   - The chart's Speakers' part is the front three, Left, Center and Right (the Center usually sits nearest the front wall), power averaged; every other listener-level speaker's own deepest notch is listed in the weaknesses.
+  - **Overheads, in their Channel response only** (#157): the same three-nearest-boundaries idea from the ceiling. An overhead's three nearest boundaries are the ceiling it is mounted on, the nearer end wall (front or back) and the nearer side wall (both when equally near). Only the two walls are summed: the ceiling mirrors the speaker onto itself (no path difference) and each wall image onto that image, so it doubles the direct sound and every reflection alike, a frequency-independent level that calibration removes. The floor is the farthest boundary, not one of the nearest, and is left out. All ours.
+  - **Channel responses** (#157): a listener-level speaker other than L, C and R (a surround) gets its own surfaces exactly as above, in its Channel response. The combined estimated response keeps the front three only.
 
 ## 5. Adding the subwoofers and the speakers (ours)
 

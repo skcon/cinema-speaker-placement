@@ -5,7 +5,10 @@ import {
   DEFAULT_CONFIG,
   encodeConfig,
   recommendSeat,
+  type HeatmapCell,
+  type SeatHeatmap,
   type SeatRecommendation,
+  type TooCloseCell,
 } from '@/domain'
 import { SeatRecommendationContext } from '@/state/config-context'
 import { ConfigStoreProvider } from '@/state/ConfigStoreProvider'
@@ -15,11 +18,33 @@ import { HistoryButtons } from '@/ui/HistoryButtons'
 // jsdom has no WebGL: pretend it has, and stand in for the Three.js scene,
 // which says whether it was given a heatmap to draw, and from which view.
 vi.mock('@/scene/webgl', () => ({ canUseWebGL: () => true }))
+// Its buttons stand in for hovering or tapping a heatmap cell.
 vi.mock('@/scene/RoomCanvas', () => ({
-  RoomCanvas: ({ heatmap, view }: { heatmap: unknown; view: string }) => (
+  RoomCanvas: ({
+    heatmap,
+    view,
+    onInspectHeatmap,
+  }: {
+    heatmap: SeatHeatmap | null
+    view: string
+    onInspectHeatmap: (cell: HeatmapCell | TooCloseCell | null) => void
+  }) => (
     <>
       <p>{heatmap ? 'heatmap drawn' : 'no heatmap'}</p>
       <p>{`${view} camera`}</p>
+      {heatmap && (
+        <>
+          <button onClick={() => onInspectHeatmap(heatmap.cells[0]!)}>
+            inspect a scored cell
+          </button>
+          <button onClick={() => onInspectHeatmap(heatmap.tooClose[0]!)}>
+            inspect a blank cell
+          </button>
+          <button onClick={() => onInspectHeatmap(null)}>
+            inspect nothing
+          </button>
+        </>
+      )}
     </>
   ),
 }))
@@ -51,6 +76,16 @@ function renderRoomViewWith(recommendation: SeatRecommendation | null) {
   return screen.getByRole('button', { name: 'Seat-score heatmap' })
 }
 
+/** The heatmap legend, as assistive technology finds it (null while hidden). */
+function heatmapLegend() {
+  return screen.queryByRole('group', { name: 'Seat score (estimate)' })
+}
+
+/** The legend's note, laid out (to hold its space) even while hidden. */
+function aboutTheSameNote() {
+  return screen.getByText('Seats score about the same.')
+}
+
 function scene() {
   return screen.getByRole('img', { name: /^Top-down view of the room/ })
 }
@@ -61,11 +96,11 @@ describe('seat-score heatmap in the room view', () => {
 
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(await screen.findByText('no heatmap')).toBeInTheDocument()
-    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(heatmapLegend()).toBeNull()
     expect(scene()).not.toHaveAccessibleName(/heatmap/)
   })
 
-  it('turns on with a legend from low to high, says the scores are relative estimates, and says the MLP stays the recommended seat in the default room', async () => {
+  it('turns on with a legend from the lowest to the highest seat score, says the scores are relative estimates, and says the MLP stays the recommended seat in the default room', async () => {
     const toggle = renderRoomView()
 
     fireEvent.click(toggle)
@@ -73,7 +108,12 @@ describe('seat-score heatmap in the room view', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
     expect(await screen.findByText('heatmap drawn')).toBeInTheDocument()
     const legend = screen.getByRole('group', { name: 'Seat score (estimate)' })
-    expect(legend).toHaveTextContent(/low.*high/)
+    expect(legend).toHaveTextContent(
+      /^Seat score \(estimate\)\s*\d+\s*to\s*\d+ of 100$/,
+    )
+    expect(
+      screen.getByText('Too close to a speaker, a wall or the front stage'),
+    ).not.toHaveAttribute('aria-hidden')
     expect(screen.getByText(/Relative to one calibration/)).toHaveTextContent(
       /simplified model/,
     )
@@ -86,7 +126,7 @@ describe('seat-score heatmap in the room view', () => {
     fireEvent.click(renderRoomViewWith(null))
 
     expect(screen.getByText('no heatmap')).toBeInTheDocument()
-    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(heatmapLegend()).toBeNull()
     expect(scene()).not.toHaveAccessibleName(/heatmap/)
   })
 
@@ -103,14 +143,67 @@ describe('seat-score heatmap in the room view', () => {
     fireEvent.click(renderRoomViewWith(even))
 
     expect(screen.getByText('heatmap drawn')).toBeInTheDocument()
-    expect(screen.getByText('Seats score about the same.')).toBeInTheDocument()
+    expect(aboutTheSameNote()).not.toHaveAttribute('aria-hidden')
   })
 
   it('has no such note when the seats score meaningfully apart', async () => {
     fireEvent.click(renderRoomView())
 
     expect(await screen.findByText('heatmap drawn')).toBeInTheDocument()
-    expect(screen.queryByText('Seats score about the same.')).toBeNull()
+    expect(aboutTheSameNote()).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('keeps the legend laid out but hidden while off, so toggling moves nothing else', async () => {
+    const toggle = renderRoomView()
+    await screen.findByText('no heatmap')
+
+    const slot = toggle.parentElement
+    const hidden = screen.getByText('Seat score (estimate)').closest('div')
+    expect(hidden?.closest('[aria-hidden="true"]')).toHaveClass('invisible')
+    expect(slot).toContainElement(hidden)
+
+    fireEvent.click(toggle)
+    await screen.findByText('heatmap drawn')
+
+    const legend = heatmapLegend()
+    expect(slot).toContainElement(legend)
+    expect(legend?.closest('[aria-hidden="true"]')).toBeNull()
+    expect(legend?.parentElement).not.toHaveClass('invisible')
+  })
+
+  it('reads out a hovered or tapped cell: its seat score, where it is and what pulls it down, or why it is blank', async () => {
+    fireEvent.click(renderRoomView())
+    await screen.findByText('heatmap drawn')
+    const readout = screen.getByRole('status', { name: 'Heatmap seat' })
+    expect(readout).toBeEmptyDOMElement()
+
+    fireEvent.click(screen.getByText('inspect a scored cell'))
+    expect(readout).toHaveTextContent(
+      /^Seat score \d+ of 100 here, [\d.]+ m from the front wall and [\d.]+ m from (the (left|right)|either side) wall\. (Bass smoothness|Placement fit) pulls it down most\.$/,
+    )
+
+    fireEvent.click(screen.getByText('inspect a blank cell'))
+    expect(readout).toHaveTextContent(
+      /^No seat score here, .*: too close to a speaker, a wall or the front stage\.$/,
+    )
+
+    fireEvent.click(screen.getByText('inspect nothing'))
+    expect(readout).toBeEmptyDOMElement()
+  })
+
+  it('drops the readout when the heatmap is turned off, and never moves the MLP or enters the undo history', async () => {
+    const toggle = renderRoomView()
+    fireEvent.click(toggle)
+    await screen.findByText('heatmap drawn')
+    fireEvent.click(screen.getByText('inspect a scored cell'))
+
+    fireEvent.click(toggle)
+    await screen.findByText('no heatmap')
+
+    expect(
+      screen.getByRole('status', { name: 'Heatmap seat' }),
+    ).toBeEmptyDOMElement()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
   })
 
   it('turns back off, and never enters the undo history', async () => {
@@ -120,7 +213,7 @@ describe('seat-score heatmap in the room view', () => {
     fireEvent.click(toggle)
 
     expect(await screen.findByText('no heatmap')).toBeInTheDocument()
-    expect(screen.queryByText(/Seat score \(estimate\)/)).toBeNull()
+    expect(heatmapLegend()).toBeNull()
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
   })
 })

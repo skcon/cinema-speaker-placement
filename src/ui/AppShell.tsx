@@ -1,6 +1,6 @@
 import { cn } from 'cn'
 import { useId, type ReactNode } from 'react'
-import { ResponsePanel } from '@/charts/ResponsePanel'
+import { ResponsePanel, ResponseTitle } from '@/charts/ResponsePanel'
 import type { Config } from '@/domain'
 import { RoomView } from '@/scene/RoomView'
 import { CopyLinkButton } from '@/ui/CopyLinkButton'
@@ -20,8 +20,11 @@ import { SpeakerList } from '@/ui/SpeakerList'
 import { SpeakerSpecsForm } from '@/ui/SpeakerSpecsForm'
 
 /**
- * Page layout: a sidebar (about 1/5 width) for the room and layout config on
- * the left, the room view top-right and the response chart below it. On narrow
+ * Page layout: a sidebar (about 2/5 width, 24 to 44rem) for the room and
+ * layout config on the left, the room view top-right and the response chart
+ * below it. When the sidebar is at least 32rem wide inside its padding, its
+ * sections flow into two columns, under the header and the Selected item
+ * panel that span both (#153). On narrow
  * screens the areas stack vertically, with the room view and the chart right
  * under the page header and the config forms after them, so a phone shows the
  * room without scrolling past every form (#125). Only the visual order
@@ -36,7 +39,7 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground lg:h-svh lg:flex-row">
-      <div className="text-sidebar-foreground max-lg:contents lg:relative lg:flex lg:w-1/5 lg:min-w-64 lg:flex-col lg:gap-6 lg:overflow-y-auto lg:border-r lg:bg-sidebar lg:p-4">
+      <div className="text-sidebar-foreground max-lg:contents lg:relative lg:flex lg:w-2/5 lg:max-w-176 lg:min-w-96 lg:flex-col lg:gap-6 lg:overflow-y-auto lg:border-r lg:bg-sidebar lg:p-4">
         <div className="flex flex-col gap-6 max-lg:border-b max-lg:bg-sidebar max-lg:p-4">
           <header className="flex flex-col gap-3">
             <div>
@@ -54,38 +57,42 @@ export function AppShell({
         </div>
         <aside
           aria-label="Room plan"
-          className="flex flex-col gap-4 max-lg:relative max-lg:order-last max-lg:border-t max-lg:bg-sidebar max-lg:p-4"
+          className="flex flex-col gap-4 max-lg:relative max-lg:order-last max-lg:border-t max-lg:bg-sidebar max-lg:p-4 lg:@container"
         >
           {/* First, so it stays in view above the collapsible sections. */}
           <SelectedItemPanel />
-          <RoomForm />
-          <LayoutForm />
-          <SidebarSection
-            id="speakers"
-            title="Speakers"
-            description="Where each speaker goes, its angle from the MLP (main listening position: the seat the layout is aimed at), and its specs."
-          >
-            <SpeakerList />
-            <PositionsForm />
-            <SidebarSubsection title="Speaker specs">
-              <SpeakerSpecsForm />
-              <CrossoverField />
-            </SidebarSubsection>
-          </SidebarSection>
-          <Seating />
-          <RoomObjectsForm />
-          <SidebarSection
-            id="results"
-            title="Results"
-            description="How loud your speakers can play at the MLP, and the rooms you opened recently."
-          >
-            <SidebarSubsection title="Headroom at the MLP">
-              <HeadroomIndicator />
-            </SidebarSubsection>
-            <SidebarSubsection title="Recent rooms">
-              <RecentRooms />
-            </SidebarSubsection>
-          </SidebarSection>
+          {/* From the desktop layout up, the sections flow into two columns
+              once the sidebar is wide enough for both (#153). */}
+          <div className="flex flex-col gap-4 lg:@min-[32rem]:block lg:@min-[32rem]:columns-2 lg:@min-[32rem]:gap-x-6 lg:@min-[32rem]:*:mb-4 lg:@min-[32rem]:*:break-inside-avoid">
+            <RoomForm />
+            <LayoutForm />
+            <SidebarSection
+              id="speakers"
+              title="Speakers"
+              description="Where each speaker goes, its angle from the MLP (main listening position: the seat the layout is aimed at), and its specs."
+            >
+              <SpeakerList />
+              <PositionsForm />
+              <SidebarSubsection title="Speaker specs">
+                <SpeakerSpecsForm />
+                <CrossoverField />
+              </SidebarSubsection>
+            </SidebarSection>
+            <Seating />
+            <RoomObjectsForm />
+            <SidebarSection
+              id="results"
+              title="Results"
+              description="How loud your speakers can play at the MLP, and the rooms you opened recently."
+            >
+              <SidebarSubsection title="Headroom at the MLP">
+                <HeadroomIndicator />
+              </SidebarSubsection>
+              <SidebarSubsection title="Recent rooms">
+                <RecentRooms />
+              </SidebarSubsection>
+            </SidebarSection>
+          </div>
         </aside>
       </div>
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
@@ -93,7 +100,7 @@ export function AppShell({
           <RoomView />
         </Panel>
         <Panel
-          title="Estimated response"
+          title={<ResponseTitle />}
           note="An estimate from a simplified model, never a measurement."
           className="lg:min-h-0 lg:flex-2 lg:overflow-y-auto"
         >
@@ -110,7 +117,7 @@ function Panel({
   className,
   children,
 }: {
-  title: string
+  title: ReactNode
   note?: string
   className?: string
   children: ReactNode

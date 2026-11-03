@@ -78,7 +78,8 @@ import { hearSpeaker, isCharted } from './listening'
 import { entries, kindOf } from './manual-positions'
 import { defaultMlp } from './mlp'
 import { DEFAULT_ROOM_OBJECTS } from './room-objects'
-import { FRONT_STAGE_CHANNELS, frontStageLine } from './placement'
+import { frontStageDistance } from './front-wall-distance'
+import { FRONT_STAGE_CHANNELS } from './placement'
 import {
   centerLineProjection,
   placeAll,
@@ -123,8 +124,9 @@ export type SeatDistances = {
   /**
    * How far the seat is behind the front-stage line, in meters (negative
    * in front of it). The line is where auto-place puts the front stage
-   * (frontStageLine), or the farthest back of Left, Center and Right as
-   * installed, whichever is farther from the front wall.
+   * for the point the speakers are installed for (frontStageDistance), or
+   * the farthest back of Left, Center and Right as installed, whichever
+   * is farther from the front wall.
    */
   readonly behindFrontStage: number
   /** From the nearest side wall or the back wall, in meters. */
@@ -217,6 +219,13 @@ export type RecommendedSeat = {
    * and layout only.
    */
   readonly candidates: readonly ScoredSeat[]
+  /**
+   * The grid's other seats, left out because they break the seating
+   * distances (or come short of them by more than the candidates do),
+   * unscored: too close to a speaker, a subwoofer, a wall or the front
+   * stage. The heatmap shows them as such (#155).
+   */
+  readonly tooClose: readonly RoomPoint[]
 }
 
 /**
@@ -283,9 +292,12 @@ export function findRecommendedSeat(auto: SeatScoreInput): RecommendedSeat {
   const allowedShortfall =
     Math.min(...installed.map(({ distances }) => distances.shortfall)) +
     SHORTFALL_TIE
-  const candidates = installed
-    .filter(({ distances }) => distances.shortfall <= allowedShortfall)
-    .map(scoreInstalled)
+  const keeps = ({ distances }: InstalledSeat) =>
+    distances.shortfall <= allowedShortfall
+  const candidates = installed.filter(keeps).map(scoreInstalled)
+  const tooClose = installed
+    .filter((seat) => !keeps(seat))
+    .map(({ position }) => position)
   // The reference seat competes only when it keeps the distances as well
   // as they do.
   const seed =
@@ -321,6 +333,7 @@ export function findRecommendedSeat(auto: SeatScoreInput): RecommendedSeat {
           }
         : undefined,
     candidates,
+    tooClose,
   }
 }
 
@@ -360,6 +373,41 @@ export function compareMlp(
       current.score >
         recommended.score - SEAT_SCORE.meaningfulDifference - SCORE_TIE,
   }
+}
+
+/**
+ * The bass smoothness part of the seat score, 0 to 1, from the RMS
+ * deviation from the target in dB: none scores 1, SEAT_SCORE's
+ * deviationAtZeroDb or more (or no deviation worked out) scores 0.
+ */
+function bassSmoothness(responseDeviationDb: number): number {
+  return Number.isFinite(responseDeviationDb)
+    ? Math.max(0, 1 - responseDeviationDb / SEAT_SCORE.deviationAtZeroDb)
+    : 0
+}
+
+/** Which part of the seat score pulls a seat down most. */
+export type WeakerSeatScorePart = 'bass' | 'placement' | 'neither'
+
+/**
+ * Which part of the seat score pulls `seat` down most: the bass
+ * smoothness or the placement fit, by how much of the score each loses
+ * (its weight times what it falls short of 1); ties go to the bass, as it
+ * weighs more. 'neither' when the seat loses nothing (#155).
+ */
+export function weakerSeatScorePart({
+  responseDeviationDb,
+  placementFit,
+}: Pick<
+  ScoredSeat,
+  'responseDeviationDb' | 'placementFit'
+>): WeakerSeatScorePart {
+  const { weights } = SEAT_SCORE
+  const bassLoss =
+    weights.bassSmoothness * (1 - bassSmoothness(responseDeviationDb))
+  const placementLoss = weights.placementFit * (1 - placementFit)
+  if (Math.max(bassLoss, placementLoss) < SCORE_TIE) return 'neither'
+  return placementLoss > bassLoss + SCORE_TIE ? 'placement' : 'bass'
 }
 
 /** Marks a config as projected by seatScoreInput (type only). */
@@ -565,8 +613,6 @@ function seatScoring(
   const room = hearRoom(config, placements)
   const { frequencies, reliable } = room
 
-  const stageLine = frontStageLine(config.roomObjects.screen)
-
   /**
    * The seat as the MLP: the listener-level speakers installed for it,
    * auto ones placed and manual ones where they are, each graded from the
@@ -592,7 +638,8 @@ function seatScoring(
         room: config.room,
         speakers,
         subwoofers: placements.subwoofers,
-        stageLine,
+        // Where auto-place puts the front stage for this install point.
+        stageLine: frontStageDistance(config, installedFor),
       }),
     }
   }
@@ -637,14 +684,11 @@ function seatScoring(
       reliableDeviations.reduce((sum, d) => sum + d * d, 0) /
         reliableDeviations.length,
     )
-    const bassSmoothness = Number.isFinite(responseDeviationDb)
-      ? Math.max(0, 1 - responseDeviationDb / SEAT_SCORE.deviationAtZeroDb)
-      : 0
     const { weights } = SEAT_SCORE
     return {
       position,
       score:
-        weights.bassSmoothness * bassSmoothness +
+        weights.bassSmoothness * bassSmoothness(responseDeviationDb) +
         weights.placementFit * placementFit,
       responseDeviationDb,
       placementFit,
@@ -708,7 +752,10 @@ type SeatSurroundings = {
   /** The listener-level speakers installed for the seat. */
   readonly speakers: readonly InstalledSpeaker[]
   readonly subwoofers: Placements['subwoofers']
-  /** The auto front stage's distance from the front wall (frontStageLine). */
+  /**
+   * The auto front stage's distance from the front wall, for the point the
+   * speakers are installed for (frontStageDistance).
+   */
   readonly stageLine: number
 }
 

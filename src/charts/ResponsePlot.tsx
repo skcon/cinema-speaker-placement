@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { formatDb, formatHz } from '@/charts/format'
+import { crossoverLabel, formatDb, formatHz } from '@/charts/format'
 import { TARGET_TOLERANCE, type EstimatedResponse } from '@/domain'
 import {
   ChartContainer,
@@ -128,7 +128,7 @@ export function ResponsePlot({ estimated }: { estimated: EstimatedResponse }) {
           stroke="var(--muted-foreground)"
           strokeDasharray="2 3"
           label={{
-            value: 'Crossover',
+            value: crossoverLabel(estimated.model.crossoverHz),
             position: 'insideTopRight',
             className: 'fill-muted-foreground text-[10px]',
           }}

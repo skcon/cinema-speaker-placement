@@ -21,6 +21,7 @@ import {
   type ChannelId,
   type OverheadChannelId,
 } from './dolby-layouts'
+import type { IdealGap } from './ideal-gap'
 import { itemDistances, type ItemDistances } from './item-distances'
 import { subwooferSpecsOf, wooferOf } from './listening'
 import type { Placement } from './auto-place-policy'
@@ -76,9 +77,9 @@ export type PlacedSpeaker = {
 /**
  * An overhead speaker of the layout, on the ceiling. Dolby's placement
  * range grades its elevation and, for the top front and top rear pairs,
- * its azimuth. ADR 0002 models boundary interference for listener-level
- * speakers only, so an overhead is not in the estimated response or the
- * seat score.
+ * its azimuth. It is not in the combined estimated response or the seat
+ * score; only its own Channel response (channel-response.ts, ADR 0002
+ * amendment) hears it.
  */
 export type PlacedOverhead = {
   readonly channel: OverheadChannelId
@@ -175,6 +176,12 @@ export type PlacedItems = {
   /** The layout's subwoofers, Subwoofer 1 first. */
   readonly subwoofers: readonly PlacedSubwoofer[]
   /**
+   * The auto speakers, listener-level then overhead in Dolby's channel
+   * order, for which auto-place found no position with every grade ideal
+   * from the seat they are installed for, and why (ideal-gap.ts).
+   */
+  readonly idealGaps: readonly IdealGap[]
+  /**
    * Every item by id, in one placed-item shape. In order: the
    * listener-level channels, the overhead channels, the subwoofers, then
    * the MLP. An id the layout doesn't have isn't in it.
@@ -264,12 +271,16 @@ export function placeItems(config: Config): PlacedItems {
       screenRelation: null,
     },
   ]
+  const idealGaps = [...placements.speakers, ...placements.overheads].flatMap(
+    ({ idealGap }) => (idealGap ? [idealGap] : []),
+  )
   return {
     mlp,
     mlpPlacement,
     speakers,
     overheads,
     subwoofers,
+    idealGaps,
     items: new Map(items.map((item) => [item.id, item])),
   }
 }

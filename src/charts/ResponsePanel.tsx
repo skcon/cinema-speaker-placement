@@ -1,8 +1,20 @@
 import { lazy, Suspense, useId } from 'react'
-import { formatDb, formatHz, formatHzRange } from '@/charts/format'
+import {
+  formatDb,
+  formatHz,
+  formatHzRange,
+  RESPONSE_SCORE_BAND_STYLES,
+} from '@/charts/format'
 import { strengthText, weaknessText } from '@/charts/notes-text'
-import { TARGET_CURVE_KINDS, TARGET_CURVES, TARGET_TOLERANCE } from '@/domain'
+import {
+  RESPONSE_SCORE_BANDS,
+  TARGET_CURVE_KINDS,
+  type ChannelResponse,
+  TARGET_CURVES,
+  TARGET_TOLERANCE,
+} from '@/domain'
 import { useConfig, useRoomAnalysis } from '@/state/config-context'
+import { useChannelResponse } from '@/state/selection-context'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/components/toggle-group'
 
 // Recharts is only needed for the plot, so it loads after the first paint.
@@ -62,6 +74,43 @@ function ResponseNotesList() {
   )
 }
 
+/**
+ * The response panel's title: the Channel response of the selected
+ * speaker or subwoofer, else the (combined) estimated response.
+ */
+export function ResponseTitle() {
+  const channel = useChannelResponse()
+  return channel ? `Channel response: ${channel.name}` : 'Estimated response'
+}
+
+/**
+ * What plays in the curve on screen, for the model note: the subwoofers,
+ * and the Speakers above the crossover (`crossover`, formatted).
+ */
+function whatPlays(
+  channel: ChannelResponse | null,
+  crossover: string,
+): { subwoofers: string; speakers: string } {
+  const filter = 'a Linkwitz-Riley 24 dB/octave model'
+  if (channel?.kind === 'subwoofer') {
+    return {
+      subwoofers: `the ${channel.name} alone`,
+      speakers: `Up to the ${crossover} crossover (${filter}).`,
+    }
+  }
+  const above = `Above the ${crossover} crossover (${filter}),`
+  const rigid =
+    'treated as rigid, with speakers radiating equally in all directions.'
+  return {
+    subwoofers: 'all subwoofers playing the same bass together',
+    speakers: !channel
+      ? `${above} the Left, Center and Right speakers with reflections off their nearest surfaces, ${rigid}`
+      : channel.kind === 'overhead'
+        ? `${above} the ${channel.name} speaker alone with reflections off its nearest walls (the ceiling it is on adds only a level), ${rigid}`
+        : `${above} the ${channel.name} speaker alone with reflections off its nearest surfaces, ${rigid}`,
+  }
+}
+
 /** The look of the chosen target curve, as in the layout form's pickers. */
 const CHOSEN_OPTION =
   'px-2 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground'
@@ -69,15 +118,19 @@ const CHOSEN_OPTION =
 /**
  * The estimated response panel's content: the target curve picker, the
  * chart, the estimate in words (also the chart's text alternative), the
- * model's assumptions and a table of the values.
+ * model's assumptions and a table of the values. With a speaker or
+ * subwoofer selected, the curve, its score and its numbers are that
+ * item's Channel response; with nothing selected, the combined estimate.
  */
 export function ResponsePanel() {
   const pickerLabelId = useId()
   const summaryId = useId()
+  const scoreId = useId()
   const targetCurve = useConfig((state) => state.config.targetCurve)
   const setTargetCurve = useConfig((state) => state.setTargetCurve)
   const { response } = useRoomAnalysis()
-  const { summary, estimated, tableRows } = response
+  const channel = useChannelResponse()
+  const { summary, score, estimated, tableRows } = channel ?? response
   const { rows, reliableFrom, model } = estimated
   const target = TARGET_CURVES[targetCurve].name
   const lowest = rows[0]?.frequency ?? 0
@@ -88,9 +141,15 @@ export function ResponsePanel() {
     highest,
   )
 
+  const playing = whatPlays(channel, formatHz(model.crossoverHz))
+  const band = RESPONSE_SCORE_BAND_STYLES[score.band]
+  const scoreBasis =
+    `the share of ${summarized} within ±${TARGET_TOLERANCE.db} dB of ` +
+    `the ${target}.`
+
   const summaryText =
     `Within ±${TARGET_TOLERANCE.db} dB of the ${target} over ` +
-    `${Math.round(summary.withinTolerance * 100)}% of ${summarized}. ` +
+    `${score.value}% of ${summarized}. ` +
     `Largest peak: ${formatDb(summary.largestPeak.deviation)} at ` +
     `${formatHz(summary.largestPeak.frequency)}. ` +
     `Deepest dip: ${formatDb(summary.deepestDip.deviation)} at ` +
@@ -124,16 +183,45 @@ export function ResponsePanel() {
           ))}
         </ToggleGroup>
       </div>
+      <div id={scoreId} className="flex flex-col gap-0.5">
+        {/* Read out once, in words, by the sr-only text below. */}
+        <p
+          aria-hidden="true"
+          className="flex items-center gap-2 text-lg font-semibold tabular-nums"
+        >
+          <span
+            className="inline-block size-3 rounded-full"
+            style={{ backgroundColor: band.color }}
+          />
+          Response score {score.value}/100 · {band.label}
+        </p>
+        <p className="sr-only">
+          Response score {score.value} out of 100, {band.label.toLowerCase()}.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          An estimate, not a measurement: {scoreBasis} Good from{' '}
+          {RESPONSE_SCORE_BANDS.goodFrom}, fair from{' '}
+          {RESPONSE_SCORE_BANDS.fairFrom} (our bands, not a standard).
+        </p>
+      </div>
       <div
         role="img"
-        aria-label={`Chart of the estimated response at the MLP against the ${target}, ${formatHzRange(lowest, highest)} on a log frequency axis.`}
-        aria-describedby={summaryId}
+        aria-label={`Chart of the ${channel ? `channel response of ${channel.name}` : 'estimated response'} at the MLP against the ${target}, ${formatHzRange(lowest, highest)} on a log frequency axis.`}
+        aria-describedby={`${scoreId} ${summaryId}`}
         className="relative h-64 w-full lg:h-auto lg:min-h-60 lg:flex-1"
       >
         <Suspense fallback={null}>
           <ResponsePlot estimated={estimated} />
         </Suspense>
       </div>
+      <p className="text-xs text-muted-foreground">
+        The chart covers {formatHzRange(lowest, highest)}, where the room shapes
+        the sound through room modes and boundary interference. Above it the
+        speakers&rsquo; directivity and reflections dominate, which this
+        simplified model doesn&rsquo;t simulate. The combined curve: the
+        subwoofers and the front stage (Left, Center, Right) through the
+        crossover at {formatHz(model.crossoverHz)}, marked on the chart.
+      </p>
       <div id={summaryId} className="flex flex-col gap-1 text-sm">
         <p>{summaryText}</p>
         {hasUnreliable && (
@@ -144,16 +232,20 @@ export function ResponsePanel() {
           </p>
         )}
       </div>
-      <ResponseNotesList />
+      {channel ? (
+        <p className="text-sm text-muted-foreground">
+          Weaknesses and strengths are listed for the estimated response of all
+          channels: deselect the {channel.name} to see them.
+        </p>
+      ) : (
+        <ResponseNotesList />
+      )}
       <p className="text-xs text-muted-foreground">
-        Room modes up to {model.roomModesUpTo} Hz for all subwoofers playing the
-        same bass together, each rolled off by its enclosure (corner frequencies
-        are our assumption); assumes a {model.reverberationTime} s reverberation
-        time at low frequencies. Above the {formatHz(model.crossoverHz)}{' '}
-        crossover (a Linkwitz-Riley 24 dB/octave model), the Left, Center and
-        Right speakers with reflections off their nearest surfaces, treated as
-        rigid, with speakers radiating equally in all directions. Room gain
-        below the lowest mode isn&rsquo;t modelled.
+        Room modes up to {model.roomModesUpTo} Hz for {playing.subwoofers}, each
+        rolled off by its enclosure (corner frequencies are our assumption);
+        assumes a {model.reverberationTime} s reverberation time at low
+        frequencies. {playing.speakers} Room gain below the lowest mode
+        isn&rsquo;t modelled.
         {targetCurve === 'house' &&
           ' The house curve is our own assumption (a gentle bass boost below about 100 Hz), not a published standard.'}
       </p>

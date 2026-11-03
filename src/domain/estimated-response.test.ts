@@ -184,10 +184,20 @@ describe('boundary interference in the estimate', () => {
 
 describe('the crossover in the estimate', () => {
   it('keeps the speakers’ part above twice the crossover the same, whatever the crossover', () => {
+    // The front stage held where it is: auto-place chooses its distance
+    // from the front wall over the band above the crossover (#158).
+    const manualPositions = Object.fromEntries(
+      analyzeRoom(DEFAULT_CONFIG).speakers.map(({ channel, position }) => [
+        channel,
+        position,
+      ]),
+    )
     const shape = (crossoverHz: number) => {
-      const rows = rowsOf({ ...DEFAULT_CONFIG, crossoverHz }).filter(
-        (r) => r.frequency >= 400,
-      )
+      const rows = rowsOf({
+        ...DEFAULT_CONFIG,
+        crossoverHz,
+        manualPositions,
+      }).filter((r) => r.frequency >= 400)
       return rows.map((r) => r.estimated - rows[0]!.estimated)
     }
     shape(60).forEach((value, i) => {

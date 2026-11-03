@@ -330,6 +330,42 @@ export const FRONT_STAGE_WALL_DISTANCE = {
 } as const satisfies { meters: number; note: string }
 
 /**
+ * The front-wall distances auto-place tries for the front stage without a
+ * Screen (#158, ADR 0005 amendment), in steps of `stepMeters`: from
+ * `fromMeters` (the wall clearance) up to `toMeters`, but never so far out
+ * that the seat the stage is installed for falls short of
+ * SEATING_DISTANCE.behindFrontStage (a seat too near the front wall for
+ * that keeps FRONT_STAGE_WALL_DISTANCE). It keeps the one whose boundary
+ * interference leaves the least of the Speakers' band outside the target's
+ * tolerance at that seat (front-wall-distance.ts); ties go to the distance
+ * nearest FRONT_STAGE_WALL_DISTANCE. It stays at FRONT_STAGE_WALL_DISTANCE
+ * unless the best distance leaves at least `meaningfulShare` less of the
+ * band outside.
+ */
+export const FRONT_STAGE_WALL_DISTANCE_RANGE = {
+  fromMeters: SPEAKER_WALL_CLEARANCE.meters,
+  toMeters: 0.6,
+  stepMeters: 0.01,
+  meaningfulShare: 0.05,
+  note:
+    "fromMeters is the wall clearance (ours). toMeters is Genelec's " +
+    '"preferably under 0.6 m" from the wall behind (GEN-SUP, GEN-GUIDE, ' +
+    "read from excerpts), inside KEF's 300-1000 mm; about 1 m out puts " +
+    'the first notch near the 80 Hz crossover, the worst of both ' +
+    '(docs/research/real-room-placement.md section 2.1). Using it as the ' +
+    'limit, the 1 cm step, the criterion and meaningfulShare (5 points of ' +
+    'the band, so the usual 0.5 m stays unless another distance is clearly ' +
+    'better in the model) are ours. Dolby gives no distance from the ' +
+    'front wall.',
+} as const satisfies {
+  fromMeters: number
+  toMeters: number
+  stepMeters: number
+  meaningfulShare: number
+  note: string
+}
+
+/**
  * Where auto-place aims Left and Right without a Screen (#121, ADR 0005
  * amendment): at Dolby's 30° reference, less `edgeMargin` when that
  * reference sits on the ideal range's edge. With every per-layout sheet's
@@ -365,6 +401,48 @@ export const LEFT_RIGHT_AIM = {
   edgeMargin: number
   citations: readonly Citation[]
   note: string
+  assumption: string
+}
+
+/**
+ * How far inside Dolby's ideal ranges auto-place keeps an overhead's
+ * angles when it has to move it there: where the overhead's usual position
+ * (OVERHEAD_SPACING's middle, at its elevation target) grades outside, it
+ * moves to the nearest point on the ceiling where its azimuth and its
+ * elevation are both this many degrees inside their ideal ranges (ADR
+ * 0005, amendment for #150).
+ */
+export const OVERHEAD_AIM = {
+  /** Degrees kept inside each ideal range's edge. */
+  edgeMargin: 1,
+  assumption:
+    "Our choice, not Dolby's, as for LEFT_RIGHT_AIM: grades round to " +
+    'whole degrees, so a position on the edge of a range reads outside ' +
+    'after the smallest step. 1° inside keeps it ideal; where the room ' +
+    'leaves no room for the margin, the range edge itself is used.',
+} as const satisfies { edgeMargin: number; assumption: string }
+
+/**
+ * How auto-place looks for another angle when a listener-level speaker's
+ * aim runs straight into a wall's clearance (ADR 0005, amendment for
+ * #151): it tries the whole degrees of the channel's ideal range,
+ * `edgeMargin` inside its edges first, nearest the aim first, and takes
+ * the first one that leaves the speaker at least `minimumDistance` from
+ * the seat it is installed for.
+ */
+export const LISTENER_LEVEL_AIM = {
+  /** Degrees kept inside the ideal range's edge, as OVERHEAD_AIM. */
+  edgeMargin: 1,
+  /** The least distance from the seat that still gives an angle (meters). */
+  minimumDistance: 0.001,
+  assumption:
+    "Our choice, not Dolby's: the angles are whole degrees, as Dolby's " +
+    "ranges and the grades are, and the 1° margin is OVERHEAD_AIM's. A " +
+    'speaker nearer the seat than a millimeter, the precision a share link ' +
+    'stores the MLP to, has no angle that holds.',
+} as const satisfies {
+  edgeMargin: number
+  minimumDistance: number
   assumption: string
 }
 
@@ -584,6 +662,12 @@ export const ENCLOSURE_ROLL_OFF = {
  *   weight the reflections.
  * - **Only first-order reflections** and no room modes for the Speakers:
  *   ours.
+ * - **Overheads**, in their Channel response only: the ceiling's two
+ *   nearest walls, the nearer end wall and the nearer side wall (both
+ *   when equally near). The ceiling they sit on doubles the direct sound
+ *   and every reflection alike (no notch) and the floor is the farthest
+ *   boundary, so neither is summed: ours
+ *   (docs/research/crossover-enclosure-boundaries.md section 4).
  */
 export const BOUNDARY_INTERFERENCE = {
   reflectionCoefficient: 1,
@@ -1163,6 +1247,21 @@ export const TARGET_TOLERANCE = {
     'Product choice from the v1 spec (issue #2, user story 41), not a ' +
     'cited standard.',
 } as const satisfies { db: number; note: string }
+
+/**
+ * The response score's bands (GLOSSARY.md, response-summary.ts): a score
+ * of `goodFrom` or more out of 100 is good, `fairFrom` or more fair, less
+ * poor. The score itself is the share of the reliable frequencies inside
+ * the TARGET_TOLERANCE band, an estimate from the simplified model, never
+ * a measurement.
+ */
+export const RESPONSE_SCORE_BANDS = {
+  goodFrom: 80,
+  fairFrom: 60,
+  note:
+    'Our bands, not a cited standard: chosen in the v1.4.0 spec (issue ' +
+    '#149, decision 5), as is the score itself.',
+} as const satisfies { goodFrom: number; fairFrom: number; note: string }
 
 /**
  * The house curve: a smooth bass shelf, level = boost / (1 + (f / corner)²)

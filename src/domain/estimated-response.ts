@@ -37,6 +37,11 @@
  * Rows below the lowest mode the subwoofers excite are kept but marked
  * unreliable: there the model has no room gain and only other modes'
  * tails.
+ *
+ * A Channel response (channel-response.ts) hears the same room with one
+ * channel playing: `hear` with one speaker's levels as the Speakers' part,
+ * or, for one subwoofer, a heard room of that subwoofer alone and
+ * `estimateSubwoofersAt`, calibrated the same way over its own rows.
  */
 import { add, decibels, scale, type Complex } from './complex'
 import type { Config } from './config'
@@ -71,6 +76,13 @@ const COMPONENTS = [
   'enclosure',
   'crossover',
   'boundary-interference',
+] as const satisfies readonly ResponseComponent[]
+
+/** The effects the subwoofers' part alone includes: no Speaker, no boundary interference. */
+const SUBWOOFER_COMPONENTS = [
+  'room-modes',
+  'enclosure',
+  'crossover',
 ] as const satisfies readonly ResponseComponent[]
 
 /** The modelling assumptions an estimate was made with (src/domain/reference.ts). */
@@ -129,7 +141,9 @@ export type EstimatedResponse = {
 
 /**
  * The offsets, in dB, that set the estimate's levels: subtracted from the
- * subwoofers' part, from the Speakers' part, and from their sum.
+ * subwoofers' part, from the Speakers' part, and from their sum. The
+ * subwoofers' part alone (`estimateSubwoofersAt`) has no Speakers' part:
+ * its `speakersDb` is 0.
  */
 export type ResponseCalibration = {
   readonly subwooferDb: number
@@ -203,6 +217,14 @@ export type HeardRoom = {
    * light path for a grid of seats.
    */
   deviationsAt(seat: HeardSeat, calibration: ResponseCalibration): number[]
+  /**
+   * The subwoofers' part alone at a heard position, through the
+   * crossover's low-pass, as a receiver plays the subwoofer channel: rows
+   * up to the crossover only (its pass band), calibrated there as
+   * `estimateAt` is (the subwoofers 0 dB over their pass band, then the
+   * rows 0 dB from the target on average over the reliable ones).
+   */
+  estimateSubwoofersAt(seat: HeardSeat): EstimatedResponse
 }
 
 /**
@@ -250,6 +272,10 @@ export function hearRoom(
     )
   }
 
+  function estimateSubwoofersAt(seat: HeardSeat): EstimatedResponse {
+    return estimateSubwoofers(prepared, seat, target)
+  }
+
   return {
     frequencies,
     reliable,
@@ -259,6 +285,7 @@ export function hearRoom(
     calibrateAt,
     estimateAt,
     deviationsAt,
+    estimateSubwoofersAt,
   }
 }
 
@@ -266,7 +293,7 @@ export function hearRoom(
  * Frequencies evenly spaced on a log axis, lowest first: the response band
  * (20 Hz to about 500 Hz, 225 points).
  */
-function responseFrequencies(): number[] {
+export function responseFrequencies(): number[] {
   const { lowestHz, highestHz, steps } = RESPONSE_BAND
   return Array.from(
     { length: steps + 1 },
@@ -311,22 +338,31 @@ type PreparedRoomResponse = {
 const MODE_BAND_TOLERANCE = 1e-9
 
 /**
- * The last prepared response and what it was prepared from. A memo of a
- * pure function: the same input always gives the same result, so keeping
- * the last one changes nothing but speed (dragging the MLP, #9).
+ * The last few prepared responses, most recent last, by what they were
+ * prepared from. A memo of a pure function: the same input always gives
+ * the same result, so keeping them changes nothing but speed (dragging the
+ * MLP, #9). More than one, so a selected subwoofer's Channel response (its
+ * room alone) and the combined response don't evict each other.
  */
-let lastPrepared: { key: string; prepared: PreparedRoomResponse } | undefined
+const recentlyPrepared: { key: string; prepared: PreparedRoomResponse }[] = []
+
+/** How many prepared responses `recentlyPrepared` keeps. */
+const PREPARED_KEPT = 3
 
 /**
- * Prepare the subwoofers' response for `input`, or return the last one
- * prepared if the input is the same.
+ * Prepare the subwoofers' response for `input`, or return one recently
+ * prepared from the same input.
  */
 function prepareRoomResponse(input: RoomResponseInput): PreparedRoomResponse {
   const key = JSON.stringify(input)
-  if (lastPrepared?.key !== key) {
-    lastPrepared = { key, prepared: prepare(input) }
-  }
-  return lastPrepared.prepared
+  const index = recentlyPrepared.findIndex((entry) => entry.key === key)
+  const entry =
+    index >= 0
+      ? recentlyPrepared.splice(index, 1)[0]!
+      : { key, prepared: prepare(input) }
+  recentlyPrepared.push(entry)
+  if (recentlyPrepared.length > PREPARED_KEPT) recentlyPrepared.shift()
+  return entry.prepared
 }
 
 function prepare({
@@ -383,14 +419,11 @@ function calibrate(
   { subwoofers, speakers }: ResponseParts,
   target: readonly TargetPoint[],
 ): ResponseCalibration {
-  const { frequencies, modalFrequencyCount, model, reliable } = prepared
-  const inModeBand = (i: number) => i < modalFrequencyCount
-  const subwooferDb = averageOverFirst(subwoofers, [
-    (f, i) => inModeBand(i) && reliable[i]! && f <= model.crossoverHz,
-    (_, i) => inModeBand(i) && reliable[i]!,
-    (_, i) => inModeBand(i),
+  const { frequencies, model, reliable } = prepared
+  const subwooferDb = subwooferCalibration(prepared, subwoofers)
+  const speakersDb = averageOverFirst(frequencies, speakers, [
+    (f) => f >= model.crossoverHz,
   ])
-  const speakersDb = averageOverFirst(speakers, [(f) => f >= model.crossoverHz])
   const levels = summedLevels(
     prepared,
     { subwoofers, speakers },
@@ -399,27 +432,62 @@ function calibrate(
       speakersDb,
     },
   )
+  const levelDb = levelCalibration(frequencies, reliable, levels, target)
+  return { subwooferDb, speakersDb, levelDb }
+}
+
+/**
+ * The subwoofers' part's offset: its average over its pass band in the
+ * room-mode band (reliable rows up to the crossover), else over the
+ * reliable rows of that band, else over the whole band.
+ */
+function subwooferCalibration(
+  { frequencies, modalFrequencyCount, model, reliable }: PreparedRoomResponse,
+  subwoofers: readonly number[],
+): number {
+  const inModeBand = (i: number) => i < modalFrequencyCount
+  return averageOverFirst(frequencies, subwoofers, [
+    (f, i) => inModeBand(i) && reliable[i]! && f <= model.crossoverHz,
+    (_, i) => inModeBand(i) && reliable[i]!,
+    (_, i) => inModeBand(i),
+  ])
+}
+
+/**
+ * The overall offset: the levels' average deviation from the target over
+ * the reliable rows (all rows if none is).
+ */
+function levelCalibration(
+  frequencies: readonly number[],
+  reliable: readonly boolean[],
+  levels: readonly number[],
+  target: readonly TargetPoint[],
+): number {
   const deviations = levels.map((level, i) => level - targetAt(target, i))
-  const levelDb = averageOverFirst(deviations, [
+  return averageOverFirst(frequencies, deviations, [
     (_, i) => reliable[i]!,
     () => true,
   ])
-  return { subwooferDb, speakersDb, levelDb }
+}
 
-  function averageOverFirst(
-    values: readonly number[],
-    picks: readonly ((f: number, i: number) => boolean)[],
-  ): number {
-    for (const pick of picks) {
-      const picked = values.filter(
-        (value, i) => pick(frequencies[i]!, i) && Number.isFinite(value),
-      )
-      if (picked.length > 0) {
-        return picked.reduce((sum, value) => sum + value, 0) / picked.length
-      }
+/**
+ * The average of the finite `values` picked by the first of `picks` (each
+ * by frequency and index) that picks any, or 0 if none does.
+ */
+function averageOverFirst(
+  frequencies: readonly number[],
+  values: readonly number[],
+  picks: readonly ((f: number, i: number) => boolean)[],
+): number {
+  for (const pick of picks) {
+    const picked = values.filter(
+      (value, i) => pick(frequencies[i]!, i) && Number.isFinite(value),
+    )
+    if (picked.length > 0) {
+      return picked.reduce((sum, value) => sum + value, 0) / picked.length
     }
-    return 0
   }
+  return 0
 }
 
 /** The estimated response at a heard position, with `calibration`. */
@@ -429,14 +497,66 @@ function estimate(
   target: readonly TargetPoint[],
   calibration: ResponseCalibration,
 ): EstimatedResponse {
+  return responseOf(
+    prepared,
+    receiver,
+    summedLevels(prepared, parts, calibration),
+    target,
+    calibration,
+    COMPONENTS,
+  )
+}
+
+/**
+ * The subwoofers' part alone at a heard position, through the low-pass,
+ * up to the crossover (`HeardRoom.estimateSubwoofersAt`).
+ */
+function estimateSubwoofers(
+  prepared: PreparedRoomResponse,
+  { receiver, parts }: HeardSeat,
+  target: readonly TargetPoint[],
+): EstimatedResponse {
+  const { frequencies, lowPass, model, reliable } = prepared
+  const subwooferDb = subwooferCalibration(prepared, parts.subwoofers)
+  const passBand = frequencies.filter(
+    (f) => f <= model.crossoverHz * (1 + MODE_BAND_TOLERANCE),
+  )
+  const levels = passBand.map((_, i) => {
+    const raw = parts.subwoofers[i]!
+    const level = Number.isNaN(raw) ? 0 : raw - subwooferDb
+    return decibels(scale(10 ** (level / 20), lowPass[i]!))
+  })
+  const levelDb = levelCalibration(passBand, reliable, levels, target)
+  return responseOf(
+    prepared,
+    receiver,
+    levels,
+    target,
+    { subwooferDb, speakersDb: 0, levelDb },
+    SUBWOOFER_COMPONENTS,
+  )
+}
+
+/**
+ * The response at `receiver` from calibrated `levels` (one per frequency,
+ * from the lowest, as many rows as levels), less the overall offset.
+ */
+function responseOf(
+  prepared: PreparedRoomResponse,
+  receiver: RoomPoint,
+  levels: readonly number[],
+  target: readonly TargetPoint[],
+  calibration: ResponseCalibration,
+  components: readonly ResponseComponent[],
+): EstimatedResponse {
   const { room, frequencies, modal, model, reliableFrom, reliable } = prepared
-  const levels = summedLevels(prepared, parts, calibration)
   return {
-    rows: frequencies.map((frequency, i) => {
+    rows: levels.map((estimated, i) => {
+      const frequency = frequencies[i]!
       const { level, low, high } = target[i] ?? NO_TARGET
       return {
         frequency,
-        estimated: levels[i]! - calibration.levelDb,
+        estimated: estimated - calibration.levelDb,
         target: level,
         low,
         high,
@@ -444,7 +564,7 @@ function estimate(
       }
     }),
     reliableFrom,
-    components: COMPONENTS,
+    components,
     model,
     calibration,
     roomModes: modal.modes.flatMap((mode, n) =>

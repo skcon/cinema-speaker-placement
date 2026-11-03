@@ -12,6 +12,7 @@ import type { RoomPoint } from './room'
 import {
   boundaryReflections,
   interferenceLevels,
+  overheadReflections,
   type BoundaryReflection,
 } from './boundary-interference'
 import {
@@ -84,11 +85,9 @@ export function hearSpeaker(
   listener: RoomPoint,
   frequencies: readonly number[],
 ): HeardSpeaker {
-  const aim = aimAtMlp(position, listener)
-  const woofer = wooferOf(config, channel, position)
-  const reflections = boundaryReflections(
-    config.room,
-    { position: woofer, aim },
+  const { aim, woofer, reflections } = speakerReflections(
+    config,
+    { channel, position },
     listener,
   )
   return {
@@ -97,4 +96,50 @@ export function hearSpeaker(
     reflections,
     levels: interferenceLevels(reflections, frequencies),
   }
+}
+
+/**
+ * Channel `channel`'s Speaker at `position`, aimed at `listener`: its aim,
+ * its woofer and the reflections heard there, as hearSpeaker has them,
+ * without working out any frequency.
+ */
+export function speakerReflections(
+  config: Config,
+  { channel, position }: { channel: SpeakerChannelId; position: RoomPoint },
+  listener: RoomPoint,
+): Omit<HeardSpeaker, 'levels'> {
+  const aim = aimAtMlp(position, listener)
+  const woofer = wooferOf(config, channel, position)
+  return {
+    aim,
+    woofer,
+    reflections: boundaryReflections(
+      config.room,
+      { position: woofer, aim },
+      listener,
+    ),
+  }
+}
+
+/** An overhead Speaker as heard at a listening position. */
+export type HeardOverhead = {
+  readonly reflections: readonly BoundaryReflection[]
+  /** Its boundary interference in dB at each frequency. */
+  readonly levels: readonly number[]
+}
+
+/**
+ * An overhead Speaker at `position` (on the ceiling), heard at `listener`
+ * with reflections off its nearest walls (overheadReflectingSurfaces).
+ * Its group has no type, so its woofer is at its position. Only its
+ * Channel response hears it.
+ */
+export function hearOverhead(
+  { room }: Config,
+  position: RoomPoint,
+  listener: RoomPoint,
+  frequencies: readonly number[],
+): HeardOverhead {
+  const reflections = overheadReflections(room, position, listener)
+  return { reflections, levels: interferenceLevels(reflections, frequencies) }
 }

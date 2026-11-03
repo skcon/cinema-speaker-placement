@@ -30,6 +30,9 @@ import {
   floorCenter,
   floorCorners,
   type FloorPoint,
+  heatmapCellAt,
+  type HeatmapCell,
+  type TooCloseCell,
   wallBases,
   type PlaceableId,
   type PlacedItem,
@@ -42,7 +45,11 @@ import {
   type UnitSystem,
 } from '@/domain'
 import { type SelectionDimensions } from '@/scene/dimensions'
-import { HEATMAP_OPACITY } from '@/scene/heatmap'
+import {
+  hatchSegments,
+  HEATMAP_OPACITY,
+  TOO_CLOSE_HATCH,
+} from '@/scene/heatmap'
 import { heatmapColor } from '@/scene/heatmap-color'
 import {
   LABEL_BACKDROP_CSS,
@@ -145,6 +152,7 @@ export function RoomCanvas({
   selection,
   onSelect,
   onDeselect,
+  onInspectHeatmap,
   ...callbacks
 }: {
   /** Which camera looks at the room; only the top-down view drags. */
@@ -185,6 +193,11 @@ export function RoomCanvas({
   onSelect: (id: DragTarget) => void
   /** Clear the selection: a click on the empty floor in the top-down view does. */
   onDeselect: () => void
+  /**
+   * The heatmap cell the pointer is over (a mouse) or was tapped, or null:
+   * only where no drag target is, as a press there picks the target up.
+   */
+  onInspectHeatmap: (cell: HeatmapCell | TooCloseCell | null) => void
 } & DragCallbacks) {
   // Labels render into this layer over the canvas. Without a fixed target,
   // drei's Html can remount once r3f connects events and lose its content.
@@ -248,6 +261,9 @@ export function RoomCanvas({
           // mesh's count is fixed.
           <HeatmapCells key={heatmap.cells.length} heatmap={heatmap} />
         )}
+        {heatmap && heatmap.tooClose.length > 0 && (
+          <TooCloseHatch cells={heatmap.tooClose} />
+        )}
         {/* Remounted when the view changes, as each view draws them anew. */}
         <RoomObjects key={view} drawings={drawings} />
         <Walls room={room} />
@@ -265,10 +281,12 @@ export function RoomCanvas({
           <PressSurface
             room={room}
             grabAreas={grabAreas}
+            heatmap={heatmap}
             controller={controller}
             setCursor={setCursor}
             onSelect={onSelect}
             onDeselect={onDeselect}
+            onInspectHeatmap={onInspectHeatmap}
           />
         )}
         {selection && <SelectionMarks selection={selection} />}
@@ -316,25 +334,47 @@ function leaveTextField() {
  * where it was grabbed, until released, and the store keeps the target
  * where it may go. A click (that doesn't move) on no target clears the
  * selection.
+ *
+ * With the heatmap shown, a mouse over a cell where no target is, or a
+ * click or tap on one, inspects that cell (onInspectHeatmap): it never
+ * picks anything up or moves the MLP, and a target over a cell wins.
  */
 function PressSurface({
   room,
   grabAreas,
+  heatmap,
   controller,
   setCursor,
   onSelect,
   onDeselect,
+  onInspectHeatmap,
 }: {
   room: Room
   grabAreas: readonly GrabArea[]
+  heatmap: SeatHeatmap | null
   controller: DragController
   setCursor: (cursor: DragCursor) => void
   onSelect: (id: DragTarget) => void
   onDeselect: () => void
+  onInspectHeatmap: (cell: HeatmapCell | TooCloseCell | null) => void
 }) {
   const size = useThree((state) => state.size)
   const zoom = topDownCamera(room, size).zoom
   const hit = new Vector3()
+  // The cell last inspected, so a mouse moving within it tells no one.
+  const inspected = useRef<HeatmapCell | TooCloseCell | null>(null)
+
+  function inspect(cell: HeatmapCell | TooCloseCell | null) {
+    if (cell === inspected.current) return
+    inspected.current = cell
+    onInspectHeatmap(cell)
+  }
+
+  /** The heatmap cell under a pointer where no target is, if any. */
+  function cellUnder(pointer: FloorPoint | null) {
+    if (!heatmap || !pointer || pressed(pointer)) return null
+    return heatmapCellAt(heatmap, pointer)
+  }
 
   function floorPoint(event: ThreeEvent<PointerEvent | MouseEvent>) {
     const point = event.ray.intersectPlane(FLOOR, hit)
@@ -356,9 +396,14 @@ function PressSurface({
     if (!controller.isDragging()) setCursor('grab')
   }
 
-  // A click that is on no target and doesn't move clears the selection.
+  // A click that is on no target and doesn't move clears the selection,
+  // and inspects the heatmap cell there (a tap has no hover).
   function clickOff(event: ThreeEvent<MouseEvent>) {
-    if (event.delta <= 2 && !pressed(floorPoint(event))) onDeselect()
+    if (event.delta > 2) return
+    const pointer = floorPoint(event)
+    if (pressed(pointer)) return
+    onDeselect()
+    inspect(cellUnder(pointer))
   }
 
   return (
@@ -370,6 +415,8 @@ function PressSurface({
         if (!pointer || event.button !== 0) return
         const area = pressed(pointer)
         if (!area) return
+        // Picking a target up ends any inspection of the heatmap.
+        inspect(null)
         leaveTextField()
         if (
           !controller.press(event.pointerId, area.target, area.anchor, pointer)
@@ -389,13 +436,16 @@ function PressSurface({
           controller.move(event.pointerId, pointer)
         } else {
           setCursor(pressed(pointer) ? 'grab' : 'auto')
+          // Only a mouse hovers; a finger inspects with a tap.
+          if (event.pointerType === 'mouse') inspect(cellUnder(pointer))
         }
       }}
       onPointerUp={release}
       onPointerCancel={release}
       onLostPointerCapture={release}
-      onPointerOut={() => {
+      onPointerOut={(event) => {
         if (!controller.isDragging()) setCursor('auto')
+        if (event.pointerType === 'mouse') inspect(null)
       }}
       onClick={clickOff}
       onContextMenu={clickOff}
@@ -755,6 +805,31 @@ function HeatmapCells({ heatmap }: { heatmap: SeatHeatmap }) {
         depthWrite={false}
       />
     </instancedMesh>
+  )
+}
+
+/**
+ * The hatch over the seats left blank for breaking the seating distances
+ * (hatchSegments): neutral lines, on the heatmap's layer, so a blank seat
+ * reads as "no score here", not as a bad one. No pointer handlers.
+ */
+function TooCloseHatch({ cells }: { cells: readonly TooCloseCell[] }) {
+  const points = useMemo(
+    () =>
+      hatchSegments(cells, TOO_CLOSE_HATCH.spacing).flatMap((segment) =>
+        segment.map((point) =>
+          toScenePosition({ ...point, z: FLOOR_LAYERS.heatmap }),
+        ),
+      ),
+    [cells],
+  )
+  return (
+    <Line
+      points={points}
+      segments
+      color={TOO_CLOSE_HATCH.color}
+      lineWidth={1}
+    />
   )
 }
 

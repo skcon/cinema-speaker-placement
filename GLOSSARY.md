@@ -117,8 +117,16 @@ The frequency response the estimated response is compared against: flat, or a ho
 _Avoid_: Ideal curve, reference curve
 
 **Estimated response**:
-The modeled frequency response at the MLP; an estimate, never a measurement.
-_Avoid_: Measured response, projected result
+The modeled frequency response at the MLP, about 20 to 500 Hz, the range where the room shapes the sound: the subwoofers and the front stage (Left, Center, Right) playing together through the crossover. An estimate, never a measurement.
+_Avoid_: Measured response, projected result, full-range response
+
+**Channel response**:
+The estimated response as if only one channel plays: a speaker above the crossover with the subwoofers below it, as a receiver's bass management plays it, or one subwoofer alone. Shown while that speaker or subwoofer is the selected item; with nothing selected the chart shows the estimated response.
+_Avoid_: Per-speaker curve, solo response
+
+**Response score**:
+How close the estimated response (or a channel response) is to the target curve, out of 100: the share of its reliable frequencies inside the target's tolerance band. Good from 80, fair from 60, poor below (our bands, not a standard). Not the seat score, which also weighs placement. An estimate, never a measurement.
+_Avoid_: Curve score, sound score, rating
 
 **Boundary interference**:
 A Speaker's sound reflected off a nearby wall, the floor or the ceiling, arriving late enough to cancel part of the direct sound at some frequencies (a notch) and add to it at others.
@@ -153,8 +161,8 @@ The recommended seat's candidate grid drawn as colors on the floor plan, so good
 _Avoid_: Heat map, score map
 
 **Auto-place**:
-Placing every speaker from the reference recommendations for the current room and layout, and the MLP at the recommended seat. Listener-level speakers keep Dolby's angles: Left, Center and Right sit 0.5 m from the front wall, the others at the walls (ADR 0005). The button sets everything back to auto, then puts the MLP at the recommended seat (manual there, unless the auto MLP, seeded by the "38% rule", already is it).
-_Avoid_: Auto-layout, optimize
+Placing every speaker from the reference recommendations for the current room and layout, and the MLP at the recommended seat. Each speaker goes where all its placement-range grades are ideal, as near Dolby's nominal angles as the room allows; where no such position exists, the app says which speaker and why. Left, Center and Right keep their angles and sit at the front-wall distance with the least boundary interference; the others go to the walls or the ceiling (ADR 0005). The button sets everything back to auto, then puts the MLP at the recommended seat (manual there, unless the auto MLP, seeded by the "38% rule", already is it).
+_Avoid_: Auto-layout, optimize (in the UI)
 
 **Auto / manual**:
 Whether a channel's speaker, a subwoofer or the MLP is placed by Auto-place (auto, follows Room changes and, while Speakers follow the seat is on, MLP changes) or was dragged or edited by the user (manual, stays where it was left; its **manual position** is stored in the config).

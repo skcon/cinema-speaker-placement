@@ -369,6 +369,24 @@ export const LEFT_RIGHT_AIM = {
 }
 
 /**
+ * How far inside Dolby's ideal ranges auto-place keeps an overhead's
+ * angles when it has to move it there: where the overhead's usual position
+ * (OVERHEAD_SPACING's middle, at its elevation target) grades outside, it
+ * moves to the nearest point on the ceiling where its azimuth and its
+ * elevation are both this many degrees inside their ideal ranges (ADR
+ * 0005, amendment for #150).
+ */
+export const OVERHEAD_AIM = {
+  /** Degrees kept inside each ideal range's edge. */
+  edgeMargin: 1,
+  assumption:
+    "Our choice, not Dolby's, as for LEFT_RIGHT_AIM: grades round to " +
+    'whole degrees, so a position on the edge of a range reads outside ' +
+    'after the smallest step. 1° inside keeps it ideal; where the room ' +
+    'leaves no room for the margin, the range edge itself is used.',
+} as const satisfies { edgeMargin: number; assumption: string }
+
+/**
  * How far a subwoofer's acoustic center stands off the wall it is placed
  * against. Auto-place keeps every subwoofer at least this far from every
  * wall.

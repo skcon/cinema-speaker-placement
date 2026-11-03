@@ -13,7 +13,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, reopens a recent room, and auto-places a wide room at phone width with the seat off the front stage', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, shows the sidebar in two columns on a wide screen, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, reopens a recent room, and auto-places a wide room at phone width with the seat off the front stage', async ({
   page,
 }) => {
   await page.goto('./')
@@ -184,6 +184,32 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     )
   })
 
+  await test.step('at 1440 x 900 the sidebar takes about 2/5 of the window, with its sections in two columns', async () => {
+    const desktop = page.viewportSize()
+    await page.setViewportSize({ width: 1440, height: 900 })
+
+    const sidebar = page.getByRole('complementary', { name: 'Room plan' })
+    const sidebarWidth = (await sidebar.boundingBox())?.width ?? 0
+    expect(sidebarWidth).toBeGreaterThan(1440 * 0.35)
+    expect(sidebarWidth).toBeLessThan(1440 * 0.45)
+    // Room heads the first column, Seating the second (#153).
+    const room = await sidebar
+      .getByRole('region', { name: 'Room', exact: true })
+      .boundingBox()
+    const seating = await sidebar
+      .getByRole('region', { name: 'Seating', exact: true })
+      .boundingBox()
+    expect(seating?.x).toBeGreaterThan((room?.x ?? 0) + (room?.width ?? 0))
+    expect(seating?.y).toBe(room?.y)
+    expect(
+      await page.evaluate(
+        'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
+      ),
+    ).toBe(true)
+
+    if (desktop) await page.setViewportSize(desktop)
+  })
+
   await test.step('at phone width the room view comes before the forms, and its drawing keeps a usable height with the heatmap on', async () => {
     const desktop = page.viewportSize()
     await page.setViewportSize({ width: 390, height: 844 })
@@ -202,6 +228,11 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
           .boundingBox()
       )?.y ?? -Infinity
     expect(formsTop).toBeGreaterThan(roomTop)
+    expect(
+      await page.evaluate(
+        'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
+      ),
+    ).toBe(true)
 
     await expect
       .poll(async () => (await scene.boundingBox())?.height ?? 0)

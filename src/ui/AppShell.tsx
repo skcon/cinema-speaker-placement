@@ -20,8 +20,11 @@ import { SpeakerList } from '@/ui/SpeakerList'
 import { SpeakerSpecsForm } from '@/ui/SpeakerSpecsForm'
 
 /**
- * Page layout: a sidebar (about 1/5 width) for the room and layout config on
- * the left, the room view top-right and the response chart below it. On narrow
+ * Page layout: a sidebar (about 2/5 width, 24 to 44rem) for the room and
+ * layout config on the left, the room view top-right and the response chart
+ * below it. When the sidebar is at least 32rem wide inside its padding, its
+ * sections flow into two columns, under the header and the Selected item
+ * panel that span both (#153). On narrow
  * screens the areas stack vertically, with the room view and the chart right
  * under the page header and the config forms after them, so a phone shows the
  * room without scrolling past every form (#125). Only the visual order

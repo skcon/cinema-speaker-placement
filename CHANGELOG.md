@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented here. The project follows [Semantic Versioning](https://semver.org/). Every release is a `vX.Y.Z` tag on `main`, which deploys the site to GitHub Pages.
 
+## [1.4.0] - 2026-11-03
+
+A roomier, more readable app and an Auto-place that leaves every speaker in range where the room allows (spec #149, from a grill-with-docs session).
+
+### Added
+
+- **Response score.** The chart shows how close the curve is to the target (flat or house) as a score out of 100, with a band: good from 80, fair from 60 (our bands, not a standard) (#152).
+- **Channel response.** Selecting a speaker or subwoofer shows its own curve and Response score: a speaker above the crossover with the subwoofers below it, or one subwoofer alone. Surrounds and overheads are now modelled for this. Deselect to see the combined curve again, which is unchanged (#157, ADR 0002 amendment).
+- **Seat-score heatmap with numbers.** The legend shows the real score range, hovering or tapping a seat reads out its score, position and what pulls it down, and seats that are too close are hatched and explained (#155).
+- **The chart explains its range.** A note says why it covers about 20–500 Hz and what the combined curve is, and the crossover marker shows its frequency (#156).
+- **Auto-place says why** when a speaker has no position where every grade is ideal (#151).
+
+### Changed
+
+- **Wider sidebar.** It takes 2/5 of the window (24–44 rem) and shows its sections in two columns on wide screens. The phone layout is unchanged (#153).
+
+### Fixed
+
+- **Overheads land in their Dolby range.** In narrow rooms (for example 4.5 × 3 m) the top-front and top-rear speakers of 5.1.4 and 7.1.4 graded outside; they now move to the nearest ceiling point where both angles are ideal (#150, ADR 0005 amendment).
+- **Turning the heatmap on no longer shifts the layout** (#154).
+- A smoke-test race on reloading right after a drag (#167).
+
+### Notes
+
+- Share links are unchanged: links from 1.0.0 to 1.3.1 open as before. Auto speakers move only where they were outside their range.
+- The live site served 1.2.0 until 1.3.1 was tagged on 3 November; 1.3.1's seat and stage fixes are now live too.
+
 ## [1.3.1] - 2026-10-23
 
 Seat and speaker placement fixes from a phone report, a "Speakers follow the seat" toggle, and a third architecture review (tracking issue #118).
@@ -153,6 +180,7 @@ The first complete release: plan a rectangular home theater room from Dolby's pl
 - CI for pull requests to `develop`, and the GitHub Pages deploy on release tags (#18).
 - Planning documents: CLAUDE.md, GLOSSARY.md, ADRs 0001–0002 and the cited Dolby placement research (#3).
 
+[1.4.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/skcon/cinema-speaker-placement/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.1.0...v1.2.0

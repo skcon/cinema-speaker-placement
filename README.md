@@ -1,5 +1,7 @@
 # Cinema Speaker Placement
 
+[![CI](https://github.com/skcon/cinema-speaker-placement/actions/workflows/ci.yml/badge.svg)](https://github.com/skcon/cinema-speaker-placement/actions/workflows/ci.yml) [![Release](https://github.com/skcon/cinema-speaker-placement/actions/workflows/release.yml/badge.svg)](https://github.com/skcon/cinema-speaker-placement/actions/workflows/release.yml)
+
 Plan a home theater room for **sound, not looks**. Enter your room and speaker layout (5.1, 7.1.4, ...), get Dolby-guided speaker and seating placement, drag things around, see an estimated frequency response at your seat, and share the whole setup as a link.
 
 **Try it: https://skcon.github.io/cinema-speaker-placement/**
@@ -19,15 +21,19 @@ See [CLAUDE.md](CLAUDE.md) for the project brief and architecture, [GLOSSARY.md]
   - overhead speakers at Dolby's elevation angles and spacing
   - subwoofers in published multi-subwoofer arrangements
   - with a screen, Left and Right at its edges and the Center below, above or behind it, inside Dolby's ranges
+  - every speaker where all its grades are ideal when the room allows; when it can't, the sidebar says which speaker and why
+  - the front stage at the distance from the front wall (0.3–0.6 m) with the least boundary interference, where that clearly helps
   - every range cites its source
 - **Placement-range grades**: each speaker is ideal, acceptable or outside on its angle (and elevation for overhead speakers) from the main listening position (MLP), and each grade explains its range and source.
 - **Room view**:
   - a top-down floor plan where you drag speakers, subwoofers, the MLP and room objects, with the room's measurements along its walls
   - select an item to see its distances to the nearest walls and the MLP
   - a 3D view you can orbit to see overhead speakers in space
-  - a seat row, the 38% rule of thumb as a reference, and a seat-score heatmap
+  - a seat row, the 38% rule of thumb as a reference, and a seat-score heatmap with its score range, a readout for each seat and the seats that are too close
 - **Estimated response at the MLP**:
   - room modes, boundary interference, crossover and subwoofer roll-off, against a flat or house target curve
+  - a **Response score** out of 100: how much of the 20–500 Hz range is within the target's tolerance
+  - select a speaker or subwoofer to see its own **channel response** and score, surrounds and overheads included
   - weaknesses and strengths listed with their likely cause
 - **Room objects**: a movable, resizable couch the MLP sits on, a screen or TV, up to 8 furniture boxes and up to 6 doors and windows. They are drawn and give placement warnings (for example a speaker in front of a window or furniture blocking the direct sound), each naming its source.
 - **Recommended seat** from a grid of candidate seats scored on bass smoothness and placement fit, preferring the room's centre line, and "Move MLP here".
@@ -40,7 +46,7 @@ See [CLAUDE.md](CLAUDE.md) for the project brief and architecture, [GLOSSARY.md]
 
 ## Limitations
 
-- **Estimates, not measurements.** The acoustic model is simplified (ADR 0002): low-frequency room modes, boundary interference for listener-level speakers, and angle checks. It is not a full-band simulation, and a real room needs measuring (for example with REW).
+- **Estimates, not measurements.** The acoustic model is simplified (ADR 0002): low-frequency room modes, boundary interference (front stage in the combined curve; every speaker in its channel response), and angle checks. It is not a full-band simulation, and a real room needs measuring (for example with REW).
 - **Rectangular rooms only.** No room treatment. Doors, windows, furniture and the screen are drawn and warned about, but they don't change the estimate (ADR 0006).
 - **The layouts above only.** No 9.1.x or larger, no Atmos-enabled (up-firing) or hybrid height layouts (a hint suggests them for low ceilings), no wall-mounted front or rear height speakers, and at least one subwoofer.
 - **One seat analyzed.** The analysis runs at the MLP only; the seat row is drawn, not analyzed.
@@ -61,6 +67,21 @@ Before the first end-to-end run, install Playwright's browser once:
 ```bash
 npx playwright install chromium
 ```
+
+## Configuration
+
+None. The app has no backend, no accounts, no API keys and no environment variables: everything runs in the browser.
+
+- **Your room** is stored in the page address (the share link) and in your browser's local storage (recent rooms). Nothing is sent to a server.
+- **The base path** for GitHub Pages (`/cinema-speaker-placement/`) is set in `pages.config.ts`; change it there to host the build somewhere else.
+- **Deploying** needs no secrets: the Release workflow uses GitHub's built-in token.
+
+## External dependencies
+
+- **To run:** Node 22 (22.13+) and npm; the npm packages in `package.json` (React, Vite, Three.js via react-three-fiber, Recharts, Zustand, TanStack Router, zod, lz-string, Tailwind and shadcn/ui).
+- **To run the end-to-end test:** Playwright's Chromium (`npx playwright install chromium`).
+- **At run time:** a browser with WebGL for the room view (there is a text fallback without it). No external services or APIs are called.
+- **Hosting:** GitHub Pages, deployed by GitHub Actions.
 
 ## npm scripts
 

@@ -4,6 +4,7 @@ import {
   evenerSubwooferCounts,
   formatLayout,
   formatLength,
+  idealGapMessage,
   LOW_CEILING_FOR_OVERHEADS,
   SUBWOOFER_ARRANGEMENT_SOURCE,
   SUBWOOFER_ARRANGEMENTS,
@@ -35,7 +36,9 @@ const CHOSEN_OPTION =
  * at the recommended seat (and is off while that would change nothing).
  * Under a ceiling of 8 ft or less it suggests Atmos-enabled speakers
  * instead of the layout's overhead speakers. Speakers follow the seat
- * (GLOSSARY.md) says whether the auto speakers follow the MLP.
+ * (GLOSSARY.md) says whether the auto speakers follow the MLP. Under the
+ * button, each auto speaker the room leaves no ideal position says so,
+ * and why.
  */
 export function LayoutForm() {
   const subwoofersLabelId = useId()
@@ -127,6 +130,7 @@ export function LayoutForm() {
         >
           Auto-place
         </Button>
+        <IdealGapNotes />
       </div>
     </SidebarSection>
   )
@@ -167,6 +171,29 @@ function SpeakersFollowSeatField() {
           : 'Auto speakers stay where they are when the MLP moves, and are graded from where it is. Turn this on to place them around the MLP again.'}
       </p>
     </div>
+  )
+}
+
+/**
+ * The auto speakers for which no position has every grade ideal from the
+ * seat they are installed for, each with the walls in the way (GLOSSARY.md,
+ * Auto-place). Nothing when every one has.
+ */
+function IdealGapNotes() {
+  const gaps = useRoomAnalysis().idealGaps
+  const following = useConfig((state) => speakersFollowSeat(state.config))
+  if (gaps.length === 0) return null
+  return (
+    <ul
+      aria-label="Speakers without an ideal position"
+      className="flex flex-col gap-1 text-xs text-amber-800 dark:text-amber-300"
+    >
+      {gaps.map((gap) => (
+        <li key={gap.channel}>
+          {idealGapMessage(gap, following ? 'mlp' : 'installed-for')}
+        </li>
+      ))}
+    </ul>
   )
 }
 

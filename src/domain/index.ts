@@ -131,6 +131,7 @@ export {
   type ScreenKind,
 } from './screen'
 export type { ScreenRelation } from './placement'
+export { idealGapMessage, type IdealGap } from './ideal-gap'
 export {
   MLP_ID,
   positionLengths,

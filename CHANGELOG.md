@@ -13,6 +13,7 @@ A roomier, more readable app and an Auto-place that leaves every speaker in rang
 - **Seat-score heatmap with numbers.** The legend shows the real score range, hovering or tapping a seat reads out its score, position and what pulls it down, and seats that are too close are hatched and explained (#155).
 - **The chart explains its range.** A note says why it covers about 20–500 Hz and what the combined curve is, and the crossover marker shows its frequency (#156).
 - **Auto-place says why** when a speaker has no position where every grade is ideal (#151).
+- **Auto-place tunes the front stage's distance from the front wall** (0.3–0.6 m) for less boundary interference, where it clearly helps the Response score; most rooms keep 0.5 m. Some recommended seats move slightly as a result (#158, ADR 0005 amendment).
 
 ### Changed
 

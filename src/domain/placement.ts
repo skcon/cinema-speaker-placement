@@ -36,12 +36,24 @@
  * 6. **The Screen** (#58, ADR 0005 amendment), when the Room has one,
  *    moves L, C and R within their Dolby ranges (see "With a screen" at
  *    autoPlaceSpeakerAtScreen). Without one, rules 1-4 hold as they are.
+ * 7. **Every grade ideal where the room allows** (#151, ADR 0005
+ *    amendment): a speaker placed along an ideal azimuth grades ideal, so
+ *    rules 1-6 already give every speaker an ideal grade wherever its aim
+ *    leaves the MLP at all. Only an MLP on a wall's clearance line (a
+ *    manual one) can leave a speaker aimed into that wall with nowhere to
+ *    go. Then it turns to the nearest whole-degree azimuth of its ideal
+ *    range that leaves it LISTENER_LEVEL_AIM.minimumDistance from the MLP,
+ *    1° inside the range's edges first (LISTENER_LEVEL_AIM), and stops at
+ *    the same walls and front-stage line. Where no ideal azimuth does, it
+ *    is an ideal gap (ideal-gap.ts): the speaker goes to the nearest
+ *    acceptable azimuth that does, else the nearest of any, is graded as
+ *    it is, and the sidebar says which walls are in the way.
  *
  * The MLP is always inside the clearance box (rooms are at least 2 m in
- * each direction), so every valid room fits every v1 layout inside its
- * ideal ranges, though in small rooms the speakers end up close to the MLP.
- * A manual MLP right against a wall can put a speaker on the MLP itself;
- * the analysis grades it like any other.
+ * each direction), so the auto MLP and every seat the seat score tries fit
+ * every v1 layout inside its ideal ranges, though in small rooms the
+ * speakers end up close to the MLP. The seat score installs its candidate
+ * stages by the same rules (placeSpeakers).
  */
 import {
   angleOnSide,
@@ -51,11 +63,13 @@ import {
   type ChannelId,
   type ChannelReference,
 } from './dolby-layouts'
-import { clamp } from './range'
+import type { IdealGap } from './ideal-gap'
+import { clamp, insetRange } from './range'
 import {
   EAR_HEIGHT,
   FRONT_STAGE_WALL_DISTANCE,
   LEFT_RIGHT_AIM,
+  LISTENER_LEVEL_AIM,
   SCREEN_FRONT_STAGE,
   SPEAKER_WALL_CLEARANCE,
 } from './reference'
@@ -63,8 +77,10 @@ import {
   azimuthFromMlp,
   bearingTo,
   directionAtAzimuth,
+  WALLS,
   type Room,
   type RoomPoint,
+  type Wall,
 } from './room'
 import { screenSurface, type RoomScreen } from './screen'
 
@@ -112,10 +128,14 @@ export type ScreenRelation =
         'below' | 'above' | 'behind' | 'in-front' | 'clear' | 'manual'
     }
 
-/** An auto-placed speaker and how it relates to the screen (null when it doesn't). */
+/**
+ * An auto-placed speaker, how it relates to the screen (null when it
+ * doesn't), and why its grade can't be ideal (null when it is; rule 7).
+ */
 export type AutoPlacedSpeaker = {
   readonly position: RoomPoint
   readonly screenRelation: ScreenRelation | null
+  readonly idealGap: IdealGap | null
 }
 
 /**
@@ -152,9 +172,10 @@ export function autoPlaceSpeakerAtScreen(
   const { channel } = reference
   if (screen === null || !FRONT_STAGE_CHANNELS.has(channel)) {
     return {
-      position: alongAzimuth(
+      ...nearIdeal(
         room,
         mlp,
+        reference,
         autoAzimuth(reference),
         frontLineFor(channel),
       ),
@@ -221,20 +242,94 @@ function frontLineFor(channel: ChannelId): number {
     : SPEAKER_WALL_CLEARANCE.meters
 }
 
-/** The point along `azimuth` from the MLP where the walls stop it, at ear height. */
-function alongAzimuth(
+/** Where a speaker went, and why its grade can't be ideal (null when it is). */
+type Reached = Pick<AutoPlacedSpeaker, 'position' | 'idealGap'>
+
+/**
+ * Rule 7: the point along `aim` (a signed azimuth inside the channel's
+ * ideal range) from the MLP where the walls stop it, at ear height. Where
+ * that leaves the speaker on the MLP, the nearest whole-degree azimuth
+ * that doesn't: in the ideal range LISTENER_LEVEL_AIM.edgeMargin inside
+ * its edges, then up to its edges; failing those (an ideal gap), in the
+ * acceptable range, then anywhere.
+ */
+function nearIdeal(
   room: Room,
   mlp: RoomPoint,
-  azimuth: number,
+  reference: ChannelReference,
+  aim: number,
   frontLine: number,
-): RoomPoint {
-  const distance = distanceToWalls(room, mlp, azimuth, frontLine)
-  const { dx, dy } = directionAtAzimuth(mlp, azimuth)
-  return {
-    x: mlp.x + distance * dx,
-    y: mlp.y + distance * dy,
-    z: EAR_HEIGHT.meters,
+): Reached {
+  const reach = (azimuth: number) => reachAlong(room, mlp, azimuth, frontLine)
+  const at = (azimuth: number): RoomPoint => {
+    const { distance } = reach(azimuth)
+    const { dx, dy } = directionAtAzimuth(mlp, azimuth)
+    return {
+      x: mlp.x + distance * dx,
+      y: mlp.y + distance * dy,
+      z: EAR_HEIGHT.meters,
+    }
   }
+  const fits = (azimuth: number) =>
+    reach(azimuth).distance >= LISTENER_LEVEL_AIM.minimumDistance
+  if (fits(aim)) return { position: at(aim), idealGap: null }
+
+  const { side } = CHANNELS[reference.channel]
+  const { ideal, acceptable } = reference.azimuth
+  // The fitting whole-degree azimuth of `range` (on the channel's side)
+  // nearest the aim; the one nearer the front on a tie.
+  const nearest = (range: AngleRange | null) =>
+    range === null
+      ? undefined
+      : wholeDegrees(range)
+          .map((angle) => azimuthFromSide(side, angle))
+          .sort(
+            (a, b) =>
+              degreesApart(a, aim) - degreesApart(b, aim) ||
+              Math.abs(a) - Math.abs(b),
+          )
+          .find(fits)
+  const idealAzimuth =
+    nearest(insetRange(ideal.range, LISTENER_LEVEL_AIM.edgeMargin)) ??
+    nearest(ideal.range)
+  if (idealAzimuth !== undefined) {
+    return { position: at(idealAzimuth), idealGap: null }
+  }
+  const fallback = nearest(acceptable.range) ?? nearest(EVERY_ANGLE) ?? aim
+  const walls = wholeDegrees(ideal.range).flatMap(
+    (angle) => reach(azimuthFromSide(side, angle)).walls,
+  )
+  return {
+    position: at(fallback),
+    idealGap: {
+      channel: reference.channel,
+      angles: [{ angle: 'azimuth', ideal: ideal.range }],
+      together: false,
+      walls: WALLS.filter((wall) => walls.includes(wall)),
+    },
+  }
+}
+
+/**
+ * Every angle on a channel's own side as Dolby measures it (rule 7's last
+ * resort): from straight ahead round to straight behind on its side, and
+ * negative on the far side.
+ */
+const EVERY_ANGLE: AngleRange = { min: -179, max: 180 }
+
+/** How many degrees apart two azimuths are, the short way round. */
+function degreesApart(a: number, b: number): number {
+  const apart = Math.abs(a - b) % 360
+  return Math.min(apart, 360 - apart)
+}
+
+/** The whole degrees of a range, from its min up. */
+function wholeDegrees({ min, max }: AngleRange): number[] {
+  const degrees: number[] = []
+  for (let angle = Math.ceil(min); angle <= max; angle += 1) {
+    degrees.push(angle)
+  }
+  return degrees
 }
 
 /** The front stage with a screen (see "With a screen" above). */
@@ -294,15 +389,21 @@ function placeSideAtScreen(
   const screenAngle = angleOnSide(side, azimuthFromMlp(mlp, target))
   const { min, max } = reference.azimuth.ideal.range
   const angle = clamp(screenAngle, min, max)
-  const position = alongAzimuth(room, mlp, azimuthFromSide(side, angle), line)
+  const reached = nearIdeal(
+    room,
+    mlp,
+    reference,
+    azimuthFromSide(side, angle),
+    line,
+  )
   if (angle === screenAngle) {
     return {
-      position,
+      ...reached,
       screenRelation: { kind: behind ? 'inside-edge' : 'outside-edge' },
     }
   }
   return {
-    position,
+    ...reached,
     screenRelation: {
       kind: 'clamped',
       limit: angle === min ? 'min' : 'max',
@@ -320,7 +421,13 @@ function placeCenterAtScreen(
   reference: ChannelReference,
   { screen, line, behind }: FrontStage,
 ): AutoPlacedSpeaker {
-  const atEar = alongAzimuth(room, mlp, autoAzimuth(reference), line)
+  const { position: atEar, idealGap } = nearIdeal(
+    room,
+    mlp,
+    reference,
+    autoAzimuth(reference),
+    line,
+  )
   const image = screenSurface(screen)
   // The image's edges as seen from the MLP on the Center's plane.
   const scale = seenScale(mlp, image.fromFrontWall, atEar.y)
@@ -339,8 +446,12 @@ function placeCenterAtScreen(
     atEar.x <= right + across &&
     ear >= bottom - up &&
     ear <= top + up
-  if (!covered) return { position: atEar, screenRelation: { kind: 'clear' } }
-  if (behind) return { position: atEar, screenRelation: { kind: 'behind' } }
+  if (!covered) {
+    return { position: atEar, idealGap, screenRelation: { kind: 'clear' } }
+  }
+  if (behind) {
+    return { position: atEar, idealGap, screenRelation: { kind: 'behind' } }
+  }
   const fits = (z: number) =>
     z >= up - EPSILON && z <= room.height - up + EPSILON
   const below = bottom - up
@@ -354,10 +465,11 @@ function placeCenterAtScreen(
     (a, b) => Math.abs(a.z - ear) - Math.abs(b.z - ear),
   )
   if (nearest === undefined) {
-    return { position: atEar, screenRelation: { kind: 'in-front' } }
+    return { position: atEar, idealGap, screenRelation: { kind: 'in-front' } }
   }
   return {
     position: { ...atEar, z: nearest.z },
+    idealGap,
     screenRelation: { kind: nearest.kind },
   }
 }
@@ -382,34 +494,56 @@ export function aimAtMlp(position: RoomPoint, mlp: RoomPoint): Aim {
   return { yaw: bearingTo(position, mlp) }
 }
 
+/** How far the MLP can look along an azimuth, and what stops it short. */
+type Reach = {
+  readonly distance: number
+  /**
+   * The walls whose clearance (or the front-stage line, for the front
+   * wall) leaves less than LISTENER_LEVEL_AIM.minimumDistance along it:
+   * none when the speaker fits.
+   */
+  readonly walls: readonly Wall[]
+}
+
 /**
  * How far the MLP can look along `azimuth` before it comes within the wall
  * clearance of a side or back wall, or within `frontLine` of the front
  * wall. A front line behind the MLP falls back to the wall clearance.
  */
-function distanceToWalls(
+function reachAlong(
   room: Room,
   mlp: RoomPoint,
   azimuth: number,
   frontLine: number,
-): number {
+): Reach {
   const { dx, dy } = directionAtAzimuth(mlp, azimuth)
   const clearance = SPEAKER_WALL_CLEARANCE.meters
   const front = effectiveFrontLine(mlp, frontLine)
   const xLimit = room.width / 2 - clearance
-  const limits = [
-    distanceAlong(mlp.x, dx, -xLimit, xLimit),
-    distanceAlong(mlp.y, dy, front, room.length - clearance),
+  const limits: readonly (readonly [Wall, number])[] = [
+    [dx > 0 ? 'right' : 'left', distanceAlong(mlp.x, dx, -xLimit, xLimit)],
+    [
+      dy > 0 ? 'back' : 'front',
+      distanceAlong(mlp.y, dy, front, room.length - clearance),
+    ],
   ]
-  return Math.max(0, Math.min(...limits))
+  const distance = Math.max(0, Math.min(...limits.map(([, along]) => along)))
+  const walls = limits
+    .filter(([, along]) => along < LISTENER_LEVEL_AIM.minimumDistance)
+    .map(([wall]) => wall)
+  return { distance, walls }
 }
 
 /**
- * Where distanceToWalls stops at the front: `frontLine` from the front
- * wall, or the wall clearance when the MLP is not behind that line.
+ * Where reachAlong stops at the front: `frontLine` from the front
+ * wall, or the wall clearance when the MLP is not behind that line by
+ * LISTENER_LEVEL_AIM.minimumDistance at least (rule 7: the line would
+ * leave the front stage on the MLP).
  */
 function effectiveFrontLine(mlp: RoomPoint, frontLine: number): number {
-  return mlp.y > frontLine ? frontLine : SPEAKER_WALL_CLEARANCE.meters
+  return mlp.y >= frontLine + LISTENER_LEVEL_AIM.minimumDistance
+    ? frontLine
+    : SPEAKER_WALL_CLEARANCE.meters
 }
 
 /** Distance along one axis from `start` moving at `step` per meter until leaving [low, high]. */

@@ -23,3 +23,17 @@ export function checkRange(
 export function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), high)
 }
+
+/**
+ * A range `margin` in from each edge, or the range itself when that would
+ * leave nothing: auto-place keeps angles a margin inside Dolby's ranges
+ * where the room allows (OVERHEAD_AIM, LISTENER_LEVEL_AIM).
+ */
+export function insetRange(
+  { min, max }: AcceptedRange,
+  margin: number,
+): AcceptedRange {
+  return max - min > 2 * margin
+    ? { min: min + margin, max: max - margin }
+    : { min, max }
+}

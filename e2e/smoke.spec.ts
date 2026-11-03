@@ -171,6 +171,20 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
       .getByRole('region', { name: 'Room view' })
       .getByRole('button', { name: 'Seat-score heatmap' })
     await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    // The heatmap's legend has a fixed slot, so turning it on moves nothing
+    // else in the room view (#154).
+    const others = [
+      toggle,
+      scene,
+      page.getByRole('region', { name: 'Room view' }).getByRole('radio', {
+        name: '3D',
+      }),
+      page.getByText('Dolby placement range:'),
+      page.getByText('Recommended seat (estimate)'),
+    ]
+    const boxesBefore = await Promise.all(
+      others.map((other) => other.boundingBox()),
+    )
 
     await toggle.click()
 
@@ -178,6 +192,9 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     await expect(
       page.getByRole('group', { name: 'Seat score (estimate)' }),
     ).toBeVisible()
+    expect(
+      await Promise.all(others.map((other) => other.boundingBox())),
+    ).toEqual(boxesBefore)
     // The MLP was just moved to the recommended seat, so it stays recommended.
     await expect(scene).toHaveAccessibleName(
       /Seat-score heatmap shown \(a relative estimate\): no seat scores meaningfully better than the MLP, so it stays the recommended seat\./,

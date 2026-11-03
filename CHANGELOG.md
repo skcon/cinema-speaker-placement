@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. The project follows [Semantic Versioning](https://semver.org/). Every release is a `vX.Y.Z` tag on `main`, which deploys the site to GitHub Pages.
 
+## [1.4.1] - 2026-11-03
+
+A narrower sidebar, automatic releases and a fuller README.
+
+### Changed
+
+- **Narrower sidebar.** It takes about 30% of the window (20–36 rem) instead of 2/5, leaving more room for the room view and the chart. The sections flow into two columns only on very wide screens, from about 1800 px (#173).
+- **Releases are automatic.** Merging the release PR from `develop` into `main`, labelled `release`, now tests, builds and deploys the site, then tags `vX.Y.Z` and publishes the GitHub Release with this changelog's notes. A release check on the PR guards the label, the version and the changelog (#172).
+
+### Documentation
+
+- README: status badges, configuration (none needed), external dependencies, and the 1.4.0 features (#174).
+- Course material: the CV point and a 3-minute demo script (#175, #176).
+- A polish review of the whole codebase is filed as issues #178–#188 under #177.
+
 ## [1.4.0] - 2026-11-03
 
 A roomier, more readable app and an Auto-place that leaves every speaker in range where the room allows (spec #149, from a grill-with-docs session).
@@ -181,6 +196,7 @@ The first complete release: plan a rectangular home theater room from Dolby's pl
 - CI for pull requests to `develop`, and the GitHub Pages deploy on release tags (#18).
 - Planning documents: CLAUDE.md, GLOSSARY.md, ADRs 0001–0002 and the cited Dolby placement research (#3).
 
+[1.4.1]: https://github.com/skcon/cinema-speaker-placement/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/skcon/cinema-speaker-placement/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/skcon/cinema-speaker-placement/compare/v1.2.0...v1.3.0

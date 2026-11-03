@@ -9,8 +9,10 @@ import {
   type ResponseRow,
 } from './estimated-response'
 import {
+  responseScore,
   responseTable,
   summarizeResponse,
+  type ResponseScore,
   type ResponseSummary,
 } from './response-summary'
 import type { TargetCurveKind } from './target-curve'
@@ -29,6 +31,8 @@ export type ResponseAnalysis = {
   readonly targetCurve: TargetCurveKind
   /** The reliable rows against the target, in a few numbers. */
   readonly summary: ResponseSummary
+  /** How close the reliable rows are to the target, out of 100. */
+  readonly score: ResponseScore
   /** The rows at third-octave frequencies, for a table. */
   readonly tableRows: readonly ResponseRow[]
   /** Weaknesses and strengths, each with its likely cause. */
@@ -145,6 +149,7 @@ export function analyzeRoom(config: Config): RoomAnalysis {
       estimated,
       targetCurve: targetCurveKind,
       summary,
+      score: responseScore(summary),
       tableRows: responseTable(estimated.rows),
       notes,
     },

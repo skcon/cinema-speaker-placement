@@ -76,9 +76,9 @@ export type PlacedSpeaker = {
 /**
  * An overhead speaker of the layout, on the ceiling. Dolby's placement
  * range grades its elevation and, for the top front and top rear pairs,
- * its azimuth. ADR 0002 models boundary interference for listener-level
- * speakers only, so an overhead is not in the estimated response or the
- * seat score.
+ * its azimuth. It is not in the combined estimated response or the seat
+ * score; only its own Channel response (channel-response.ts, ADR 0002
+ * amendment) hears it.
  */
 export type PlacedOverhead = {
   readonly channel: OverheadChannelId

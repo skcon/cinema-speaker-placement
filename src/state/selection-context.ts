@@ -1,5 +1,11 @@
 import { createContext, useContext, useMemo } from 'react'
-import { selectedItem, type PlaceableId, type SelectedItem } from '@/domain'
+import {
+  channelResponse,
+  selectedItem,
+  type ChannelResponse,
+  type PlaceableId,
+  type SelectedItem,
+} from '@/domain'
 import { useConfig, useRoomAnalysis } from './config-context'
 
 /**
@@ -58,5 +64,46 @@ export function useComputedSelectedItem(): SelectedItem | null {
   return useMemo(
     () => selectedItem(room, analysis, selected),
     [room, analysis, selected],
+  )
+}
+
+/**
+ * The Channel response of the selected speaker or subwoofer, shared by
+ * every component under the config store (ConfigStoreProvider provides
+ * it), so it is worked out once per change. Undefined outside the
+ * provider.
+ */
+export const ChannelResponseContext = createContext<
+  ChannelResponse | null | undefined
+>(undefined)
+
+/**
+ * The selected speaker's or subwoofer's Channel response at the MLP, or
+ * null when nothing, the MLP or an item that has left the layout is
+ * selected: then the chart shows the combined estimated response. View
+ * state only, like the selection it follows.
+ */
+export function useChannelResponse(): ChannelResponse | null {
+  const response = useContext(ChannelResponseContext)
+  if (response === undefined) {
+    throw new Error(
+      'useChannelResponse must be used inside <ConfigStoreProvider>',
+    )
+  }
+  return response
+}
+
+/**
+ * Works the Channel response out, for ChannelResponseContext only: lazily,
+ * only for the selected item, once per config and selection change.
+ */
+export function useComputedChannelResponse(): ChannelResponse | null {
+  const { selected } = useSelection()
+  const config = useConfig((state) => state.config)
+  const analysis = useRoomAnalysis()
+  return useMemo(
+    () =>
+      selected === null ? null : channelResponse(config, analysis, selected),
+    [config, analysis, selected],
   )
 }

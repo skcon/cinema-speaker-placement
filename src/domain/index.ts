@@ -17,6 +17,11 @@ export {
   type SelectedItem,
 } from './placed-items'
 export type { EstimatedResponse } from './estimated-response'
+export {
+  channelResponse,
+  type ChannelKind,
+  type ChannelResponse,
+} from './channel-response'
 export type {
   ResponseCause,
   ResponseStrength,

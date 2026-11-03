@@ -9,8 +9,10 @@ import {
 } from './config-context'
 import { createConfigStore } from './config-store'
 import {
+  ChannelResponseContext,
   SelectedItemContext,
   SelectionContext,
+  useComputedChannelResponse,
   useComputedSelectedItem,
   type Selection,
 } from './selection-context'
@@ -38,7 +40,9 @@ export function ConfigStoreProvider({
       <RoomAnalysisProvider>
         <SeatRecommendationProvider>
           <SelectionProvider>
-            <SelectedItemProvider>{children}</SelectedItemProvider>
+            <SelectedItemProvider>
+              <ChannelResponseProvider>{children}</ChannelResponseProvider>
+            </SelectedItemProvider>
           </SelectionProvider>
         </SeatRecommendationProvider>
       </RoomAnalysisProvider>
@@ -93,4 +97,16 @@ function SelectionProvider({ children }: { children: ReactNode }) {
 function SelectedItemProvider({ children }: { children: ReactNode }) {
   const item = useComputedSelectedItem()
   return <SelectedItemContext value={item}>{children}</SelectedItemContext>
+}
+
+/**
+ * Works the selected item's Channel response out once for everything
+ * inside it (the chart's title and the chart both read it), and only
+ * while a speaker or subwoofer is selected.
+ */
+function ChannelResponseProvider({ children }: { children: ReactNode }) {
+  const response = useComputedChannelResponse()
+  return (
+    <ChannelResponseContext value={response}>{children}</ChannelResponseContext>
+  )
 }

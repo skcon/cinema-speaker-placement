@@ -12,6 +12,7 @@ import type { RoomPoint } from './room'
 import {
   boundaryReflections,
   interferenceLevels,
+  overheadReflections,
   type BoundaryReflection,
 } from './boundary-interference'
 import {
@@ -97,4 +98,27 @@ export function hearSpeaker(
     reflections,
     levels: interferenceLevels(reflections, frequencies),
   }
+}
+
+/** An overhead Speaker as heard at a listening position. */
+export type HeardOverhead = {
+  readonly reflections: readonly BoundaryReflection[]
+  /** Its boundary interference in dB at each frequency. */
+  readonly levels: readonly number[]
+}
+
+/**
+ * An overhead Speaker at `position` (on the ceiling), heard at `listener`
+ * with reflections off its nearest walls (overheadReflectingSurfaces).
+ * Its group has no type, so its woofer is at its position. Only its
+ * Channel response hears it.
+ */
+export function hearOverhead(
+  { room }: Config,
+  position: RoomPoint,
+  listener: RoomPoint,
+  frequencies: readonly number[],
+): HeardOverhead {
+  const reflections = overheadReflections(room, position, listener)
+  return { reflections, levels: interferenceLevels(reflections, frequencies) }
 }

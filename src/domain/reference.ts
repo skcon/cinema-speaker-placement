@@ -1183,6 +1183,21 @@ export const TARGET_TOLERANCE = {
 } as const satisfies { db: number; note: string }
 
 /**
+ * The response score's bands (GLOSSARY.md, response-summary.ts): a score
+ * of `goodFrom` or more out of 100 is good, `fairFrom` or more fair, less
+ * poor. The score itself is the share of the reliable frequencies inside
+ * the TARGET_TOLERANCE band, an estimate from the simplified model, never
+ * a measurement.
+ */
+export const RESPONSE_SCORE_BANDS = {
+  goodFrom: 80,
+  fairFrom: 60,
+  note:
+    'Our bands, not a cited standard: chosen in the v1.4.0 spec (issue ' +
+    '#149, decision 5), as is the score itself.',
+} as const satisfies { goodFrom: number; fairFrom: number; note: string }
+
+/**
  * The house curve: a smooth bass shelf, level = boost / (1 + (f / corner)²)
  * dB, so close to +6 dB at the lowest frequencies and +3 dB at 100 Hz.
  */

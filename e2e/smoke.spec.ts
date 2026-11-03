@@ -13,7 +13,7 @@ function dimensionInput(page: Page, dimension: string, unit: string) {
     .getByRole('textbox', { name: unit })
 }
 
-test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, reopens a recent room, and auto-places a wide room at phone width with the seat off the front stage', async ({
+test('the app opens at the GitHub Pages base path, draws the default room and speakers, selects a speaker to show its distances, moves the MLP to the recommended seat, shows the seat-score heatmap, shows the sidebar in two columns on a wide screen, puts the room view first at phone width, opens, follows and restores a share link, keeps a dragged speaker, reopens a recent room, and auto-places a wide room at phone width with the seat off the front stage', async ({
   page,
 }) => {
   await page.goto('./')
@@ -197,8 +197,67 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
     ).toEqual(boxesBefore)
     // The MLP was just moved to the recommended seat, so it stays recommended.
     await expect(scene).toHaveAccessibleName(
-      /Seat-score heatmap shown \(a relative estimate\): no seat scores meaningfully better than the MLP, so it stays the recommended seat\./,
+      /Seat-score heatmap shown \(a relative estimate\): no seat scores meaningfully better than the MLP, so it stays the recommended seat\. Seat scores run from \d+ to \d+ of 100\..* Seats left blank are too close to a speaker, a wall or the front stage\./,
     )
+    // The legend gives the real range, and explains the hatched seats (#155).
+    await expect(
+      page.getByRole('group', { name: 'Seat score (estimate)' }),
+    ).toHaveText(/\d+\s*to\s*\d+ of 100/)
+    await expect(
+      page.getByText('Too close to a speaker, a wall or the front stage'),
+    ).toBeVisible()
+  })
+
+  await test.step('hovering a heatmap seat reads it out, and clicking one moves nothing', async () => {
+    const readout = page.getByRole('status', { name: 'Heatmap seat' })
+    const box = (await scene.boundingBox())!
+    const addressBefore = page.url()
+    // The front of the room, within 1.5 m of the front stage, is too close;
+    // somewhere across the middle of the drawing is a scored seat.
+    let found = false
+    for (const fx of [0.3, 0.5, 0.7]) {
+      for (const fy of [0.3, 0.5, 0.7]) {
+        await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy)
+        const text = (await readout.textContent()) ?? ''
+        if (/^Seat score \d+ of 100 here/.test(text)) {
+          found = true
+          await page.mouse.down()
+          await page.mouse.up()
+          break
+        }
+      }
+      if (found) break
+    }
+    expect(found).toBe(true)
+    await expect(readout).toHaveText(/pulls it down|Neither/)
+    expect(page.url()).toBe(addressBefore)
+    await page.mouse.move(0, 0)
+  })
+
+  await test.step('at 1440 x 900 the sidebar takes about 2/5 of the window, with its sections in two columns', async () => {
+    const desktop = page.viewportSize()
+    await page.setViewportSize({ width: 1440, height: 900 })
+
+    const sidebar = page.getByRole('complementary', { name: 'Room plan' })
+    const sidebarWidth = (await sidebar.boundingBox())?.width ?? 0
+    expect(sidebarWidth).toBeGreaterThan(1440 * 0.35)
+    expect(sidebarWidth).toBeLessThan(1440 * 0.45)
+    // Room heads the first column, Seating the second (#153).
+    const room = await sidebar
+      .getByRole('region', { name: 'Room', exact: true })
+      .boundingBox()
+    const seating = await sidebar
+      .getByRole('region', { name: 'Seating', exact: true })
+      .boundingBox()
+    expect(seating?.x).toBeGreaterThan((room?.x ?? 0) + (room?.width ?? 0))
+    expect(seating?.y).toBe(room?.y)
+    expect(
+      await page.evaluate(
+        'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
+      ),
+    ).toBe(true)
+
+    if (desktop) await page.setViewportSize(desktop)
   })
 
   await test.step('at phone width the room view comes before the forms, and its drawing keeps a usable height with the heatmap on', async () => {
@@ -219,6 +278,11 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
           .boundingBox()
       )?.y ?? -Infinity
     expect(formsTop).toBeGreaterThan(roomTop)
+    expect(
+      await page.evaluate(
+        'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
+      ),
+    ).toBe(true)
 
     await expect
       .poll(async () => (await scene.boundingBox())?.height ?? 0)
@@ -349,6 +413,16 @@ test('the app opens at the GitHub Pages base path, draws the default room and sp
 
   await test.step('a reload restores the dragged speaker', async () => {
     const draggedLabel = await centerLabel.textContent()
+    // The address follows the store 300 ms after the last edit
+    // (ShareLinkProvider), so on a busy machine it can first hold a
+    // position from mid-drag. Reload only once it has settled on the drop.
+    await expect
+      .poll(async () => {
+        const address = page.url()
+        await page.waitForTimeout(500)
+        return page.url() === address
+      })
+      .toBe(true)
 
     await page.reload()
 

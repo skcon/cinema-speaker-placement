@@ -36,12 +36,20 @@ export {
   recommendSeat,
   seatScoreInput,
   seatScoreKey,
+  weakerSeatScorePart,
   type OffCenterLine,
   type RecommendedSeat,
   type ScoredSeat,
   type SeatRecommendation,
+  type WeakerSeatScorePart,
 } from './seat-score'
-export { seatHeatmap, type SeatHeatmap } from './seat-heatmap'
+export {
+  heatmapCellAt,
+  seatHeatmap,
+  type HeatmapCell,
+  type SeatHeatmap,
+  type TooCloseCell,
+} from './seat-heatmap'
 export {
   SEAT_ROW_HEAD_OFFSET,
   type SeatRow,

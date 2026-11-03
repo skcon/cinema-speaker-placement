@@ -4,6 +4,9 @@ import {
   UNIT_SYSTEMS,
   withDragged,
   type DragTarget,
+  type HeatmapCell,
+  type SeatHeatmap,
+  type TooCloseCell,
 } from '@/domain'
 import {
   useConfig,
@@ -27,7 +30,14 @@ import {
 import { describeRoomView } from '@/scene/room-description'
 import { grabAreas } from '@/scene/grab-areas'
 import { canUseWebGL } from '@/scene/webgl'
-import { heatmapGradient } from '@/scene/heatmap'
+import {
+  heatmapCellReadout,
+  heatmapGradient,
+  heatmapScoreRange,
+  TOO_CLOSE_HATCH,
+  TOO_CLOSE_LABEL,
+  tooCloseHatchPattern,
+} from '@/scene/heatmap'
 import { CAMERA_VIEW_KINDS, CAMERA_VIEWS, type CameraView } from '@/scene/orbit'
 import { cn } from 'cn'
 import { Button } from '@/ui/components/button'
@@ -84,6 +94,16 @@ export function RoomView() {
   const viewPickerId = useId()
   // From the shared recommendation: deferred and kept through a drag.
   const heatmap = useSeatHeatmap(showHeatmap)
+  // The heatmap cell hovered or tapped, with the heatmap it belongs to, so
+  // a cell of an older heatmap (or one turned off) shows nothing.
+  const [inspected, setInspected] = useState<{
+    heatmap: SeatHeatmap
+    cell: HeatmapCell | TooCloseCell
+  } | null>(null)
+  const inspectedCell =
+    view === 'top-down' && heatmap && inspected?.heatmap === heatmap
+      ? inspected.cell
+      : null
   // The floor grid is drawn in the unit system's base unit: 1 m or 1 ft squares.
   const { baseUnit } = UNIT_SYSTEMS[units]
 
@@ -109,41 +129,56 @@ export function RoomView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div
-        role="img"
-        aria-label={description.join(' ')}
-        // Below lg the panel stacks over the others: the drawing keeps a
-        // usable height of its own, whatever the legend below it takes.
-        className="relative min-h-0 flex-1 overflow-hidden rounded-lg max-lg:min-h-96"
-      >
-        <Suspense
-          fallback={
-            <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-              Loading the room view&hellip;
-            </p>
-          }
+      {/* Below lg the panel stacks over the others: the drawing keeps a
+          usable height of its own, whatever the legend below it takes. */}
+      <div className="relative flex min-h-0 flex-1 flex-col max-lg:min-h-96">
+        <div
+          role="img"
+          aria-label={description.join(' ')}
+          className="relative min-h-0 flex-1 overflow-hidden rounded-lg"
         >
-          <RoomCanvas
-            room={room}
-            items={analysis.items}
-            roomObjects={objectsInView}
-            gridSpacing={baseUnit.meters}
-            recommendedSeat={recommendation?.recommended.position ?? null}
-            heatmap={heatmap}
-            ruleOfThumbFromFrontWall={seatRuleOfThumb.fromFrontWall}
-            view={view}
-            units={units}
-            grabAreas={areas}
-            onDragStart={beginGesture}
-            onDragMove={(target, to) =>
-              applyEdit((config) => withDragged(config, target, to))
+          <Suspense
+            fallback={
+              <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                Loading the room view&hellip;
+              </p>
             }
-            onDragEnd={endGesture}
-            selection={selection}
-            onSelect={press}
-            onDeselect={clear}
-          />
-        </Suspense>
+          >
+            <RoomCanvas
+              room={room}
+              items={analysis.items}
+              roomObjects={objectsInView}
+              gridSpacing={baseUnit.meters}
+              recommendedSeat={recommendation?.recommended.position ?? null}
+              heatmap={heatmap}
+              ruleOfThumbFromFrontWall={seatRuleOfThumb.fromFrontWall}
+              view={view}
+              units={units}
+              grabAreas={areas}
+              onDragStart={beginGesture}
+              onDragMove={(target, to) =>
+                applyEdit((config) => withDragged(config, target, to))
+              }
+              onDragEnd={endGesture}
+              selection={selection}
+              onSelect={press}
+              onDeselect={clear}
+              onInspectHeatmap={(cell) =>
+                setInspected(cell && heatmap && { heatmap, cell })
+              }
+            />
+          </Suspense>
+        </div>
+        {/* The hovered or tapped cell, over the drawing, so it moves
+            nothing; outside the image, so a screen reader reaches it, and
+            a live region from the start, so each new cell is announced. */}
+        <div role="status" aria-label="Heatmap seat">
+          {inspectedCell && (
+            <p className="pointer-events-none absolute right-2 bottom-2 left-2 rounded-md border bg-background/95 px-2 py-1 text-xs text-foreground shadow-sm sm:right-auto sm:max-w-md">
+              {heatmapCellReadout(inspectedCell, room, units)}
+            </p>
+          )}
+        </div>
       </div>
       {selectedItem && selection && (
         <SelectionReadout
@@ -202,10 +237,7 @@ export function RoomView() {
           >
             Seat-score heatmap
           </Toggle>
-          <HeatmapLegend
-            shown={heatmap !== null}
-            scoresAboutTheSame={heatmap?.scoresAboutTheSame ?? false}
-          />
+          <HeatmapLegend heatmap={heatmap} />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <GradeLegend />
@@ -315,21 +347,22 @@ function SelectionReadout({
 
 /**
  * What the heatmap colors mean, and what the scores are: relative to one
- * calibration for the room (at the "38% rule" seat), and an estimate. When the seats score about
- * the same, the colors sit near the middle of the scale and a note says so.
+ * calibration for the room (at the "38% rule" seat), and an estimate. The
+ * colors are relative; the ends of the scale give the real seat scores of
+ * the lowest and highest cell, out of 100 (#155). When the seats score
+ * about the same, the colors sit near the middle of the scale and a note
+ * says so. The hatch marks seats left blank as too close.
  *
  * Always laid out, so it holds its space: hidden (and out of the
- * accessibility tree) while no heatmap is `shown`, and the note likewise
- * while the seats score apart.
+ * accessibility tree) while there is no heatmap, and the notes likewise
+ * while they don't apply.
  */
-function HeatmapLegend({
-  shown,
-  scoresAboutTheSame,
-}: {
-  shown: boolean
-  scoresAboutTheSame: boolean
-}) {
+function HeatmapLegend({ heatmap }: { heatmap: SeatHeatmap | null }) {
   const headingId = useId()
+  const shown = heatmap !== null
+  const scoresAboutTheSame = heatmap?.scoresAboutTheSame ?? false
+  const range = heatmap && heatmapScoreRange(heatmap)
+  const tooClose = (heatmap?.tooClose.length ?? 0) > 0
   return (
     <div
       aria-hidden={!shown || undefined}
@@ -344,14 +377,37 @@ function HeatmapLegend({
         className="flex items-center gap-1.5"
       >
         <span id={headingId}>Seat score (estimate)</span>
-        <span>low</span>
+        {/* Each end holds three digits' width, so the scores move nothing. */}
+        <span className="inline-block min-w-[3ch] text-right tabular-nums">
+          {range?.lowest}
+        </span>
         <span
           aria-hidden
           className="h-2.5 w-16 rounded-xs"
           style={{ background: heatmapGradient() }}
         />
-        <span>high</span>
+        <span className="sr-only">to</span>
+        <span>
+          <span className="inline-block min-w-[3ch] tabular-nums">
+            {range?.highest}
+          </span>{' '}
+          of 100
+        </span>
       </div>
+      <p
+        aria-hidden={!tooClose || undefined}
+        className={cn('flex items-center gap-1.5', !tooClose && 'invisible')}
+      >
+        <span
+          aria-hidden
+          className="size-2.5 rounded-xs border"
+          style={{
+            background: tooCloseHatchPattern(),
+            borderColor: TOO_CLOSE_HATCH.color,
+          }}
+        />
+        {TOO_CLOSE_LABEL}
+      </p>
       <p
         aria-hidden={!scoresAboutTheSame || undefined}
         className={cn(!scoresAboutTheSame && 'invisible')}
@@ -360,7 +416,8 @@ function HeatmapLegend({
       </p>
       <p>
         Relative to one calibration for the room, at the &ldquo;38% rule&rdquo;
-        seat: an estimate from a simplified model.
+        seat: an estimate from a simplified model. Point at or tap a seat for
+        its score.
       </p>
     </div>
   )

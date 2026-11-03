@@ -223,7 +223,60 @@ describe('layout form', () => {
     expect(toggle).toBeChecked()
     expect(screen.getByTestId('seat')).toHaveTextContent('following')
   })
+
+  it('names each speaker the room leaves no ideal position, and why (#151)', () => {
+    render(
+      <ConfigStoreProvider>
+        <LayoutForm />
+        <ShortHighRoom />
+      </ConfigStoreProvider>,
+    )
+    expect(
+      screen.queryByRole('list', {
+        name: 'Speakers without an ideal position',
+      }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: '5.1.4' }))
+    fireEvent.click(screen.getByRole('button', { name: '3.5 x 3 x 3 m' }))
+
+    const gaps = screen.getByRole('list', {
+      name: 'Speakers without an ideal position',
+    })
+    expect(
+      within(gaps)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
+      'Left Top Front (Ltf) has no position where every grade is ideal: the front wall is too close to the MLP for its ideal elevation (30°–55°).',
+      'Right Top Front (Rtf) has no position where every grade is ideal: the front wall is too close to the MLP for its ideal elevation (30°–55°).',
+    ])
+  })
 })
+
+/** Makes the room 3.5 x 3 x 3 m, as the room form would. */
+function ShortHighRoom() {
+  const applyEdit = useConfig((state) => state.applyEdit)
+  return (
+    <button
+      onClick={() =>
+        applyEdit((config) =>
+          withRoomDimension(
+            withRoomDimension(
+              withRoomDimension(config, 'length', 3.5),
+              'width',
+              3,
+            ),
+            'height',
+            3,
+          ),
+        )
+      }
+    >
+      3.5 x 3 x 3 m
+    </button>
+  )
+}
 
 /** Shows the seat the speakers are installed for, as the share link holds it. */
 function StoredSeat() {

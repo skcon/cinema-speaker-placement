@@ -387,6 +387,30 @@ export const OVERHEAD_AIM = {
 } as const satisfies { edgeMargin: number; assumption: string }
 
 /**
+ * How auto-place looks for another angle when a listener-level speaker's
+ * aim runs straight into a wall's clearance (ADR 0005, amendment for
+ * #151): it tries the whole degrees of the channel's ideal range,
+ * `edgeMargin` inside its edges first, nearest the aim first, and takes
+ * the first one that leaves the speaker at least `minimumDistance` from
+ * the seat it is installed for.
+ */
+export const LISTENER_LEVEL_AIM = {
+  /** Degrees kept inside the ideal range's edge, as OVERHEAD_AIM. */
+  edgeMargin: 1,
+  /** The least distance from the seat that still gives an angle (meters). */
+  minimumDistance: 0.001,
+  assumption:
+    "Our choice, not Dolby's: the angles are whole degrees, as Dolby's " +
+    "ranges and the grades are, and the 1° margin is OVERHEAD_AIM's. A " +
+    'speaker nearer the seat than a millimeter, the precision a share link ' +
+    'stores the MLP to, has no angle that holds.',
+} as const satisfies {
+  edgeMargin: number
+  minimumDistance: number
+  assumption: string
+}
+
+/**
  * How far a subwoofer's acoustic center stands off the wall it is placed
  * against. Auto-place keeps every subwoofer at least this far from every
  * wall.

@@ -34,15 +34,16 @@
  *    better than outside (Dolby gives overheads no acceptable range); it
  *    then goes to the nearest point where its azimuth alone is ideal,
  *    else its elevation alone, else stays where rules 2–4 put it, and its
- *    angles are graded as they are.
+ *    angles are graded as they are. That is an ideal gap (ideal-gap.ts,
+ *    #151): the sidebar names the angles that can't be ideal and the walls
+ *    in the way.
  */
-import { clamp } from './range'
+import { clamp, insetRange } from './range'
 import {
   azimuthFromSide,
   OVERHEAD_CHANNELS,
   OVERHEAD_SPACING,
   overheadSideSign,
-  type AngleRange,
   type OverheadChannelReference,
 } from './dolby-layouts'
 import {
@@ -53,6 +54,7 @@ import {
   type ConvexPolygon,
   type HalfPlane,
 } from './convex-region'
+import type { IdealGap, IdealGapAngle } from './ideal-gap'
 import { checkOverheadPlacementRange } from './placement-range'
 import { OVERHEAD_AIM, SPEAKER_WALL_CLEARANCE } from './reference'
 import {
@@ -60,9 +62,11 @@ import {
   directionAtAzimuth,
   sideViewElevation,
   toRadians,
+  WALLS,
   type FloorPoint,
   type Room,
   type RoomPoint,
+  type Wall,
 } from './room'
 
 /**
@@ -89,25 +93,62 @@ export function autoPlaceOverhead(
   reference: OverheadChannelReference,
   width: number,
 ): RoomPoint {
+  return placeOverhead(room, mlp, reference, width).position
+}
+
+/** An auto-placed overhead, and why its grade can't be ideal (null when it is). */
+export type AutoPlacedOverhead = {
+  readonly position: RoomPoint
+  readonly idealGap: IdealGap | null
+}
+
+/**
+ * Where an overhead channel goes, seen from the MLP (see the rule above),
+ * and, where no point of the ceiling inside the wall clearance is ideal,
+ * which angles can't be and which walls are in the way.
+ */
+export function placeOverhead(
+  room: Room,
+  mlp: RoomPoint,
+  reference: OverheadChannelReference,
+  width: number,
+): AutoPlacedOverhead {
   const usual = usualPosition(room, mlp, reference, width)
   const onCeiling = (point: FloorPoint): RoomPoint => ({
     x: point.x,
     y: point.y,
     z: room.height,
   })
-  if (isIdeal(mlp, reference, onCeiling(usual))) return onCeiling(usual)
+  if (isIdeal(mlp, reference, onCeiling(usual))) {
+    return { position: onCeiling(usual), idealGap: null }
+  }
 
+  const position = onCeiling(nearestPreferred(room, mlp, reference, usual))
+  return {
+    position,
+    // Graded as the analysis grades it, to the whole degree.
+    idealGap: isIdeal(mlp, reference, position)
+      ? null
+      : overheadGap(room, mlp, reference),
+  }
+}
+
+/** Rule 5: the nearest point of the first of preferredRegions that fits. */
+function nearestPreferred(
+  room: Room,
+  mlp: RoomPoint,
+  reference: OverheadChannelReference,
+  usual: FloorPoint,
+): FloorPoint {
   const clearance = clearanceRectangle(room)
   for (const planes of preferredRegions(room, mlp, reference)) {
     const region = clipToHalfPlanes(clearance, planes)
     const along = xRangeAt(region, usual.y)
-    if (along) {
-      return onCeiling({ x: clamp(usual.x, along.min, along.max), y: usual.y })
-    }
+    if (along) return { x: clamp(usual.x, along.min, along.max), y: usual.y }
     const nearest = nearestPointIn(region, usual)
-    if (nearest) return onCeiling(nearest)
+    if (nearest) return nearest
   }
-  return onCeiling(usual)
+  return usual
 }
 
 /**
@@ -175,13 +216,6 @@ function clearanceRectangle(room: Room): ConvexPolygon {
   return rectangle(-xLimit, xLimit, clearance, room.length - clearance)
 }
 
-/** A range `margin` degrees in from each edge, or the range when that leaves nothing. */
-function inset({ min, max }: AngleRange, margin: number): AngleRange {
-  return max - min > 2 * margin
-    ? { min: min + margin, max: max - margin }
-    : { min, max }
-}
-
 /**
  * The ceiling points whose elevation from the MLP is inside the channel's
  * ideal range, `margin` degrees in from each edge: two lines across the
@@ -197,7 +231,7 @@ function elevationHalfPlanes(
 ): HalfPlane[] {
   const above = room.height - mlp.z
   if (above <= 0) return []
-  const { min, max } = inset(elevation.ideal.range, margin)
+  const { min, max } = insetRange(elevation.ideal.range, margin)
   const aheadAt = (degrees: number) => above / Math.tan(toRadians(degrees))
   return [
     { through: { x: mlp.x, y: mlp.y - aheadAt(min) }, normal: { x: 0, y: 1 } },
@@ -217,7 +251,7 @@ function azimuthHalfPlanes(
 ): HalfPlane[] {
   if (azimuth.ideal === null) return []
   const side = OVERHEAD_CHANNELS[channel].side
-  const { min, max } = inset(azimuth.ideal.range, margin)
+  const { min, max } = insetRange(azimuth.ideal.range, margin)
   const toward = (angle: number): FloorPoint => {
     const { dx, dy } = directionAtAzimuth(mlp, azimuthFromSide(side, angle))
     return { x: dx, y: dy }
@@ -238,4 +272,80 @@ function wedge(apex: FloorPoint, a: FloorPoint, b: FloorPoint): HalfPlane[] {
     { through: apex, normal: facing(a, b) },
     { through: apex, normal: facing(b, a) },
   ]
+}
+
+/**
+ * Why no point of the ceiling inside the wall clearance is ideal: the
+ * angles that are ideal nowhere there, or both together when each is
+ * ideal somewhere on its own, and the walls in the way.
+ */
+function overheadGap(
+  room: Room,
+  mlp: RoomPoint,
+  reference: OverheadChannelReference,
+): IdealGap {
+  const clearance = clearanceRectangle(room)
+  const azimuth = azimuthHalfPlanes(mlp, reference, 0)
+  const elevation = elevationHalfPlanes(room, mlp, reference, 0)
+  const fitsAlone = (planes: readonly HalfPlane[]) =>
+    clipToHalfPlanes(clearance, planes).length > 0
+  const azimuthRange = reference.azimuth.ideal?.range
+  const graded: (IdealGapAngle & { readonly planes: HalfPlane[] })[] = [
+    ...(azimuthRange
+      ? [{ angle: 'azimuth' as const, ideal: azimuthRange, planes: azimuth }]
+      : []),
+    {
+      angle: 'elevation',
+      ideal: reference.elevation.ideal.range,
+      planes: elevation,
+    },
+  ]
+  const alone = graded.filter(({ planes }) => !fitsAlone(planes))
+  const together = alone.length === 0
+  return {
+    channel: reference.channel,
+    angles: (together ? graded : alone).map(({ angle, ideal }) => ({
+      angle,
+      ideal,
+    })),
+    together,
+    walls: wallsInTheWay(room, [...azimuth, ...elevation]),
+  }
+}
+
+/** Far enough past any room to stand for the whole plane (meters). */
+const FAR = 1000
+
+/**
+ * The walls whose clearance keeps the region of `planes` out of the room:
+ * each wall that, left out alone, would let some of it in; failing any,
+ * each wall of a pair that would. In WALLS order.
+ */
+function wallsInTheWay(room: Room, planes: readonly HalfPlane[]): Wall[] {
+  const clearance = SPEAKER_WALL_CLEARANCE.meters
+  const xLimit = room.width / 2 - clearance
+  const wallPlanes: Record<Wall, HalfPlane> = {
+    front: { through: { x: 0, y: clearance }, normal: { x: 0, y: 1 } },
+    right: { through: { x: xLimit, y: 0 }, normal: { x: -1, y: 0 } },
+    back: {
+      through: { x: 0, y: room.length - clearance },
+      normal: { x: 0, y: -1 },
+    },
+    left: { through: { x: -xLimit, y: 0 }, normal: { x: 1, y: 0 } },
+  }
+  const opensWithout = (open: readonly Wall[]) =>
+    clipToHalfPlanes(rectangle(-FAR, FAR, -FAR, FAR), [
+      ...planes,
+      ...WALLS.filter((wall) => !open.includes(wall)).map(
+        (wall) => wallPlanes[wall],
+      ),
+    ]).length > 0
+  const alone = WALLS.filter((wall) => opensWithout([wall]))
+  if (alone.length > 0) return alone
+  const paired = WALLS.flatMap((first, index) =>
+    WALLS.slice(index + 1)
+      .filter((second) => opensWithout([first, second]))
+      .flatMap((second) => [first, second]),
+  )
+  return WALLS.filter((wall) => paired.includes(wall))
 }
